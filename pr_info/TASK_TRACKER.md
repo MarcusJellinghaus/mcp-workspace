@@ -35,7 +35,7 @@ See [step_2.md](./steps/step_2.md) for full details.
 
 - [x] Implementation (tests + production code)
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Commit message prepared
 
 ### Step 3: Porcelain swap, classification, debug logging, populated `error_category`
 
