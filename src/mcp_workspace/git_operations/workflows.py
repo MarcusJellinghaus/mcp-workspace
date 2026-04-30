@@ -66,7 +66,7 @@ def commit_all_changes(message: str, project_dir: Path) -> CommitResult:
             "success": False,
             "commit_hash": None,
             "error": error_msg,
-            "error_category": None,
+            "error_category": "validation_failed",
         }
 
     # Check if there are any changes to commit
@@ -92,7 +92,7 @@ def commit_all_changes(message: str, project_dir: Path) -> CommitResult:
                 "success": False,
                 "commit_hash": None,
                 "error": error_msg,
-                "error_category": None,
+                "error_category": "validation_failed",
             }
 
         logger.debug("Successfully staged all changes, proceeding to commit")
