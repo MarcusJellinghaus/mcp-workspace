@@ -19,6 +19,8 @@ from .repository_status import is_git_repository
 
 logger = logging.getLogger(__name__)
 
+PROBE_PAYLOAD = "mcp-workspace verify_git probe"
+
 
 class CheckResult(TypedDict):
     """Result of a single verification check."""
@@ -60,10 +62,33 @@ def _run(args: list[str], timeout: float) -> "subprocess.CompletedProcess[str]":
 
 
 @log_function_call
+def _run_with_input(
+    args: list[str],
+    *,
+    input: str,  # pylint: disable=redefined-builtin
+    timeout: float,
+) -> "subprocess.CompletedProcess[str]":
+    """Run an external binary feeding ``input`` to its stdin.
+
+    Same discipline as :func:`_run` (``capture_output=True``, ``text=True``,
+    ``check=False``, explicit timeout) but accepts a string fed to stdin.
+    Used only by the Tier 3 ``actual_signature`` deep probe.
+    """
+    return subprocess.run(  # noqa: S603
+        args,
+        input=input,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=timeout,
+    )
+
+
+@log_function_call
 def verify_git(
     project_dir: Path,
     *,
-    actually_sign: bool = False,  # pylint: disable=unused-argument
+    actually_sign: bool = False,
 ) -> dict[str, object]:
     """Verify local git environment and (if configured) signing setup.
 
@@ -531,6 +556,69 @@ def verify_git(
                 severity="warning",
                 error=str(exc)[:500],
             )
+
+        # ----------------------------------------------------------
+        # Tier 3: actual_signature (opt-in deep probe)
+        # ----------------------------------------------------------
+        if actually_sign:
+            if signing_format_resolved in ("ssh", "x509"):
+                result["actual_signature"] = CheckResult(
+                    ok=True,
+                    value="not implemented for ssh/x509",
+                    severity="warning",
+                )
+            else:
+                signing_key_check = result.get("signing_key")
+                signing_key_ok = (
+                    isinstance(signing_key_check, dict)
+                    and signing_key_check.get("ok") is True
+                )
+                if not signing_key_ok:
+                    result["actual_signature"] = CheckResult(
+                        ok=False,
+                        value="cannot probe: user.signingkey unavailable",
+                        severity="error",
+                        error="user.signingkey unavailable",
+                    )
+                elif signing_binary_path is None:
+                    result["actual_signature"] = CheckResult(
+                        ok=False,
+                        value="cannot probe: gpg binary unavailable",
+                        severity="error",
+                        error="signing binary unavailable",
+                    )
+                else:
+                    proc = _run_with_input(
+                        [
+                            signing_binary_path,
+                            "--clearsign",
+                            "--local-user",
+                            signing_key,
+                        ],
+                        input=PROBE_PAYLOAD,
+                        timeout=15,
+                    )
+                    if (
+                        proc.returncode == 0
+                        and "BEGIN PGP SIGNED MESSAGE" in proc.stdout
+                    ):
+                        logger.debug("signature produced")
+                        result["actual_signature"] = CheckResult(
+                            ok=True,
+                            value="probe signed successfully",
+                            severity="error",
+                        )
+                    else:
+                        logger.debug(
+                            "signature failed: returncode=%s",
+                            proc.returncode,
+                        )
+                        result["actual_signature"] = CheckResult(
+                            ok=False,
+                            value="signing failed",
+                            severity="error",
+                            error=(proc.stderr or "").strip()[:500],
+                        )
 
     # ------------------------------------------------------------------
     # overall_ok: all error-severity checks must pass

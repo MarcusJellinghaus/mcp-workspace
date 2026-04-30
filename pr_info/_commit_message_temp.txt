@@ -1,41 +1,54 @@
-Add Tier 2 auxiliary checks: agent_reachable, allowed_signers, verify_head
+Add Tier 3 actual_signature deep probe to verify_git
 
-Step 6 of issue #181: extend `verify_git` with three warning-tier
-auxiliary checks. All three are gated on `signing_intent_detected`
-and respect `signing_format_resolved` from Step 4. None of them
-affects `overall_ok` (warning severity only).
+Step 7 of issue #181: complete the `verify_git` pipeline with the
+opt-in `actual_signature` deep probe. The probe is gated on both
+`actually_sign=True` and `signing_intent_detected`, so the function
+still never prompts the user by default.
 
-- `agent_reachable` (openpgp / x509 only): resolves
-  `gpg-connect-agent` via `shutil.which` and invokes it with `/bye`
-  through the `_run` chokepoint with a 5-second timeout. Returncode
-  zero → `value="reachable"`, ok=True. Non-zero → `value="unreachable"`
-  with stderr (or stdout fallback) captured and truncated. Binary
-  absent from PATH → `value="not found"` with an install hint. Key
-  is absent from the result for ssh.
+- Add module constant `PROBE_PAYLOAD = "mcp-workspace verify_git probe"`
+  exposed at the module top per Decision #15.
 
-- `allowed_signers` (ssh only): extends the existing Tier 2
-  `safe_repo_context` block with a fourth `_get_config` read for
-  `gpg.ssh.allowedSignersFile` (the last config read in the block).
-  Unset → `value="not configured"` with install hint; configured but
-  path is not an existing file → `value="file missing: <path>"`;
-  configured and present → `value=<path>`, ok=True. Key is absent
-  from the result for openpgp / x509.
+- Add `_run_with_input(args, *, input, timeout)` sibling of `_run`,
+  same discipline (`capture_output=True`, `text=True`, `check=False`,
+  explicit timeout) but accepting a string fed to stdin. Used only by
+  the Tier 3 probe. Decorated with `@log_function_call` like the
+  other helpers.
 
-- `verify_head` (all formats): opens its own fresh
-  `safe_repo_context` (logically separate from the config-read
-  pipeline). Skips silently when `repo.head.is_valid()` is False
-  (no commits yet). Invokes `repo.git.verify_commit("HEAD")` via
-  GitPython. Success → `value="HEAD signature valid"`. A
-  `GitCommandError` whose stderr contains `"no signature"` or
-  `"not signed"` is treated as an opportunistic skip (HEAD is
-  unsigned, key absent from result). Any other `GitCommandError`
-  or unexpected exception during the repo open produces
-  `severity="warning"` — never escalated to `"error"` per
-  Decision #8.
+- Append the Tier 3 block to `verify_git` inside
+  `if signing_intent_detected:`:
+  - `gpg.format` resolved to `ssh` or `x509`: emit ok=True,
+    severity=warning, value="not implemented for ssh/x509"
+    without invoking any subprocess (Decision #7).
+  - openpgp pre-conditions:
+    - `result["signing_key"].ok` not True → ok=False, severity=error,
+      value="cannot probe: user.signingkey unavailable".
+    - `signing_binary_path` is None → ok=False, severity=error,
+      value="cannot probe: gpg binary unavailable".
+  - openpgp probe: invoke gpg `--clearsign --local-user <key>` via
+    `_run_with_input` with PROBE_PAYLOAD on stdin and a 15 s timeout
+    (Decision #6 — legitimate pinentry can take time). Success when
+    returncode 0 and stdout contains "BEGIN PGP SIGNED MESSAGE";
+    failure captures stderr (truncated to 500 chars).
+  - Logging discipline (Decision #11): only "signature produced" /
+    "signature failed: returncode=<n>" go to debug logs. The signed
+    blob in stdout is never logged.
 
-Tests cover: ok / unreachable / binary-missing / format gating for
-agent_reachable; ok / unset / file-missing / format gating for
-allowed_signers; signed HEAD / no commits / two unsigned-substring
-variants / unrelated GitCommandError / generic repo-open exception
-for verify_head; plus an acceptance test confirming a failing
-auxiliary does not flip `overall_ok` to False.
+Tests:
+- TestActuallySignDefault: default invocation does not add the key
+  and does not call `_run_with_input`.
+- TestActuallySignOpenPGP: happy path; fixed PROBE_PAYLOAD verified
+  via `call_args.kwargs`; pinentry-cancelled and no-secret-key
+  failure modes; signed-payload bytes absent from caplog.
+- TestActuallySignSSHandX509: ssh / x509 each emit the
+  not-implemented warning; ssh path does not invoke
+  `_run_with_input`.
+- TestActuallySignPreconditions: no-intent → key absent;
+  missing user.signingkey → severity=error;
+  unavailable signing binary → severity=error.
+- TestActuallySignNeverPromptsByDefault: default does not call
+  `_run_with_input` and no `--clearsign` ever appears in `_run`
+  invocations.
+- TestEndToEndHappyPath: full top-to-bottom smoke test with
+  `actually_sign=True`. Asserts every expected key is populated
+  (Tier 1 + Tier 2 openpgp branch + actual_signature), each with
+  `ok=True`, and `overall_ok=True`.
