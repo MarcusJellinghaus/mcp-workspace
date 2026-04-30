@@ -36,3 +36,24 @@ Branch: 181-add-verify-git-for-local-git-environment-signing-health-checks
 - Decisions.md: created to log D-A, D-B, and round 1 refinements.
 
 **Status**: changes applied to plan files; ready to commit.
+
+## Round 2 — 2026-04-30
+
+**Findings**:
+- Round 1 logging guidance contradicted itself: forbade `logging.getLogger(__name__)` but steps 5 and 7 require inline `logger.debug(...)` calls that `@log_function_call` does not provide.
+- Round 1 imported `setup_logging` in the new module unnecessarily — that helper is only called from `main.py` in the existing codebase; importing it elsewhere triggers W0611.
+- step_4.md HOW could distinguish the Tier 2 shared `safe_repo_context` block from step_2's Tier 1 block for clarity.
+
+**Decisions**:
+- All findings auto-approved as STRAIGHTFORWARD textual fixes — no design changes.
+- Reconcile per project pattern in `base_manager.py`: both `logger = logging.getLogger(__name__)` (inline debug) and `@log_function_call` (entry/exit) coexist.
+
+**User decisions**: none required this round.
+
+**Changes**:
+- step_1.md: import only `log_function_call` from `mcp_coder_utils.log_utils`; restore `logger = logging.getLogger(__name__)` for inline debug; document both coexist.
+- summary.md: align "Design choices" logging bullet to the both-coexist pattern; drop `setup_logging` import.
+- Decisions.md: D-A entry updated; round 2 clarification footnote added.
+- step_4.md: added one sentence distinguishing Tier 2 shared block from step_2's Tier 1 block.
+
+**Status**: changes applied to plan files; ready to commit.

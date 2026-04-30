@@ -52,16 +52,21 @@ def _run(args: list[str], timeout: float) -> subprocess.CompletedProcess[str]:
 
 ## HOW
 
-- `verification.py` imports: `subprocess`, `shutil`, `pathlib.Path`,
+- `verification.py` imports: `logging`, `subprocess`, `shutil`, `pathlib.Path`,
   `typing` bits, `git.Repo`, `git.exc.GitCommandError`, and from
   `.core` import `safe_repo_context`. (No `from .repository_status import is_git_repository`
   yet — Step 2 introduces the first call site.)
-- **Logging:** `from mcp_coder_utils.log_utils import setup_logging, log_function_call`
-  (per CLAUDE.md "Shared Libraries"). Do **not** use `logging.getLogger(__name__)` in
-  this module. Decorate `verify_git`, `_get_config`, and `_run` with
-  `@log_function_call`. (Future helper `_run_with_input` introduced in Step 7 will also
-  be decorated.) This diverges from `github_operations/verification.py`, which still
-  uses plain `logging` — see summary.md "Design choices" for rationale.
+- **Logging:** `from mcp_coder_utils.log_utils import log_function_call`
+  (per CLAUDE.md "Shared Libraries"). Use `logger = logging.getLogger(__name__)` at
+  module top for inline `logger.debug(...)` calls (matches `base_manager.py` and
+  `github_operations/*`). Apply `@log_function_call` to the public `verify_git`
+  function and non-trivial helpers (`_get_config`, `_run`, `_run_with_input`). Both
+  coexist — `log_function_call` covers entry/exit; `logger.debug` covers per-step
+  diagnostics (e.g. truncated stderr in Step 5, "signature produced/failed" in
+  Step 7). `setup_logging` is **not** imported here — it is only called from
+  `main.py`. This still diverges from `github_operations/verification.py` in that it
+  adds `@log_function_call` decorators — see summary.md "Design choices" for
+  rationale.
 - `git_operations/__init__.py`:
   - Add `from mcp_workspace.git_operations.verification import CheckResult, verify_git`
   - Add `"CheckResult"` and `"verify_git"` to `__all__` (alphabetised — see test below).

@@ -42,14 +42,18 @@ No changes to `server.py` — library-only function.
 
 ## Design choices (KISS-driven)
 
-- **Logging via `mcp_coder_utils.log_utils`.** `verification.py` imports
-  `setup_logging` and `log_function_call` from `mcp_coder_utils.log_utils` (see
-  shared-libraries section in CLAUDE.md). The public `verify_git` and any non-trivial
-  helpers (`_get_config`, `_run`, `_run_with_input`) are decorated with
-  `@log_function_call`. This diverges from `verify_github`, which still uses plain
-  `logging.getLogger(__name__)`; per project convention (CLAUDE.md "Shared Libraries")
-  and explicit user direction, the new module follows the convention rather than the
-  parallel module. No `logging.getLogger(__name__)` in the new module.
+- **Logging via `mcp_coder_utils.log_utils` + stdlib `logging`.** `verification.py`
+  imports `log_function_call` from `mcp_coder_utils.log_utils` (see shared-libraries
+  section in CLAUDE.md) and also defines `logger = logging.getLogger(__name__)` at
+  module top — both coexist per the project pattern in `base_manager.py` and the
+  rest of `github_operations/*`. The public `verify_git` and any non-trivial helpers
+  (`_get_config`, `_run`, `_run_with_input`) are decorated with `@log_function_call`
+  for entry/exit; inline `logger.debug(...)` calls handle per-step diagnostics
+  (truncated stderr, signature produced/failed, etc.) which the decorator does not
+  provide. `setup_logging` is **not** imported here — it is only called from
+  `main.py`. This still diverges from `verify_github`, which uses plain `logging`
+  without the decorator; per project convention (CLAUDE.md "Shared Libraries") and
+  explicit user direction, the new module adds `@log_function_call`.
 - **One module, one public function.** No per-tier sub-functions. `verify_git()` is a
   single linear function with three commented sections (Tier 1 / Tier 2 / Tier 3),
   mirroring the structure of `verify_github()`.

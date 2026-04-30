@@ -46,6 +46,9 @@ a function-local `signing_format_resolved: str` for downstream steps (5 & 7).
   they must NOT reopen it. (`verify_head` in Step 6 is a deliberate exception: it
   needs a fresh context after Tier 2 config reads complete because it accesses
   `repo.head` and `repo.git.verify_commit`.)
+  Note: this is a **separate** `safe_repo_context` block from the one used in
+  Step 2 for `user_identity` — Tier 1 closes its block before Tier 2 opens this
+  shared one.
 - Reuse `_get_config(repo, "gpg.format")` and `_get_config(repo, "user.signingkey")`.
 - The `flags_truthy` dict from Step 3 must remain in scope so Step 4 can consult
   `flags_truthy["commit.gpgsign"]` for the severity decision.

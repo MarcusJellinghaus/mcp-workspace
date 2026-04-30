@@ -9,17 +9,31 @@ review are listed here.
 ### D-A. Logging library — answered (B): use `mcp_coder_utils.log_utils`
 
 User direction: the new module `git_operations/verification.py` uses
-`mcp_coder_utils.log_utils` (per CLAUDE.md "Shared Libraries"), not plain
-`logging.getLogger(__name__)`.
+`mcp_coder_utils.log_utils` (per CLAUDE.md "Shared Libraries") **alongside**
+the standard library `logging` module — both coexist per the project
+pattern.
 
-- `verification.py` imports
-  `from mcp_coder_utils.log_utils import setup_logging, log_function_call`.
+- `verification.py` imports `from mcp_coder_utils.log_utils import log_function_call`
+  (only `log_function_call`; `setup_logging` is **not** imported — it is
+  only called from `main.py`).
+- The module also defines `logger = logging.getLogger(__name__)` at module
+  top for inline `logger.debug(...)` calls. This matches the project
+  pattern in `src/mcp_workspace/github_operations/base_manager.py` and the
+  rest of `github_operations/*`.
 - `verify_git` and the non-trivial helpers (`_get_config`, `_run`,
   later `_run_with_input`) are decorated with `@log_function_call`.
-- This deliberately **diverges from `github_operations/verification.py`**,
-  which still uses plain `logging`. Per CLAUDE.md and explicit user
-  direction, the new module follows the project convention rather than
-  the parallel module.
+- The two coexist: `@log_function_call` covers entry/exit logging;
+  `logger.debug` covers per-step diagnostics (e.g. truncated stderr in
+  Step 5, "signature produced/failed" in Step 7) which the decorator does
+  not provide.
+- This still diverges from `github_operations/verification.py` in that
+  it adds `@log_function_call` decorators on top of plain `logging`. Per
+  CLAUDE.md and explicit user direction, the new module follows the
+  project convention.
+
+**Round 2 clarification:** the round 1 wording said the module avoids
+`logging.getLogger(__name__)`. That contradicted the inline-debug-logging
+requirements in steps 5 and 7. Corrected here: both are used.
 
 Recorded in: `summary.md` ("Design choices"), `step_1.md` (HOW section).
 
