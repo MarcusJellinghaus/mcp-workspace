@@ -36,12 +36,22 @@ def commit_staged_files(message: str, project_dir: Path) -> CommitResult:
     if not message or not message.strip():
         error_msg = "Commit message cannot be empty or contain only whitespace"
         logger.error(error_msg)
-        return {"success": False, "commit_hash": None, "error": error_msg}
+        return {
+            "success": False,
+            "commit_hash": None,
+            "error": error_msg,
+            "error_category": None,
+        }
 
     if not is_git_repository(project_dir):
         error_msg = f"Directory is not a git repository: {project_dir}"
         logger.error(error_msg)
-        return {"success": False, "commit_hash": None, "error": error_msg}
+        return {
+            "success": False,
+            "commit_hash": None,
+            "error": error_msg,
+            "error_category": None,
+        }
 
     try:
         # Check if there are staged files to commit
@@ -49,7 +59,12 @@ def commit_staged_files(message: str, project_dir: Path) -> CommitResult:
         if not staged_files:
             error_msg = "No staged files to commit"
             logger.error(error_msg)
-            return {"success": False, "commit_hash": None, "error": error_msg}
+            return {
+                "success": False,
+                "commit_hash": None,
+                "error": error_msg,
+                "error_category": None,
+            }
 
         # Create the commit
         with safe_repo_context(project_dir) as repo:
@@ -64,18 +79,33 @@ def commit_staged_files(message: str, project_dir: Path) -> CommitResult:
                 message.strip(),
             )
 
-            return {"success": True, "commit_hash": commit_hash, "error": None}
+            return {
+                "success": True,
+                "commit_hash": commit_hash,
+                "error": None,
+                "error_category": None,
+            }
 
     except (InvalidGitRepositoryError, GitCommandError) as e:
         error_msg = f"Git error creating commit: {e}"
         logger.error(error_msg)
-        return {"success": False, "commit_hash": None, "error": error_msg}
+        return {
+            "success": False,
+            "commit_hash": None,
+            "error": error_msg,
+            "error_category": None,
+        }
     except (
         Exception
     ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         error_msg = f"Unexpected error creating commit: {e}"
         logger.error(error_msg)
-        return {"success": False, "commit_hash": None, "error": error_msg}
+        return {
+            "success": False,
+            "commit_hash": None,
+            "error": error_msg,
+            "error_category": None,
+        }
 
 
 def get_latest_commit_sha(project_dir: Path) -> Optional[str]:

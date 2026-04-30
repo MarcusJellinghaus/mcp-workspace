@@ -30,6 +30,7 @@ class TestCommitOperations:
 
         assert result["success"] is True
         assert result["error"] is None
+        assert result["error_category"] is None
         assert len(list(repo.iter_commits())) == 1
 
     def test_commit_all_changes(self, git_repo: tuple[Repo, Path]) -> None:

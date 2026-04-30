@@ -3,7 +3,7 @@
 import logging
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, Optional, TypedDict
+from typing import Iterator, Literal, Optional, TypedDict
 
 from git import Repo
 
@@ -22,6 +22,9 @@ class CommitResult(TypedDict):
     success: bool
     commit_hash: Optional[str]
     error: Optional[str]
+    error_category: Optional[
+        Literal["signing_failed", "commit_failed", "validation_failed"]
+    ]
 
 
 # Type alias for git push result structure

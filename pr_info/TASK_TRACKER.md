@@ -33,8 +33,8 @@ See [step_1.md](./steps/step_1.md) for full details.
 
 See [step_2.md](./steps/step_2.md) for full details.
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 
 ### Step 3: Porcelain swap, classification, debug logging, populated `error_category`

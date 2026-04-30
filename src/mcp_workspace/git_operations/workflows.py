@@ -62,13 +62,23 @@ def commit_all_changes(message: str, project_dir: Path) -> CommitResult:
     if not is_git_repository(project_dir):
         error_msg = f"Directory is not a git repository: {project_dir}"
         logger.error(error_msg)
-        return {"success": False, "commit_hash": None, "error": error_msg}
+        return {
+            "success": False,
+            "commit_hash": None,
+            "error": error_msg,
+            "error_category": None,
+        }
 
     # Check if there are any changes to commit
     status = get_full_status(project_dir)
     if not status["staged"] and not status["modified"] and not status["untracked"]:
         logger.info("No changes to commit")
-        return {"success": True, "commit_hash": None, "error": None}
+        return {
+            "success": True,
+            "commit_hash": None,
+            "error": None,
+            "error_category": None,
+        }
 
     try:
         # Stage all unstaged changes first (using staging module)
@@ -78,7 +88,12 @@ def commit_all_changes(message: str, project_dir: Path) -> CommitResult:
         if not staging_result:
             error_msg = "Failed to stage changes"
             logger.error(error_msg)
-            return {"success": False, "commit_hash": None, "error": error_msg}
+            return {
+                "success": False,
+                "commit_hash": None,
+                "error": error_msg,
+                "error_category": None,
+            }
 
         logger.debug("Successfully staged all changes, proceeding to commit")
 
@@ -103,7 +118,12 @@ def commit_all_changes(message: str, project_dir: Path) -> CommitResult:
     ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         error_msg = f"Unexpected error during commit all changes workflow: {e}"
         logger.error(error_msg)
-        return {"success": False, "commit_hash": None, "error": error_msg}
+        return {
+            "success": False,
+            "commit_hash": None,
+            "error": error_msg,
+            "error_category": None,
+        }
 
 
 def needs_rebase(
