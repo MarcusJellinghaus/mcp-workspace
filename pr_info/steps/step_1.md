@@ -52,13 +52,19 @@ def _run(args: list[str], timeout: float) -> subprocess.CompletedProcess[str]:
 
 ## HOW
 
-- `verification.py` imports: `subprocess`, `shutil`, `logging`, `pathlib.Path`,
+- `verification.py` imports: `subprocess`, `shutil`, `pathlib.Path`,
   `typing` bits, `git.Repo`, `git.exc.GitCommandError`, and from
   `.core` import `safe_repo_context`. (No `from .repository_status import is_git_repository`
   yet — Step 2 introduces the first call site.)
+- **Logging:** `from mcp_coder_utils.log_utils import setup_logging, log_function_call`
+  (per CLAUDE.md "Shared Libraries"). Do **not** use `logging.getLogger(__name__)` in
+  this module. Decorate `verify_git`, `_get_config`, and `_run` with
+  `@log_function_call`. (Future helper `_run_with_input` introduced in Step 7 will also
+  be decorated.) This diverges from `github_operations/verification.py`, which still
+  uses plain `logging` — see summary.md "Design choices" for rationale.
 - `git_operations/__init__.py`:
   - Add `from mcp_workspace.git_operations.verification import CheckResult, verify_git`
-  - Add `"CheckResult"` and `"verify_git"` to `__all__` (alphabetised).
+  - Add `"CheckResult"` and `"verify_git"` to `__all__` (alphabetised — see test below).
 - `.importlinter` `subprocess_ban` contract — extend the existing `ignore_imports` list:
   ```ini
   ignore_imports =
@@ -112,6 +118,11 @@ In `tests/git_operations/test_verification.py`:
 - `test_run_uses_subprocess_discipline` — patch `subprocess.run`, call `_run(["gpg", "--version"], timeout=5)`,
   assert it was invoked with `stdin=subprocess.DEVNULL`, `capture_output=True`,
   `text=True`, `check=False`, `timeout=5`.
+- `test_run_timeout_propagates` — patch `subprocess.run` with
+  `side_effect=subprocess.TimeoutExpired(cmd=["gpg"], timeout=5)`; assert calling
+  `_run(["gpg", "--version"], timeout=5)` re-raises `subprocess.TimeoutExpired`
+  unchanged (no swallowing). Place this test in the same class as the other
+  `_run` tests.
 - `test_check_result_typed_dict_minimal` — construct
   `CheckResult(ok=True, value="x", severity="error")`; assert mapping access works
   (smoke test for the TypedDict).
@@ -120,6 +131,11 @@ In `tests/git_operations/test_init_exports.py`:
 
 - Existing two tests now verify count is 35 and that `verify_git` and `CheckResult` are
   in `__all__`.
+- `test_all_remains_alphabetised` — assert that
+  `list(mcp_workspace.git_operations.__all__) == sorted(mcp_workspace.git_operations.__all__)`
+  after inserting `CheckResult` and `verify_git`. Either add this as a new test or
+  extend the existing exports test with the same assertion. Guards against accidental
+  ordering regression when new symbols are added.
 
 ## Acceptance for this step
 

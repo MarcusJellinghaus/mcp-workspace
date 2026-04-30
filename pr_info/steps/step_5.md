@@ -23,7 +23,7 @@ Both checks gated on `signing_intent_detected`. Each respects `signing_format_re
 | Key | Probe (per format) | Severity |
 |---|---|---|
 | `signing_binary` | openpgp: `gpg.program` config first; if set but file missing → **error, no fallback** (Decision #13). If unset → `shutil.which("gpg")`. Then `_run([resolved, "--version"], 5)`. ssh: `shutil.which("ssh-keygen")` + `--version`. x509: `shutil.which("gpgsm")` + `--version`. | error |
-| `signing_key_accessible` | openpgp: `_run([gpg, "--list-secret-keys", user.signingkey], 5)` returns non-empty match. ssh: `user.signingkey` resolves to a readable file (`Path(...).is_file()`) or matches a loaded key (file path branch only — agent branch deferred). x509: `_run([gpgsm, "--list-secret-keys", user.signingkey], 5)`. | error |
+| `signing_key_accessible` | openpgp: `_run([gpg, "--list-secret-keys", user.signingkey], 5)` returns non-empty match. ssh: file-existence only — `Path(user.signingkey).is_file()`. Agent-loaded keys are NOT detected (see summary.md "Out of scope"). x509: `_run([gpgsm, "--list-secret-keys", user.signingkey], 5)`. | error |
 
 `install_hint`s:
 - `signing_binary` (openpgp): `"Install Gpg4win (Windows) or 'gpg' (Linux/Mac), or set gpg.format=ssh"`.
@@ -35,6 +35,10 @@ for Steps 6 (`agent_reachable`) and 7 (`actual_signature`).
 
 ## HOW
 
+- **Shared Tier 2 `safe_repo_context` block.** Step 5's config reads (`gpg.program`)
+  extend the same `with safe_repo_context(project_dir) as repo:` block opened in
+  Step 4. Do **not** reopen the context here — keep it open until Step 6's auxiliary
+  config reads complete.
 - Resolve `gpg.program` via `_get_config(repo, "gpg.program")` (only for openpgp).
 - For "set but missing": `if raw and not Path(raw).is_file()` → `signing_binary` is
   `ok=False, severity="error", value="configured but missing: <raw>"`,

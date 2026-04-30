@@ -40,7 +40,12 @@ a function-local `signing_format_resolved: str` for downstream steps (5 & 7).
 
 ## HOW
 
-- Add to the existing `safe_repo_context` block from Step 3 (or open a fresh one).
+- **Shared Tier 2 `safe_repo_context` block.** Step 4 **opens** a single
+  `with safe_repo_context(project_dir) as repo:` block that spans **all Tier 2
+  config reads** across Steps 4, 5, and 6. Steps 5 and 6 extend this same block —
+  they must NOT reopen it. (`verify_head` in Step 6 is a deliberate exception: it
+  needs a fresh context after Tier 2 config reads complete because it accesses
+  `repo.head` and `repo.git.verify_commit`.)
 - Reuse `_get_config(repo, "gpg.format")` and `_get_config(repo, "user.signingkey")`.
 - The `flags_truthy` dict from Step 3 must remain in scope so Step 4 can consult
   `flags_truthy["commit.gpgsign"]` for the severity decision.

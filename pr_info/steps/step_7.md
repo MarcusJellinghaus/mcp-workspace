@@ -107,6 +107,24 @@ Class `TestActuallySignPreconditions`:
 Class `TestActuallySignNeverPromptsByDefault`:
 - `test_default_does_not_prompt` — explicit assertion that `actually_sign=False` (default) → `_run_with_input` is not called and `subprocess.run` is not called with any pinentry-capable command. (Reinforces "never prompts by default".)
 
+Class `TestEndToEndHappyPath` (final test — full integration via mocks):
+- `test_full_happy_path_all_keys_populated_overall_ok` — construct a realistic full
+  mock with: signing intent detected (`commit.gpgsign=true`, `tag.gpgsign=true`,
+  `rebase.gpgSign=true`); `gpg.format=openpgp`; `user.signingkey` set; `gpg.program`
+  unset; `shutil.which("gpg")` and `shutil.which("gpg-connect-agent")` resolving to
+  valid paths; `_run` returncode 0 for all probes (`gpg --version`,
+  `gpg --list-secret-keys`, `gpg-connect-agent /bye`); `repo.head.is_valid()=True`
+  and `repo.git.verify_commit("HEAD")` succeeding; `actually_sign=True` with
+  `_run_with_input` returning a clearsigned blob.
+  Assert that **every** expected key is populated:
+  Tier 1: `git_binary`, `git_repo`, `user_identity`, `signing_intent`,
+  `signing_consistency`. Tier 2 (openpgp branch): `signing_format`, `signing_key`,
+  `signing_binary`, `signing_key_accessible`, `agent_reachable`, `verify_head`
+  (no `allowed_signers` — that's ssh-only). Tier 3: `actual_signature`. Plus
+  `overall_ok`. Assert `result["overall_ok"] is True` and that every per-check
+  `CheckResult` has `ok=True`. Place this as the **final** test in step_7's test
+  module — it acts as a top-to-bottom smoke test of the whole pipeline.
+
 ## Acceptance for this step
 
 - `verify_git(tmp_path)` (default) → `"actual_signature" not in result` and no signing

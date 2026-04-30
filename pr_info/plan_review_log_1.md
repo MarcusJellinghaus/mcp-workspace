@@ -1,0 +1,38 @@
+# Plan Review Log — Issue #181
+
+Run: 1
+Started: 2026-04-30
+Branch: 181-add-verify-git-for-local-git-environment-signing-health-checks
+
+## Round 1 — 2026-04-30
+
+**Findings**:
+- Plan covers all 15 Decisions and acceptance criteria; structure mirrors `verify_github`.
+- Step granularity is appropriate; ordering and dependencies are sound.
+- Step 1 missing a `_run` timeout propagation test.
+- Step 1 missing assertion that `__all__` remains alphabetised after `verify_git` insertion.
+- Steps 4/5/6 silent on whether the Tier 2 `safe_repo_context` block is reopened or extended across steps.
+- Step 7 lacks an end-to-end happy-path test asserting all keys populated and `overall_ok=True`.
+- summary.md "Out of scope" doesn't surface the ssh agent-loaded-key narrowing.
+- DESIGN: logging library — plan uses plain `logging.getLogger`, CLAUDE.md mandates `mcp_coder_utils.log_utils`.
+- DESIGN: ssh `signing_key_accessible` — issue mentions "matches a loaded key", plan only checks file existence.
+
+**Decisions**:
+- 5 STRAIGHTFORWARD items auto-approved (timeout test, alphabetised assertion, shared safe_repo_context block, end-to-end happy-path test, Out-of-scope ssh note).
+- D-C (Tier 3 ssh/x509 ok=True+warning) — skipped; Decision #7 explicit in issue, no relitigation.
+- D-A and D-B escalated to user.
+
+**User decisions**:
+- D-A (logging library): Use `mcp_coder_utils.log_utils` (`setup_logging`, `@log_function_call`). User confirmed: "always use log_utils" — applies project-wide for new modules even when a parallel reference module is inconsistent.
+- D-B (ssh `signing_key_accessible` scope): File-existence only + Out-of-scope note in summary.md. User chose option A after clarification on what `ssh-add -L` is.
+
+**Changes**:
+- summary.md: added Out-of-scope ssh agent-key bullet; documented logging-library divergence from verify_github.
+- step_1.md: switched logging to `mcp_coder_utils.log_utils` + `@log_function_call`; added `test_run_timeout_propagates`; added `test_all_remains_alphabetised`.
+- step_4.md: clarified Step 4 opens the shared Tier 2 `safe_repo_context` block.
+- step_5.md: clarified block is extended (not reopened); rewrote `signing_key_accessible` ssh probe to file-existence-only.
+- step_6.md: clarified `allowed_signers` is the last Tier 2 read in the shared block; `verify_head` opens a fresh context deliberately.
+- step_7.md: added `TestEndToEndHappyPath::test_full_happy_path_all_keys_populated_overall_ok`.
+- Decisions.md: created to log D-A, D-B, and round 1 refinements.
+
+**Status**: changes applied to plan files; ready to commit.

@@ -36,10 +36,18 @@
 
 ## HOW
 
+- **Shared Tier 2 `safe_repo_context` block.** Step 6's config read for
+  `allowed_signers` (`gpg.ssh.allowedSignersFile`) extends the same
+  `with safe_repo_context(project_dir) as repo:` block opened in Step 4.
+  This is the **last** Tier 2 config read — the block ends after it.
+  `verify_head` then opens its own fresh context (it needs `repo.head` /
+  `repo.git.verify_commit` and is logically separate from the Tier 2 config-read
+  pipeline).
 - Reuse `signing_binary_path` resolution from Step 5 only conceptually — `gpg-connect-agent`
   is its own binary. Resolve fresh via `shutil.which`.
-- For `verify_head`, reopen `safe_repo_context(project_dir)` (cheap; `repo.head.is_valid()`
-  is fast). Catch `GitCommandError` from `repo.git.verify_commit`.
+- For `verify_head`, open a fresh `safe_repo_context(project_dir)` (cheap;
+  `repo.head.is_valid()` is fast). Catch `GitCommandError` from
+  `repo.git.verify_commit`.
 - Only add `agent_reachable` to result for openpgp / x509 (absent for ssh).
 - Only add `allowed_signers` for ssh (absent for openpgp / x509).
 - `verify_head` is added for all formats (subject to the `is_valid()` skip).

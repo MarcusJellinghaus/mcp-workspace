@@ -42,6 +42,14 @@ No changes to `server.py` — library-only function.
 
 ## Design choices (KISS-driven)
 
+- **Logging via `mcp_coder_utils.log_utils`.** `verification.py` imports
+  `setup_logging` and `log_function_call` from `mcp_coder_utils.log_utils` (see
+  shared-libraries section in CLAUDE.md). The public `verify_git` and any non-trivial
+  helpers (`_get_config`, `_run`, `_run_with_input`) are decorated with
+  `@log_function_call`. This diverges from `verify_github`, which still uses plain
+  `logging.getLogger(__name__)`; per project convention (CLAUDE.md "Shared Libraries")
+  and explicit user direction, the new module follows the convention rather than the
+  parallel module. No `logging.getLogger(__name__)` in the new module.
 - **One module, one public function.** No per-tier sub-functions. `verify_git()` is a
   single linear function with three commented sections (Tier 1 / Tier 2 / Tier 3),
   mirroring the structure of `verify_github()`.
@@ -119,3 +127,4 @@ Across all steps:
 - Auto-fix / interactive setup helpers.
 - Real-gpg integration test in CI (manual integration test stays on the developer machine).
 - Non-signing git environment checks (hook integrity, remote reachability, etc.).
+- ssh `signing_key_accessible`: agent-loaded keys not detected — only file existence at the configured `user.signingkey` path is checked.
