@@ -1,36 +1,41 @@
-Add Tier 2 binary checks: signing_binary, signing_key_accessible
+Add Tier 2 auxiliary checks: agent_reachable, allowed_signers, verify_head
 
-Step 5 of issue #181: extend `verify_git` with the two binary-probe
-Tier 2 checks. Both are gated on `signing_intent_detected` and respect
-`signing_format_resolved` from Step 4.
+Step 6 of issue #181: extend `verify_git` with three warning-tier
+auxiliary checks. All three are gated on `signing_intent_detected`
+and respect `signing_format_resolved` from Step 4. None of them
+affects `overall_ok` (warning severity only).
 
-- `signing_binary`: resolves the signing binary by format. openpgp
-  honours `gpg.program` with precedence over `shutil.which("gpg")`;
-  when set but pointing to a non-existent file the check is a hard
-  error with no PATH fallback (Decision #13). ssh resolves
-  `ssh-keygen` and x509 resolves `gpgsm`. Each resolved binary is
-  invoked with `--version` through the `_run` chokepoint; the first
-  line of stdout (capped at 200 chars) is recorded as the value, a
-  non-zero exit yields `value="not runnable"` and clears the resolved
-  path so downstream checks know not to use it.
+- `agent_reachable` (openpgp / x509 only): resolves
+  `gpg-connect-agent` via `shutil.which` and invokes it with `/bye`
+  through the `_run` chokepoint with a 5-second timeout. Returncode
+  zero → `value="reachable"`, ok=True. Non-zero → `value="unreachable"`
+  with stderr (or stdout fallback) captured and truncated. Binary
+  absent from PATH → `value="not found"` with an install hint. Key
+  is absent from the result for ssh.
 
-- `signing_key_accessible`: probes the configured signing key.
-  openpgp / x509 invoke `gpg --list-secret-keys` /
-  `gpgsm --list-secret-keys`; ssh checks file existence at the
-  configured `user.signingkey` path (agent-loaded keys remain out of
-  scope per summary.md). When `user.signingkey` is unset or the
-  signing binary is unavailable, the check emits an explicit
-  `value="cannot probe: ..."`. The key id is never logged or echoed
-  into `CheckResult.value` (Decision #11). Severity for the
-  unset-key probe-skip branch mirrors `signing_key`'s severity rule
-  so warning-only configurations (only tag/rebase/push.gpgSign with
-  no key) still report overall_ok=True.
+- `allowed_signers` (ssh only): extends the existing Tier 2
+  `safe_repo_context` block with a fourth `_get_config` read for
+  `gpg.ssh.allowedSignersFile` (the last config read in the block).
+  Unset → `value="not configured"` with install hint; configured but
+  path is not an existing file → `value="file missing: <path>"`;
+  configured and present → `value=<path>`, ok=True. Key is absent
+  from the result for openpgp / x509.
 
-The function-local `signing_binary_path` (Optional[str]) is carried
-into the same Tier 2 block so Steps 6 and 7 can reuse it.
+- `verify_head` (all formats): opens its own fresh
+  `safe_repo_context` (logically separate from the config-read
+  pipeline). Skips silently when `repo.head.is_valid()` is False
+  (no commits yet). Invokes `repo.git.verify_commit("HEAD")` via
+  GitPython. Success → `value="HEAD signature valid"`. A
+  `GitCommandError` whose stderr contains `"no signature"` or
+  `"not signed"` is treated as an opportunistic skip (HEAD is
+  unsigned, key absent from result). Any other `GitCommandError`
+  or unexpected exception during the repo open produces
+  `severity="warning"` — never escalated to `"error"` per
+  Decision #8.
 
-Tests cover: all three formats for both checks; the gpg.program
-precedence and missing-file no-fallback rule; binary `--version`
-failure; ssh / x509 binary missing-on-PATH branches; both
-"cannot probe" branches; and the invariant that a fake key id never
-appears in DEBUG-level log capture.
+Tests cover: ok / unreachable / binary-missing / format gating for
+agent_reachable; ok / unset / file-missing / format gating for
+allowed_signers; signed HEAD / no commits / two unsigned-substring
+variants / unrelated GitCommandError / generic repo-open exception
+for verify_head; plus an acceptance test confirming a failing
+auxiliary does not flip `overall_ok` to False.

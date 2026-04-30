@@ -257,11 +257,15 @@ def verify_git(
     signing_format_resolved: str = "openpgp"
     signing_key: Optional[str] = None
     gpg_program_raw: Optional[str] = None
+    allowed_signers_raw: Optional[str] = None
     if signing_intent_detected:
         with safe_repo_context(project_dir) as repo:
             raw_format = _get_config(repo, "gpg.format")
             signing_key = _get_config(repo, "user.signingkey")
             gpg_program_raw = _get_config(repo, "gpg.program")
+            allowed_signers_raw = _get_config(
+                repo, "gpg.ssh.allowedSignersFile"
+            )
 
         if raw_format is None:
             signing_format_resolved = "openpgp"
@@ -430,6 +434,103 @@ def verify_git(
                     severity="error",
                     error=f"ssh key file not found: {signing_key}",
                 )
+
+        # ----------------------------------------------------------
+        # Tier 2: agent_reachable (openpgp / x509 only)
+        # ----------------------------------------------------------
+        if signing_format_resolved in ("openpgp", "x509"):
+            agent_path = shutil.which("gpg-connect-agent")
+            if agent_path is None:
+                result["agent_reachable"] = CheckResult(
+                    ok=False,
+                    value="not found",
+                    severity="warning",
+                    error="gpg-connect-agent not on PATH",
+                    install_hint=(
+                        "Install Gpg4win (Windows) or GnuPG (Linux/Mac); "
+                        "the agent ships with the toolkit."
+                    ),
+                )
+            else:
+                proc = _run([agent_path, "/bye"], timeout=5)
+                if proc.returncode == 0:
+                    result["agent_reachable"] = CheckResult(
+                        ok=True, value="reachable", severity="warning"
+                    )
+                else:
+                    result["agent_reachable"] = CheckResult(
+                        ok=False,
+                        value="unreachable",
+                        severity="warning",
+                        error=(proc.stderr or proc.stdout).strip()[:500],
+                    )
+
+        # ----------------------------------------------------------
+        # Tier 2: allowed_signers (ssh only)
+        # ----------------------------------------------------------
+        if signing_format_resolved == "ssh":
+            if allowed_signers_raw is None:
+                result["allowed_signers"] = CheckResult(
+                    ok=False,
+                    value="not configured",
+                    severity="warning",
+                    error="gpg.ssh.allowedSignersFile is not set",
+                    install_hint=(
+                        "Set gpg.ssh.allowedSignersFile to the path of an "
+                        "allowed-signers file."
+                    ),
+                )
+            elif not Path(allowed_signers_raw).is_file():
+                result["allowed_signers"] = CheckResult(
+                    ok=False,
+                    value=f"file missing: {allowed_signers_raw}",
+                    severity="warning",
+                    error=(
+                        f"allowed signers file does not exist: "
+                        f"{allowed_signers_raw}"
+                    ),
+                )
+            else:
+                result["allowed_signers"] = CheckResult(
+                    ok=True, value=allowed_signers_raw, severity="warning"
+                )
+
+        # ----------------------------------------------------------
+        # Tier 2: verify_head (all formats)
+        # ----------------------------------------------------------
+        try:
+            with safe_repo_context(project_dir) as repo:
+                if repo.head.is_valid():
+                    try:
+                        repo.git.verify_commit("HEAD")
+                        result["verify_head"] = CheckResult(
+                            ok=True,
+                            value="HEAD signature valid",
+                            severity="warning",
+                        )
+                    except GitCommandError as exc:
+                        stderr = (getattr(exc, "stderr", "") or "").lower()
+                        if (
+                            "no signature" in stderr
+                            or "not signed" in stderr
+                        ):
+                            logger.debug(
+                                "verify_head skipped: HEAD is unsigned"
+                            )
+                        else:
+                            result["verify_head"] = CheckResult(
+                                ok=False,
+                                value="verify-commit failed",
+                                severity="warning",
+                                error=str(exc)[:500],
+                            )
+        except Exception as exc:  # pylint: disable=broad-except
+            result["verify_head"] = CheckResult(
+                ok=False,
+                value="verify-commit failed",
+                severity="warning",
+                error=str(exc)[:500],
+            )
 
     # ------------------------------------------------------------------
     # overall_ok: all error-severity checks must pass
