@@ -1,54 +1,23 @@
-Add Tier 3 actual_signature deep probe to verify_git
+style: format verification module and split oversized test file
 
-Step 7 of issue #181: complete the `verify_git` pipeline with the
-opt-in `actual_signature` deep probe. The probe is gated on both
-`actually_sign=True` and `signing_intent_detected`, so the function
-still never prompts the user by default.
+Apply Black formatting to src/mcp_workspace/git_operations/verification.py:
+collapse multi-line expressions and string concatenations that fit on a
+single line within the 88-character limit.
 
-- Add module constant `PROBE_PAYLOAD = "mcp-workspace verify_git probe"`
-  exposed at the module top per Decision #15.
+Split tests/git_operations/test_verification.py (1897 lines) into four
+files, each well under the 750-line size threshold:
 
-- Add `_run_with_input(args, *, input, timeout)` sibling of `_run`,
-  same discipline (`capture_output=True`, `text=True`, `check=False`,
-  explicit timeout) but accepting a string fed to stdin. Used only by
-  the Tier 3 probe. Decorated with `@log_function_call` like the
-  other helpers.
+- test_verification.py: Tier 1 baseline + signing detection tests,
+  retains the _patch_baseline_ok helper (~620 lines).
+- test_verification_tier2_binary.py: Tier 2 binary checks
+  (signing_binary, signing_key_accessible, gpg.program precedence)
+  with the _patch_step5 helper (~520 lines).
+- test_verification_tier2_aux.py: Tier 2 auxiliary checks
+  (agent_reachable, allowed_signers, verify_head) with the _patch_step6
+  helper (~346 lines).
+- test_verification_tier3.py: Tier 3 actual_signature deep-probe tests
+  and the end-to-end happy path with the _patch_step7 helper
+  (~400 lines).
 
-- Append the Tier 3 block to `verify_git` inside
-  `if signing_intent_detected:`:
-  - `gpg.format` resolved to `ssh` or `x509`: emit ok=True,
-    severity=warning, value="not implemented for ssh/x509"
-    without invoking any subprocess (Decision #7).
-  - openpgp pre-conditions:
-    - `result["signing_key"].ok` not True → ok=False, severity=error,
-      value="cannot probe: user.signingkey unavailable".
-    - `signing_binary_path` is None → ok=False, severity=error,
-      value="cannot probe: gpg binary unavailable".
-  - openpgp probe: invoke gpg `--clearsign --local-user <key>` via
-    `_run_with_input` with PROBE_PAYLOAD on stdin and a 15 s timeout
-    (Decision #6 — legitimate pinentry can take time). Success when
-    returncode 0 and stdout contains "BEGIN PGP SIGNED MESSAGE";
-    failure captures stderr (truncated to 500 chars).
-  - Logging discipline (Decision #11): only "signature produced" /
-    "signature failed: returncode=<n>" go to debug logs. The signed
-    blob in stdout is never logged.
-
-Tests:
-- TestActuallySignDefault: default invocation does not add the key
-  and does not call `_run_with_input`.
-- TestActuallySignOpenPGP: happy path; fixed PROBE_PAYLOAD verified
-  via `call_args.kwargs`; pinentry-cancelled and no-secret-key
-  failure modes; signed-payload bytes absent from caplog.
-- TestActuallySignSSHandX509: ssh / x509 each emit the
-  not-implemented warning; ssh path does not invoke
-  `_run_with_input`.
-- TestActuallySignPreconditions: no-intent → key absent;
-  missing user.signingkey → severity=error;
-  unavailable signing binary → severity=error.
-- TestActuallySignNeverPromptsByDefault: default does not call
-  `_run_with_input` and no `--clearsign` ever appears in `_run`
-  invocations.
-- TestEndToEndHappyPath: full top-to-bottom smoke test with
-  `actually_sign=True`. Asserts every expected key is populated
-  (Tier 1 + Tier 2 openpgp branch + actual_signature), each with
-  `ok=True`, and `overall_ok=True`.
+All 347 verification tests still pass; pylint, mypy, and the full test
+suite (1290 passed, 1 skipped) remain green.

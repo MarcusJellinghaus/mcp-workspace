@@ -187,9 +187,7 @@ def verify_git(
     # Tier 1: signing detection
     # ------------------------------------------------------------------
     flags_truthy: dict[str, bool] = {}
-    git_repo_ok = (
-        isinstance(git_repo_check, dict) and git_repo_check.get("ok") is True
-    )
+    git_repo_ok = isinstance(git_repo_check, dict) and git_repo_check.get("ok") is True
     if git_repo_ok:
         with safe_repo_context(project_dir) as repo:
             for flag in (
@@ -198,9 +196,7 @@ def verify_git(
                 "rebase.gpgSign",
                 "push.gpgSign",
             ):
-                flags_truthy[flag] = (
-                    _get_config(repo, flag, "--type=bool") == "true"
-                )
+                flags_truthy[flag] = _get_config(repo, flag, "--type=bool") == "true"
 
     signing_intent_detected = any(flags_truthy.values())
     logger.debug("signing intent detected: %s", signing_intent_detected)
@@ -253,20 +249,14 @@ def verify_git(
                 if flags_truthy["rebase.gpgSign"]
                 else "rebase.gpgSign unset"
             )
-            tag_label = (
-                "tag ok"
-                if flags_truthy["tag.gpgsign"]
-                else "tag.gpgsign unset"
-            )
+            tag_label = "tag ok" if flags_truthy["tag.gpgsign"] else "tag.gpgsign unset"
             consistency_errors: list[str] = []
             if not flags_truthy["rebase.gpgSign"]:
                 consistency_errors.append(
                     "rebase.gpgSign unset → rebased commits unsigned on git < 2.36"
                 )
             if not flags_truthy["tag.gpgsign"]:
-                consistency_errors.append(
-                    "tag.gpgsign unset → tags will be unsigned"
-                )
+                consistency_errors.append("tag.gpgsign unset → tags will be unsigned")
             consistency = CheckResult(
                 ok=not consistency_errors,
                 value=f"{rebase_label}; {tag_label}",
@@ -288,9 +278,7 @@ def verify_git(
             raw_format = _get_config(repo, "gpg.format")
             signing_key = _get_config(repo, "user.signingkey")
             gpg_program_raw = _get_config(repo, "gpg.program")
-            allowed_signers_raw = _get_config(
-                repo, "gpg.ssh.allowedSignersFile"
-            )
+            allowed_signers_raw = _get_config(repo, "gpg.ssh.allowedSignersFile")
 
         if raw_format is None:
             signing_format_resolved = "openpgp"
@@ -312,10 +300,7 @@ def verify_git(
                 ok=False,
                 value=f"unknown: {raw_format}",
                 severity="error",
-                error=(
-                    f"gpg.format must be openpgp, ssh, or x509 "
-                    f"(got '{raw_format}')"
-                ),
+                error=f"gpg.format must be openpgp, ssh, or x509 (got '{raw_format}')",
             )
 
         if signing_key is None:
@@ -377,9 +362,7 @@ def verify_git(
                     "or set gpg.format=ssh"
                 ),
                 "ssh": "Install OpenSSH >= 8.0 (provides ssh-keygen)",
-                "x509": (
-                    "Install gpgsm (part of GnuPG) or set gpg.format=openpgp"
-                ),
+                "x509": "Install gpgsm (part of GnuPG) or set gpg.format=openpgp",
             }
             if signing_binary_path is None:
                 result["signing_binary"] = CheckResult(
@@ -438,9 +421,7 @@ def verify_git(
                     ok=True, value="found", severity="error"
                 )
             else:
-                err_text = (
-                    (proc.stderr or proc.stdout).strip()[:500] or "no match"
-                )
+                err_text = (proc.stderr or proc.stdout).strip()[:500] or "no match"
                 result["signing_key_accessible"] = CheckResult(
                     ok=False,
                     value="not found",
@@ -510,10 +491,7 @@ def verify_git(
                     ok=False,
                     value=f"file missing: {allowed_signers_raw}",
                     severity="warning",
-                    error=(
-                        f"allowed signers file does not exist: "
-                        f"{allowed_signers_raw}"
-                    ),
+                    error=f"allowed signers file does not exist: {allowed_signers_raw}",
                 )
             else:
                 result["allowed_signers"] = CheckResult(
@@ -535,13 +513,8 @@ def verify_git(
                         )
                     except GitCommandError as exc:
                         stderr = (getattr(exc, "stderr", "") or "").lower()
-                        if (
-                            "no signature" in stderr
-                            or "not signed" in stderr
-                        ):
-                            logger.debug(
-                                "verify_head skipped: HEAD is unsigned"
-                            )
+                        if "no signature" in stderr or "not signed" in stderr:
+                            logger.debug("verify_head skipped: HEAD is unsigned")
                         else:
                             result["verify_head"] = CheckResult(
                                 ok=False,
