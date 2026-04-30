@@ -57,9 +57,9 @@ See [step_4.md](./steps/step_4.md).
 
 See [step_5.md](./steps/step_5.md).
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 6: Tier 2 auxiliaries — `agent_reachable`, `allowed_signers`, `verify_head`
 

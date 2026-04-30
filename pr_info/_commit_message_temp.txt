@@ -1,28 +1,36 @@
-Add Tier 2 config-only checks: signing_format, signing_key
+Add Tier 2 binary checks: signing_binary, signing_key_accessible
 
-Step 4 of issue #181: extend `verify_git` with the two config-only Tier 2
-checks. Both keys are gated on `signing_intent_detected` from Step 3 —
-when no signing flag is enabled, neither key is present in the result
-(Decision #3).
+Step 5 of issue #181: extend `verify_git` with the two binary-probe
+Tier 2 checks. Both are gated on `signing_intent_detected` and respect
+`signing_format_resolved` from Step 4.
 
-- `signing_format`: reads `gpg.format`. Unset reports
-  `"openpgp (default)"`, ok=True; explicit `openpgp` / `ssh` / `x509`
-  echo back as the value with ok=True; any other value is an error
-  (`"unknown: <raw>"`, severity error). The resolved format is captured
-  into a function-local `signing_format_resolved` for downstream
-  Steps 5 / 7.
-- `signing_key`: reads `user.signingkey`. Set → ok=True,
-  value="configured" (the key id is deliberately never echoed into the
-  result or logged — Decision #11). Unset → ok=False with severity per
-  Decision #10: error iff `commit.gpgsign` is true, otherwise warning,
-  so a repo with only `tag.gpgsign` / `rebase.gpgSign` / `push.gpgSign`
-  enabled and no key keeps `overall_ok` true.
+- `signing_binary`: resolves the signing binary by format. openpgp
+  honours `gpg.program` with precedence over `shutil.which("gpg")`;
+  when set but pointing to a non-existent file the check is a hard
+  error with no PATH fallback (Decision #13). ssh resolves
+  `ssh-keygen` and x509 resolves `gpgsm`. Each resolved binary is
+  invoked with `--version` through the `_run` chokepoint; the first
+  line of stdout (capped at 200 chars) is recorded as the value, a
+  non-zero exit yields `value="not runnable"` and clears the resolved
+  path so downstream checks know not to use it.
 
-Tests cover: keys absent without intent; all four format branches
-including the unknown → error case; four severity branches for missing
-key (commit-vs-tag/rebase/push); key-present path; the secret-not-
-leaked guarantee against `CheckResult.value` and debug logs; and the
-acceptance criterion that only-tag.gpgsign + missing key keeps
-overall_ok=True. The existing Step 3 overall_ok-not-flipped-by-warning
-test is updated to provide a signing key so it isolates Step 3's
-behaviour.
+- `signing_key_accessible`: probes the configured signing key.
+  openpgp / x509 invoke `gpg --list-secret-keys` /
+  `gpgsm --list-secret-keys`; ssh checks file existence at the
+  configured `user.signingkey` path (agent-loaded keys remain out of
+  scope per summary.md). When `user.signingkey` is unset or the
+  signing binary is unavailable, the check emits an explicit
+  `value="cannot probe: ..."`. The key id is never logged or echoed
+  into `CheckResult.value` (Decision #11). Severity for the
+  unset-key probe-skip branch mirrors `signing_key`'s severity rule
+  so warning-only configurations (only tag/rebase/push.gpgSign with
+  no key) still report overall_ok=True.
+
+The function-local `signing_binary_path` (Optional[str]) is carried
+into the same Tier 2 block so Steps 6 and 7 can reuse it.
+
+Tests cover: all three formats for both checks; the gpg.program
+precedence and missing-file no-fallback rule; binary `--version`
+failure; ssh / x509 binary missing-on-PATH branches; both
+"cannot probe" branches; and the invariant that a fake key id never
+appears in DEBUG-level log capture.

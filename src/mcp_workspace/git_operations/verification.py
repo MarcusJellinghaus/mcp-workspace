@@ -254,11 +254,14 @@ def verify_git(
     # ------------------------------------------------------------------
     # Tier 2: config-only checks (gated on signing_intent_detected)
     # ------------------------------------------------------------------
-    signing_format_resolved: str = "openpgp"  # noqa: F841  pylint: disable=unused-variable
+    signing_format_resolved: str = "openpgp"
+    signing_key: Optional[str] = None
+    gpg_program_raw: Optional[str] = None
     if signing_intent_detected:
         with safe_repo_context(project_dir) as repo:
             raw_format = _get_config(repo, "gpg.format")
             signing_key = _get_config(repo, "user.signingkey")
+            gpg_program_raw = _get_config(repo, "gpg.program")
 
         if raw_format is None:
             signing_format_resolved = "openpgp"
@@ -306,6 +309,127 @@ def verify_git(
                 value="configured",
                 severity="error",
             )
+
+        # ----------------------------------------------------------
+        # Tier 2: signing_binary
+        # ----------------------------------------------------------
+        signing_binary_path: Optional[str] = None
+
+        if signing_format_resolved == "openpgp":
+            if gpg_program_raw is not None:
+                if Path(gpg_program_raw).is_file():
+                    signing_binary_path = gpg_program_raw
+                    logger.debug("Using gpg.program: %s", gpg_program_raw)
+                else:
+                    result["signing_binary"] = CheckResult(
+                        ok=False,
+                        value=f"configured but missing: {gpg_program_raw}",
+                        severity="error",
+                        error=(
+                            f"gpg.program points to non-existent file: "
+                            f"{gpg_program_raw}"
+                        ),
+                        install_hint=(
+                            "Set gpg.program to a valid path or unset it "
+                            "to use the system PATH lookup."
+                        ),
+                    )
+            if signing_binary_path is None and "signing_binary" not in result:
+                signing_binary_path = shutil.which("gpg")
+        elif signing_format_resolved == "ssh":
+            signing_binary_path = shutil.which("ssh-keygen")
+        elif signing_format_resolved == "x509":
+            signing_binary_path = shutil.which("gpgsm")
+
+        if "signing_binary" not in result:
+            install_hints = {
+                "openpgp": (
+                    "Install Gpg4win (Windows) or 'gpg' (Linux/Mac), "
+                    "or set gpg.format=ssh"
+                ),
+                "ssh": "Install OpenSSH >= 8.0 (provides ssh-keygen)",
+                "x509": (
+                    "Install gpgsm (part of GnuPG) or set gpg.format=openpgp"
+                ),
+            }
+            if signing_binary_path is None:
+                result["signing_binary"] = CheckResult(
+                    ok=False,
+                    value="not found",
+                    severity="error",
+                    error=f"binary for {signing_format_resolved} not on PATH",
+                    install_hint=install_hints.get(signing_format_resolved, ""),
+                )
+            else:
+                proc = _run([signing_binary_path, "--version"], timeout=5)
+                if proc.returncode == 0:
+                    first_line = (proc.stdout.splitlines() or [""])[0].strip()
+                    result["signing_binary"] = CheckResult(
+                        ok=True,
+                        value=first_line[:200],
+                        severity="error",
+                    )
+                else:
+                    result["signing_binary"] = CheckResult(
+                        ok=False,
+                        value="not runnable",
+                        severity="error",
+                        error=(proc.stderr or "").strip()[:500],
+                    )
+                    signing_binary_path = None
+
+        # ----------------------------------------------------------
+        # Tier 2: signing_key_accessible
+        # ----------------------------------------------------------
+        if signing_key is None:
+            key_acc_severity: Literal["error", "warning"] = (
+                "error" if flags_truthy["commit.gpgsign"] else "warning"
+            )
+            result["signing_key_accessible"] = CheckResult(
+                ok=False,
+                value="cannot probe: user.signingkey not set",
+                severity=key_acc_severity,
+                error="user.signingkey unset",
+            )
+        elif signing_binary_path is None:
+            result["signing_key_accessible"] = CheckResult(
+                ok=False,
+                value="cannot probe: signing binary unavailable",
+                severity="error",
+                error="signing_binary failed",
+            )
+        elif signing_format_resolved in ("openpgp", "x509"):
+            proc = _run(
+                [signing_binary_path, "--list-secret-keys", signing_key],
+                timeout=5,
+            )
+            key_ok = proc.returncode == 0 and bool(proc.stdout.strip())
+            if key_ok:
+                result["signing_key_accessible"] = CheckResult(
+                    ok=True, value="found", severity="error"
+                )
+            else:
+                err_text = (
+                    (proc.stderr or proc.stdout).strip()[:500] or "no match"
+                )
+                result["signing_key_accessible"] = CheckResult(
+                    ok=False,
+                    value="not found",
+                    severity="error",
+                    error=err_text,
+                )
+        elif signing_format_resolved == "ssh":
+            if Path(signing_key).is_file():
+                result["signing_key_accessible"] = CheckResult(
+                    ok=True, value="found", severity="error"
+                )
+            else:
+                result["signing_key_accessible"] = CheckResult(
+                    ok=False,
+                    value="not found",
+                    severity="error",
+                    error=f"ssh key file not found: {signing_key}",
+                )
 
     # ------------------------------------------------------------------
     # overall_ok: all error-severity checks must pass
