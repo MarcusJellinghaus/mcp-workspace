@@ -1,22 +1,23 @@
-Add verify_git foundation: module skeleton, helpers, and exports
+Add Tier 1 baseline checks to verify_git
 
-Step 1 of issue #181: introduce the `verify_git` library function that will
-report on local git environment and signing health. This commit adds only
-the foundation — the function returns `{"overall_ok": True}`. Tier 1, 2 and
-3 checks land in subsequent steps.
+Step 2 of issue #181: implement the three baseline checks in
+`verify_git` — `git_binary`, `git_repo`, and `user_identity`. Each check
+populates its own `CheckResult` independently: a failure in one does not
+prevent the others from running. `overall_ok` is now computed as the
+conjunction of every error-severity check.
 
-- New `mcp_workspace.git_operations.verification` module with:
-  - `CheckResult` TypedDict (no GitHub-specific token fields)
-  - `verify_git(project_dir, *, actually_sign=False)` skeleton
-  - `_get_config(repo, key, *extra_args)` helper wrapping `repo.git.config`
-  - `_run(args, timeout)` helper enforcing subprocess discipline
-- Re-export `CheckResult` and `verify_git` from `git_operations`; sort
-  `__all__` alphabetically
-- Carve out a narrow `subprocess` exception in `.importlinter` scoped to
-  `mcp_workspace.git_operations.verification`
-- Bump expected `__all__` count from 33 to 35 in `test_init_exports.py` and
-  add an alphabetisation guard
+- `git_binary`: `shutil.which("git")` then `git --version` via `_run`
+  with a 5s timeout; fails with `install_hint` when git is missing or
+  non-runnable. The bare string "git" is reported in the value field;
+  the resolved path is debug-logged only.
+- `git_repo`: delegates to `repository_status.is_git_repository`.
+- `user_identity`: reads `user.name` and `user.email` through
+  `safe_repo_context` + `_get_config`; emits the missing key list and
+  an `install_hint` when either is absent. Skipped with
+  `error="repository not accessible"` when `git_repo` failed.
 
-Tests: helper behaviour in isolation, keyword-only `actually_sign`,
-subprocess discipline (DEVNULL stdin, capture_output, no shell, timeout
-propagation), and CheckResult TypedDict smoke test.
+Tests cover the happy path, each independent failure mode (git not on
+PATH, git non-runnable, missing repo, missing name/email, repo skip),
+and the `overall_ok` recomputation. A new `_patch_baseline_ok` helper
+mirrors the `verify_github` test pattern, dispatching to `shutil.which`,
+`_run`, `is_git_repository`, `safe_repo_context`, and `_get_config`.

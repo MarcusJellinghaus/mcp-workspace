@@ -1,8 +1,10 @@
 """Tests for git_operations.verification module."""
 
 import subprocess
+from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from typing import Iterator, Optional
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from git.exc import GitCommandError
@@ -14,13 +16,62 @@ from mcp_workspace.git_operations.verification import (
     verify_git,
 )
 
+MODULE = "mcp_workspace.git_operations.verification"
+
+
+def _patch_baseline_ok(
+    project_dir: Path,
+    *,
+    git_path: Optional[str] = "/usr/bin/git",
+    git_version_stdout: str = "git version 2.42.0",
+    git_version_returncode: int = 0,
+    is_git_repo: bool = True,
+    user_name: Optional[str] = "Alice",
+    user_email: Optional[str] = "alice@example.com",
+) -> dict[str, object]:
+    """Run verify_git with all Tier 1 dependencies mocked."""
+
+    def fake_run(
+        args: list[str], timeout: float
+    ) -> "subprocess.CompletedProcess[str]":
+        del timeout
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=git_version_returncode,
+            stdout=git_version_stdout,
+            stderr="",
+        )
+
+    fake_repo = Mock()
+
+    def fake_get_config(repo: object, key: str, *extra_args: str) -> Optional[str]:
+        del repo, extra_args
+        if key == "user.name":
+            return user_name
+        if key == "user.email":
+            return user_email
+        return None
+
+    @contextmanager
+    def fake_safe_repo_context(_path: Path) -> Iterator[Mock]:
+        yield fake_repo
+
+    with (
+        patch(f"{MODULE}.shutil.which", return_value=git_path),
+        patch(f"{MODULE}._run", side_effect=fake_run),
+        patch(f"{MODULE}.is_git_repository", return_value=is_git_repo),
+        patch(f"{MODULE}.safe_repo_context", fake_safe_repo_context),
+        patch(f"{MODULE}._get_config", side_effect=fake_get_config),
+    ):
+        return verify_git(project_dir)
+
 
 class TestVerifyGit:
     """Tests for the public verify_git function."""
 
     def test_verify_git_returns_dict_with_overall_ok(self, tmp_path: Path) -> None:
         """verify_git returns a dict containing overall_ok=True."""
-        result = verify_git(tmp_path)
+        result = _patch_baseline_ok(tmp_path)
         assert isinstance(result, dict)
         assert result["overall_ok"] is True
 
@@ -97,3 +148,121 @@ class TestCheckResult:
         assert cr["ok"] is True
         assert cr["value"] == "x"
         assert cr["severity"] == "error"
+
+
+class TestGitBinary:
+    """Tests for the git_binary check."""
+
+    def test_git_binary_ok(self, tmp_path: Path) -> None:
+        """git on PATH and runnable → ok=True with version in value."""
+        result = _patch_baseline_ok(tmp_path)
+        check: CheckResult = result["git_binary"]  # type: ignore[assignment]
+        assert check["ok"] is True
+        assert check["severity"] == "error"
+        assert "git version" in check["value"]
+
+    def test_git_binary_not_on_path(self, tmp_path: Path) -> None:
+        """shutil.which returns None → ok=False, value='not found'."""
+        result = _patch_baseline_ok(tmp_path, git_path=None)
+        check: CheckResult = result["git_binary"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["value"] == "not found"
+        assert check["severity"] == "error"
+        assert "install_hint" in check
+
+    def test_git_binary_runnable_failure(self, tmp_path: Path) -> None:
+        """shutil.which succeeds but `git --version` exits non-zero."""
+        result = _patch_baseline_ok(
+            tmp_path,
+            git_version_returncode=1,
+            git_version_stdout="",
+        )
+        check: CheckResult = result["git_binary"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["value"] == "found but not runnable"
+        assert check["severity"] == "error"
+        assert "error" in check
+
+
+class TestGitRepo:
+    """Tests for the git_repo check."""
+
+    def test_git_repo_ok(self, tmp_path: Path) -> None:
+        """is_git_repository True → ok=True."""
+        result = _patch_baseline_ok(tmp_path)
+        check: CheckResult = result["git_repo"]  # type: ignore[assignment]
+        assert check["ok"] is True
+        assert check["severity"] == "error"
+        assert str(tmp_path) in check["value"]
+
+    def test_git_repo_missing(self, tmp_path: Path) -> None:
+        """is_git_repository False → ok=False, severity=error."""
+        result = _patch_baseline_ok(tmp_path, is_git_repo=False)
+        check: CheckResult = result["git_repo"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["value"] == "not a git repo"
+        assert check["severity"] == "error"
+        assert "error" in check
+
+
+class TestUserIdentity:
+    """Tests for the user_identity check."""
+
+    def test_user_identity_ok(self, tmp_path: Path) -> None:
+        """Both name and email set → ok=True, value contains email."""
+        result = _patch_baseline_ok(tmp_path)
+        check: CheckResult = result["user_identity"]  # type: ignore[assignment]
+        assert check["ok"] is True
+        assert check["severity"] == "error"
+        assert "alice@example.com" in check["value"]
+        assert "Alice" in check["value"]
+
+    def test_user_identity_missing_name(self, tmp_path: Path) -> None:
+        """user.name unset → ok=False, value mentions user.name."""
+        result = _patch_baseline_ok(tmp_path, user_name=None)
+        check: CheckResult = result["user_identity"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert "user.name" in check["value"]
+        assert check["severity"] == "error"
+        assert "install_hint" in check
+
+    def test_user_identity_missing_email(self, tmp_path: Path) -> None:
+        """user.email unset → ok=False, value mentions user.email."""
+        result = _patch_baseline_ok(tmp_path, user_email=None)
+        check: CheckResult = result["user_identity"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert "user.email" in check["value"]
+        assert check["severity"] == "error"
+
+    def test_user_identity_skipped_when_no_repo(self, tmp_path: Path) -> None:
+        """git_repo failed → user_identity reports 'repository not accessible'."""
+        result = _patch_baseline_ok(tmp_path, is_git_repo=False)
+        check: CheckResult = result["user_identity"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["value"] == "unknown"
+        assert check["severity"] == "error"
+        assert check.get("error") == "repository not accessible"
+
+
+class TestOverallOk:
+    """Tests for overall_ok computation across error-severity checks."""
+
+    def test_overall_ok_true_when_all_pass(self, tmp_path: Path) -> None:
+        """All three checks pass → overall_ok=True."""
+        result = _patch_baseline_ok(tmp_path)
+        assert result["overall_ok"] is True
+
+    def test_overall_ok_false_when_git_binary_fails(self, tmp_path: Path) -> None:
+        """git_binary failure flips overall_ok to False."""
+        result = _patch_baseline_ok(tmp_path, git_path=None)
+        assert result["overall_ok"] is False
+
+    def test_overall_ok_false_when_git_repo_fails(self, tmp_path: Path) -> None:
+        """git_repo failure flips overall_ok to False."""
+        result = _patch_baseline_ok(tmp_path, is_git_repo=False)
+        assert result["overall_ok"] is False
+
+    def test_overall_ok_false_when_user_identity_fails(self, tmp_path: Path) -> None:
+        """user_identity failure flips overall_ok to False."""
+        result = _patch_baseline_ok(tmp_path, user_name=None, user_email=None)
+        assert result["overall_ok"] is False
