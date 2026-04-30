@@ -148,6 +148,8 @@ source_modules =
     mcp_workspace
 forbidden_modules =
     subprocess
+ignore_imports =
+    mcp_workspace.git_operations.verification -> subprocess
 
 # -----------------------------------------------------------------------------
 # Contract: Source Code Independence from Tests

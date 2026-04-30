@@ -49,12 +49,14 @@ from mcp_workspace.git_operations.repository_status import (
     is_working_directory_clean,
 )
 from mcp_workspace.git_operations.staging import stage_all_changes
+from mcp_workspace.git_operations.verification import CheckResult, verify_git
 from mcp_workspace.git_operations.workflows import (
     commit_all_changes,
     needs_rebase,
 )
 
 __all__ = [
+    "CheckResult",
     "CommitResult",
     "MERGE_BASE_DISTANCE_THRESHOLD",
     "branch_exists",
@@ -73,9 +75,9 @@ __all__ = [
     "get_default_branch_name",
     "get_full_status",
     "get_git_diff_for_commit",
-    "get_repository_identifier",
     "get_latest_commit_sha",
     "get_remote_url",
+    "get_repository_identifier",
     "git_move",
     "git_push",
     "has_remote_tracking_branch",
@@ -88,4 +90,5 @@ __all__ = [
     "safe_repo_context",
     "stage_all_changes",
     "validate_branch_name",
+    "verify_git",
 ]

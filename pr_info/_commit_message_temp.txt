@@ -1,0 +1,22 @@
+Add verify_git foundation: module skeleton, helpers, and exports
+
+Step 1 of issue #181: introduce the `verify_git` library function that will
+report on local git environment and signing health. This commit adds only
+the foundation — the function returns `{"overall_ok": True}`. Tier 1, 2 and
+3 checks land in subsequent steps.
+
+- New `mcp_workspace.git_operations.verification` module with:
+  - `CheckResult` TypedDict (no GitHub-specific token fields)
+  - `verify_git(project_dir, *, actually_sign=False)` skeleton
+  - `_get_config(repo, key, *extra_args)` helper wrapping `repo.git.config`
+  - `_run(args, timeout)` helper enforcing subprocess discipline
+- Re-export `CheckResult` and `verify_git` from `git_operations`; sort
+  `__all__` alphabetically
+- Carve out a narrow `subprocess` exception in `.importlinter` scoped to
+  `mcp_workspace.git_operations.verification`
+- Bump expected `__all__` count from 33 to 35 in `test_init_exports.py` and
+  add an alphabetisation guard
+
+Tests: helper behaviour in isolation, keyword-only `actually_sign`,
+subprocess discipline (DEVNULL stdin, capture_output, no shell, timeout
+propagation), and CheckResult TypedDict smoke test.
