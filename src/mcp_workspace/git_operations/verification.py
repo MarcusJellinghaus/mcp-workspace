@@ -159,6 +159,99 @@ def verify_git(
         )
 
     # ------------------------------------------------------------------
+    # Tier 1: signing detection
+    # ------------------------------------------------------------------
+    flags_truthy: dict[str, bool] = {}
+    git_repo_ok = (
+        isinstance(git_repo_check, dict) and git_repo_check.get("ok") is True
+    )
+    if git_repo_ok:
+        with safe_repo_context(project_dir) as repo:
+            for flag in (
+                "commit.gpgsign",
+                "tag.gpgsign",
+                "rebase.gpgSign",
+                "push.gpgSign",
+            ):
+                flags_truthy[flag] = (
+                    _get_config(repo, flag, "--type=bool") == "true"
+                )
+
+    signing_intent_detected = any(flags_truthy.values())
+    logger.debug("signing intent detected: %s", signing_intent_detected)
+
+    if not git_repo_ok:
+        result["signing_intent"] = CheckResult(
+            ok=False,
+            value="unknown",
+            severity="warning",
+            error="repository not accessible",
+        )
+        result["signing_consistency"] = CheckResult(
+            ok=False,
+            value="unknown",
+            severity="warning",
+            error="repository not accessible",
+        )
+    elif not signing_intent_detected:
+        result["signing_intent"] = CheckResult(
+            ok=True,
+            value="not configured",
+            severity="warning",
+            install_hint=(
+                "Enable signing with 'git config --global commit.gpgsign true' "
+                "(and set user.signingkey)."
+            ),
+        )
+        result["signing_consistency"] = CheckResult(
+            ok=True,
+            value="not applicable",
+            severity="warning",
+        )
+    else:
+        enabled = [k for k, v in flags_truthy.items() if v]
+        result["signing_intent"] = CheckResult(
+            ok=True,
+            value=f"detected: {', '.join(enabled)}",
+            severity="warning",
+        )
+
+        if not flags_truthy.get("commit.gpgsign"):
+            result["signing_consistency"] = CheckResult(
+                ok=True,
+                value="not applicable",
+                severity="warning",
+            )
+        else:
+            rebase_label = (
+                "rebase ok"
+                if flags_truthy["rebase.gpgSign"]
+                else "rebase.gpgSign unset"
+            )
+            tag_label = (
+                "tag ok"
+                if flags_truthy["tag.gpgsign"]
+                else "tag.gpgsign unset"
+            )
+            consistency_errors: list[str] = []
+            if not flags_truthy["rebase.gpgSign"]:
+                consistency_errors.append(
+                    "rebase.gpgSign unset → rebased commits unsigned on git < 2.36"
+                )
+            if not flags_truthy["tag.gpgsign"]:
+                consistency_errors.append(
+                    "tag.gpgsign unset → tags will be unsigned"
+                )
+            consistency = CheckResult(
+                ok=not consistency_errors,
+                value=f"{rebase_label}; {tag_label}",
+                severity="warning",
+            )
+            if consistency_errors:
+                consistency["error"] = "; ".join(consistency_errors)
+            result["signing_consistency"] = consistency
+
+    # ------------------------------------------------------------------
     # overall_ok: all error-severity checks must pass
     # ------------------------------------------------------------------
     result["overall_ok"] = all(
