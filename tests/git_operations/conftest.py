@@ -26,6 +26,8 @@ def git_repo(tmp_path: Path) -> tuple[Repo, Path]:
     with repo.config_writer() as config:
         config.set_value("user", "name", "Test User")
         config.set_value("user", "email", "test@example.com")
+        config.set_value("commit", "gpgsign", "false")
+        config.set_value("tag", "gpgsign", "false")
 
     return repo, project_dir
 
@@ -54,6 +56,8 @@ def git_repo_with_remote(tmp_path: Path) -> tuple[Repo, Path, Path]:
     with repo.config_writer() as config:
         config.set_value("user", "name", "Test User")
         config.set_value("user", "email", "test@example.com")
+        config.set_value("commit", "gpgsign", "false")
+        config.set_value("tag", "gpgsign", "false")
 
     # Create initial commit
     readme = project_dir / "README.md"
@@ -90,6 +94,8 @@ def git_repo_with_commit(tmp_path: Path) -> tuple[Repo, Path]:
     with repo.config_writer() as config:
         config.set_value("user", "name", "Test User")
         config.set_value("user", "email", "test@example.com")
+        config.set_value("commit", "gpgsign", "false")
+        config.set_value("tag", "gpgsign", "false")
 
     # Create initial commit
     readme = project_dir / "README.md"
