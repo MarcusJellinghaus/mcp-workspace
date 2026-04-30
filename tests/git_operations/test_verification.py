@@ -32,6 +32,8 @@ def _patch_baseline_ok(
     tag_gpgsign: Optional[str] = None,
     rebase_gpgsign: Optional[str] = None,
     push_gpgsign: Optional[str] = None,
+    gpg_format: Optional[str] = None,
+    user_signingkey: Optional[str] = None,
 ) -> dict[str, object]:
     """Run verify_git with all Tier 1 dependencies mocked."""
 
@@ -61,6 +63,10 @@ def _patch_baseline_ok(
             return user_name
         if key == "user.email":
             return user_email
+        if key == "gpg.format":
+            return gpg_format
+        if key == "user.signingkey":
+            return user_signingkey
         if key in signing_flags:
             return signing_flags[key]
         return None
@@ -470,10 +476,155 @@ class TestOverallOkUnaffectedByWarnings:
         self, tmp_path: Path
     ) -> None:
         """All error checks pass + signing_consistency warning fails → overall_ok=True."""
-        result = _patch_baseline_ok(tmp_path, commit_gpgsign="true")
+        result = _patch_baseline_ok(
+            tmp_path, commit_gpgsign="true", user_signingkey="ABCD"
+        )
         consistency: CheckResult = result[  # type: ignore[assignment]
             "signing_consistency"
         ]
         assert consistency["ok"] is False
         assert consistency["severity"] == "warning"
         assert result["overall_ok"] is True
+
+
+class TestTier2GatedOnIntent:
+    """Tier 2 keys are absent when no signing intent is detected."""
+
+    def test_no_intent_means_keys_absent(self, tmp_path: Path) -> None:
+        """All signing flags unset → signing_format / signing_key absent."""
+        result = _patch_baseline_ok(tmp_path)
+        assert "signing_format" not in result
+        assert "signing_key" not in result
+
+
+class TestSigningFormat:
+    """Tests for the signing_format check."""
+
+    def test_unset_defaults_to_openpgp(self, tmp_path: Path) -> None:
+        """gpg.format unset, intent on → value='openpgp (default)', ok=True."""
+        result = _patch_baseline_ok(tmp_path, commit_gpgsign="true")
+        check: CheckResult = result["signing_format"]  # type: ignore[assignment]
+        assert check["ok"] is True
+        assert check["value"] == "openpgp (default)"
+        assert check["severity"] == "error"
+
+    def test_explicit_openpgp(self, tmp_path: Path) -> None:
+        """gpg.format=openpgp → ok=True, value='openpgp'."""
+        result = _patch_baseline_ok(
+            tmp_path, commit_gpgsign="true", gpg_format="openpgp"
+        )
+        check: CheckResult = result["signing_format"]  # type: ignore[assignment]
+        assert check["ok"] is True
+        assert check["value"] == "openpgp"
+        assert check["severity"] == "error"
+
+    def test_ssh_value(self, tmp_path: Path) -> None:
+        """gpg.format=ssh → ok=True, value='ssh'."""
+        result = _patch_baseline_ok(
+            tmp_path, commit_gpgsign="true", gpg_format="ssh"
+        )
+        check: CheckResult = result["signing_format"]  # type: ignore[assignment]
+        assert check["ok"] is True
+        assert check["value"] == "ssh"
+
+    def test_x509_value(self, tmp_path: Path) -> None:
+        """gpg.format=x509 → ok=True, value='x509'."""
+        result = _patch_baseline_ok(
+            tmp_path, commit_gpgsign="true", gpg_format="x509"
+        )
+        check: CheckResult = result["signing_format"]  # type: ignore[assignment]
+        assert check["ok"] is True
+        assert check["value"] == "x509"
+
+    def test_unknown_value(self, tmp_path: Path) -> None:
+        """gpg.format=pgp → ok=False, severity=error, value contains 'unknown: pgp'."""
+        result = _patch_baseline_ok(
+            tmp_path, commit_gpgsign="true", gpg_format="pgp"
+        )
+        check: CheckResult = result["signing_format"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["severity"] == "error"
+        assert "unknown: pgp" in check["value"]
+        assert "error" in check
+        assert "pgp" in check["error"]
+
+
+class TestSigningKeySeverity:
+    """Tests for severity rules of signing_key per Decision #10."""
+
+    def test_missing_key_with_commit_gpgsign_is_error(self, tmp_path: Path) -> None:
+        """commit.gpgsign true + key unset → severity=error, overall_ok=False."""
+        result = _patch_baseline_ok(tmp_path, commit_gpgsign="true")
+        check: CheckResult = result["signing_key"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["severity"] == "error"
+        assert check["value"] == "not set"
+        assert "install_hint" in check
+        assert result["overall_ok"] is False
+
+    def test_missing_key_with_only_tag_gpgsign_is_warning(
+        self, tmp_path: Path
+    ) -> None:
+        """Only tag.gpgsign true + key unset → severity=warning, overall_ok=True."""
+        result = _patch_baseline_ok(tmp_path, tag_gpgsign="true")
+        check: CheckResult = result["signing_key"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["severity"] == "warning"
+        assert result["overall_ok"] is True
+
+    def test_missing_key_with_only_rebase_gpgsign_is_warning(
+        self, tmp_path: Path
+    ) -> None:
+        """Only rebase.gpgSign true + key unset → severity=warning."""
+        result = _patch_baseline_ok(tmp_path, rebase_gpgsign="true")
+        check: CheckResult = result["signing_key"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["severity"] == "warning"
+        assert result["overall_ok"] is True
+
+    def test_missing_key_with_only_push_gpgsign_is_warning(
+        self, tmp_path: Path
+    ) -> None:
+        """Only push.gpgSign true + key unset → severity=warning."""
+        result = _patch_baseline_ok(tmp_path, push_gpgsign="true")
+        check: CheckResult = result["signing_key"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["severity"] == "warning"
+        assert result["overall_ok"] is True
+
+    def test_key_present(self, tmp_path: Path) -> None:
+        """user.signingkey set → ok=True, severity=error, value='configured'."""
+        result = _patch_baseline_ok(
+            tmp_path, commit_gpgsign="true", user_signingkey="ABCD1234"
+        )
+        check: CheckResult = result["signing_key"]  # type: ignore[assignment]
+        assert check["ok"] is True
+        assert check["severity"] == "error"
+        assert check["value"] == "configured"
+
+    def test_key_value_not_in_check_result(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The user's signing key id never appears in CheckResult.value or logs."""
+        secret_key = "DEADBEEFCAFEBABE"
+        with caplog.at_level("DEBUG", logger=MODULE):
+            result = _patch_baseline_ok(
+                tmp_path, commit_gpgsign="true", user_signingkey=secret_key
+            )
+        check: CheckResult = result["signing_key"]  # type: ignore[assignment]
+        assert secret_key not in check["value"]
+        assert secret_key not in caplog.text
+
+
+class TestOverallOkWithSigningSeverityRules:
+    """Acceptance criterion: severity rules drive overall_ok correctly."""
+
+    def test_acceptance_only_tag_gpgsign_no_key_overall_ok(
+        self, tmp_path: Path
+    ) -> None:
+        """Only tag.gpgsign + missing key → overall_ok=True."""
+        result = _patch_baseline_ok(tmp_path, tag_gpgsign="true")
+        assert result["overall_ok"] is True
+        signing_key: CheckResult = result["signing_key"]  # type: ignore[assignment]
+        assert signing_key["severity"] == "warning"
+        assert signing_key["ok"] is False

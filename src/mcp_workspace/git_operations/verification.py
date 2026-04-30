@@ -252,6 +252,62 @@ def verify_git(
             result["signing_consistency"] = consistency
 
     # ------------------------------------------------------------------
+    # Tier 2: config-only checks (gated on signing_intent_detected)
+    # ------------------------------------------------------------------
+    signing_format_resolved: str = "openpgp"  # noqa: F841  pylint: disable=unused-variable
+    if signing_intent_detected:
+        with safe_repo_context(project_dir) as repo:
+            raw_format = _get_config(repo, "gpg.format")
+            signing_key = _get_config(repo, "user.signingkey")
+
+        if raw_format is None:
+            signing_format_resolved = "openpgp"
+            result["signing_format"] = CheckResult(
+                ok=True,
+                value="openpgp (default)",
+                severity="error",
+            )
+        elif raw_format in ("openpgp", "ssh", "x509"):
+            signing_format_resolved = raw_format
+            result["signing_format"] = CheckResult(
+                ok=True,
+                value=raw_format,
+                severity="error",
+            )
+        else:
+            signing_format_resolved = "openpgp"
+            result["signing_format"] = CheckResult(
+                ok=False,
+                value=f"unknown: {raw_format}",
+                severity="error",
+                error=(
+                    f"gpg.format must be openpgp, ssh, or x509 "
+                    f"(got '{raw_format}')"
+                ),
+            )
+
+        if signing_key is None:
+            sev: Literal["error", "warning"] = (
+                "error" if flags_truthy["commit.gpgsign"] else "warning"
+            )
+            result["signing_key"] = CheckResult(
+                ok=False,
+                value="not set",
+                severity=sev,
+                error="user.signingkey is not configured",
+                install_hint=(
+                    "Set user.signingkey via "
+                    "'git config --global user.signingkey <ID>'"
+                ),
+            )
+        else:
+            result["signing_key"] = CheckResult(
+                ok=True,
+                value="configured",
+                severity="error",
+            )
+
+    # ------------------------------------------------------------------
     # overall_ok: all error-severity checks must pass
     # ------------------------------------------------------------------
     result["overall_ok"] = all(

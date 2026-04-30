@@ -1,31 +1,28 @@
-Add Tier 1 signing detection to verify_git
+Add Tier 2 config-only checks: signing_format, signing_key
 
-Step 3 of issue #181: implement the two Tier 1 signing-detection checks
-in `verify_git` — `signing_intent` and `signing_consistency`. Both are
-warning-severity, so failures do not flip `overall_ok`.
+Step 4 of issue #181: extend `verify_git` with the two config-only Tier 2
+checks. Both keys are gated on `signing_intent_detected` from Step 3 —
+when no signing flag is enabled, neither key is present in the result
+(Decision #3).
 
-- `signing_intent`: OR over `commit.gpgsign`, `tag.gpgsign`,
-  `rebase.gpgSign`, and `push.gpgSign`, all read through `_get_config`
-  with `--type=bool` so git's truthy aliases (`yes`/`on`/`1`/`true`) are
-  recognised uniformly. Reports `"not configured"` when no flag is
-  enabled (with an `install_hint`), or `"detected: <comma-separated
-  flags>"` otherwise.
-- `signing_consistency`: when `commit.gpgsign=true`, warn if either
-  `rebase.gpgSign` or `tag.gpgsign` is unset. Single key with
-  concatenated `value` and `error` fields per Decision #12. Reports
-  `"not applicable"` when commit signing is off.
+- `signing_format`: reads `gpg.format`. Unset reports
+  `"openpgp (default)"`, ok=True; explicit `openpgp` / `ssh` / `x509`
+  echo back as the value with ok=True; any other value is an error
+  (`"unknown: <raw>"`, severity error). The resolved format is captured
+  into a function-local `signing_format_resolved` for downstream
+  Steps 5 / 7.
+- `signing_key`: reads `user.signingkey`. Set → ok=True,
+  value="configured" (the key id is deliberately never echoed into the
+  result or logged — Decision #11). Unset → ok=False with severity per
+  Decision #10: error iff `commit.gpgsign` is true, otherwise warning,
+  so a repo with only `tag.gpgsign` / `rebase.gpgSign` / `push.gpgSign`
+  enabled and no key keeps `overall_ok` true.
 
-When `git_repo` is not OK, both checks emit `ok=False`, severity
-`warning`, `error="repository not accessible"` so callers see the
-unknown state without overall_ok flipping.
-
-Introduces a function-local `signing_intent_detected` boolean to be
-consumed by later steps that gate Tier 2 checks. The variable is
-debug-logged so tooling sees it as used in this step.
-
-Tests extend the `_patch_baseline_ok` helper with four new signing-flag
-parameters and add five new test classes covering: not-configured, each
-detected variant, truthy-alias recognition through `--type=bool`,
-single-key consistency shape (no `_rebase`/`_tag` split), the
-no-repo-accessible warning path, and confirmation that warning failures
-keep `overall_ok` true.
+Tests cover: keys absent without intent; all four format branches
+including the unknown → error case; four severity branches for missing
+key (commit-vs-tag/rebase/push); key-present path; the secret-not-
+leaked guarantee against `CheckResult.value` and debug logs; and the
+acceptance criterion that only-tag.gpgsign + missing key keeps
+overall_ok=True. The existing Step 3 overall_ok-not-flipped-by-warning
+test is updated to provide a signing key so it isolates Step 3's
+behaviour.
