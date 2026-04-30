@@ -135,15 +135,19 @@ class TestCommitStagedFilesPorcelain:
         mock_ctx.__enter__.return_value = mock_repo
         mock_ctx.__exit__.return_value = False
 
-        with patch(
-            "mcp_workspace.git_operations.commits.safe_repo_context",
-            return_value=mock_ctx,
-        ), patch(
-            "mcp_workspace.git_operations.commits.is_git_repository",
-            return_value=True,
-        ), patch(
-            "mcp_workspace.git_operations.commits.get_staged_changes",
-            return_value=["some_file.py"],
+        with (
+            patch(
+                "mcp_workspace.git_operations.commits.safe_repo_context",
+                return_value=mock_ctx,
+            ),
+            patch(
+                "mcp_workspace.git_operations.commits.is_git_repository",
+                return_value=True,
+            ),
+            patch(
+                "mcp_workspace.git_operations.commits.get_staged_changes",
+                return_value=["some_file.py"],
+            ),
         ):
             result = commit_staged_files("hello", tmp_path)
 
@@ -173,15 +177,19 @@ class TestCommitStagedFilesPorcelain:
         mock_ctx.__enter__.return_value = mock_repo
         mock_ctx.__exit__.return_value = False
 
-        with patch(
-            "mcp_workspace.git_operations.commits.safe_repo_context",
-            return_value=mock_ctx,
-        ), patch(
-            "mcp_workspace.git_operations.commits.is_git_repository",
-            return_value=True,
-        ), patch(
-            "mcp_workspace.git_operations.commits.get_staged_changes",
-            return_value=["some_file.py"],
+        with (
+            patch(
+                "mcp_workspace.git_operations.commits.safe_repo_context",
+                return_value=mock_ctx,
+            ),
+            patch(
+                "mcp_workspace.git_operations.commits.is_git_repository",
+                return_value=True,
+            ),
+            patch(
+                "mcp_workspace.git_operations.commits.get_staged_changes",
+                return_value=["some_file.py"],
+            ),
         ):
             result = commit_staged_files("hello", tmp_path)
 
@@ -206,12 +214,15 @@ class TestCommitStagedFilesPorcelain:
             # tmp_path is not a git repo
             result = commit_staged_files("valid message", tmp_path)
         elif case == "no_staged_files":
-            with patch(
-                "mcp_workspace.git_operations.commits.is_git_repository",
-                return_value=True,
-            ), patch(
-                "mcp_workspace.git_operations.commits.get_staged_changes",
-                return_value=[],
+            with (
+                patch(
+                    "mcp_workspace.git_operations.commits.is_git_repository",
+                    return_value=True,
+                ),
+                patch(
+                    "mcp_workspace.git_operations.commits.get_staged_changes",
+                    return_value=[],
+                ),
             ):
                 result = commit_staged_files("valid message", tmp_path)
         else:  # pragma: no cover - parametrize guarantees coverage
