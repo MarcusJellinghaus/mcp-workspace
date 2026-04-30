@@ -2,7 +2,8 @@
 
 > **LLM prompt** — Read `pr_info/steps/summary.md` for context, then implement
 > exactly this step. Make one commit at the end. Run `pylint`, `mypy`, and
-> `pytest` (fast-mode unit tests first, then `markers=["git_integration"]`).
+> `pytest` (fast-mode unit tests first using `-m "not git_integration and not
+> github_integration"`, then `markers=["git_integration"]`).
 
 ## Why this step exists
 
@@ -56,7 +57,8 @@ def commit_staged_files(message: str, project_dir: Path) -> CommitResult: ...
    - Classify: if any of `("gpg", "signing", "secret key", "signing failed")`
      appears in `stderr_lower`, category is `"signing_failed"`; otherwise
      `"commit_failed"`.
-   - Debug-log truncated stderr, exit status (`e.status`), and the command.
+   - Debug-log stderr truncated to the first 500 characters, exit status
+     (`e.status`), and the command.
    - Return `success=False`, `error=<original message including stderr>`,
      `error_category=<classified>`.
 
@@ -93,6 +95,9 @@ Add a new test class `TestCommitStagedFilesPorcelain` (or extend
    - Configure `mock_repo.head.commit.hexsha = "a" * 40`.
    - Configure `mock_repo.config_reader().get_value.return_value = "<unset>"`.
    - Mock `is_git_repository` and `get_staged_changes` to bypass validation.
+     Patch them where they are *used*, not where they are defined:
+     `mcp_workspace.git_operations.commits.is_git_repository` and
+     `mcp_workspace.git_operations.commits.get_staged_changes`.
    - Call `commit_staged_files("hello", project_dir)`.
    - Assert `mock_repo.git.commit.called`.
    - Assert `mock_repo.git.commit.call_args.args == ("-m", "hello")`.
@@ -110,9 +115,10 @@ Add a new test class `TestCommitStagedFilesPorcelain` (or extend
    - Assert raw stderr is in `result["error"]`.
 
 3. **`test_validation_failures_set_validation_failed`** (parametrized)
-   - Three cases: empty message, whitespace-only message, not-a-repo path,
-     no-staged-files path. (Pick three; can use real-git for not-a-repo and
-     mocks for the others — whichever is cleanest.)
+   - Four cases — parametrize over all four: empty message, whitespace-only
+     message, not-a-repo path, no-staged-files path. Use mocks for the
+     message-validation cases and real-git fixture for the not-a-repo case
+     (whichever is cleanest per case).
    - Assert `result["error_category"] == "validation_failed"`.
 
 Existing real-git tests (`test_commit_staged_files`, `test_commit_all_changes`,

@@ -2,8 +2,9 @@
 
 > **LLM prompt** — Read `pr_info/steps/summary.md` for context, then implement
 > exactly this step. Make one commit at the end. Run `pylint`, `mypy`, and
-> `pytest` (use the fast-mode `-m "not ..."` exclusions for iteration; then a
-> full run including `git_integration`).
+> `pytest` (use the fast-mode `-m "not git_integration and not
+> github_integration"` exclusions for iteration; then a full run including
+> `git_integration`).
 
 ## Why this step exists
 
@@ -18,8 +19,8 @@ literal returning `CommitResult` to include the key.
 
 ```
 src/mcp_workspace/git_operations/core.py        # modify
-src/mcp_workspace/git_operations/commits.py     # modify (4 dict literals)
-src/mcp_workspace/git_operations/workflows.py   # modify (3 dict literals)
+src/mcp_workspace/git_operations/commits.py     # modify (6 dict literals)
+src/mcp_workspace/git_operations/workflows.py   # modify (4 dict literals)
 tests/git_operations/test_commits.py            # modify (one new assertion)
 ```
 
@@ -46,20 +47,21 @@ dict-literal return site to spell out the field.
 
 ### `commits.py`
 
-Find all four `return {...}` literals in `commit_staged_files()` (the three
-failure-path returns and the one success-path return) and add
-`"error_category": None` to each. **No other changes** — no logic, no
-docstring rewrites, no exception handling tweaks. Those land in step 3.
+Find all six `return {...}` literals in `commit_staged_files()` and add
+`"error_category": None` to each. The six sites are: three validation-path
+returns (empty/whitespace message, not-a-repo, no-staged-files), one
+success-path return, and two exception-handler returns (the
+`(InvalidGitRepositoryError, GitCommandError)` clause and the broad
+`except Exception` clause). **No other changes** — no logic, no docstring
+rewrites, no exception handling tweaks. Those land in step 3.
 
 ### `workflows.py`
 
-Find all three `return {...}` literals in `commit_all_changes()`:
+Find all four `return {...}` literals in `commit_all_changes()`:
 1. The not-a-repo path.
 2. The no-changes early-return success path.
-3. The `stage_all_changes` returned-False path.
-
-Plus the broad `except Exception` path's return literal (a fourth, if present
-— grep to confirm).
+3. The `stage_all_changes` returned-False (stage-failure) path.
+4. The broad `except Exception` path's return literal.
 
 Add `"error_category": None` to each. The `commit_result` returned from the
 delegated `commit_staged_files()` call already conforms to the new TypedDict
@@ -76,8 +78,9 @@ exhaustively.
 
 ## HOW
 
-- `Literal` import: from `typing` (already imports from `typing` in
-  `core.py`).
+- `Literal` import: add to the existing `from typing import Optional,
+  TypedDict` line in `core.py` (i.e., `Literal` is a new symbol added to
+  the existing import line, not already imported).
 - No new public exports. `CommitResult` is already exported from
   `mcp_workspace.git_operations.__init__`; the schema change is additive.
 - No fixture changes (those landed in step 1).

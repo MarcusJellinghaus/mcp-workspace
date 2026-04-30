@@ -2,11 +2,9 @@
 
 > **LLM prompt** — Read `pr_info/steps/summary.md` for context, then implement
 > exactly this step. Make one commit at the end. Run `pylint`, `mypy`, and
-> `pytest` (with `-n auto -m "not git_integration and not claude_cli_integration
-> and not claude_api_integration and not formatter_integration and not
-> github_integration and not langchain_integration"` for fast iteration; then
-> with `markers=["git_integration"]` to verify the integration tests still
-> pass).
+> `pytest` (with `-n auto -m "not git_integration and not github_integration"`
+> for fast iteration; then with `markers=["git_integration"]` to verify the
+> integration tests still pass).
 
 ## Why this step exists
 
