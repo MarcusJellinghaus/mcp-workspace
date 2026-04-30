@@ -21,6 +21,63 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Foundation — module skeleton, helpers, exports, importlinter exception
+
+See [step_1.md](./steps/step_1.md).
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Tier 1 baseline checks — `git_binary`, `git_repo`, `user_identity`
+
+See [step_2.md](./steps/step_2.md).
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: Tier 1 signing detection — `signing_intent`, `signing_consistency`
+
+See [step_3.md](./steps/step_3.md).
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 4: Tier 2 config-only checks — `signing_format`, `signing_key`
+
+See [step_4.md](./steps/step_4.md).
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 5: Tier 2 binary checks — `signing_binary`, `signing_key_accessible`
+
+See [step_5.md](./steps/step_5.md).
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 6: Tier 2 auxiliaries — `agent_reachable`, `allowed_signers`, `verify_head`
+
+See [step_6.md](./steps/step_6.md).
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 7: Tier 3 opt-in deep probe — `actual_signature`
+
+See [step_7.md](./steps/step_7.md).
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review
+- [ ] PR summary
