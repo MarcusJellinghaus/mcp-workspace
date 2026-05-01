@@ -146,6 +146,8 @@ _.issues
 
 # PRFeedback TypedDict fields - accessed via subscript, vulture can't see usage
 _.resolved_thread_count
+# CommitResult TypedDict field - accessed via subscript
+_.error_category
 
 # Test fixtures
 _.mock_zip_content
