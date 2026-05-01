@@ -207,6 +207,33 @@ class TestAgentReachable:
         assert "install_hint" in check
         assert "PATH" in check.get("error", "")
 
+    def test_agent_reachable_timeout(self, tmp_path: Path) -> None:
+        """gpg-connect-agent /bye times out → ok=False, warning, value mentions timeout."""
+
+        def run_handler(
+            args: list[str],
+        ) -> "subprocess.CompletedProcess[str]":
+            if args[0].endswith("gpg-connect-agent"):
+                raise subprocess.TimeoutExpired(cmd=args, timeout=5)
+            if args[-1] == "--version":
+                return subprocess.CompletedProcess(
+                    args=args,
+                    returncode=0,
+                    stdout="git version 2.42.0" if "git" in args[0] else "binary 1.0",
+                    stderr="",
+                )
+            return subprocess.CompletedProcess(
+                args=args, returncode=0, stdout="", stderr=""
+            )
+
+        result, _ = _patch_step6(tmp_path, run_handler=run_handler)
+        check: CheckResult = result["agent_reachable"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["severity"] == "warning"
+        assert "timeout" in check["value"]
+        assert "unreachable" in check["value"]
+        assert "error" in check
+
     def test_agent_absent_for_ssh(self, tmp_path: Path) -> None:
         """gpg.format=ssh → 'agent_reachable' not in result."""
         result, _ = _patch_step6(tmp_path, gpg_format="ssh")

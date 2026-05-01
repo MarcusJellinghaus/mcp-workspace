@@ -226,6 +226,78 @@ class TestSigningBinaryOpenPGP:
         assert "gpg crashed" in check.get("error", "")
 
 
+class TestSigningBinaryTimeout:
+    """Tests that subprocess.TimeoutExpired is wrapped, not propagated."""
+
+    def test_signing_binary_timeout_openpgp(self, tmp_path: Path) -> None:
+        """gpg --version times out → ok=False with timeout-specific value."""
+
+        def run_handler(
+            args: list[str],
+        ) -> "subprocess.CompletedProcess[str]":
+            if "gpg" in args[0] and args[-1] == "--version":
+                raise subprocess.TimeoutExpired(cmd=args, timeout=5)
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=0,
+                stdout="git version 2.42.0",
+                stderr="",
+            )
+
+        result, _ = _patch_step5(tmp_path, run_handler=run_handler)
+        check: CheckResult = result["signing_binary"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["severity"] == "error"
+        assert "timed out" in check["value"]
+        assert "openpgp" in check["value"]
+        assert "error" in check
+        assert "5s" in check["error"]
+
+    def test_signing_binary_timeout_ssh(self, tmp_path: Path) -> None:
+        """ssh-keygen --version times out → ok=False with timeout-specific value."""
+
+        def run_handler(
+            args: list[str],
+        ) -> "subprocess.CompletedProcess[str]":
+            if "ssh-keygen" in args[0] and args[-1] == "--version":
+                raise subprocess.TimeoutExpired(cmd=args, timeout=5)
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=0,
+                stdout="git version 2.42.0",
+                stderr="",
+            )
+
+        result, _ = _patch_step5(tmp_path, gpg_format="ssh", run_handler=run_handler)
+        check: CheckResult = result["signing_binary"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["severity"] == "error"
+        assert "timed out" in check["value"]
+        assert "ssh" in check["value"]
+
+    def test_signing_binary_timeout_x509(self, tmp_path: Path) -> None:
+        """gpgsm --version times out → ok=False with timeout-specific value."""
+
+        def run_handler(
+            args: list[str],
+        ) -> "subprocess.CompletedProcess[str]":
+            if "gpgsm" in args[0] and args[-1] == "--version":
+                raise subprocess.TimeoutExpired(cmd=args, timeout=5)
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=0,
+                stdout="git version 2.42.0",
+                stderr="",
+            )
+
+        result, _ = _patch_step5(tmp_path, gpg_format="x509", run_handler=run_handler)
+        check: CheckResult = result["signing_binary"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["severity"] == "error"
+        assert "timed out" in check["value"]
+        assert "x509" in check["value"]
+
+
 class TestSigningBinarySSH:
     """Tests for the signing_binary check on the ssh path."""
 

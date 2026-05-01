@@ -253,6 +253,26 @@ class TestActuallySignOpenPGP:
         assert check["severity"] == "error"
         assert "No secret key" in check.get("error", "")
 
+    def test_signing_timeout(self, tmp_path: Path) -> None:
+        """gpg --clearsign times out → ok=False, severity=error, value mentions timeout."""
+
+        def handler(
+            args: list[str], *, input: str, timeout: float
+        ) -> "subprocess.CompletedProcess[str]":
+            del input
+            raise subprocess.TimeoutExpired(cmd=args, timeout=timeout)
+
+        result, _, _ = _patch_step7(
+            tmp_path, actually_sign=True, run_with_input_handler=handler
+        )
+        check: CheckResult = result["actual_signature"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["severity"] == "error"
+        assert "timed out" in check["value"]
+        assert "15s" in check["value"]
+        assert "error" in check
+        assert "15s" in check["error"]
+
     def test_signed_payload_not_logged(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:

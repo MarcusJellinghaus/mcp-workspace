@@ -2,39 +2,49 @@
 
 Provides verify_git() which runs structured checks against the local git
 configuration, including commit-signing setup. Returns per-check results.
+
+Note on logging: ``@log_function_call`` from ``mcp_coder_utils`` logs both
+parameter and return values at debug level (the `_log_call_start` /
+`_log_call_success` helpers serialise them via json.dumps). To honour
+Decision #11 — which forbids logging signing-key IDs / fingerprints /
+signed payload contents — this module deliberately avoids that decorator
+and uses targeted manual ``logger.debug`` calls that omit sensitive values.
 """
 
 import logging
 import shutil
 import subprocess  # noqa: S404
 from pathlib import Path
-from typing import Literal, NotRequired, Optional, TypedDict
+from typing import Literal, Optional
 
 from git import Repo
 from git.exc import GitCommandError
-from mcp_coder_utils.log_utils import log_function_call
 
+from ._signing_helpers import (
+    PROBE_PAYLOAD,
+    CheckResult,
+    build_signing_consistency_result,
+    build_signing_intent_result,
+    build_signing_key_result,
+    build_user_identity_result,
+    classify_signing_format,
+    signing_binary_install_hint,
+)
 from .core import safe_repo_context
 from .repository_status import is_git_repository
 
 logger = logging.getLogger(__name__)
 
-PROBE_PAYLOAD = "mcp-workspace verify_git probe"
+__all__ = ["CheckResult", "PROBE_PAYLOAD", "verify_git"]
 
 
-class CheckResult(TypedDict):
-    """Result of a single verification check."""
-
-    ok: bool
-    value: str
-    severity: Literal["error", "warning"]
-    error: NotRequired[str]
-    install_hint: NotRequired[str]
-
-
-@log_function_call
 def _get_config(repo: Repo, key: str, *extra_args: str) -> Optional[str]:
-    """Read a git config value; return None if the key is unset."""
+    """Read a git config value; return None if the key is unset.
+
+    Manually logs only the requested key (never the value) to honour
+    Decision #11: signing-related config values must never be logged.
+    """
+    logger.debug("_get_config: reading key=%s", key)
     try:
         value = repo.git.config("--get", key, *extra_args)
     except GitCommandError:
@@ -43,14 +53,18 @@ def _get_config(repo: Repo, key: str, *extra_args: str) -> Optional[str]:
     return stripped or None
 
 
-@log_function_call
 def _run(args: list[str], timeout: float) -> "subprocess.CompletedProcess[str]":
     """Run an external binary with subprocess discipline.
 
     Uses ``stdin=DEVNULL``, captures output, never raises on non-zero exit,
     and enforces an explicit timeout. The single chokepoint for direct
     subprocess use in this package.
+
+    Manually logs only the binary name (args[0]) at debug level — never
+    the full argv, since callers may pass signing key IDs.
     """
+    if args:
+        logger.debug("_run: invoking binary=%s timeout=%s", args[0], timeout)
     return subprocess.run(  # noqa: S603
         args,
         stdin=subprocess.DEVNULL,
@@ -61,7 +75,6 @@ def _run(args: list[str], timeout: float) -> "subprocess.CompletedProcess[str]":
     )
 
 
-@log_function_call
 def _run_with_input(
     args: list[str],
     *,
@@ -73,7 +86,12 @@ def _run_with_input(
     Same discipline as :func:`_run` (``capture_output=True``, ``text=True``,
     ``check=False``, explicit timeout) but accepts a string fed to stdin.
     Used only by the Tier 3 ``actual_signature`` deep probe.
+
+    Manually logs only the binary name; never the argv (which contains the
+    signing key id) and never ``input`` or the resulting signed output.
     """
+    if args:
+        logger.debug("_run_with_input: invoking binary=%s timeout=%s", args[0], timeout)
     return subprocess.run(  # noqa: S603
         args,
         input=input,
@@ -84,7 +102,6 @@ def _run_with_input(
     )
 
 
-@log_function_call
 def verify_git(
     project_dir: Path,
     *,
@@ -98,7 +115,14 @@ def verify_git(
 
     Returns:
         Dict with ``overall_ok`` bool plus per-check ``CheckResult`` entries.
+
+    Note: parameter/return values are not auto-logged — see module docstring.
     """
+    logger.debug(
+        "verify_git: entering project_dir=%s actually_sign=%s",
+        project_dir,
+        actually_sign,
+    )
     result: dict[str, object] = {}
 
     # ------------------------------------------------------------------
@@ -153,28 +177,7 @@ def verify_git(
         with safe_repo_context(project_dir) as repo:
             name = _get_config(repo, "user.name")
             email = _get_config(repo, "user.email")
-        missing = [
-            label
-            for label, value in (("user.name", name), ("user.email", email))
-            if value is None
-        ]
-        if missing:
-            result["user_identity"] = CheckResult(
-                ok=False,
-                value=f"missing: {', '.join(missing)}",
-                severity="error",
-                error=f"git config missing: {', '.join(missing)}",
-                install_hint=(
-                    "Set user.name and user.email via "
-                    "'git config --global user.{name,email}'"
-                ),
-            )
-        else:
-            result["user_identity"] = CheckResult(
-                ok=True,
-                value=f"{name} <{email}>",
-                severity="error",
-            )
+        result["user_identity"] = build_user_identity_result(name, email)
     else:
         result["user_identity"] = CheckResult(
             ok=False,
@@ -214,57 +217,18 @@ def verify_git(
             severity="warning",
             error="repository not accessible",
         )
-    elif not signing_intent_detected:
-        result["signing_intent"] = CheckResult(
-            ok=True,
-            value="not configured",
-            severity="warning",
-            install_hint=(
-                "Enable signing with 'git config --global commit.gpgsign true' "
-                "(and set user.signingkey)."
-            ),
-        )
-        result["signing_consistency"] = CheckResult(
-            ok=True,
-            value="not applicable",
-            severity="warning",
-        )
     else:
-        enabled = [k for k, v in flags_truthy.items() if v]
-        result["signing_intent"] = CheckResult(
-            ok=True,
-            value=f"detected: {', '.join(enabled)}",
-            severity="warning",
-        )
-
-        if not flags_truthy.get("commit.gpgsign"):
+        result["signing_intent"] = build_signing_intent_result(flags_truthy)
+        if not signing_intent_detected:
             result["signing_consistency"] = CheckResult(
                 ok=True,
                 value="not applicable",
                 severity="warning",
             )
         else:
-            rebase_label = (
-                "rebase ok"
-                if flags_truthy["rebase.gpgSign"]
-                else "rebase.gpgSign unset"
+            result["signing_consistency"] = build_signing_consistency_result(
+                flags_truthy
             )
-            tag_label = "tag ok" if flags_truthy["tag.gpgsign"] else "tag.gpgsign unset"
-            consistency_errors: list[str] = []
-            if not flags_truthy["rebase.gpgSign"]:
-                consistency_errors.append(
-                    "rebase.gpgSign unset → rebased commits unsigned on git < 2.36"
-                )
-            if not flags_truthy["tag.gpgsign"]:
-                consistency_errors.append("tag.gpgsign unset → tags will be unsigned")
-            consistency = CheckResult(
-                ok=not consistency_errors,
-                value=f"{rebase_label}; {tag_label}",
-                severity="warning",
-            )
-            if consistency_errors:
-                consistency["error"] = "; ".join(consistency_errors)
-            result["signing_consistency"] = consistency
 
     # ------------------------------------------------------------------
     # Tier 2: config-only checks (gated on signing_intent_detected)
@@ -280,49 +244,12 @@ def verify_git(
             gpg_program_raw = _get_config(repo, "gpg.program")
             allowed_signers_raw = _get_config(repo, "gpg.ssh.allowedSignersFile")
 
-        if raw_format is None:
-            signing_format_resolved = "openpgp"
-            result["signing_format"] = CheckResult(
-                ok=True,
-                value="openpgp (default)",
-                severity="error",
-            )
-        elif raw_format in ("openpgp", "ssh", "x509"):
-            signing_format_resolved = raw_format
-            result["signing_format"] = CheckResult(
-                ok=True,
-                value=raw_format,
-                severity="error",
-            )
-        else:
-            signing_format_resolved = "openpgp"
-            result["signing_format"] = CheckResult(
-                ok=False,
-                value=f"unknown: {raw_format}",
-                severity="error",
-                error=f"gpg.format must be openpgp, ssh, or x509 (got '{raw_format}')",
-            )
-
-        if signing_key is None:
-            sev: Literal["error", "warning"] = (
-                "error" if flags_truthy["commit.gpgsign"] else "warning"
-            )
-            result["signing_key"] = CheckResult(
-                ok=False,
-                value="not set",
-                severity=sev,
-                error="user.signingkey is not configured",
-                install_hint=(
-                    "Set user.signingkey via "
-                    "'git config --global user.signingkey <ID>'"
-                ),
-            )
-        else:
-            result["signing_key"] = CheckResult(
-                ok=True,
-                value="configured",
-                severity="error",
-            )
+        signing_format_resolved, result["signing_format"] = classify_signing_format(
+            raw_format
+        )
+        result["signing_key"] = build_signing_key_result(
+            signing_key, flags_truthy["commit.gpgsign"]
+        )
 
         # ----------------------------------------------------------
         # Tier 2: signing_binary
@@ -356,39 +283,47 @@ def verify_git(
             signing_binary_path = shutil.which("gpgsm")
 
         if "signing_binary" not in result:
-            install_hints = {
-                "openpgp": (
-                    "Install Gpg4win (Windows) or 'gpg' (Linux/Mac), "
-                    "or set gpg.format=ssh"
-                ),
-                "ssh": "Install OpenSSH >= 8.0 (provides ssh-keygen)",
-                "x509": "Install gpgsm (part of GnuPG) or set gpg.format=openpgp",
-            }
             if signing_binary_path is None:
                 result["signing_binary"] = CheckResult(
                     ok=False,
                     value="not found",
                     severity="error",
                     error=f"binary for {signing_format_resolved} not on PATH",
-                    install_hint=install_hints.get(signing_format_resolved, ""),
+                    install_hint=signing_binary_install_hint(signing_format_resolved),
                 )
             else:
-                proc = _run([signing_binary_path, "--version"], timeout=5)
-                if proc.returncode == 0:
-                    first_line = (proc.stdout.splitlines() or [""])[0].strip()
-                    result["signing_binary"] = CheckResult(
-                        ok=True,
-                        value=first_line[:200],
-                        severity="error",
+                try:
+                    proc = _run([signing_binary_path, "--version"], timeout=5)
+                except subprocess.TimeoutExpired:
+                    logger.debug(
+                        "signing_binary --version timed out for format=%s",
+                        signing_format_resolved,
                     )
-                else:
                     result["signing_binary"] = CheckResult(
                         ok=False,
-                        value="not runnable",
+                        value=f"{signing_format_resolved} binary timed out",
                         severity="error",
-                        error=(proc.stderr or "").strip()[:500],
+                        error=(
+                            f"{signing_format_resolved} --version timed out " "(>5s)"
+                        ),
                     )
                     signing_binary_path = None
+                else:
+                    if proc.returncode == 0:
+                        first_line = (proc.stdout.splitlines() or [""])[0].strip()
+                        result["signing_binary"] = CheckResult(
+                            ok=True,
+                            value=first_line[:200],
+                            severity="error",
+                        )
+                    else:
+                        result["signing_binary"] = CheckResult(
+                            ok=False,
+                            value="not runnable",
+                            severity="error",
+                            error=(proc.stderr or "").strip()[:500],
+                        )
+                        signing_binary_path = None
 
         # ----------------------------------------------------------
         # Tier 2: signing_key_accessible
@@ -458,18 +393,28 @@ def verify_git(
                     ),
                 )
             else:
-                proc = _run([agent_path, "/bye"], timeout=5)
-                if proc.returncode == 0:
-                    result["agent_reachable"] = CheckResult(
-                        ok=True, value="reachable", severity="warning"
-                    )
-                else:
+                try:
+                    proc = _run([agent_path, "/bye"], timeout=5)
+                except subprocess.TimeoutExpired:
+                    logger.debug("gpg-connect-agent /bye timed out")
                     result["agent_reachable"] = CheckResult(
                         ok=False,
-                        value="unreachable",
+                        value="gpg-agent unreachable (timeout)",
                         severity="warning",
-                        error=(proc.stderr or proc.stdout).strip()[:500],
+                        error="gpg-connect-agent /bye timed out (>5s)",
                     )
+                else:
+                    if proc.returncode == 0:
+                        result["agent_reachable"] = CheckResult(
+                            ok=True, value="reachable", severity="warning"
+                        )
+                    else:
+                        result["agent_reachable"] = CheckResult(
+                            ok=False,
+                            value="unreachable",
+                            severity="warning",
+                            error=(proc.stderr or proc.stdout).strip()[:500],
+                        )
 
         # ----------------------------------------------------------
         # Tier 2: allowed_signers (ssh only)
@@ -523,6 +468,7 @@ def verify_git(
                                 error=str(exc)[:500],
                             )
         except Exception as exc:  # pylint: disable=broad-except
+            logger.debug("verify_head: outer failure: %s", exc)
             result["verify_head"] = CheckResult(
                 ok=False,
                 value="verify-commit failed",
@@ -561,37 +507,51 @@ def verify_git(
                         error="signing binary unavailable",
                     )
                 else:
-                    proc = _run_with_input(
-                        [
-                            signing_binary_path,
-                            "--clearsign",
-                            "--local-user",
-                            signing_key,
-                        ],
-                        input=PROBE_PAYLOAD,
-                        timeout=15,
-                    )
-                    if (
-                        proc.returncode == 0
-                        and "BEGIN PGP SIGNED MESSAGE" in proc.stdout
-                    ):
-                        logger.debug("signature produced")
-                        result["actual_signature"] = CheckResult(
-                            ok=True,
-                            value="probe signed successfully",
-                            severity="error",
+                    # signing_key_ok is True only when signing_key is not None
+                    # (build_signing_key_result returns ok=False otherwise);
+                    # narrow for mypy.
+                    assert signing_key is not None
+                    try:
+                        proc = _run_with_input(
+                            [
+                                signing_binary_path,
+                                "--clearsign",
+                                "--local-user",
+                                signing_key,
+                            ],
+                            input=PROBE_PAYLOAD,
+                            timeout=15,
                         )
-                    else:
-                        logger.debug(
-                            "signature failed: returncode=%s",
-                            proc.returncode,
-                        )
+                    except subprocess.TimeoutExpired:
+                        logger.debug("actual_signature --clearsign timed out")
                         result["actual_signature"] = CheckResult(
                             ok=False,
-                            value="signing failed",
+                            value="signing timed out (>15s)",
                             severity="error",
-                            error=(proc.stderr or "").strip()[:500],
+                            error="gpg --clearsign exceeded 15s timeout",
                         )
+                    else:
+                        if (
+                            proc.returncode == 0
+                            and "BEGIN PGP SIGNED MESSAGE" in proc.stdout
+                        ):
+                            logger.debug("signature produced")
+                            result["actual_signature"] = CheckResult(
+                                ok=True,
+                                value="probe signed successfully",
+                                severity="error",
+                            )
+                        else:
+                            logger.debug(
+                                "signature failed: returncode=%s",
+                                proc.returncode,
+                            )
+                            result["actual_signature"] = CheckResult(
+                                ok=False,
+                                value="signing failed",
+                                severity="error",
+                                error=(proc.stderr or "").strip()[:500],
+                            )
 
     # ------------------------------------------------------------------
     # overall_ok: all error-severity checks must pass
@@ -601,4 +561,5 @@ def verify_git(
         for check in result.values()
         if isinstance(check, dict) and check.get("severity") == "error"
     )
+    logger.debug("verify_git: exiting overall_ok=%s", result["overall_ok"])
     return result
