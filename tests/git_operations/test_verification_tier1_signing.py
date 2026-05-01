@@ -115,16 +115,6 @@ class TestSigningIntentDetected:
         assert "tag.gpgsign" in check["value"]
         assert "commit.gpgsign" not in check["value"]
 
-    def test_yes_value_recognised(self, tmp_path: Path) -> None:
-        """git canonicalises 'yes' to 'true' under --type=bool → detected."""
-        # The mock here returns "true" because that's what git would canonicalise
-        # 'yes' to when called with --type=bool. Verifies we use --type=bool, not
-        # raw string equality.
-        result = _patch_baseline_ok(tmp_path, commit_gpgsign="true")
-        check: CheckResult = result["signing_intent"]  # type: ignore[assignment]
-        assert check["ok"] is True
-        assert "commit.gpgsign" in check["value"]
-
     def test_extra_args_passed_to_config(self, tmp_path: Path) -> None:
         """_get_config receives '--type=bool' for each of the four signing flags."""
         fake_repo = Mock()

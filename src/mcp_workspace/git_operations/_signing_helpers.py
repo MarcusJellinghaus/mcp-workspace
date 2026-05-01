@@ -71,13 +71,12 @@ def build_signing_intent_result(flags_truthy: dict[str, bool]) -> "CheckResult":
 
 
 def build_signing_consistency_result(flags_truthy: dict[str, bool]) -> "CheckResult":
-    """Construct the signing_consistency CheckResult from the flag map."""
-    if not flags_truthy.get("commit.gpgsign"):
-        return CheckResult(
-            ok=True,
-            value="not applicable",
-            severity="warning",
-        )
+    """Construct the signing_consistency CheckResult from the flag map.
+
+    Precondition: ``flags_truthy["commit.gpgsign"]`` is True. The caller is
+    responsible for handling the "not applicable" case before invoking this
+    helper.
+    """
     rebase_label = (
         "rebase ok" if flags_truthy["rebase.gpgSign"] else "rebase.gpgSign unset"
     )
