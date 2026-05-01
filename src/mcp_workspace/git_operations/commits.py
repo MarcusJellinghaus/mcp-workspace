@@ -143,7 +143,7 @@ def commit_staged_files(message: str, project_dir: Path) -> CommitResult:
             "success": False,
             "commit_hash": None,
             "error": error_msg,
-            "error_category": "commit_failed",
+            "error_category": "validation_failed",
         }
 
 

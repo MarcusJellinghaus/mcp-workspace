@@ -42,6 +42,8 @@ def commit_all_changes(message: str, project_dir: Path) -> CommitResult:
         - success: True if staging and commit were both successful, False otherwise
         - commit_hash: Git commit SHA (first 7 characters) if successful, None otherwise
         - error: Error message if failed, None if successful
+        - error_category: One of "signing_failed", "commit_failed",
+          "validation_failed", or None on success.
 
     Note:
         - First stages all unstaged changes (both modified and untracked files)
