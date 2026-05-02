@@ -44,7 +44,7 @@ dev = [
     # "mcp-tools-py",  # TODO: uncomment once mcp-tools-py is published on PyPI
     # "mcp-coder",  # TODO: uncomment once mcp-coder is published on PyPI
 ]
-typecheck = ["mypy>=1.13.0", "types-requests>=2.31.0"]
+typecheck = ["mypy>=1.13.0", "types-requests>=2.31.0", "pytest>=8.3.5", "pytest-asyncio>=0.25.3"]
 architecture = [
     "import-linter>=2.0",
     "tach>=0.6.0",
