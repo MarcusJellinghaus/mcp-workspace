@@ -36,10 +36,6 @@ dist/
 .import_linter_cache/
 .grimp_cache/
 
-# Platform-specific MCP configurations
-.mcp.linux.json
-.mcp.windows.json
-.mcp.macos.json
 checks_output.txt
 bash.exe.stackdump
 /.mcp-coder-tmp/
