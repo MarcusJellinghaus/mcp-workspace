@@ -2,10 +2,10 @@
 description: Update implementation plan files based on discussion
 disable-model-invocation: true
 allowed-tools:
-  - mcp__workspace__read_file
-  - mcp__workspace__save_file
-  - mcp__workspace__edit_file
-  - mcp__workspace__list_directory
+  - mcp__mcp-workspace__read_file
+  - mcp__mcp-workspace__save_file
+  - mcp__mcp-workspace__edit_file
+  - mcp__mcp-workspace__list_directory
 ---
 
 # Update Plan Files

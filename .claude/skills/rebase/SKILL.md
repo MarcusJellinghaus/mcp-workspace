@@ -2,7 +2,7 @@
 description: Rebase feature branch onto base branch with conflict resolution
 disable-model-invocation: true
 allowed-tools:
-  - mcp__workspace__git
+  - mcp__mcp-workspace__git
   - "Bash(git rebase *)"
   - "Bash(git add *)"
   - "Bash(git rm *)"
@@ -13,28 +13,28 @@ allowed-tools:
   - "Bash(git restore *)"
   - "Bash(git stash *)"
   - "Bash(git push --force-with-lease *)"
-  - mcp__tools-py__run_format_code
-  - mcp__workspace__get_base_branch
-  - mcp__tools-py__run_pylint_check
-  - mcp__tools-py__run_pytest_check
-  - mcp__tools-py__run_mypy_check
-  - mcp__workspace__read_file
-  - mcp__workspace__save_file
-  - mcp__workspace__edit_file
-  - mcp__workspace__list_directory
-  - mcp__workspace__get_reference_projects
-  - mcp__workspace__list_reference_directory
-  - mcp__workspace__read_reference_file
-  - mcp__workspace__append_file
-  - mcp__workspace__delete_this_file
-  - mcp__workspace__move_file
+  - mcp__mcp-tools-py__run_format_code
+  - mcp__mcp-workspace__get_base_branch
+  - mcp__mcp-tools-py__run_pylint_check
+  - mcp__mcp-tools-py__run_pytest_check
+  - mcp__mcp-tools-py__run_mypy_check
+  - mcp__mcp-workspace__read_file
+  - mcp__mcp-workspace__save_file
+  - mcp__mcp-workspace__edit_file
+  - mcp__mcp-workspace__list_directory
+  - mcp__mcp-workspace__get_reference_projects
+  - mcp__mcp-workspace__list_reference_directory
+  - mcp__mcp-workspace__read_reference_file
+  - mcp__mcp-workspace__append_file
+  - mcp__mcp-workspace__delete_this_file
+  - mcp__mcp-workspace__move_file
 ---
 
 # Rebase Branch onto Base Branch
 
 ## First Step
 
-Call `mcp__workspace__git` with command `"status"` before doing anything else.
+Call `mcp__mcp-workspace__git` with command `"status"` before doing anything else.
 
 Rebase the current feature branch onto its base branch and resolve conflicts.
 
@@ -46,7 +46,7 @@ If the rebase becomes complex, suggest switching to cherry-picking as an alterna
 
 ## Determine Base Branch
 
-First, detect the correct base branch using `mcp__workspace__get_base_branch`.
+First, detect the correct base branch using `mcp__mcp-workspace__get_base_branch`.
 
 ## Base Branch Confirmation
 
@@ -62,7 +62,7 @@ If the base branch is not `main` or `master`, ask the user to confirm before pro
 
 ## Workflow
 
-1. Call `mcp__workspace__git` with command `"fetch"` and args `["origin"]`
+1. Call `mcp__mcp-workspace__git` with command `"fetch"` and args `["origin"]`
 2. `git rebase origin/${BASE_BRANCH}`
 3. For each conflict:
    - If file is under `pr_info/`: auto-resolve with `git checkout --theirs <file>` (keep feature branch version), then `git add <file>` — no user input needed
@@ -70,7 +70,7 @@ If the base branch is not `main` or `master`, ask the user to confirm before pro
    - Verify no conflict markers remain
    - `git add <file>`
    - `git rebase --continue`
-4. Run code checks: `mcp__tools-py__run_pytest_check`, `mcp__tools-py__run_pylint_check`, `mcp__tools-py__run_mypy_check`
+4. Run code checks: `mcp__mcp-tools-py__run_pytest_check`, `mcp__mcp-tools-py__run_pylint_check`, `mcp__mcp-tools-py__run_mypy_check`
 5. Fix any issues from merge
 6. Report summary and ask for user confirmation
 7. `git push --force-with-lease`

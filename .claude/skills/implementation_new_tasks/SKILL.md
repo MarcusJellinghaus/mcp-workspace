@@ -2,10 +2,10 @@
 description: Create additional implementation steps after code review findings
 disable-model-invocation: true
 allowed-tools:
-  - mcp__workspace__read_file
-  - mcp__workspace__save_file
-  - mcp__workspace__edit_file
-  - mcp__workspace__list_directory
+  - mcp__mcp-workspace__read_file
+  - mcp__mcp-workspace__save_file
+  - mcp__mcp-workspace__edit_file
+  - mcp__mcp-workspace__list_directory
 ---
 
 # Create Further Implementation Tasks

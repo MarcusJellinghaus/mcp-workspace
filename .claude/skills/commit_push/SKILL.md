@@ -2,14 +2,14 @@
 description: Format code, review changes, commit, and push to remote
 disable-model-invocation: true
 allowed-tools:
-  - mcp__workspace__git
+  - mcp__mcp-workspace__git
   - "Bash(git add *)"
   - "Bash(git commit *)"
   - "Bash(git push *)"
-  - mcp__tools-py__run_format_code
-  - mcp__workspace__read_file
-  - mcp__workspace__list_directory
-  - mcp__workspace__search_files
+  - mcp__mcp-tools-py__run_format_code
+  - mcp__mcp-workspace__read_file
+  - mcp__mcp-workspace__list_directory
+  - mcp__mcp-workspace__search_files
 ---
 
 # Commit and Push Changes
@@ -17,11 +17,11 @@ allowed-tools:
 Follow this process to commit and push your changes:
 
 ## 1. Format Code
-Use `mcp__tools-py__run_format_code` to format all code (black + isort).
+Use `mcp__mcp-tools-py__run_format_code` to format all code (black + isort).
 
 ## 2. Review Changes
-Use `mcp__workspace__git` with command `"status"` to check working directory state.
-Use `mcp__workspace__git` with command `"diff"` to review the changes.
+Use `mcp__mcp-workspace__git` with command `"status"` to check working directory state.
+Use `mcp__mcp-workspace__git` with command `"diff"` to review the changes.
 
 ## 3. Stage Changes
 Stage all relevant changes (exclude any files that shouldn't be committed).
