@@ -67,9 +67,9 @@ Before moving anything:
 
 Use the MCP refactoring tools — they move code and update all imports automatically:
 
-1. `mcp__tools-py__list_symbols(file=...)` — inventory the source file
-2. `mcp__tools-py__move_symbol(source_file=..., symbol_name=..., dest_file=..., dry_run=true)` — preview
-3. `mcp__tools-py__move_symbol(source_file=..., symbol_name=..., dest_file=...)` — execute
+1. `mcp__mcp-tools-py__list_symbols(file=...)` — inventory the source file
+2. `mcp__mcp-tools-py__move_symbol(source_file=..., symbol_name=..., dest_file=..., dry_run=true)` — preview
+3. `mcp__mcp-tools-py__move_symbol(source_file=..., symbol_name=..., dest_file=...)` — execute
 4. Repeat for each symbol/group
 5. Update `__init__.py` re-exports if needed
 6. Update `.importlinter` layering contracts if the split introduces sub-layers (see [Import Linter](#import-linter) below)
@@ -125,9 +125,9 @@ When splitting a module into sub-modules, the new files may have internal depend
 ./tools/tach_check.sh
 
 # Functionality (Claude Code MCP tools)
-mcp__tools-py__run_pytest_check
-mcp__tools-py__run_pylint_check
-mcp__tools-py__run_mypy_check
+mcp__mcp-tools-py__run_pytest_check
+mcp__mcp-tools-py__run_pylint_check
+mcp__mcp-tools-py__run_mypy_check
 ```
 
 ## Common Patterns

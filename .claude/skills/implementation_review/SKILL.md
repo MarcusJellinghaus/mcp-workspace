@@ -2,19 +2,19 @@
 description: Code review of implementation with compact diff analysis
 disable-model-invocation: true
 allowed-tools:
-  - mcp__workspace__git
-  - mcp__workspace__check_branch_status
-  - mcp__workspace__read_file
-  - mcp__workspace__list_directory
-  - mcp__workspace__search_files
+  - mcp__mcp-workspace__git
+  - mcp__mcp-workspace__check_branch_status
+  - mcp__mcp-workspace__read_file
+  - mcp__mcp-workspace__list_directory
+  - mcp__mcp-workspace__search_files
 ---
 
 # Implementation Review (Code Review)
 
 **First, ensure we're up to date:**
-Call `mcp__workspace__git` with command `"fetch"` and args `["origin"]`.
-Use `mcp__workspace__git` with command `"status"` to check working directory state.
-Call `mcp__workspace__check_branch_status`.
+Call `mcp__mcp-workspace__git` with command `"fetch"` and args `["origin"]`.
+Use `mcp__mcp-workspace__git` with command `"status"` to check working directory state.
+Call `mcp__mcp-workspace__check_branch_status`.
 
 Confirm and display the current feature branch name.
 
@@ -24,7 +24,7 @@ Confirm and display the current feature branch name.
 
 ## Code Review Request
 
-Use `mcp__workspace__git` with command `"diff"` to get the changes to review.
+Use `mcp__mcp-workspace__git` with command `"diff"` to get the changes to review.
 
 No need to run all checks; do not use pylint warnings. Feel free to further analyse any mentioned files and/or the file structure.
 
