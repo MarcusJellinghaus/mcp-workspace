@@ -7,10 +7,12 @@
 > `pr_info/steps/step_3.md`. Replace the single-path docstring text in 9
 > files with the dual-path form. This is a mechanical text replacement —
 > no logic changes. After implementation, run
-> `mcp__tools-py__run_pylint_check`, `mcp__tools-py__run_pytest_check`
-> (with the recommended `-n auto` and integration markers excluded), and
-> `mcp__tools-py__run_mypy_check`. Run `./tools/format_all.sh`, then make
-> exactly one commit for this step.
+> `mcp__mcp-tools-py__run_pylint_check`,
+> `mcp__mcp-tools-py__run_pytest_check` (with the recommended `-n auto`
+> and integration markers excluded), and
+> `mcp__mcp-tools-py__run_mypy_check`. Run
+> `mcp__mcp-tools-py__run_format_code`, then make exactly one commit for
+> this step.
 
 ## WHERE — Class Docstrings (production code, 5 sites)
 
@@ -69,12 +71,13 @@ scope notes, "Note: Tests will be skipped..." line) stays unchanged.
 
 ## HOW (Integration Points)
 
-- Use `mcp__workspace__edit_file` per file. Each find string is unique within
-  its file, so a normal (non-`replace_all`) edit suffices.
+- Use `mcp__mcp-workspace__edit_file` per file. Each find string is unique
+  within its file, so a normal (non-`replace_all`) edit suffices.
 - Do not modify the surrounding TOML example block.
-- After all 9 edits, grep the project for the literal
-  `(~/.mcp_coder/config.toml)` to confirm only the dual-path forms remain
-  (no single-path occurrences).
+- After all 9 edits, run the **comprehensive repo-wide grep gate**:
+  `~/.mcp_coder/config.toml` should appear ONLY inside the dual-path
+  sentences that include `on Windows`. There must be no remaining
+  single-path occurrences in either runtime code or docstrings.
 
 ## ALGORITHM
 
@@ -84,6 +87,10 @@ for each of the 9 files:
     locate the single-path sentence
     replace with the dual-path sentence
     save
+
+repo-wide grep gate:
+    every match of "~/.mcp_coder/config.toml" must be on a line that also
+    contains "on Windows" (i.e. it is part of a dual-path docstring).
 ```
 
 ## DATA
@@ -99,7 +106,7 @@ broke.
 ## Acceptance for This Step
 
 - All 9 docstrings show both Windows and Linux/macOS paths.
-- No remaining single-path `(~/.mcp_coder/config.toml)` strings outside of
-  the dual-path sentences (grep confirms).
+- Repo-wide grep for `~/.mcp_coder/config.toml` returns only lines that
+  also contain `on Windows` (i.e. part of a dual-path sentence).
 - Pylint, pytest, mypy all green.
 - One commit produced.
