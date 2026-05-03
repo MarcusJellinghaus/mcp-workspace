@@ -12,24 +12,21 @@ if not exist "%CD%\.venv\Scripts\activate.bat" (
     exit /b 1
 )
 
-REM === Step 1: Tool env discovery ===
-REM Determine where mcp-coder is installed (tool env Scripts dir)
-set "TOOL_VENV_SCRIPTS="
-
-if "!VIRTUAL_ENV!"=="" goto :discover_from_path
-
-REM VIRTUAL_ENV is set — check if it's the project .venv or an external tool env
-set "PROJECT_VENV=%CD%\.venv"
-if /i "!VIRTUAL_ENV!"=="!PROJECT_VENV!" (
-    REM VIRTUAL_ENV points to project .venv — tool env must be elsewhere
-    goto :discover_from_path
-) else (
-    REM VIRTUAL_ENV points to an external env — assume it's the tool env
-    set "TOOL_VENV_SCRIPTS=!VIRTUAL_ENV!\Scripts"
-    goto :tool_env_found
+REM === Step 1: Project env activation ===
+REM Activate .venv first so its mcp-coder install is discoverable on PATH.
+echo Activating project environment: %CD%\.venv
+call "%CD%\.venv\Scripts\activate.bat"
+if "!VIRTUAL_ENV!"=="" (
+    echo ERROR: Failed to activate project virtual environment.
+    echo Please check .venv\Scripts\activate.bat
+    exit /b 1
 )
 
-:discover_from_path
+REM === Step 2: Tool env discovery ===
+REM Determine where mcp-coder is installed (tool env Scripts dir).
+REM For local dev, the project .venv (just activated) IS the tool env.
+set "TOOL_VENV_SCRIPTS="
+
 REM Find mcp-coder on PATH
 for /f "delims=" %%i in ('where mcp-coder 2^>nul') do (
     if "!TOOL_VENV_SCRIPTS!"=="" (
@@ -48,21 +45,11 @@ if "!TOOL_VENV_SCRIPTS!"=="" (
     exit /b 1
 )
 
-:tool_env_found
-REM === Step 2: Set tool env variables ===
+REM === Step 3: Set tool env variables ===
 set "MCP_CODER_VENV_PATH=!TOOL_VENV_SCRIPTS!"
 
 REM Resolve parent directory of Scripts to get venv root
 for %%d in ("!MCP_CODER_VENV_PATH!\..") do set "MCP_CODER_VENV_DIR=%%~fd"
-
-REM === Step 3: Project env activation ===
-echo Activating project environment: %CD%\.venv
-call "%CD%\.venv\Scripts\activate.bat"
-if "!VIRTUAL_ENV!"=="" (
-    echo ERROR: Failed to activate project virtual environment.
-    echo Please check .venv\Scripts\activate.bat
-    exit /b 1
-)
 
 REM === Step 4: Editable install verification ===
 "%CD%\.venv\Scripts\python.exe" -c "from importlib.metadata import distribution as D; u=D('mcp-workspace').read_text('direct_url.json') or ''; exit(0 if 'dir_info' in u and 'editable' in u else 1)" 2>nul
