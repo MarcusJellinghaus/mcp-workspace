@@ -52,7 +52,36 @@ incorrect `mcp__tools-py__run_*` to `mcp__mcp-tools-py__run_*` per
 All step "LLM Prompt" sections referencing `./tools/format_all.sh` were
 updated to `mcp__mcp-tools-py__run_format_code` per `.claude/CLAUDE.md`.
 
+## D2 (Round 2 polish) — Step 1 clarifications
+
+Three small fixes applied to `step_1.md` after Round 2 plan review:
+
+- **F11 — Implementer venv prerequisite.** Added a "Before starting"
+  note at the top of Step 1's LLM Prompt section reminding the
+  implementer to install the upstream `mcp-coder-utils` release that
+  exposes `get_user_config_path` before running pytest. Without it,
+  collection fails with `ModuleNotFoundError`, which is **not** the
+  intended TDD "RED" state.
+- **F13 — `pyproject.toml` pin guidance.** Reworded the WHERE-table row
+  for `pyproject.toml`: the change is *introducing* a `>=X.Y.Z` lower
+  bound (currently `mcp-coder-utils` is unpinned), not bumping one.
+  Pin scheme should match sibling deps — verified against the file:
+  loose `>=X.Y.Z` with no upper cap is the convention (e.g.
+  `mcp>=1.3.0`, `GitPython>=3.1.0`, `pathspec>=0.12.1`). Also called
+  out the existing `[tool.mcp-coder.install-from-github]` entry for
+  `mcp-coder-utils` — the implementer should pin its `git+https://...`
+  reference to the same `@vX.Y.Z` tag for consistency.
+- **F14 — Test rework scope.** Replaced the vague "apply this pattern
+  uniformly" line with an explicit table enumerating the four
+  affected test classes (`TestReadConfigValue`, `TestGetGithubToken`,
+  `TestGetGithubTokenWithSource`, `TestGetTestRepoUrl`). Verified
+  count: **16 tests across 4 classes, of which 13 use
+  `patch.object(Path, "home", ...)`**. Implementer is told to
+  re-verify against the file before editing.
+
 ## Skipped (no action this round)
 
 F2, F3, F5, F6, F9, F10 — confirmations or borderline test additions
 deferred to keep the plan minimal.
+
+F12 — engineer-suggested upstream-wiring smoke test deferred per YAGNI.

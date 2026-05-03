@@ -42,3 +42,36 @@ Supervisor-run automated plan review. Each round corresponds to a `/plan_review`
 - This PR is blocked on the upstream PR. The user accepted this trade-off.
 
 **Status**: changes applied, pending commit.
+
+
+## Round 2 — 2026-05-03
+
+**Findings** (from `/plan_review` engineer):
+- F11 [STRAIGHTFORWARD] Step 1 implementer must install upstream `mcp-coder-utils` release in venv before running tests, else pytest collection fails with `ModuleNotFoundError`.
+- F12 [DESIGN] Mocking `get_user_config_path` in every test means zero `mcp_workspace`-side proof that the bug is fixed on Linux/macOS — borderline; one un-mocked smoke test would catch import-path drift.
+- F13 [STRAIGHTFORWARD] `pyproject.toml` change is *introducing* a `>=X.Y.Z` lower bound (current entry has no pin), not bumping one. Pin scheme also unspecified.
+- F14 [STRAIGHTFORWARD] Step 1 said "apply this pattern uniformly across the existing test classes" — too vague. Actual scope: ~15 tests across 4 classes.
+- F15 [SKIP] Verified no leftover `_config_path()` references — confirmation only.
+- F16 [SKIP] Verified import paths consistent across step files — confirmation only.
+- F17 [SKIP] Verified F4 grep gate rewording is internally consistent between Steps 2 and 3 — confirmation only.
+- F18 [SKIP] Verified step boundaries still right-sized after pivot — confirmation only.
+
+**Decisions**:
+- Auto-accepted: F11, F13, F14.
+- Skipped: F12 (defaulting to simpler plan per supervisor playbook — YAGNI), F15/F16/F17/F18 (confirmations).
+- Escalated to user: none.
+
+**User decisions**: none this round.
+
+**Changes** (from `/plan_update` engineer):
+- `step_1.md`: added "Before starting" venv prerequisite note (F11); reworded `pyproject.toml` row to clarify lower-bound is being *introduced*, specified pin scheme = match sibling deps (loose `>=X.Y.Z`, no upper cap), added `[tool.mcp-coder.install-from-github]` ref-tag guidance (F13); replaced vague "apply uniformly" line with explicit per-class table and verified call-site count of **13** patch-`Path.home` sites across 4 classes (F14).
+- `Decisions.md`: appended D2 entry summarizing F11/F13/F14; F12 logged under "Skipped".
+
+**Verified facts**:
+- Test count: 13 `patch.object(Path, "home", ...)` call sites across `TestReadConfigValue` (5), `TestGetGithubToken` (3), `TestGetGithubTokenWithSource` (3), `TestGetTestRepoUrl` (2). 3 env-var-only sibling tests do not use `Path.home` and don't need migration.
+- pyproject convention: all pinned siblings use loose `>=X.Y.Z` with no upper cap; no existing `@vX.Y.Z` ref on the install-from-github block.
+
+**Open risks** (carried forward, unchanged):
+- Upstream `mcp-coder-utils` release does not yet exist; concrete version pin (`X.Y.Z`) remains a placeholder until upstream lands.
+
+**Status**: changes applied, pending commit.
