@@ -100,15 +100,15 @@ class TestPathspecAutoSplit:
 ## Code-quality gate (mandatory after edits)
 All three must pass:
 ```
-mcp__tools-py__run_pylint_check
-mcp__tools-py__run_pytest_check  (extra_args=["-n", "auto", "-m",
+mcp__mcp-tools-py__run_pylint_check
+mcp__mcp-tools-py__run_pytest_check  (extra_args=["-n", "auto", "-m",
     "not git_integration and not claude_cli_integration and not claude_api_integration "
     "and not formatter_integration and not github_integration and not langchain_integration"])
-mcp__tools-py__run_mypy_check
+mcp__mcp-tools-py__run_mypy_check
 ```
 Plus, run the new git_integration tests once to confirm:
 ```
-mcp__tools-py__run_pytest_check  (extra_args=["-n", "auto"], markers=["git_integration"])
+mcp__mcp-tools-py__run_pytest_check  (extra_args=["-n", "auto", "-m", "git_integration"])
 ```
 
 ## LLM Prompt
@@ -119,7 +119,7 @@ mcp__tools-py__run_pytest_check  (extra_args=["-n", "auto"], markers=["git_integ
 >
 > Follow TDD: first add the `TestPathspecAutoSplit` class to `tests/git_operations/test_read_operations.py` exactly as in the Tests section. Then wire the helper into the five handlers to make the tests pass.
 >
-> Use only MCP tools (`mcp__workspace__*` for files, `mcp__tools-py__run_*` for checks). Run pylint, fast pytest (with the no-integration marker filter), and mypy — all must pass. Then run pytest with the `git_integration` marker to verify the two new handler tests pass.
+> Use only MCP tools (`mcp__mcp-workspace__*` for files, `mcp__mcp-tools-py__run_*` for checks). Run pylint, fast pytest (with the no-integration marker filter), and mypy — all must pass. Then run pytest with the `git_integration` marker to verify the two new handler tests pass.
 >
 > This step must produce exactly one commit.
 

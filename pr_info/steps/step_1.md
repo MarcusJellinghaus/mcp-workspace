@@ -127,11 +127,11 @@ class TestSplitArgsPathspec:
 ## Code-quality gate (mandatory after edits)
 All three must pass:
 ```
-mcp__tools-py__run_pylint_check
-mcp__tools-py__run_pytest_check  (extra_args=["-n", "auto", "-m",
+mcp__mcp-tools-py__run_pylint_check
+mcp__mcp-tools-py__run_pytest_check  (extra_args=["-n", "auto", "-m",
     "not git_integration and not claude_cli_integration and not claude_api_integration "
     "and not formatter_integration and not github_integration and not langchain_integration"])
-mcp__tools-py__run_mypy_check
+mcp__mcp-tools-py__run_mypy_check
 ```
 
 ## LLM Prompt
@@ -142,7 +142,7 @@ mcp__tools-py__run_mypy_check
 >
 > Follow TDD: first write the test updates in `tests/git_operations/test_arg_validation.py` exactly as listed in the Tests section (update `test_rejects_double_dash`, add `TestSplitArgsPathspec` class with all listed test methods). Then implement the helper to make them pass.
 >
-> Use only MCP tools (`mcp__workspace__*` for files, `mcp__tools-py__run_*` for checks). Run pylint, fast pytest (with the no-integration marker filter), and mypy — all must pass before completing. Do NOT wire the helper into any handler in this step (that is Step 2).
+> Use only MCP tools (`mcp__mcp-workspace__*` for files, `mcp__mcp-tools-py__run_*` for checks). Run pylint, fast pytest (with the no-integration marker filter), and mypy — all must pass before completing. Do NOT wire the helper into any handler in this step (that is Step 2).
 >
 > This step must produce exactly one commit.
 
