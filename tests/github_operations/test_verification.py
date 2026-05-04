@@ -1098,16 +1098,15 @@ class TestPermissionProbeOverallOkUnaffected:
         mock_repo.full_name = "owner/repo"
         mock_repo.delete_branch_on_merge = True
         mock_repo.default_branch = "main"
-        mock_branch = Mock()
-        mock_branch.get_protection.return_value = _make_mock_protection()
-        mock_repo.get_branch.return_value = mock_branch
 
-        # Make each probe-relevant call raise 403
+        # Make each probe-relevant call raise 403 — including get_protection so
+        # the Administration probe genuinely fails alongside the other five.
         denial = GithubException(status=403, data={}, headers={})
-        # Note: branch protection (Check 5–9) uses the same get_branch/get_protection
-        # but we want those checks to succeed. The probe also uses get_branch +
-        # get_protection internally, so it will succeed too unless we override.
-        # Here we let probes succeed (no override) but explicitly fail Contents.
+        mock_branch = Mock()
+        mock_branch.get_protection.side_effect = denial
+        mock_repo.get_branch.return_value = mock_branch
+        # Branch protection checks (5–9) share get_protection with the probe;
+        # they degrade to warning severity on failure, so overall_ok is unaffected.
         mock_repo.get_contents.side_effect = denial
         # For the lazy-paginated probes, totalCount must raise
         pulls = Mock()
@@ -1146,8 +1145,7 @@ class TestPermissionProbeOverallOkUnaffected:
         for k in _PROBE_KEYS:
             check: CheckResult = result[k]  # type: ignore[assignment]
             assert check["severity"] == "warning"
-            # All but administration should be ok=False (administration uses
-            # get_protection which returns Mock — succeeds — so it's ok=True)
+            assert check["ok"] is False
         # overall_ok depends only on error-severity checks, all of which pass.
         assert result["overall_ok"] is True
 
