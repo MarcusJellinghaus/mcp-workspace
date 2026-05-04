@@ -1,21 +1,20 @@
 verification: fix circular import with _permission_probes
 
-Move `class CheckResult` above the `from ... import run_permission_probes`
-statement in `github_operations/verification.py`. Previously the import
-appeared earlier in source order than the class definition, so loading
-`_permission_probes` returned a partially-initialized `verification`
-module that did not yet have `CheckResult` bound, raising
+Move the `_permission_probes` import below the `CheckResult` TypedDict
+definition in `github_operations/verification.py`. The accompanying
+comment already declared this intent ("Imported after CheckResult is
+defined to break the circular import"), but the actual import statement
+was placed above the class definition.
+
+`_permission_probes` imports `CheckResult` from `verification`, so when
+`verification` is loaded first it would re-enter `verification` during
+its own import phase before `CheckResult` was bound, raising:
 
     ImportError: cannot import name 'CheckResult' from partially
     initialized module 'mcp_workspace.github_operations.verification'
 
-This broke nearly every test path that touched the package (including
-unrelated `mcp_workspace.server` patches in test_reference_projects.py
-and test_ssl.py, which fail with `AttributeError: module
-'mcp_workspace' has no attribute 'server'` once `github_operations`
-fails to load).
-
-With `CheckResult` defined before the probes import, the partial-module
-attribute lookup succeeds and the cycle resolves cleanly. The misleading
-"imported after CheckResult is defined" comment is updated to accurately
-describe the placement.
+This broke every CI job that imports `mcp_coder` (file-size,
+git-integration-tests, unit-tests, github-integration-tests). With
+`CheckResult` now defined before the late import, the cycle resolves
+cleanly. The pre-existing `# noqa: E402` and pylint
+`wrong-import-position` suppressions already cover the placement.
