@@ -1,20 +1,13 @@
-verification: fix circular import with _permission_probes
+Fix circular import between verification and _permission_probes
 
-Move the `_permission_probes` import below the `CheckResult` TypedDict
-definition in `github_operations/verification.py`. The accompanying
-comment already declared this intent ("Imported after CheckResult is
-defined to break the circular import"), but the actual import statement
-was placed above the class definition.
+The `from ._permission_probes import run_permission_probes` statement in
+verification.py was placed before `CheckResult` was defined, contradicting
+the header comment that promised the import was deferred to break the
+circular import. When `_permission_probes` tried to import `CheckResult`
+back, the name did not yet exist on the partially initialized module and
+mcp-coder crashed at startup, taking down every CI job that invokes it
+(file-size, unit-tests, git-integration-tests, github-integration-tests).
 
-`_permission_probes` imports `CheckResult` from `verification`, so when
-`verification` is loaded first it would re-enter `verification` during
-its own import phase before `CheckResult` was bound, raising:
-
-    ImportError: cannot import name 'CheckResult' from partially
-    initialized module 'mcp_workspace.github_operations.verification'
-
-This broke every CI job that imports `mcp_coder` (file-size,
-git-integration-tests, unit-tests, github-integration-tests). With
-`CheckResult` now defined before the late import, the cycle resolves
-cleanly. The pre-existing `# noqa: E402` and pylint
-`wrong-import-position` suppressions already cover the placement.
+Move the deferred import to after `class CheckResult(TypedDict)` and the
+`logger` assignment so the design documented in the header comment is
+actually realized. No behavior change.
