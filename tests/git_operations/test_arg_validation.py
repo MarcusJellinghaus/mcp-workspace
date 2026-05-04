@@ -3,6 +3,7 @@
 import pytest
 
 from mcp_workspace.git_operations.arg_validation import (
+    split_args_pathspec,
     validate_args,
     validate_branch_has_read_flag,
 )
@@ -106,8 +107,8 @@ class TestValidateArgsRejected:
             validate_args("diff", ["--exec"])
 
     def test_rejects_double_dash(self) -> None:
-        with pytest.raises(ValueError, match="--"):
-            validate_args("log", ["--"])
+        with pytest.raises(ValueError, match="merge_base does not accept"):
+            validate_args("merge_base", ["--"])
 
     def test_error_message_contains_command(self) -> None:
         with pytest.raises(ValueError, match="git_log"):
@@ -344,3 +345,51 @@ class TestValidateArgsNumericFlags:
     def test_mixed_alphanumeric_flag_rejected(self) -> None:
         with pytest.raises(ValueError, match="-12abc"):
             validate_args("log", ["-12abc"])
+
+
+class TestSplitArgsPathspec:
+    """split_args_pathspec splits args on '--' for pathspec commands."""
+
+    def test_no_op_for_non_pathspec_command(self) -> None:
+        assert split_args_pathspec("merge_base", ["--", "x"], None) == (
+            ["--", "x"],
+            None,
+        )
+
+    def test_no_op_when_no_double_dash(self) -> None:
+        assert split_args_pathspec("log", ["--oneline"], None) == (
+            ["--oneline"],
+            None,
+        )
+
+    def test_split_with_one_path(self) -> None:
+        assert split_args_pathspec("diff", ["main", "--", "README.md"], None) == (
+            ["main"],
+            ["README.md"],
+        )
+
+    def test_split_with_multiple_paths(self) -> None:
+        assert split_args_pathspec("log", ["--", "a.py", "b.py"], None) == (
+            [],
+            ["a.py", "b.py"],
+        )
+
+    def test_empty_tail_is_noop(self) -> None:
+        assert split_args_pathspec("log", ["--"], None) == ([], None)
+
+    def test_empty_tail_preserves_explicit_pathspec(self) -> None:
+        assert split_args_pathspec("log", ["--"], ["x"]) == ([], ["x"])
+
+    def test_multiple_double_dash_rejected(self) -> None:
+        with pytest.raises(ValueError, match="Multiple '--'"):
+            split_args_pathspec("diff", ["--", "a", "--", "b"], None)
+
+    def test_conflict_with_explicit_pathspec_rejected(self) -> None:
+        with pytest.raises(ValueError, match="either '--' in args or the 'pathspec'"):
+            split_args_pathspec("diff", ["--", "x"], ["y"])
+
+    def test_preserves_pathspec_when_no_double_dash(self) -> None:
+        assert split_args_pathspec("log", ["main"], ["README.md"]) == (
+            ["main"],
+            ["README.md"],
+        )
