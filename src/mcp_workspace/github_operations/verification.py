@@ -33,6 +33,13 @@ class CheckResult(TypedDict):
     token_fingerprint: NotRequired[str]
 
 
+# Imported after CheckResult is defined to avoid circular-import deadlock:
+# `_permission_probes` imports CheckResult from this module.
+from mcp_workspace.github_operations._permission_probes import (  # noqa: E402  # pylint: disable=wrong-import-position
+    run_permission_probes,
+)
+
+
 def verify_github(project_dir: Path) -> dict[str, object]:
     """Verify GitHub connectivity and branch protection.
 
@@ -341,6 +348,13 @@ def verify_github(project_dir: Path) -> dict[str, object]:
             severity="warning",
             error="repository not accessible",
         )
+
+    # ------------------------------------------------------------------
+    # Per-permission read probes (6 fine-grained PAT permissions).
+    # ------------------------------------------------------------------
+    result.update(
+        run_permission_probes(manager, repo if repo_is_ok else None)  # type: ignore[arg-type]
+    )
 
     # ------------------------------------------------------------------
     # overall_ok: all error-severity checks must pass
