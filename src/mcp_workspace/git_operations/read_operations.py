@@ -14,6 +14,7 @@ from git.exc import GitCommandError
 
 from .arg_validation import (
     _SUPPORTS_PATHSPEC,
+    split_args_pathspec,
     validate_args,
     validate_branch_has_read_flag,
 )
@@ -58,6 +59,7 @@ def _run_simple_command(
     Raises:
         ValueError: If any flag in *args* is not in the allowlist.
     """
+    args, pathspec = split_args_pathspec(command, args, pathspec)
     validate_args(command, args)
 
     cmd_args = (list(_SAFETY_FLAGS) if use_safety_flags else []) + args
@@ -96,6 +98,7 @@ def git_log(
         ValueError: If any flag in *args* is not in the allowlist.
     """
     safe_args = args or []
+    safe_args, pathspec = split_args_pathspec("log", safe_args, pathspec)
     validate_args("log", safe_args)
 
     cmd_args = list(_SAFETY_FLAGS) + safe_args
@@ -146,6 +149,7 @@ def git_diff(
         ValueError: If any flag in *args* is not in the allowlist.
     """
     user_args = args or []
+    user_args, pathspec = split_args_pathspec("diff", user_args, pathspec)
     validate_args("diff", user_args)
 
     with safe_repo_context(project_dir) as repo:
@@ -215,6 +219,7 @@ def git_status(
         ValueError: If any flag in *args* is not in the allowlist.
     """
     safe_args = args or []
+    safe_args, pathspec = split_args_pathspec("status", safe_args, pathspec)
     validate_args("status", safe_args)
 
     cmd_args = list(safe_args)
@@ -300,6 +305,7 @@ def git_show(
         ValueError: If any flag in *args* is not in the allowlist.
     """
     user_args = args or []
+    user_args, pathspec = split_args_pathspec("show", user_args, pathspec)
     validate_args("show", user_args)
 
     # Detect colon pattern (e.g. HEAD:README.md) — file content, not diff

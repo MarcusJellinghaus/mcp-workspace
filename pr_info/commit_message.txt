@@ -1,23 +1,23 @@
-Add split_args_pathspec helper and reword validate_args '--' error
+git: wire split_args_pathspec into all 5 pathspec-injection sites
 
-Introduce a pure validation/transform helper that splits args on '--' for
-pathspec-supporting commands and routes the tail into the pathspec
-parameter. The helper is not yet wired into any handler (Step 2).
+Invoke split_args_pathspec at the top of every read-only handler that
+injects pathspec, before validate_args and before the
+cmd_args += ["--"] + pathspec injection. Callers can now pass '--'
+inside args for pathspec-supporting commands (log, diff, show, status,
+ls_tree, ls_files) and have the tail transparently rerouted into the
+pathspec parameter.
 
-Changes:
-- Add _SUPPORTS_PATHSPEC constant in arg_validation.py (moved from
-  read_operations.py to co-locate command-capability metadata with
-  the per-command allowlist dicts).
-- Add split_args_pathspec(command, args, pathspec) helper that returns
-  (args, pathspec) unchanged for non-pathspec commands or when '--' is
-  absent, splits on the first '--' for pathspec commands, and raises
-  ValueError on multi-'--' or conflict with an explicit pathspec.
-- Reword validate_args's '--' rejection to
-  f"git {command} does not accept '--'".
-- read_operations.py imports _SUPPORTS_PATHSPEC from arg_validation
-  (no re-export shim).
-- Update test_rejects_double_dash to use merge_base + new wording.
-- Add TestSplitArgsPathspec covering no-op, split, empty-tail,
-  multi-'--', and conflict cases.
+Sites updated in src/mcp_workspace/git_operations/read_operations.py:
+- _run_simple_command (covers ls_tree, ls_files; no-op for
+  fetch/rev_parse/ls_remote since they aren't in _SUPPORTS_PATHSPEC)
+- git_log
+- git_diff
+- git_status
+- git_show
+
+Add TestPathspecAutoSplit handler-level tests in
+tests/git_operations/test_read_operations.py covering the happy path
+('--' in args equivalent to explicit pathspec) and the conflict case
+('--' in args + explicit pathspec -> ValueError).
 
 Refs #187
