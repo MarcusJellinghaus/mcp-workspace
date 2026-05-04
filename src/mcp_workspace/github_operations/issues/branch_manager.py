@@ -373,37 +373,27 @@ class IssueBranchManager(BaseGitHubManager):
         eventual-consistency case where the mutation appears to succeed but the
         response omits ``linkedBranch.ref`` — all other failures are permanent.
         """
+
+        def _fail(
+            msg: str, retryable: bool = False, log_level: int = logging.ERROR
+        ) -> tuple[BranchCreationResult, bool]:
+            logger.log(log_level, msg)
+            logger.debug(f"GraphQL mutation response: {result}")
+            return (
+                BranchCreationResult(
+                    success=False, branch_name="", error=msg, existing_branches=[]
+                ),
+                retryable,
+            )
+
         try:
             if not isinstance(result, dict):
-                error_msg = (
+                return _fail(
                     "Failed to create linked branch: Malformed response from GitHub"
-                )
-                logger.error(error_msg)
-                logger.debug(f"GraphQL mutation response: {result}")
-                return (
-                    BranchCreationResult(
-                        success=False,
-                        branch_name="",
-                        error=error_msg,
-                        existing_branches=[],
-                    ),
-                    False,
                 )
 
             if "errors" in result:
-                errors = result["errors"]
-                error_msg = f"Failed to create linked branch: {errors}"
-                logger.error(error_msg)
-                logger.debug(f"GraphQL mutation response: {result}")
-                return (
-                    BranchCreationResult(
-                        success=False,
-                        branch_name="",
-                        error=error_msg,
-                        existing_branches=[],
-                    ),
-                    False,
-                )
+                return _fail(f"Failed to create linked branch: {result['errors']}")
 
             # PyGithub returns the inner content directly, not wrapped in mutation name
             if "linkedBranch" in result:
@@ -414,40 +404,20 @@ class IssueBranchManager(BaseGitHubManager):
             ):
                 linked_branch = result["createLinkedBranch"]["linkedBranch"]
             else:
-                error_details = (
-                    f"Full response: {result}, "
-                    f"Available keys: {list(result.keys())}"
-                )
-                error_msg = (
+                return _fail(
                     f"Failed to create linked branch: Invalid response from GitHub. "
-                    f"Details: {error_details}"
-                )
-                logger.error(error_msg)
-                return (
-                    BranchCreationResult(
-                        success=False,
-                        branch_name="",
-                        error=error_msg,
-                        existing_branches=[],
-                    ),
-                    False,
+                    f"Details: Full response: {result}, "
+                    f"Available keys: {list(result.keys())}"
                 )
 
             if linked_branch is None or "ref" not in linked_branch:
-                error_msg = "Failed to create linked branch: Missing branch reference in response"
-                logger.debug(f"GraphQL mutation response: {result}")
-                return (
-                    BranchCreationResult(
-                        success=False,
-                        branch_name="",
-                        error=error_msg,
-                        existing_branches=[],
-                    ),
-                    True,
+                return _fail(
+                    "Failed to create linked branch: Missing branch reference in response",
+                    retryable=True,
+                    log_level=logging.DEBUG,
                 )
 
             created_branch_name = linked_branch["ref"]["name"]
-
             logger.info(
                 f"Successfully created and linked branch '{created_branch_name}' to issue #{issue_number}",
             )
@@ -462,17 +432,7 @@ class IssueBranchManager(BaseGitHubManager):
             )
 
         except (KeyError, TypeError) as e:
-            error_msg = f"Error parsing GraphQL mutation response: {e}"
-            logger.error(error_msg)
-            return (
-                BranchCreationResult(
-                    success=False,
-                    branch_name="",
-                    error=error_msg,
-                    existing_branches=[],
-                ),
-                False,
-            )
+            return _fail(f"Error parsing GraphQL mutation response: {e}")
 
     @log_function_call
     @_handle_github_errors(default_return=None)
