@@ -3,11 +3,12 @@
 import logging
 from pathlib import Path
 from typing import Literal
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 from github.GithubException import GithubException
 
+from mcp_workspace.github_operations._permission_probes import _PROBE_KEYS
 from mcp_workspace.github_operations.verification import CheckResult, verify_github
 
 MODULE = "mcp_workspace.github_operations.verification"
@@ -1055,3 +1056,145 @@ class TestRawTokenNotLogged:
         self._assert_token_not_in_result(result)
         token_check: CheckResult = result["token_configured"]  # type: ignore[assignment]
         assert token_check["token_fingerprint"] == "ghp_..._xyz"
+
+
+# ===================================================================
+# Permission probes integration with verify_github
+# ===================================================================
+
+
+class TestPermissionProbeKeyOrdering:
+    """All 6 probe keys appear in order between auto_delete_branches and overall_ok."""
+
+    def test_keys_present_in_order(self, tmp_path: Path) -> None:
+        result = _patch_all_ok(tmp_path)
+        keys = list(result.keys())
+        for k in _PROBE_KEYS:
+            assert k in keys
+        # Order: auto_delete_branches < all probes (in _PROBE_KEYS order) < overall_ok
+        ad_idx = keys.index("auto_delete_branches")
+        ov_idx = keys.index("overall_ok")
+        probe_indices = [keys.index(k) for k in _PROBE_KEYS]
+        assert all(ad_idx < idx < ov_idx for idx in probe_indices)
+        # Within the probes, order matches _PROBE_KEYS exactly
+        assert probe_indices == sorted(probe_indices)
+        # And matches _PROBE_KEYS order specifically
+        ordered_probe_keys = [k for k in keys if k in _PROBE_KEYS]
+        assert tuple(ordered_probe_keys) == _PROBE_KEYS
+
+
+class TestPermissionProbeOverallOkUnaffected:
+    """6 failed probes (all warning severity) must NOT flip overall_ok."""
+
+    def test_overall_ok_true_when_probes_fail(self, tmp_path: Path) -> None:
+        # Build a repo where every probe call raises 403 — yet error checks pass
+        mock_user = Mock()
+        mock_user.login = "testuser"
+        mock_github_client = Mock()
+        mock_github_client.get_user.return_value = mock_user
+        mock_github_client.oauth_scopes = ["repo"]
+
+        mock_repo = Mock()
+        mock_repo.full_name = "owner/repo"
+        mock_repo.delete_branch_on_merge = True
+        mock_repo.default_branch = "main"
+
+        # Make each probe-relevant call raise 403 — including get_protection so
+        # the Administration probe genuinely fails alongside the other five.
+        denial = GithubException(status=403, data={}, headers={})
+        mock_branch = Mock()
+        mock_branch.get_protection.side_effect = denial
+        mock_repo.get_branch.return_value = mock_branch
+        # Branch protection checks (5–9) share get_protection with the probe;
+        # they degrade to warning severity on failure, so overall_ok is unaffected.
+        mock_repo.get_contents.side_effect = denial
+        # For the lazy-paginated probes, totalCount must raise
+        pulls = Mock()
+        type(pulls).totalCount = PropertyMock(side_effect=denial)
+        mock_repo.get_pulls.return_value = pulls
+        issues = Mock()
+        type(issues).totalCount = PropertyMock(side_effect=denial)
+        mock_repo.get_issues.return_value = issues
+        workflows = Mock()
+        type(workflows).totalCount = PropertyMock(side_effect=denial)
+        mock_repo.get_workflows.return_value = workflows
+        mock_commit = Mock()
+        mock_commit.get_combined_status.side_effect = denial
+        mock_repo.get_commit.return_value = mock_commit
+
+        identifier = _make_identifier()
+
+        with (
+            patch(
+                f"{MODULE}.get_github_token_with_source",
+                return_value=("ghp_test", "env"),
+            ),
+            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
+            patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
+        ):
+            mock_manager = Mock()
+            mock_manager._get_repository.return_value = mock_repo
+            mock_manager.get_default_branch.return_value = "main"
+            # _repo_identifier is a property used by run_permission_probes
+            mock_manager._repo_identifier = identifier
+            mock_mgr_cls.return_value = mock_manager
+            result = verify_github(tmp_path)
+
+        # All 6 probes are present and failed
+        for k in _PROBE_KEYS:
+            check: CheckResult = result[k]  # type: ignore[assignment]
+            assert check["severity"] == "warning"
+            assert check["ok"] is False
+        # overall_ok depends only on error-severity checks, all of which pass.
+        assert result["overall_ok"] is True
+
+
+class TestPermissionProbeSkipWhenUnreachable:
+    """When repo_accessible.ok=False, probes return 6 placeholder rows."""
+
+    def test_six_placeholder_rows_no_pygithub_calls(self, tmp_path: Path) -> None:
+        mock_user = Mock()
+        mock_user.login = "testuser"
+        mock_github_client = Mock()
+        mock_github_client.get_user.return_value = mock_user
+        mock_github_client.oauth_scopes = ["repo"]
+
+        identifier = _make_identifier()
+
+        # Sentinel mock — if any probe reaches into manager._github_client or
+        # any repo method, this records a call; we assert call_count == 0 below.
+        sentinel = Mock(name="any_pygithub_call")
+
+        with (
+            patch(
+                f"{MODULE}.get_github_token_with_source",
+                return_value=("ghp_test", "env"),
+            ),
+            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
+            patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
+        ):
+            mock_manager = Mock()
+            # repo unreachable
+            mock_manager._get_repository.return_value = None
+            # Wire any access through sentinel — if probes touch the manager
+            # or its github client, we'd see it.
+            mock_manager._github_client = sentinel
+            mock_mgr_cls.return_value = mock_manager
+            result = verify_github(tmp_path)
+
+        # All 6 probe keys present in correct order
+        keys = list(result.keys())
+        ordered_probe_keys = [k for k in keys if k in _PROBE_KEYS]
+        assert tuple(ordered_probe_keys) == _PROBE_KEYS
+
+        for k in _PROBE_KEYS:
+            check: CheckResult = result[k]  # type: ignore[assignment]
+            assert check["ok"] is False
+            assert check["value"] == "not checked"
+            assert check["severity"] == "warning"
+            assert check["error"] == "repository not accessible"
+
+        # Sentinel proves no PyGithub access happened from the probe orchestrator.
+        assert sentinel.mock_calls == []

@@ -6,7 +6,7 @@ and returns per-check results. All checks use PyGithub — no gh CLI dependency.
 
 import logging
 from pathlib import Path
-from typing import Any, Literal, NotRequired, TypedDict
+from typing import Any
 
 from github import Auth, Github
 from github.GithubException import GithubException
@@ -15,22 +15,14 @@ from mcp_coder_utils.user_app_data import get_user_app_data_dir
 from mcp_workspace.config import get_github_token_with_source
 from mcp_workspace.git_operations.remotes import get_repository_identifier
 from mcp_workspace.github_operations._diagnostics import extract_diagnostic_headers
+from mcp_workspace.github_operations._permission_probes import run_permission_probes
+from mcp_workspace.github_operations._types import CheckResult
 from mcp_workspace.github_operations.base_manager import BaseGitHubManager
 from mcp_workspace.utils.token_fingerprint import format_token_fingerprint
 
+__all__ = ["CheckResult", "verify_github"]
+
 logger = logging.getLogger(__name__)
-
-
-class CheckResult(TypedDict):
-    """Result of a single verification check."""
-
-    ok: bool
-    value: str
-    severity: Literal["error", "warning"]
-    error: NotRequired[str]
-    install_hint: NotRequired[str]
-    token_source: NotRequired[Literal["env", "config"]]
-    token_fingerprint: NotRequired[str]
 
 
 def verify_github(project_dir: Path) -> dict[str, object]:
@@ -341,6 +333,13 @@ def verify_github(project_dir: Path) -> dict[str, object]:
             severity="warning",
             error="repository not accessible",
         )
+
+    # ------------------------------------------------------------------
+    # Per-permission read probes (6 fine-grained PAT permissions).
+    # ------------------------------------------------------------------
+    result.update(
+        run_permission_probes(manager, repo if repo_is_ok else None)  # type: ignore[arg-type]
+    )
 
     # ------------------------------------------------------------------
     # overall_ok: all error-severity checks must pass
