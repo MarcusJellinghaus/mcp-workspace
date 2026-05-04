@@ -47,5 +47,5 @@ See [step_3.md](./steps/step_3.md).
 
 ## Pull Request
 
-- [ ] PR review
+- [x] PR review
 - [ ] PR summary
