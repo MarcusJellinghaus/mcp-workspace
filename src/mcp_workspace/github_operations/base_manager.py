@@ -13,6 +13,7 @@ from github import Auth, Github
 from github.GithubException import GithubException
 from github.Repository import Repository
 from mcp_coder_utils.log_utils import log_function_call
+from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
 from mcp_workspace import git_operations
 from mcp_workspace.config import get_github_token
@@ -197,8 +198,9 @@ class BaseGitHubManager:
         else:
             raw_token = get_github_token()
         if not isinstance(raw_token, str):
+            config_path = get_user_app_data_dir("mcp_coder") / "config.toml"
             raise ValueError(
-                "GitHub token not found. Configure it in ~/.mcp_coder/config.toml "
+                f"GitHub token not found. Configure it in {config_path} "
                 "or set GITHUB_TOKEN environment variable"
             )
 
@@ -285,10 +287,12 @@ class BaseGitHubManager:
             )
             repo_url = self._repo_identifier.https_url
             if e.status == 404:
+                config_path = get_user_app_data_dir("mcp_coder") / "config.toml"
                 logger.error(
                     "Repository not found: %s - Check that the repo exists, "
-                    "you have access, and the URL in ~/.mcp_coder/config.toml is correct.",
+                    "you have access, and the URL in %s is correct.",
                     repo_url,
+                    config_path,
                 )
             else:
                 logger.error(

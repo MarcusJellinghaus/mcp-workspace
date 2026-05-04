@@ -24,6 +24,8 @@ from typing import (
     TypedDict,
 )
 
+from mcp_coder_utils.user_app_data import get_user_app_data_dir
+
 from mcp_workspace.constants import DUPLICATE_PROTECTION_SECONDS
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 from mcp_workspace.utils.timezone_utils import (
@@ -152,7 +154,7 @@ def _get_cache_file_path(repo_identifier: RepoIdentifier) -> Path:
     Returns:
         Path to cache file
     """
-    cache_dir = Path.home() / ".mcp_coder" / "coordinator_cache"
+    cache_dir = get_user_app_data_dir("mcp_coder") / "coordinator_cache"
     return cache_dir / f"{repo_identifier.cache_safe_name}.issues.json"
 
 
