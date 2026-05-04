@@ -1,8 +1,0 @@
-Split pathspec auto-split tests into a sibling test file
-
-Move TestPathspecAutoSplit out of test_read_operations.py into a new
-test_read_operations_pathspec.py to keep the original file under the
-750-line file-size threshold. The extracted file imports git_diff,
-pytest, Repo, and Path, and retains the @pytest.mark.git_integration
-marker. The long git_diff call is split across multiple lines to fit
-within black's 88-char limit.
