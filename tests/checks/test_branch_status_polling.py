@@ -1,7 +1,8 @@
-"""Unit tests for async polling primitives in branch_status.
+"""Unit tests for async polling primitives in branch_status_polling.
 
-Tests `_wait_for_ci` and `_wait_for_pr` private helpers. `asyncio.sleep`
-is patched with `AsyncMock` so tests run instantly.
+Tests `_wait_for_ci`, `_wait_for_pr`, and the `async_poll_branch_status`
+orchestrator. `asyncio.sleep` is patched with `AsyncMock` so tests run
+instantly.
 """
 
 from pathlib import Path
@@ -9,11 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from mcp_workspace.checks.branch_status import (
-    BranchStatusReport,
-    _wait_for_ci,
-    _wait_for_pr,
-)
+from mcp_workspace.checks.branch_status import BranchStatusReport, WaitContext
+from mcp_workspace.checks.branch_status_polling import _wait_for_ci, _wait_for_pr
 
 
 @pytest.fixture
@@ -33,17 +31,19 @@ class TestWaitForCI:
         }
         with (
             patch(
-                "mcp_workspace.checks.branch_status.CIResultsManager",
+                "mcp_workspace.checks.branch_status_polling.CIResultsManager",
                 return_value=ci_manager,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.asyncio.sleep",
+                "mcp_workspace.checks.branch_status_polling.asyncio.sleep",
                 new_callable=AsyncMock,
             ) as mock_sleep,
         ):
-            await _wait_for_ci(project_dir, "feature/x", timeout=60)
+            elapsed = await _wait_for_ci(project_dir, "feature/x", timeout=60)
         assert ci_manager.get_latest_ci_status.call_count == 1
         mock_sleep.assert_not_called()
+        assert isinstance(elapsed, float)
+        assert elapsed >= 0.0
 
     @pytest.mark.asyncio
     async def test_returns_immediately_on_failure(self, project_dir: Path) -> None:
@@ -53,16 +53,18 @@ class TestWaitForCI:
         }
         with (
             patch(
-                "mcp_workspace.checks.branch_status.CIResultsManager",
+                "mcp_workspace.checks.branch_status_polling.CIResultsManager",
                 return_value=ci_manager,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.asyncio.sleep",
+                "mcp_workspace.checks.branch_status_polling.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
         ):
-            await _wait_for_ci(project_dir, "feature/x", timeout=60)
+            elapsed = await _wait_for_ci(project_dir, "feature/x", timeout=60)
         assert ci_manager.get_latest_ci_status.call_count == 1
+        assert isinstance(elapsed, float)
+        assert elapsed >= 0.0
 
     @pytest.mark.asyncio
     async def test_returns_after_timeout_when_in_progress(
@@ -72,25 +74,27 @@ class TestWaitForCI:
         ci_manager.get_latest_ci_status.return_value = {
             "run": {"conclusion": None, "status": "in_progress"}
         }
-        # Simulate time advancing inside the loop via monotonic side_effect.
-        # Sequence: deadline calc, then 3 loop iterations, then exceed.
-        times = iter([0.0, 0.0, 5.0, 10.0, 100.0])
+        # New loop shape: 1 call for `start`, then per iteration 1 call
+        # for the deadline check and 1 call for `remaining`, plus 1 final
+        # call on the return path.
+        times = iter([0.0, 0.0, 5.0, 10.0, 100.0, 100.0, 100.0])
         with (
             patch(
-                "mcp_workspace.checks.branch_status.CIResultsManager",
+                "mcp_workspace.checks.branch_status_polling.CIResultsManager",
                 return_value=ci_manager,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.asyncio.sleep",
+                "mcp_workspace.checks.branch_status_polling.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.time.monotonic",
+                "mcp_workspace.checks.branch_status_polling.time.monotonic",
                 side_effect=lambda: next(times),
             ),
         ):
-            await _wait_for_ci(project_dir, "feature/x", timeout=60)
+            elapsed = await _wait_for_ci(project_dir, "feature/x", timeout=60)
         assert ci_manager.get_latest_ci_status.call_count >= 1
+        assert isinstance(elapsed, float)
 
     @pytest.mark.asyncio
     async def test_tolerates_two_errors_then_succeeds(self, project_dir: Path) -> None:
@@ -102,11 +106,11 @@ class TestWaitForCI:
         ]
         with (
             patch(
-                "mcp_workspace.checks.branch_status.CIResultsManager",
+                "mcp_workspace.checks.branch_status_polling.CIResultsManager",
                 return_value=ci_manager,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.asyncio.sleep",
+                "mcp_workspace.checks.branch_status_polling.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
         ):
@@ -121,11 +125,11 @@ class TestWaitForCI:
         ci_manager.get_latest_ci_status.side_effect = RuntimeError("boom")
         with (
             patch(
-                "mcp_workspace.checks.branch_status.CIResultsManager",
+                "mcp_workspace.checks.branch_status_polling.CIResultsManager",
                 return_value=ci_manager,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.asyncio.sleep",
+                "mcp_workspace.checks.branch_status_polling.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
         ):
@@ -137,17 +141,55 @@ class TestWaitForCI:
         ci_manager = MagicMock()
         with (
             patch(
-                "mcp_workspace.checks.branch_status.CIResultsManager",
+                "mcp_workspace.checks.branch_status_polling.CIResultsManager",
                 return_value=ci_manager,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.asyncio.sleep",
+                "mcp_workspace.checks.branch_status_polling.asyncio.sleep",
                 new_callable=AsyncMock,
             ) as mock_sleep,
         ):
-            await _wait_for_ci(project_dir, "feature/x", timeout=0)
+            elapsed = await _wait_for_ci(project_dir, "feature/x", timeout=0)
         assert ci_manager.get_latest_ci_status.call_count == 0
         mock_sleep.assert_not_called()
+        assert isinstance(elapsed, float)
+        assert elapsed == pytest.approx(0.0, abs=0.5)
+
+    @pytest.mark.asyncio
+    async def test_ci_deadline_aware_sleep_caps_at_remaining_time(
+        self, project_dir: Path
+    ) -> None:
+        ci_manager = MagicMock()
+        ci_manager.get_latest_ci_status.return_value = {
+            "run": {"conclusion": None, "status": "in_progress"}
+        }
+        # ci_timeout=5 < _CI_POLL_INTERVAL (15); sleep must cap at remaining.
+        # Use a generator that advances by 1.0 per call so the loop will
+        # eventually exit (asyncio internals may also call time.monotonic).
+        counter = {"n": 0}
+
+        def fake_monotonic() -> float:
+            counter["n"] += 1
+            return float(counter["n"])
+
+        with (
+            patch(
+                "mcp_workspace.checks.branch_status_polling.CIResultsManager",
+                return_value=ci_manager,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling.asyncio.sleep",
+                new_callable=AsyncMock,
+            ) as mock_sleep,
+            patch(
+                "mcp_workspace.checks.branch_status_polling.time.monotonic",
+                side_effect=fake_monotonic,
+            ),
+        ):
+            await _wait_for_ci(project_dir, "feature/x", timeout=5)
+        assert mock_sleep.call_count >= 1
+        for call in mock_sleep.call_args_list:
+            assert call.args[0] <= 5.0
 
 
 class TestWaitForPR:
@@ -159,39 +201,42 @@ class TestWaitForPR:
         pr_manager.find_pull_request_by_head.return_value = [{"number": 42}]
         with (
             patch(
-                "mcp_workspace.checks.branch_status.PullRequestManager",
+                "mcp_workspace.checks.branch_status_polling.PullRequestManager",
                 return_value=pr_manager,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.asyncio.sleep",
+                "mcp_workspace.checks.branch_status_polling.asyncio.sleep",
                 new_callable=AsyncMock,
             ) as mock_sleep,
         ):
-            await _wait_for_pr(project_dir, "feature/x", timeout=60)
+            elapsed = await _wait_for_pr(project_dir, "feature/x", timeout=60)
         assert pr_manager.find_pull_request_by_head.call_count == 1
         mock_sleep.assert_not_called()
+        assert isinstance(elapsed, float)
+        assert elapsed >= 0.0
 
     @pytest.mark.asyncio
     async def test_returns_after_timeout_when_no_pr(self, project_dir: Path) -> None:
         pr_manager = MagicMock()
         pr_manager.find_pull_request_by_head.return_value = []
-        times = iter([0.0, 0.0, 5.0, 10.0, 100.0])
+        times = iter([0.0, 0.0, 5.0, 10.0, 100.0, 100.0, 100.0])
         with (
             patch(
-                "mcp_workspace.checks.branch_status.PullRequestManager",
+                "mcp_workspace.checks.branch_status_polling.PullRequestManager",
                 return_value=pr_manager,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.asyncio.sleep",
+                "mcp_workspace.checks.branch_status_polling.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.time.monotonic",
+                "mcp_workspace.checks.branch_status_polling.time.monotonic",
                 side_effect=lambda: next(times),
             ),
         ):
-            await _wait_for_pr(project_dir, "feature/x", timeout=60)
+            elapsed = await _wait_for_pr(project_dir, "feature/x", timeout=60)
         assert pr_manager.find_pull_request_by_head.call_count >= 1
+        assert isinstance(elapsed, float)
 
     @pytest.mark.asyncio
     async def test_aborts_after_three_consecutive_errors(
@@ -201,11 +246,11 @@ class TestWaitForPR:
         pr_manager.find_pull_request_by_head.side_effect = RuntimeError("boom")
         with (
             patch(
-                "mcp_workspace.checks.branch_status.PullRequestManager",
+                "mcp_workspace.checks.branch_status_polling.PullRequestManager",
                 return_value=pr_manager,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.asyncio.sleep",
+                "mcp_workspace.checks.branch_status_polling.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
         ):
@@ -217,17 +262,51 @@ class TestWaitForPR:
         pr_manager = MagicMock()
         with (
             patch(
-                "mcp_workspace.checks.branch_status.PullRequestManager",
+                "mcp_workspace.checks.branch_status_polling.PullRequestManager",
                 return_value=pr_manager,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.asyncio.sleep",
+                "mcp_workspace.checks.branch_status_polling.asyncio.sleep",
                 new_callable=AsyncMock,
             ) as mock_sleep,
         ):
-            await _wait_for_pr(project_dir, "feature/x", timeout=0)
+            elapsed = await _wait_for_pr(project_dir, "feature/x", timeout=0)
         assert pr_manager.find_pull_request_by_head.call_count == 0
         mock_sleep.assert_not_called()
+        assert isinstance(elapsed, float)
+        assert elapsed == pytest.approx(0.0, abs=0.5)
+
+    @pytest.mark.asyncio
+    async def test_pr_deadline_aware_sleep_caps_at_remaining_time(
+        self, project_dir: Path
+    ) -> None:
+        pr_manager = MagicMock()
+        pr_manager.find_pull_request_by_head.return_value = []
+        # pr_timeout=5 < _PR_POLL_INTERVAL (20); sleep must cap at remaining.
+        counter = {"n": 0}
+
+        def fake_monotonic() -> float:
+            counter["n"] += 1
+            return float(counter["n"])
+
+        with (
+            patch(
+                "mcp_workspace.checks.branch_status_polling.PullRequestManager",
+                return_value=pr_manager,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling.asyncio.sleep",
+                new_callable=AsyncMock,
+            ) as mock_sleep,
+            patch(
+                "mcp_workspace.checks.branch_status_polling.time.monotonic",
+                side_effect=fake_monotonic,
+            ),
+        ):
+            await _wait_for_pr(project_dir, "feature/x", timeout=5)
+        assert mock_sleep.call_count >= 1
+        for call in mock_sleep.call_args_list:
+            assert call.args[0] <= 5.0
 
 
 class TestAsyncPollBranchStatus:
@@ -256,27 +335,27 @@ class TestAsyncPollBranchStatus:
     async def test_defaults_call_no_helpers_and_skip_remote_check(
         self, project_dir: Path
     ) -> None:
-        from mcp_workspace.checks.branch_status import async_poll_branch_status
+        from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
 
         report = self._make_report()
         with (
             patch(
-                "mcp_workspace.checks.branch_status.get_current_branch_name",
+                "mcp_workspace.checks.branch_status_polling.get_current_branch_name",
                 return_value="feature/x",
             ),
             patch(
-                "mcp_workspace.checks.branch_status.remote_branch_exists",
+                "mcp_workspace.checks.branch_status_polling.remote_branch_exists",
             ) as mock_remote,
             patch(
-                "mcp_workspace.checks.branch_status.collect_branch_status",
+                "mcp_workspace.checks.branch_status_polling.collect_branch_status",
                 return_value=report,
             ) as mock_collect,
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_ci",
+                "mcp_workspace.checks.branch_status_polling._wait_for_ci",
                 new_callable=AsyncMock,
             ) as mock_wait_ci,
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_pr",
+                "mcp_workspace.checks.branch_status_polling._wait_for_pr",
                 new_callable=AsyncMock,
             ) as mock_wait_pr,
         ):
@@ -292,106 +371,64 @@ class TestAsyncPollBranchStatus:
     async def test_ci_timeout_with_remote_branch_present(
         self, project_dir: Path
     ) -> None:
-        from mcp_workspace.checks.branch_status import async_poll_branch_status
+        from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
 
         report = self._make_report()
         with (
             patch(
-                "mcp_workspace.checks.branch_status.get_current_branch_name",
+                "mcp_workspace.checks.branch_status_polling.get_current_branch_name",
                 return_value="feature/x",
             ),
             patch(
-                "mcp_workspace.checks.branch_status.remote_branch_exists",
+                "mcp_workspace.checks.branch_status_polling.remote_branch_exists",
                 return_value=True,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.collect_branch_status",
+                "mcp_workspace.checks.branch_status_polling.collect_branch_status",
                 return_value=report,
             ),
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_ci",
+                "mcp_workspace.checks.branch_status_polling._wait_for_ci",
                 new_callable=AsyncMock,
             ) as mock_wait_ci,
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_pr",
+                "mcp_workspace.checks.branch_status_polling._wait_for_pr",
                 new_callable=AsyncMock,
             ) as mock_wait_pr,
         ):
             await async_poll_branch_status(project_dir, ci_timeout=30)
 
         mock_wait_ci.assert_awaited_once_with(project_dir, "feature/x", 30)
-        mock_wait_pr.assert_not_called()
+        mock_wait_pr.assert_awaited_once_with(project_dir, "feature/x", 0)
 
     @pytest.mark.asyncio
-    async def test_wait_for_pr_uses_default_pr_timeout(self, project_dir: Path) -> None:
-        from mcp_workspace.checks.branch_status import (
-            _DEFAULT_PR_TIMEOUT,
-            async_poll_branch_status,
-        )
+    async def test_pr_timeout_propagates_to_helper(self, project_dir: Path) -> None:
+        from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
 
         report = self._make_report()
         with (
             patch(
-                "mcp_workspace.checks.branch_status.get_current_branch_name",
+                "mcp_workspace.checks.branch_status_polling.get_current_branch_name",
                 return_value="feature/x",
             ),
             patch(
-                "mcp_workspace.checks.branch_status.remote_branch_exists",
+                "mcp_workspace.checks.branch_status_polling.remote_branch_exists",
                 return_value=True,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.collect_branch_status",
+                "mcp_workspace.checks.branch_status_polling.collect_branch_status",
                 return_value=report,
             ),
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_ci",
-                new_callable=AsyncMock,
-            ) as mock_wait_ci,
-            patch(
-                "mcp_workspace.checks.branch_status._wait_for_pr",
-                new_callable=AsyncMock,
-            ) as mock_wait_pr,
-        ):
-            result = await async_poll_branch_status(project_dir, wait_for_pr=True)
-
-        mock_wait_pr.assert_awaited_once_with(
-            project_dir, "feature/x", _DEFAULT_PR_TIMEOUT
-        )
-        mock_wait_ci.assert_not_called()
-        assert "Push branch to remote" not in result
-
-    @pytest.mark.asyncio
-    async def test_wait_for_pr_uses_explicit_pr_timeout(
-        self, project_dir: Path
-    ) -> None:
-        from mcp_workspace.checks.branch_status import async_poll_branch_status
-
-        report = self._make_report()
-        with (
-            patch(
-                "mcp_workspace.checks.branch_status.get_current_branch_name",
-                return_value="feature/x",
-            ),
-            patch(
-                "mcp_workspace.checks.branch_status.remote_branch_exists",
-                return_value=True,
-            ),
-            patch(
-                "mcp_workspace.checks.branch_status.collect_branch_status",
-                return_value=report,
-            ),
-            patch(
-                "mcp_workspace.checks.branch_status._wait_for_ci",
+                "mcp_workspace.checks.branch_status_polling._wait_for_ci",
                 new_callable=AsyncMock,
             ),
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_pr",
+                "mcp_workspace.checks.branch_status_polling._wait_for_pr",
                 new_callable=AsyncMock,
             ) as mock_wait_pr,
         ):
-            await async_poll_branch_status(
-                project_dir, wait_for_pr=True, pr_timeout=120
-            )
+            await async_poll_branch_status(project_dir, pr_timeout=120)
 
         mock_wait_pr.assert_awaited_once_with(project_dir, "feature/x", 120)
 
@@ -399,32 +436,32 @@ class TestAsyncPollBranchStatus:
     async def test_wait_for_pr_skipped_when_no_remote_branch(
         self, project_dir: Path
     ) -> None:
-        from mcp_workspace.checks.branch_status import async_poll_branch_status
+        from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
 
         report = self._make_report()
         with (
             patch(
-                "mcp_workspace.checks.branch_status.get_current_branch_name",
+                "mcp_workspace.checks.branch_status_polling.get_current_branch_name",
                 return_value="feature/x",
             ),
             patch(
-                "mcp_workspace.checks.branch_status.remote_branch_exists",
+                "mcp_workspace.checks.branch_status_polling.remote_branch_exists",
                 return_value=False,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.collect_branch_status",
+                "mcp_workspace.checks.branch_status_polling.collect_branch_status",
                 return_value=report,
             ),
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_ci",
+                "mcp_workspace.checks.branch_status_polling._wait_for_ci",
                 new_callable=AsyncMock,
             ) as mock_wait_ci,
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_pr",
+                "mcp_workspace.checks.branch_status_polling._wait_for_pr",
                 new_callable=AsyncMock,
             ) as mock_wait_pr,
         ):
-            result = await async_poll_branch_status(project_dir, wait_for_pr=True)
+            result = await async_poll_branch_status(project_dir, pr_timeout=120)
 
         mock_wait_pr.assert_not_called()
         mock_wait_ci.assert_not_called()
@@ -434,28 +471,28 @@ class TestAsyncPollBranchStatus:
     async def test_ci_timeout_skipped_when_no_remote_branch(
         self, project_dir: Path
     ) -> None:
-        from mcp_workspace.checks.branch_status import async_poll_branch_status
+        from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
 
         report = self._make_report()
         with (
             patch(
-                "mcp_workspace.checks.branch_status.get_current_branch_name",
+                "mcp_workspace.checks.branch_status_polling.get_current_branch_name",
                 return_value="feature/x",
             ),
             patch(
-                "mcp_workspace.checks.branch_status.remote_branch_exists",
+                "mcp_workspace.checks.branch_status_polling.remote_branch_exists",
                 return_value=False,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.collect_branch_status",
+                "mcp_workspace.checks.branch_status_polling.collect_branch_status",
                 return_value=report,
             ),
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_ci",
+                "mcp_workspace.checks.branch_status_polling._wait_for_ci",
                 new_callable=AsyncMock,
             ) as mock_wait_ci,
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_pr",
+                "mcp_workspace.checks.branch_status_polling._wait_for_pr",
                 new_callable=AsyncMock,
             ) as mock_wait_pr,
         ):
@@ -469,33 +506,33 @@ class TestAsyncPollBranchStatus:
     async def test_both_flags_no_remote_branch_emits_recommendation_once(
         self, project_dir: Path
     ) -> None:
-        from mcp_workspace.checks.branch_status import async_poll_branch_status
+        from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
 
         report = self._make_report()
         with (
             patch(
-                "mcp_workspace.checks.branch_status.get_current_branch_name",
+                "mcp_workspace.checks.branch_status_polling.get_current_branch_name",
                 return_value="feature/x",
             ),
             patch(
-                "mcp_workspace.checks.branch_status.remote_branch_exists",
+                "mcp_workspace.checks.branch_status_polling.remote_branch_exists",
                 return_value=False,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.collect_branch_status",
+                "mcp_workspace.checks.branch_status_polling.collect_branch_status",
                 return_value=report,
             ),
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_ci",
+                "mcp_workspace.checks.branch_status_polling._wait_for_ci",
                 new_callable=AsyncMock,
             ) as mock_wait_ci,
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_pr",
+                "mcp_workspace.checks.branch_status_polling._wait_for_pr",
                 new_callable=AsyncMock,
             ) as mock_wait_pr,
         ):
             result = await async_poll_branch_status(
-                project_dir, ci_timeout=30, wait_for_pr=True
+                project_dir, ci_timeout=30, pr_timeout=120
             )
 
         mock_wait_ci.assert_not_called()
@@ -504,80 +541,169 @@ class TestAsyncPollBranchStatus:
         assert result.count(msg) == 1
 
     @pytest.mark.asyncio
-    async def test_pr_wait_runs_before_ci_wait_then_collect(
-        self, project_dir: Path
-    ) -> None:
-        from mcp_workspace.checks.branch_status import async_poll_branch_status
+    async def test_polls_run_in_parallel(self, project_dir: Path) -> None:
+        import asyncio
+
+        from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
 
         report = self._make_report()
-        order: list[str] = []
+        release = asyncio.Event()
+        ci_started = asyncio.Event()
+        pr_started = asyncio.Event()
 
-        async def fake_wait_pr(*_args: object, **_kwargs: object) -> None:
-            order.append("pr")
+        async def fake_wait_ci(*_a: object, **_kw: object) -> float:
+            ci_started.set()
+            await release.wait()
+            return 0.0
 
-        async def fake_wait_ci(*_args: object, **_kwargs: object) -> None:
-            order.append("ci")
-
-        def fake_collect(*_args: object, **_kwargs: object) -> BranchStatusReport:
-            order.append("collect")
-            return report
+        async def fake_wait_pr(*_a: object, **_kw: object) -> float:
+            pr_started.set()
+            await release.wait()
+            return 0.0
 
         with (
             patch(
-                "mcp_workspace.checks.branch_status.get_current_branch_name",
+                "mcp_workspace.checks.branch_status_polling.get_current_branch_name",
                 return_value="feature/x",
             ),
             patch(
-                "mcp_workspace.checks.branch_status.remote_branch_exists",
+                "mcp_workspace.checks.branch_status_polling.remote_branch_exists",
                 return_value=True,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.collect_branch_status",
-                side_effect=fake_collect,
+                "mcp_workspace.checks.branch_status_polling.collect_branch_status",
+                return_value=report,
             ),
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_ci",
+                "mcp_workspace.checks.branch_status_polling._wait_for_ci",
                 side_effect=fake_wait_ci,
             ),
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_pr",
+                "mcp_workspace.checks.branch_status_polling._wait_for_pr",
                 side_effect=fake_wait_pr,
             ),
         ):
-            await async_poll_branch_status(project_dir, ci_timeout=30, wait_for_pr=True)
+            task = asyncio.create_task(
+                async_poll_branch_status(project_dir, ci_timeout=30, pr_timeout=30)
+            )
+            await asyncio.wait_for(ci_started.wait(), timeout=1)
+            await asyncio.wait_for(pr_started.wait(), timeout=1)
+            release.set()
+            await task
 
-        assert order == ["pr", "ci", "collect"]
+    @pytest.mark.asyncio
+    async def test_wait_context_built_from_elapsed_values(
+        self, project_dir: Path
+    ) -> None:
+        from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
+
+        mock_report = MagicMock(spec=BranchStatusReport)
+        mock_report.format_for_llm.return_value = "captured"
+
+        with (
+            patch(
+                "mcp_workspace.checks.branch_status_polling.get_current_branch_name",
+                return_value="feature/x",
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling.remote_branch_exists",
+                return_value=True,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling.collect_branch_status",
+                return_value=mock_report,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling._wait_for_ci",
+                new_callable=AsyncMock,
+                return_value=12.3,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling._wait_for_pr",
+                new_callable=AsyncMock,
+                return_value=7.7,
+            ),
+        ):
+            await async_poll_branch_status(project_dir, ci_timeout=30, pr_timeout=30)
+
+        mock_report.format_for_llm.assert_called_once()
+        wait_ctx = mock_report.format_for_llm.call_args.kwargs["wait_context"]
+        assert isinstance(wait_ctx, WaitContext)
+        assert wait_ctx.ci_elapsed == 12.3
+        assert wait_ctx.pr_elapsed == 7.7
+        assert wait_ctx.ci_timeout == 30
+        assert wait_ctx.pr_timeout == 30
+
+    @pytest.mark.asyncio
+    async def test_wait_context_pr_side_none_when_pr_timeout_zero(
+        self, project_dir: Path
+    ) -> None:
+        from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
+
+        mock_report = MagicMock(spec=BranchStatusReport)
+        mock_report.format_for_llm.return_value = "captured"
+
+        with (
+            patch(
+                "mcp_workspace.checks.branch_status_polling.get_current_branch_name",
+                return_value="feature/x",
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling.remote_branch_exists",
+                return_value=True,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling.collect_branch_status",
+                return_value=mock_report,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling._wait_for_ci",
+                new_callable=AsyncMock,
+                return_value=12.3,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling._wait_for_pr",
+                new_callable=AsyncMock,
+                return_value=0.0,
+            ),
+        ):
+            await async_poll_branch_status(project_dir, ci_timeout=30, pr_timeout=0)
+
+        wait_ctx = mock_report.format_for_llm.call_args.kwargs["wait_context"]
+        assert isinstance(wait_ctx, WaitContext)
+        assert wait_ctx.pr_elapsed is None
+        assert wait_ctx.ci_elapsed == 12.3
 
     @pytest.mark.asyncio
     async def test_no_branch_skips_helpers_and_remote_check(
         self, project_dir: Path
     ) -> None:
-        from mcp_workspace.checks.branch_status import async_poll_branch_status
+        from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
 
         report = self._make_report()
         with (
             patch(
-                "mcp_workspace.checks.branch_status.get_current_branch_name",
+                "mcp_workspace.checks.branch_status_polling.get_current_branch_name",
                 return_value=None,
             ),
             patch(
-                "mcp_workspace.checks.branch_status.remote_branch_exists",
+                "mcp_workspace.checks.branch_status_polling.remote_branch_exists",
             ) as mock_remote,
             patch(
-                "mcp_workspace.checks.branch_status.collect_branch_status",
+                "mcp_workspace.checks.branch_status_polling.collect_branch_status",
                 return_value=report,
             ) as mock_collect,
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_ci",
+                "mcp_workspace.checks.branch_status_polling._wait_for_ci",
                 new_callable=AsyncMock,
             ) as mock_wait_ci,
             patch(
-                "mcp_workspace.checks.branch_status._wait_for_pr",
+                "mcp_workspace.checks.branch_status_polling._wait_for_pr",
                 new_callable=AsyncMock,
             ) as mock_wait_pr,
         ):
             result = await async_poll_branch_status(
-                project_dir, ci_timeout=30, wait_for_pr=True
+                project_dir, ci_timeout=30, pr_timeout=120
             )
 
         mock_remote.assert_not_called()

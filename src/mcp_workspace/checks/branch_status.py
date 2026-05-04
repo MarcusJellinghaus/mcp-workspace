@@ -5,10 +5,8 @@ labels into a single BranchStatusReport dataclass. Used by the
 check_branch_status MCP tool.
 """
 
-import asyncio
 import logging
-import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence
@@ -18,7 +16,6 @@ from mcp_workspace.git_operations.base_branch import detect_base_branch
 from mcp_workspace.git_operations.branch_queries import (
     extract_issue_number_from_branch,
     get_current_branch_name,
-    remote_branch_exists,
 )
 from mcp_workspace.git_operations.workflows import needs_rebase
 from mcp_workspace.github_operations.ci_log_parser import (
@@ -43,11 +40,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_LABEL = "unknown"
 EMPTY_RECOMMENDATIONS: List[str] = []
 
-_CI_POLL_INTERVAL = 15
-_PR_POLL_INTERVAL = 20
-_DEFAULT_PR_TIMEOUT = 600
-_MAX_CONSECUTIVE_ERRORS = 3
-
 
 class CIStatus(str, Enum):
     """CI pipeline status."""
@@ -56,6 +48,16 @@ class CIStatus(str, Enum):
     FAILED = "FAILED"
     NOT_CONFIGURED = "NOT_CONFIGURED"
     PENDING = "PENDING"
+
+
+@dataclass(frozen=True)
+class WaitContext:
+    """Describes how long the orchestrator waited on CI/PR polling."""
+
+    pr_elapsed: Optional[float] = None
+    pr_timeout: int = 0
+    ci_elapsed: Optional[float] = None
+    ci_timeout: int = 0
 
 
 @dataclass(frozen=True)
@@ -81,8 +83,15 @@ class BranchStatusReport:
     pr_feedback_text: Optional[str] = None
     pr_feedback_blocks_merge: bool = False
 
-    def format_for_human(self) -> str:
+    def format_for_human(
+        self,
+        wait_context: Optional["WaitContext"] = None,
+    ) -> str:
         """Format report for human consumption.
+
+        Args:
+            wait_context: Optional polling context; renders a ``Wait:`` line
+                between ``Base Branch:`` and the report header.
 
         Returns:
             Formatted string with status icons and recommendations.
@@ -114,10 +123,17 @@ class BranchStatusReport:
         lines: List[str] = [
             f"Branch: {self.branch_name}",
             f"Base Branch: {self.base_branch}",
-            "",
-            "Branch Status Report",
-            "",
         ]
+        wait_line = _format_wait_line(self, wait_context)
+        if wait_line is not None:
+            lines.append(wait_line)
+        lines.extend(
+            [
+                "",
+                "Branch Status Report",
+                "",
+            ]
+        )
 
         # PR section (only when pr_found is not None)
         if self.pr_found is not None:
@@ -170,11 +186,17 @@ class BranchStatusReport:
 
         return "\n".join(lines)
 
-    def format_for_llm(self, max_lines: int = 300) -> str:
+    def format_for_llm(
+        self,
+        max_lines: int = 300,
+        wait_context: Optional["WaitContext"] = None,
+    ) -> str:
         """Format report for LLM consumption with truncation.
 
         Args:
             max_lines: Maximum number of lines for CI error details.
+            wait_context: Optional polling context; renders a ``Wait:`` line
+                directly below the ``Branch Status:`` summary line.
 
         Returns:
             Compact formatted string optimized for LLM context windows.
@@ -202,9 +224,16 @@ class BranchStatusReport:
         lines: List[str] = [
             f"Branch: {self.branch_name} | Base: {self.base_branch}",
             status_summary,
-            f"GitHub Label: {self.current_github_label}",
-            f"Recommendations: {recommendations_text}",
         ]
+        wait_line = _format_wait_line(self, wait_context)
+        if wait_line is not None:
+            lines.append(wait_line)
+        lines.extend(
+            [
+                f"GitHub Label: {self.current_github_label}",
+                f"Recommendations: {recommendations_text}",
+            ]
+        )
 
         if self.pr_feedback_text is not None:
             lines.append("")
@@ -225,6 +254,30 @@ class BranchStatusReport:
             )
 
         return "\n".join(lines)
+
+
+def _format_wait_line(
+    report: BranchStatusReport,
+    wait_context: Optional[WaitContext],
+) -> Optional[str]:
+    """Build the ``Wait: ...`` line, or None when nothing to render."""
+    if wait_context is None:
+        return None
+    parts: List[str] = []
+    if wait_context.ci_timeout > 0 and wait_context.ci_elapsed is not None:
+        if report.ci_status == CIStatus.PASSED:
+            ci_state = "ok"
+        elif report.ci_status == CIStatus.FAILED:
+            ci_state = "fail"
+        else:
+            ci_state = "pending"
+        parts.append(f"ci={int(round(wait_context.ci_elapsed))}s {ci_state}")
+    if wait_context.pr_timeout > 0 and wait_context.pr_elapsed is not None:
+        pr_state = "ok" if report.pr_found else "missing"
+        parts.append(f"pr={int(round(wait_context.pr_elapsed))}s {pr_state}")
+    if not parts:
+        return None
+    return f"Wait: {', '.join(parts)}"
 
 
 def create_empty_report() -> BranchStatusReport:
@@ -650,94 +703,3 @@ def collect_branch_status(
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error collecting branch status: {e}")
         return create_empty_report()
-
-
-async def _wait_for_ci(project_dir: Path, branch_name: str, timeout: int) -> None:
-    """Poll CI status until terminal (success/failure) or timeout."""
-    logger.info("Waiting for CI on branch=%s (timeout=%ds)", branch_name, timeout)
-    ci_manager = CIResultsManager(project_dir=project_dir)
-    deadline = time.monotonic() + timeout
-    errors = 0
-    while time.monotonic() < deadline:
-        try:
-            result = await asyncio.to_thread(
-                ci_manager.get_latest_ci_status, branch_name
-            )
-            errors = 0
-            run = result.get("run") if isinstance(result, dict) else None
-            if run and run.get("conclusion") in ("success", "failure"):
-                logger.info("CI reached terminal state for branch=%s", branch_name)
-                return
-        except Exception as exc:  # pylint: disable=broad-exception-caught
-            errors += 1
-            logger.warning("CI poll error for branch=%s: %s", branch_name, exc)
-            if errors >= _MAX_CONSECUTIVE_ERRORS:
-                return
-        await asyncio.sleep(_CI_POLL_INTERVAL)
-
-
-async def _wait_for_pr(project_dir: Path, branch_name: str, timeout: int) -> None:
-    """Poll for PR existence until found or timeout."""
-    logger.info("Waiting for PR on branch=%s (timeout=%ds)", branch_name, timeout)
-    pr_manager = PullRequestManager(project_dir)
-    deadline = time.monotonic() + timeout
-    errors = 0
-    while time.monotonic() < deadline:
-        try:
-            result = await asyncio.to_thread(
-                pr_manager.find_pull_request_by_head, branch_name
-            )
-            errors = 0
-            if result:
-                logger.info("PR found for branch=%s", branch_name)
-                return
-        except Exception as exc:  # pylint: disable=broad-exception-caught
-            errors += 1
-            logger.warning("PR poll error for branch=%s: %s", branch_name, exc)
-            if errors >= _MAX_CONSECUTIVE_ERRORS:
-                return
-        await asyncio.sleep(_PR_POLL_INTERVAL)
-
-
-async def async_poll_branch_status(
-    project_dir: Path,
-    max_log_lines: int = 300,
-    ci_timeout: int = 0,
-    pr_timeout: int = 0,
-    wait_for_pr: bool = False,
-) -> str:
-    """Collect branch status, optionally polling for CI/PR.
-
-    Returns the report formatted via `format_for_llm()`.
-    """
-    branch = await asyncio.to_thread(get_current_branch_name, project_dir)
-
-    if branch is None:
-        report = await asyncio.to_thread(
-            collect_branch_status, project_dir, max_log_lines
-        )
-        return report.format_for_llm()
-
-    needs_remote = wait_for_pr or ci_timeout > 0
-    remote_present = (
-        await asyncio.to_thread(remote_branch_exists, project_dir, branch)
-        if needs_remote
-        else True
-    )
-
-    skip_msg: Optional[str] = None
-    if needs_remote and not remote_present:
-        skip_msg = "Push branch to remote before waiting for PR or CI"
-    else:
-        if wait_for_pr:
-            effective_pr_timeout = pr_timeout if pr_timeout > 0 else _DEFAULT_PR_TIMEOUT
-            await _wait_for_pr(project_dir, branch, effective_pr_timeout)
-        if ci_timeout > 0:
-            await _wait_for_ci(project_dir, branch, ci_timeout)
-
-    report = await asyncio.to_thread(collect_branch_status, project_dir, max_log_lines)
-
-    if skip_msg:
-        report = replace(report, recommendations=[skip_msg, *report.recommendations])
-
-    return report.format_for_llm()
