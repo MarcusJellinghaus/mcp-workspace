@@ -21,7 +21,7 @@ Probes only run when `repo_accessible.ok=True`. All probes use `severity="warnin
 
 1. **New private module** `src/mcp_workspace/github_operations/_permission_probes.py` — self-contained probe orchestrator + classifier. Same package layer as `verification.py`; no new layer crossings. Module is private (leading underscore), not re-exported from `github_operations/__init__.py`.
 
-2. **New property** `RepoIdentifier.web_host` (`src/mcp_workspace/utils/repo_identifier.py`) — three-branch host resolution mirroring `hostname_to_api_base_url` but without the `api.` subdomain or `/api/v3` suffix. Used to build the settings URL appended to 404 hints on `github.com` / `*.ghe.com`.
+2. **New property** `RepoIdentifier.web_host` (`src/mcp_workspace/utils/repo_identifier.py`) — three-branch host resolution mirroring `hostname_to_api_base_url` but without the `api.` subdomain or `/api/v3` suffix. Used to build the settings URL appended to 404 hints on `github.com` / `*.ghe.com`. (Deviation from issue text on GHES branch — issue says `https://<host>`, plan says `None`. User-approved per round 1 review; consolidates host classification into the property.)
 
 3. **`CheckResult` shape unchanged** — no new fields. Probed URL is appended into `error` on failures only; `value="OK"` on success carries no URL.
 
@@ -34,7 +34,7 @@ Probes only run when `repo_accessible.ok=True`. All probes use `severity="warnin
 ## KISS simplifications applied
 
 - Pure-function classifier `_classify_permission_response(name, status, url, web_host)` — `web_host: str | None` (pre-resolved by orchestrator) replaces passing `hostname` and re-deriving the host class. Host-classification rule lives in exactly one place: the new `web_host` property.
-- Single `_run_probe` helper wraps the try/except + classify pattern. Each of the 5 simple probes is a one-line callable + URL pair fed into the helper. Only `perm_statuses_read` has its own dedicated function (its two-call attribution requires it).
+- Single `_run_probe` helper wraps the try/except + classify pattern. Each of the 4 simple probes is a one-line callable + URL pair fed into the helper. Only `perm_statuses_read` and `perm_administration_read` have dedicated functions (each requires two-call attribution: `get_commit`/`get_combined_status` and `get_branch`/`get_protection` respectively).
 - Tests use `pytest.mark.parametrize` for the success-path × 6 probes and failure-status × probe matrices — keeps coverage explicit while collapsing ~24 near-duplicate test functions.
 
 ## Files to be created or modified

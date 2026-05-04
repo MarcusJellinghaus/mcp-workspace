@@ -33,6 +33,8 @@ def web_host(self) -> str | None:
 > **Asymmetry note:** `web_host` is NOT symmetric with `api_base_url`. `*.ghe.com` produces `https://api.<tenant>.ghe.com` for API but `https://<tenant>.ghe.com` for web. The `web_host` property must NOT prepend `api.`.
 
 > **Design decision:** GHES returns `None` (rather than `https://<host>`). The classifier in Step 2 uses `web_host is None` as the signal to suppress the fine-grained-PAT explanation and the settings URL. This pre-computes the host-classification rule in exactly one place.
+>
+> User-confirmed deviation from issue text (which suggested `https://<host>` for GHES). Rationale: returning `None` consolidates the host-class decision into the property; the classifier becomes a dumb consumer (`if web_host is None: GHES branch; else: fine-grained branch`). Note this deviation in the eventual PR description.
 
 ## HOW
 

@@ -71,6 +71,13 @@ def _probe_statuses(
     base: str,            # f"{api_base_url}/repos/{full_name}"
     web_host: str | None,
 ) -> CheckResult: ...
+
+def _probe_administration(
+    repo: Repository,
+    default_branch: str,
+    base: str,            # f"{api_base_url}/repos/{full_name}"
+    web_host: str | None,
+) -> CheckResult: ...
 ```
 
 ## HOW
@@ -90,9 +97,7 @@ After the existing `auto_delete_branches` block and before the `overall_ok` calc
 result.update(run_permission_probes(manager, repo if repo_is_ok else None))
 ```
 
-(Pass `manager` even when `repo` is None — orchestrator handles the placeholder branch and never dereferences `manager` in that case. Or pass `manager=None` too; pick one shape and keep it consistent.)
-
-> **Decision:** pass `repo=None` when unreachable; `manager` is still passed but unused on that path. This keeps the orchestrator signature stable.
+`manager` is ALWAYS passed non-None; only `repo` is `None` on the skip path — the orchestrator's early `if repo is None: return ...` short-circuits before any `manager` attribute access, so `manager` is unused (but never None) on that path. This keeps the orchestrator signature stable and the call site unconditional.
 
 ### Probe data table
 
@@ -105,17 +110,22 @@ web_host = identifier.web_host
 default = repo.default_branch
 ```
 
-Then run the 5 simple probes via `_run_probe(...)` with these tuples:
+`repo.default_branch` is read once and reused. Because `repo` came from `manager._get_repository()` which fetches the full Repository object, `default_branch` is already populated on the Python object — accessing it does NOT issue an HTTP call and is therefore not counted in the per-probe call budget.
+
+Then run the 4 simple probes via `_run_probe(...)` with these tuples:
 
 | key | name | url | call (lambda) | admin_404 |
 |---|---|---|---|---|
 | `perm_contents_read` | `Contents: Read` | `f"{base}/contents/"` | `lambda: repo.get_contents("")` | False |
-| `perm_administration_read` | `Administration: Read` | `f"{base}/branches/{default}/protection"` | `lambda: repo.get_branch(default).get_protection()` | **True** |
 | `perm_pull_requests_read` | `Pull requests: Read` | `f"{base}/pulls?state=all"` | `lambda: repo.get_pulls(state="all").totalCount` | False |
 | `perm_issues_read` | `Issues: Read` | `f"{base}/issues?state=all"` | `lambda: repo.get_issues(state="all").totalCount` | False |
 | `perm_workflows_read` | `Actions: Read` | `f"{base}/actions/workflows"` | `lambda: repo.get_workflows().totalCount` | False |
 
-Then `out["perm_statuses_read"] = _probe_statuses(repo, default, base, web_host)`.
+Then, after the simple-probe loop:
+- `out["perm_administration_read"] = _probe_administration(repo, default, base, web_host)` (parallel to `_probe_statuses`; isolates `get_branch` failures from `get_protection` classification).
+- `out["perm_statuses_read"] = _probe_statuses(repo, default, base, web_host)`.
+
+Result-key insertion order is preserved: `_probe_administration` is called between the for-loop and `_probe_statuses` so the dict ordering matches `_PROBE_KEYS`.
 
 ## ALGORITHM
 
@@ -176,6 +186,26 @@ return _run_probe(
 )
 ```
 
+### `_probe_administration` (two-call attribution)
+
+```text
+url = f"{base}/branches/{default_branch}/protection"
+try:
+    branch = repo.get_branch(default_branch)
+except Exception:
+    return CheckResult(ok=False, value="not checked", severity="warning",
+                       error="branch lookup failed (covered by perm_contents_read)")
+return _run_probe(
+    call=branch.get_protection,
+    name="Administration: Read",
+    url=url,
+    web_host=web_host,
+    admin_404=True,
+)
+```
+
+Mirrors `_probe_statuses`: a `get_branch` failure (e.g. 404 on a missing default branch, or `Contents: Read` denial) is reported as `value="not checked"` with `error="branch lookup failed (covered by perm_contents_read)"`, NOT misattributed to `Administration: Read`. Only `get_protection` failures flow through the classifier (with `admin_404=True`).
+
 ### `run_permission_probes` (orchestrator)
 
 ```text
@@ -189,6 +219,7 @@ default = repo.default_branch
 out: dict[str, CheckResult] = {}
 for key, name, url, call, admin_404 in _PROBE_TABLE(repo, base, default):
     out[key] = _run_probe(call=call, name=name, url=url, web_host=web_host, admin_404=admin_404)
+out["perm_administration_read"] = _probe_administration(repo, default, base, web_host)
 out["perm_statuses_read"] = _probe_statuses(repo, default, base, web_host)
 return out
 ```
@@ -212,15 +243,19 @@ return out
    - 404 host-branching: `web_host="https://github.com"` includes `settings/personal-access-tokens` URL and "fine-grained PATs return 404" phrase; `web_host="https://tenant.ghe.com"` includes the tenant URL; `web_host=None` (GHES) MUST NOT contain `settings` or `fine-grained PAT`.
    - `admin_404=True` produces `missing permission Administration: Read OR no branch protection configured (404)`.
 
-2. **Per-probe success path** (parametrized over the 5 simple probes): mock the corresponding `repo` method, assert `ok=True, value="OK"`, no URL in any field.
+2. **Per-probe success path** (parametrized over the 4 simple probes): mock the corresponding `repo` method, assert `ok=True, value="OK"`, no URL in any field. (Two-call probes `perm_administration_read` and `perm_statuses_read` have their own success-path assertions in tests 5 / 5b.)
 
 3. **Per-probe failure paths** (parametrized over probe × status in {401, 403, 404, 500}): make the mock raise `GithubException(status=...)`, assert HTTP method (`GET`), full URL, and permission name all appear in `error`.
 
 4. **`PaginatedList.totalCount` is read** — for `perm_pull_requests_read`, `perm_issues_read`, `perm_workflows_read`: configure `Mock().totalCount` as a property (e.g. via `PropertyMock`) and assert it was accessed exactly once. Without this read, the test would falsely pass.
 
 5. **`perm_statuses_read` two-call attribution:**
-   - `repo.get_commit` raises → result is `value="not checked", error="commit lookup failed (covered by perm_contents_read)"`. Assert the classifier was NOT invoked (e.g. patch `_classify_permission_response` with a sentinel that fails the test if called).
-   - `repo.get_commit` succeeds, `get_combined_status` raises 404 → classifier invoked once with `name="Commit statuses: Read"`.
+   - `repo.get_commit` raises → result is `value="not checked", error="commit lookup failed (covered by perm_contents_read)"`. Assert via OUTPUT shape (do not check internal call structure): `result.value == "not checked"`, `result.error == "commit lookup failed (covered by perm_contents_read)"`, and `result.error` does NOT contain `"GET"` or any URL (the classifier always emits `(GET <url>)` on failures, so its absence is observable from outputs alone and proves the classifier was skipped).
+   - `repo.get_commit` succeeds, `get_combined_status` raises 404 → result error contains `"Commit statuses: Read"`, `"404"`, and `(GET <url>)` (proves the classifier ran).
+
+5b. **`perm_administration_read` two-call attribution** — parallel to test 5:
+   - `repo.get_branch` raises → result is `value="not checked", error="branch lookup failed (covered by perm_contents_read)"`. Assert via OUTPUT shape (do not check internal call structure): `result.value == "not checked"`, `result.error == "branch lookup failed (covered by perm_contents_read)"`, and `result.error` does NOT contain `"GET"` or any URL (the classifier always emits `(GET <url>)` on failures, so its absence is observable from outputs alone and proves the classifier was skipped).
+   - `repo.get_branch` succeeds, `branch.get_protection` raises 404 → result error contains `"Administration: Read"`, the `admin_404` phrase `no branch protection configured`, and `(GET <url>)` (proves the classifier ran with `admin_404=True`).
 
 6. **Network error path** — call raises `ConnectionError("boom")`; result error matches `network error: boom — needs <Name>`.
 
