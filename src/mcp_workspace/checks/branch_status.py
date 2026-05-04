@@ -59,6 +59,16 @@ class CIStatus(str, Enum):
 
 
 @dataclass(frozen=True)
+class WaitContext:
+    """Describes how long the orchestrator waited on CI/PR polling."""
+
+    pr_elapsed: Optional[float] = None
+    pr_timeout: int = 0
+    ci_elapsed: Optional[float] = None
+    ci_timeout: int = 0
+
+
+@dataclass(frozen=True)
 class BranchStatusReport:
     """Branch readiness status report."""
 
@@ -81,8 +91,15 @@ class BranchStatusReport:
     pr_feedback_text: Optional[str] = None
     pr_feedback_blocks_merge: bool = False
 
-    def format_for_human(self) -> str:
+    def format_for_human(
+        self,
+        wait_context: Optional["WaitContext"] = None,
+    ) -> str:
         """Format report for human consumption.
+
+        Args:
+            wait_context: Optional polling context; renders a ``Wait:`` line
+                between ``Base Branch:`` and the report header.
 
         Returns:
             Formatted string with status icons and recommendations.
@@ -114,10 +131,17 @@ class BranchStatusReport:
         lines: List[str] = [
             f"Branch: {self.branch_name}",
             f"Base Branch: {self.base_branch}",
-            "",
-            "Branch Status Report",
-            "",
         ]
+        wait_line = _format_wait_line(self, wait_context)
+        if wait_line is not None:
+            lines.append(wait_line)
+        lines.extend(
+            [
+                "",
+                "Branch Status Report",
+                "",
+            ]
+        )
 
         # PR section (only when pr_found is not None)
         if self.pr_found is not None:
@@ -170,11 +194,17 @@ class BranchStatusReport:
 
         return "\n".join(lines)
 
-    def format_for_llm(self, max_lines: int = 300) -> str:
+    def format_for_llm(
+        self,
+        max_lines: int = 300,
+        wait_context: Optional["WaitContext"] = None,
+    ) -> str:
         """Format report for LLM consumption with truncation.
 
         Args:
             max_lines: Maximum number of lines for CI error details.
+            wait_context: Optional polling context; renders a ``Wait:`` line
+                directly below the ``Branch Status:`` summary line.
 
         Returns:
             Compact formatted string optimized for LLM context windows.
@@ -202,9 +232,16 @@ class BranchStatusReport:
         lines: List[str] = [
             f"Branch: {self.branch_name} | Base: {self.base_branch}",
             status_summary,
-            f"GitHub Label: {self.current_github_label}",
-            f"Recommendations: {recommendations_text}",
         ]
+        wait_line = _format_wait_line(self, wait_context)
+        if wait_line is not None:
+            lines.append(wait_line)
+        lines.extend(
+            [
+                f"GitHub Label: {self.current_github_label}",
+                f"Recommendations: {recommendations_text}",
+            ]
+        )
 
         if self.pr_feedback_text is not None:
             lines.append("")
@@ -225,6 +262,30 @@ class BranchStatusReport:
             )
 
         return "\n".join(lines)
+
+
+def _format_wait_line(
+    report: BranchStatusReport,
+    wait_context: Optional[WaitContext],
+) -> Optional[str]:
+    """Build the ``Wait: ...`` line, or None when nothing to render."""
+    if wait_context is None:
+        return None
+    parts: List[str] = []
+    if wait_context.ci_timeout > 0 and wait_context.ci_elapsed is not None:
+        if report.ci_status == CIStatus.PASSED:
+            ci_state = "ok"
+        elif report.ci_status == CIStatus.FAILED:
+            ci_state = "fail"
+        else:
+            ci_state = "pending"
+        parts.append(f"ci={int(round(wait_context.ci_elapsed))}s {ci_state}")
+    if wait_context.pr_timeout > 0 and wait_context.pr_elapsed is not None:
+        pr_state = "ok" if report.pr_found else "missing"
+        parts.append(f"pr={int(round(wait_context.pr_elapsed))}s {pr_state}")
+    if not parts:
+        return None
+    return f"Wait: {', '.join(parts)}"
 
 
 def create_empty_report() -> BranchStatusReport:
