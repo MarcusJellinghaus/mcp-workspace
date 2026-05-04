@@ -1,0 +1,23 @@
+Add split_args_pathspec helper and reword validate_args '--' error
+
+Introduce a pure validation/transform helper that splits args on '--' for
+pathspec-supporting commands and routes the tail into the pathspec
+parameter. The helper is not yet wired into any handler (Step 2).
+
+Changes:
+- Add _SUPPORTS_PATHSPEC constant in arg_validation.py (moved from
+  read_operations.py to co-locate command-capability metadata with
+  the per-command allowlist dicts).
+- Add split_args_pathspec(command, args, pathspec) helper that returns
+  (args, pathspec) unchanged for non-pathspec commands or when '--' is
+  absent, splits on the first '--' for pathspec commands, and raises
+  ValueError on multi-'--' or conflict with an explicit pathspec.
+- Reword validate_args's '--' rejection to
+  f"git {command} does not accept '--'".
+- read_operations.py imports _SUPPORTS_PATHSPEC from arg_validation
+  (no re-export shim).
+- Update test_rejects_double_dash to use merge_base + new wording.
+- Add TestSplitArgsPathspec covering no-op, split, empty-tail,
+  multi-'--', and conflict cases.
+
+Refs #187

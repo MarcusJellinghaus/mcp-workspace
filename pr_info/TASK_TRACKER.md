@@ -27,7 +27,7 @@ See [step_1.md](./steps/step_1.md) for full details.
 
 - [x] Implementation (tests + production code)
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Commit message prepared
 
 ### Step 2: Wire `split_args_pathspec` into all 5 pathspec-injection sites
 
