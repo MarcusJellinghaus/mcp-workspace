@@ -114,6 +114,7 @@ Drop `wait_for_pr=...` from every call. Update / replace tests as follows:
 - **Update** `test_wait_for_pr_skipped_when_no_remote_branch` → call with `pr_timeout=120`; assert recommendation injected and helpers not called.
 - **Update** `test_both_flags_no_remote_branch_emits_recommendation_once` → call with `ci_timeout=30, pr_timeout=120`.
 - **Update** `test_no_branch_skips_helpers_and_remote_check` → call with `ci_timeout=30, pr_timeout=120`.
+- **Update** `test_ci_timeout_with_remote_branch_present` — after the rewrite, both helpers run unconditionally inside `asyncio.gather` (relying on early-exit when `timeout=0`). The current `mock_wait_pr.assert_not_called()` assertion is no longer correct: `_wait_for_pr` IS called with `pr_timeout=0` and early-exits. Change it to assert the helper IS awaited with `pr_timeout=0`, e.g., `mock_wait_pr.assert_awaited_once_with(project_dir, branch, 0)`. **Verify the actual helper signature against `src/mcp_workspace/checks/branch_status.py`** before finalizing the assertion (positional vs. kwargs ordering).
 - **Replace** `test_pr_wait_runs_before_ci_wait_then_collect` with `test_polls_run_in_parallel`:
   ```
   release = asyncio.Event()
@@ -153,7 +154,7 @@ Drop `wait_for_pr=...` from every call. Update / replace tests as follows:
 
 After this step:
 
-- `grep -r 'wait_for_pr\|_DEFAULT_PR_TIMEOUT' src/ tests/` returns nothing.
+- `mcp__mcp-workspace__search_files` with `pattern="wait_for_pr|_DEFAULT_PR_TIMEOUT"` (regex), scoped to `src/` and `tests/`, returns no matches. Per CLAUDE.md (use MCP tools, not `grep`).
 - `mcp__tools-py__run_pylint_check`, `mcp__tools-py__run_mypy_check`, `mcp__tools-py__run_pytest_check` all green.
 
 ## Definition of Done

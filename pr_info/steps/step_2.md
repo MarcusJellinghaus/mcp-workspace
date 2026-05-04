@@ -53,7 +53,7 @@ class BranchStatusReport:
 - `WaitContext` placed below `CIStatus`, alongside `BranchStatusReport`.
 - `_format_wait_line` is module-private (single underscore). Both formatters call it once and append the result if not `None`.
 - In `format_for_llm`, append the Wait line **directly below the `Branch Status:` summary line** (between the existing `status_summary` and `GitHub Label:`).
-- In `format_for_human`, append the Wait line **after the compact branch/base header**, before the existing per-section blocks (e.g. just before the `Branch Status Report` heading line). Keep it on a single line so the wording matches `format_for_llm`.
+- In `format_for_human`, insert the Wait line **between the `Base Branch: <name>` line and the existing blank line that precedes `"Branch Status Report"`** (placement A). The resulting order is: `Branch: <name>`, `Base Branch: <name>`, `Wait: ...` (only when `wait_context` provided), then blank line, then `Branch Status Report`. Keep it on a single line so the wording mirrors `format_for_llm` (Wait line directly under the summary line).
 
 ## ALGORITHM (`_format_wait_line`)
 
@@ -95,8 +95,9 @@ Each test builds a `BranchStatusReport` (use the existing `_make_report` style),
 - `test_wait_line_omits_ci_side_when_ci_timeout_zero` — `ci_timeout=0`, `pr_timeout=120, pr_elapsed=10`, `pr_found=True`. Expect line is `"Wait: pr=10s ok"`, no `ci=` substring.
 - `test_wait_line_omits_pr_side_when_pr_timeout_zero` — symmetric.
 - `test_wait_line_absent_when_both_timeouts_zero` — empty `WaitContext()` produces no `Wait:` substring at all.
-- `test_wait_line_absent_when_no_wait_context` — no `wait_context` kwarg passed; output identical to current behavior (regression guard).
-- `test_format_for_human_renders_same_wait_line` — pass `WaitContext(ci_timeout=60, ci_elapsed=10, …)` to `format_for_human`; assert the same `Wait: ci=10s ok` substring appears.
+- `test_wait_line_absent_when_no_wait_context` — no `wait_context` kwarg passed to `format_for_llm`; output identical to current behavior (regression guard, LLM side).
+- `test_format_for_human_unchanged_when_no_wait_context` — calling `format_for_human()` without `wait_context` produces output identical to the current implementation (regression guard, human side; symmetric to the LLM-side guard).
+- `test_format_for_human_renders_same_wait_line` — pass `WaitContext(ci_timeout=60, ci_elapsed=10, …)` to `format_for_human`; assert the same `Wait: ci=10s ok` substring appears, and assert it sits between the `Base Branch:` line and the blank line preceding `Branch Status Report`.
 
 ## Definition of Done
 

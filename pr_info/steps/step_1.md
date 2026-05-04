@@ -36,16 +36,29 @@ Both return elapsed seconds (`time.monotonic() - start`) on every exit path: ter
 
 ## ALGORITHM (deadline-aware sleep, applied identically to both helpers)
 
+Use ONE loop shape consistently: an explicit pre-loop deadline check at the top of every iteration, with an unconditional `while True:` (no redundant `while time.monotonic() < deadline:` guard). Every exit path returns `time.monotonic() - start`.
+
 ```
 start    = time.monotonic()
 deadline = start + timeout
 errors   = 0
-loop:
-    if time.monotonic() >= deadline: return time.monotonic() - start
-    try poll → terminal? return time.monotonic() - start
-    except: errors += 1; if errors >= 3: return time.monotonic() - start
+while True:
+    # 1. Deadline check (covers timeout<=0 immediate-exit too)
+    if time.monotonic() >= deadline:
+        return time.monotonic() - start
+    # 2. Poll
+    try:
+        status = <poll>
+        if status is terminal:
+            return time.monotonic() - start
+    except Exception:
+        errors += 1
+        if errors >= _MAX_CONSECUTIVE_ERRORS:
+            return time.monotonic() - start
+    # 3. Deadline-aware sleep
     remaining = deadline - time.monotonic()
-    if remaining <= 0: return time.monotonic() - start
+    if remaining <= 0:
+        return time.monotonic() - start
     await asyncio.sleep(min(_POLL_INTERVAL, remaining))
 ```
 
@@ -66,6 +79,7 @@ Update existing helper tests:
 - `TestWaitForCI.test_timeout_zero_returns_immediately` — assert returned value is `0.0` (or near-zero float).
 - `TestWaitForPR.test_returns_immediately_when_pr_found` — assert returned `float`.
 - `TestWaitForPR.test_timeout_zero_returns_immediately` — assert returned `0.0`.
+- `TestWaitForCI.test_returns_after_timeout_when_in_progress` — this test drives `time.monotonic` via a `side_effect` iterator (currently `iter([0.0, 0.0, 5.0, 10.0, 100.0])` or similar). The new return-path computes `elapsed = time.monotonic() - start`, which adds ONE extra `monotonic()` call beyond the existing loop sequence. **Extend the iterator with one trailing value (e.g., append `100.0`)** so the iterator does not raise `StopIteration` on the final elapsed-return call. Verify against the actual current test source before patching.
 
 Add two new tests (deadline-aware sleep):
 
