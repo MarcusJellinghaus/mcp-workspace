@@ -26,24 +26,47 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 See [step_1.md](./steps/step_1.md) for details.
 
 - [x] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 
 ### Step 2: Runtime Strings Use the `mcp_coder_utils` Helper
 
-See [step_2.md](./steps/step_2.md) for details.
+See [step_2.md](./steps/step_2.md) for details. Note: implementation uses
+`get_user_app_data_dir("mcp_coder") / "config.toml"` computed at message-build
+time, not the originally-planned `get_user_config_path()`.
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 
-### Step 3: Dual-Path Docstring Updates
+### Step 3: Docstrings (no-op per updated issue Decisions)
 
-See [step_3.md](./steps/step_3.md) for details.
+Per issue #184 Decisions: *"Keep literal `~/.mcp_coder/config.toml` text
+(correct on every platform under mcp-coder-utils#31)"*. Existing docstrings
+are already in the neutral form, no changes needed.
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
+
+### Step 4: Adopt helper in `issues/cache.py` (added per issue #184)
+
+Replaced `Path.home() / ".mcp_coder" / "coordinator_cache"` with
+`get_user_app_data_dir("mcp_coder") / "coordinator_cache"` and updated
+the matching test assertion in `tests/github_operations/test_issue_cache.py`.
+
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 5: Bump `mcp-coder-utils` pin in pyproject.toml
+
+DEFERRED: blocked on upstream release containing commit 67c11cc. Latest
+tag is 0.1.4 which lacks `user_app_data`. CI works via
+`[tool.mcp-coder.install-from-github]` fetching HEAD. Bump pin to the
+release version once it ships.
+
+- [ ] Bump pin (waiting on upstream release)
 
 ## Pull Request
 

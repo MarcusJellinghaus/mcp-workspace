@@ -17,19 +17,17 @@ class TestReadConfigValue:
     def test_returns_none_when_file_missing(self, tmp_path: Path) -> None:
         missing = tmp_path / "config.toml"
         with patch(
-            "mcp_workspace.config.get_user_config_path",
-            return_value=missing,
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
         ):
             assert _read_config_value("github", "token") is None
 
     def test_returns_value_when_present(self, tmp_path: Path) -> None:
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            '[github]\ntoken = "ghp_test123"\n', encoding="utf-8"
-        )
+        config_file.write_text('[github]\ntoken = "ghp_test123"\n', encoding="utf-8")
         with patch(
-            "mcp_workspace.config.get_user_config_path",
-            return_value=config_file,
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
         ):
             assert _read_config_value("github", "token") == "ghp_test123"
 
@@ -37,19 +35,17 @@ class TestReadConfigValue:
         config_file = tmp_path / "config.toml"
         config_file.write_text('[other]\nkey = "value"\n', encoding="utf-8")
         with patch(
-            "mcp_workspace.config.get_user_config_path",
-            return_value=config_file,
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
         ):
             assert _read_config_value("github", "token") is None
 
     def test_returns_none_for_missing_key(self, tmp_path: Path) -> None:
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            '[github]\nother_key = "value"\n', encoding="utf-8"
-        )
+        config_file.write_text('[github]\nother_key = "value"\n', encoding="utf-8")
         with patch(
-            "mcp_workspace.config.get_user_config_path",
-            return_value=config_file,
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
         ):
             assert _read_config_value("github", "token") is None
 
@@ -57,8 +53,8 @@ class TestReadConfigValue:
         config_file = tmp_path / "config.toml"
         config_file.write_text("this is not valid toml {{{}}", encoding="utf-8")
         with patch(
-            "mcp_workspace.config.get_user_config_path",
-            return_value=config_file,
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
         ):
             assert _read_config_value("github", "token") is None
 
@@ -72,28 +68,24 @@ class TestGetGithubToken:
 
     def test_falls_back_to_config_file(self, tmp_path: Path) -> None:
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            '[github]\ntoken = "file_token"\n', encoding="utf-8"
-        )
+        config_file.write_text('[github]\ntoken = "file_token"\n', encoding="utf-8")
         with (
             patch.dict("os.environ", {}, clear=True),
             patch(
-                "mcp_workspace.config.get_user_config_path",
-                return_value=config_file,
+                "mcp_workspace.config.get_user_app_data_dir",
+                return_value=tmp_path,
             ),
         ):
             assert get_github_token() == "file_token"
 
     def test_env_var_takes_precedence(self, tmp_path: Path) -> None:
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            '[github]\ntoken = "file_token"\n', encoding="utf-8"
-        )
+        config_file.write_text('[github]\ntoken = "file_token"\n', encoding="utf-8")
         with (
             patch.dict("os.environ", {"GITHUB_TOKEN": "env_token"}),
             patch(
-                "mcp_workspace.config.get_user_config_path",
-                return_value=config_file,
+                "mcp_workspace.config.get_user_app_data_dir",
+                return_value=tmp_path,
             ),
         ):
             assert get_github_token() == "env_token"
@@ -103,8 +95,8 @@ class TestGetGithubToken:
         with (
             patch.dict("os.environ", {}, clear=True),
             patch(
-                "mcp_workspace.config.get_user_config_path",
-                return_value=missing,
+                "mcp_workspace.config.get_user_app_data_dir",
+                return_value=tmp_path,
             ),
         ):
             assert get_github_token() is None
@@ -119,28 +111,24 @@ class TestGetGithubTokenWithSource:
 
     def test_falls_back_to_config_file(self, tmp_path: Path) -> None:
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            '[github]\ntoken = "file_token"\n', encoding="utf-8"
-        )
+        config_file.write_text('[github]\ntoken = "file_token"\n', encoding="utf-8")
         with (
             patch.dict("os.environ", {}, clear=True),
             patch(
-                "mcp_workspace.config.get_user_config_path",
-                return_value=config_file,
+                "mcp_workspace.config.get_user_app_data_dir",
+                return_value=tmp_path,
             ),
         ):
             assert get_github_token_with_source() == ("file_token", "config")
 
     def test_env_var_takes_precedence(self, tmp_path: Path) -> None:
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            '[github]\ntoken = "file_token"\n', encoding="utf-8"
-        )
+        config_file.write_text('[github]\ntoken = "file_token"\n', encoding="utf-8")
         with (
             patch.dict("os.environ", {"GITHUB_TOKEN": "env_token"}),
             patch(
-                "mcp_workspace.config.get_user_config_path",
-                return_value=config_file,
+                "mcp_workspace.config.get_user_app_data_dir",
+                return_value=tmp_path,
             ),
         ):
             assert get_github_token_with_source() == ("env_token", "env")
@@ -150,8 +138,8 @@ class TestGetGithubTokenWithSource:
         with (
             patch.dict("os.environ", {}, clear=True),
             patch(
-                "mcp_workspace.config.get_user_config_path",
-                return_value=missing,
+                "mcp_workspace.config.get_user_app_data_dir",
+                return_value=tmp_path,
             ),
         ):
             assert get_github_token_with_source() == (None, None)
@@ -175,8 +163,8 @@ class TestGetTestRepoUrl:
         with (
             patch.dict("os.environ", {}, clear=True),
             patch(
-                "mcp_workspace.config.get_user_config_path",
-                return_value=config_file,
+                "mcp_workspace.config.get_user_app_data_dir",
+                return_value=tmp_path,
             ),
         ):
             assert get_test_repo_url() == "https://github.com/org/testrepo"
@@ -186,8 +174,8 @@ class TestGetTestRepoUrl:
         with (
             patch.dict("os.environ", {}, clear=True),
             patch(
-                "mcp_workspace.config.get_user_config_path",
-                return_value=missing,
+                "mcp_workspace.config.get_user_app_data_dir",
+                return_value=tmp_path,
             ),
         ):
             assert get_test_repo_url() is None

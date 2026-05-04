@@ -13,6 +13,7 @@ from typing import Dict, List
 from unittest.mock import Mock, patch
 
 import pytest
+from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
 from mcp_workspace.github_operations.issues import (
     CacheData,
@@ -82,7 +83,7 @@ class TestCacheFilePath:
         repo_identifier = RepoIdentifier.from_full_name("owner/repo")
         path = _get_cache_file_path(repo_identifier)
 
-        expected_dir = Path.home() / ".mcp_coder" / "coordinator_cache"
+        expected_dir = get_user_app_data_dir("mcp_coder") / "coordinator_cache"
         expected_file = expected_dir / "github_com_owner_repo.issues.json"
 
         assert path == expected_file

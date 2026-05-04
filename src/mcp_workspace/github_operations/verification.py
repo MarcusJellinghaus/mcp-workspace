@@ -10,6 +10,7 @@ from typing import Any, Literal, NotRequired, TypedDict
 
 from github import Auth, Github
 from github.GithubException import GithubException
+from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
 from mcp_workspace.config import get_github_token_with_source
 from mcp_workspace.git_operations.remotes import get_repository_identifier
@@ -119,14 +120,15 @@ def verify_github(project_dir: Path) -> dict[str, object]:
         )
 
     if token is None:
+        config_path = get_user_app_data_dir("mcp_coder") / "config.toml"
         result["token_configured"] = CheckResult(
             ok=False,
             value="not configured",
             severity="error",
             error="GitHub token not found",
             install_hint=(
-                "Set GITHUB_TOKEN environment variable or add [github] token "
-                "to ~/.mcp_coder/config.toml"
+                f"Set GITHUB_TOKEN environment variable or add [github] token "
+                f"to {config_path}"
             ),
         )
     else:

@@ -4,12 +4,12 @@ import os
 import tomllib
 from typing import Literal
 
-from mcp_coder_utils.user_config import get_user_config_path
+from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
 
 def _read_config_value(section: str, key: str) -> str | None:
     """Read a value from the user config file."""
-    config_path = get_user_config_path()
+    config_path = get_user_app_data_dir("mcp_coder") / "config.toml"
     if not config_path.exists():
         return None
     try:
