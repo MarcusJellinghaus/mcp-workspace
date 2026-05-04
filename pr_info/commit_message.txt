@@ -1,23 +1,8 @@
-git: wire split_args_pathspec into all 5 pathspec-injection sites
+Split pathspec auto-split tests into a sibling test file
 
-Invoke split_args_pathspec at the top of every read-only handler that
-injects pathspec, before validate_args and before the
-cmd_args += ["--"] + pathspec injection. Callers can now pass '--'
-inside args for pathspec-supporting commands (log, diff, show, status,
-ls_tree, ls_files) and have the tail transparently rerouted into the
-pathspec parameter.
-
-Sites updated in src/mcp_workspace/git_operations/read_operations.py:
-- _run_simple_command (covers ls_tree, ls_files; no-op for
-  fetch/rev_parse/ls_remote since they aren't in _SUPPORTS_PATHSPEC)
-- git_log
-- git_diff
-- git_status
-- git_show
-
-Add TestPathspecAutoSplit handler-level tests in
-tests/git_operations/test_read_operations.py covering the happy path
-('--' in args equivalent to explicit pathspec) and the conflict case
-('--' in args + explicit pathspec -> ValueError).
-
-Refs #187
+Move TestPathspecAutoSplit out of test_read_operations.py into a new
+test_read_operations_pathspec.py to keep the original file under the
+750-line file-size threshold. The extracted file imports git_diff,
+pytest, Repo, and Path, and retains the @pytest.mark.git_integration
+marker. The long git_diff call is split across multiple lines to fit
+within black's 88-char limit.
