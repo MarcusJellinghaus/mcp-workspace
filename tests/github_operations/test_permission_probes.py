@@ -336,17 +336,13 @@ class TestStatusesTwoCallAttribution:
     def test_get_commit_raises_skips_classifier(self) -> None:
         repo = Mock()
         repo.default_branch = "main"
-        repo.get_commit.side_effect = GithubException(
-            status=403, data={}, headers={}
-        )
+        repo.get_commit.side_effect = GithubException(status=403, data={}, headers={})
         result = _probe_statuses(
             repo, "main", "https://api.github.com/repos/owner/repo", GITHUB_COM_HOST
         )
         assert result["ok"] is False
         assert result["value"] == "not checked"
-        assert (
-            result["error"] == "commit lookup failed (covered by perm_contents_read)"
-        )
+        assert result["error"] == "commit lookup failed (covered by perm_contents_read)"
         # Classifier always emits "(GET ...)" on failures; absence proves it was skipped
         assert "GET" not in result["error"]
         assert "https://" not in result["error"]
@@ -381,17 +377,13 @@ class TestAdministrationTwoCallAttribution:
     def test_get_branch_raises_skips_classifier(self) -> None:
         repo = Mock()
         repo.default_branch = "main"
-        repo.get_branch.side_effect = GithubException(
-            status=403, data={}, headers={}
-        )
+        repo.get_branch.side_effect = GithubException(status=403, data={}, headers={})
         result = _probe_administration(
             repo, "main", "https://api.github.com/repos/owner/repo", GITHUB_COM_HOST
         )
         assert result["ok"] is False
         assert result["value"] == "not checked"
-        assert (
-            result["error"] == "branch lookup failed (covered by perm_contents_read)"
-        )
+        assert result["error"] == "branch lookup failed (covered by perm_contents_read)"
         assert "GET" not in result["error"]
         assert "https://" not in result["error"]
 
@@ -460,9 +452,7 @@ class TestSkipWhenUnreachable:
         manager = MagicMock()
         run_permission_probes(manager, None)
         # _repo_identifier should never have been accessed
-        assert "_repo_identifier" not in {
-            c[0] for c in manager.mock_calls if c[0]
-        }
+        assert "_repo_identifier" not in {c[0] for c in manager.mock_calls if c[0]}
         # Stronger: no attribute access at all besides the call itself
         # (MagicMock records both attribute lookups via method_calls but
         # bare attribute access goes through __getattr__ which is only

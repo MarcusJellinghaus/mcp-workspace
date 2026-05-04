@@ -15,6 +15,12 @@ from mcp_coder_utils.user_app_data import get_user_app_data_dir
 from mcp_workspace.config import get_github_token_with_source
 from mcp_workspace.git_operations.remotes import get_repository_identifier
 from mcp_workspace.github_operations._diagnostics import extract_diagnostic_headers
+
+# Imported after CheckResult is defined to avoid circular-import deadlock:
+# `_permission_probes` imports CheckResult from this module.
+from mcp_workspace.github_operations._permission_probes import (  # noqa: E402  # pylint: disable=wrong-import-position
+    run_permission_probes,
+)
 from mcp_workspace.github_operations.base_manager import BaseGitHubManager
 from mcp_workspace.utils.token_fingerprint import format_token_fingerprint
 
@@ -31,13 +37,6 @@ class CheckResult(TypedDict):
     install_hint: NotRequired[str]
     token_source: NotRequired[Literal["env", "config"]]
     token_fingerprint: NotRequired[str]
-
-
-# Imported after CheckResult is defined to avoid circular-import deadlock:
-# `_permission_probes` imports CheckResult from this module.
-from mcp_workspace.github_operations._permission_probes import (  # noqa: E402  # pylint: disable=wrong-import-position
-    run_permission_probes,
-)
 
 
 def verify_github(project_dir: Path) -> dict[str, object]:

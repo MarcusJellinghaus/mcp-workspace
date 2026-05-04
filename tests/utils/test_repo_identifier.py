@@ -175,7 +175,7 @@ class TestRepoIdentifierProperties:
 
 
 class TestWebHost:
-    """Test RepoIdentifier.web_host property.""" 
+    """Test RepoIdentifier.web_host property."""
 
     @pytest.mark.parametrize(
         "hostname,expected",

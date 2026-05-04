@@ -83,9 +83,7 @@ def _run_probe(
             severity="warning",
             error=f"network error: {e} — needs {name}",
         )
-    return _classify_permission_response(
-        name, 200, url, web_host, admin_404=admin_404
-    )
+    return _classify_permission_response(name, 200, url, web_host, admin_404=admin_404)
 
 
 def _probe_statuses(

@@ -1,22 +1,15 @@
-verify_github: probe per-permission REST endpoints (#188)
+Apply black/isort formatting to permission probes and repo identifier files
 
-Add six per-permission read probes (Contents, Administration, Pull requests,
-Issues, Actions, Commit statuses) to verify_github. Probes reuse the existing
-GitHub client and the cached Repository, build URLs statically from the API
-base, and classify GithubException status into hints that name the permission,
-HTTP status, and probed URL. 404 hints branch by host: github.com and
-*.ghe.com show the fine-grained-PAT settings URL; GHES gets a plain
-"missing permission OR resource not found" message.
+Normalize whitespace and collapse short multi-line calls/asserts in three
+recently added files that were committed without running the project's
+formatters, restoring `black --check` and `isort --check` to a clean exit.
 
-The new logic lives in a private module
-src/mcp_workspace/github_operations/_permission_probes.py with a pure-function
-classifier, a single-call _run_probe helper, and dedicated two-call
-attribution helpers for Administration: Read (get_branch + get_protection)
-and Commit statuses: Read (get_commit + get_combined_status). The orchestrator
-short-circuits when the repository is unreachable, returning six placeholder
-rows without issuing any PyGithub calls.
+- src/mcp_workspace/github_operations/_permission_probes.py: collapse a
+  short return-call onto one line.
+- tests/github_operations/test_permission_probes.py: collapse five short
+  multi-line patterns (two GithubException assignments, two assert
+  parentheses, one set-comprehension membership check) onto single lines.
+- tests/utils/test_repo_identifier.py: strip trailing whitespace after a
+  class docstring.
 
-verify_github calls run_permission_probes once between auto_delete_branches
-and overall_ok. All six probes are severity="warning" and do NOT flip
-overall_ok, preserving the contract that only the four error-severity checks
-gate the overall result.
+No logic changes.
