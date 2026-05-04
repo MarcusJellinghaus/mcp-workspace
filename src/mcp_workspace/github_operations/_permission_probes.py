@@ -11,8 +11,8 @@ from typing import Callable
 from github.GithubException import GithubException
 from github.Repository import Repository
 
+from mcp_workspace.github_operations._types import CheckResult
 from mcp_workspace.github_operations.base_manager import BaseGitHubManager
-from mcp_workspace.github_operations.verification import CheckResult
 
 _PROBE_KEYS: tuple[str, ...] = (
     "perm_contents_read",
