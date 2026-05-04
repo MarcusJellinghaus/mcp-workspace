@@ -737,17 +737,15 @@ def check_file_size(max_lines: int = 600) -> str:
 @log_function_call
 async def check_branch_status(
     max_log_lines: int = 300,
-    ci_timeout: int = 0,
+    ci_timeout: int = 300,
     pr_timeout: int = 0,
-    wait_for_pr: bool = False,
 ) -> str:
     """Check comprehensive branch status: git state, CI, PR, tasks.
 
     Args:
         max_log_lines: Maximum CI log lines to include (default 300).
-        ci_timeout: Seconds to poll for CI completion. 0 disables polling (default).
-        pr_timeout: Seconds to poll for PR existence. 0 disables polling (default).
-        wait_for_pr: Enable PR polling. With pr_timeout=0 falls back to 600s.
+        ci_timeout: Seconds to poll for CI completion. 0 disables polling.
+        pr_timeout: Seconds to poll for PR existence. 0 disables polling.
 
     Returns:
         Formatted branch status report for LLM consumption.
@@ -759,7 +757,6 @@ async def check_branch_status(
         max_log_lines=max_log_lines,
         ci_timeout=ci_timeout,
         pr_timeout=pr_timeout,
-        wait_for_pr=wait_for_pr,
     )
 
 

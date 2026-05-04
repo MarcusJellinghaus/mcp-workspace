@@ -660,7 +660,7 @@ class TestCheckBranchStatusTool:
     async def test_check_branch_status_defaults(
         self, mock_poll: AsyncMock, project_dir: Path
     ) -> None:
-        """Default invocation forwards no-wait params to async_poll_branch_status."""
+        """Default invocation forwards new defaults to async_poll_branch_status."""
         mock_poll.return_value = "report-text"
 
         result = await check_branch_status()
@@ -669,9 +669,8 @@ class TestCheckBranchStatusTool:
         mock_poll.assert_awaited_once_with(
             project_dir,
             max_log_lines=300,
-            ci_timeout=0,
+            ci_timeout=300,
             pr_timeout=0,
-            wait_for_pr=False,
         )
 
     @pytest.mark.asyncio
@@ -686,7 +685,6 @@ class TestCheckBranchStatusTool:
             max_log_lines=100,
             ci_timeout=180,
             pr_timeout=120,
-            wait_for_pr=True,
         )
 
         assert result == "polled-report"
@@ -695,7 +693,6 @@ class TestCheckBranchStatusTool:
             max_log_lines=100,
             ci_timeout=180,
             pr_timeout=120,
-            wait_for_pr=True,
         )
 
     @pytest.mark.asyncio

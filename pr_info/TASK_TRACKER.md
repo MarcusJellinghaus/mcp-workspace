@@ -41,7 +41,7 @@ See [step_2.md](./steps/step_2.md).
 
 See [step_3.md](./steps/step_3.md).
 
-- [ ] Implementation (tests + production code)
+- [x] Implementation (tests + production code)
 - [ ] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 

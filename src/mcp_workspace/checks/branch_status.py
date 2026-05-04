@@ -45,7 +45,6 @@ EMPTY_RECOMMENDATIONS: List[str] = []
 
 _CI_POLL_INTERVAL = 15
 _PR_POLL_INTERVAL = 20
-_DEFAULT_PR_TIMEOUT = 600
 _MAX_CONSECUTIVE_ERRORS = 3
 
 
@@ -785,9 +784,8 @@ async def async_poll_branch_status(
     max_log_lines: int = 300,
     ci_timeout: int = 0,
     pr_timeout: int = 0,
-    wait_for_pr: bool = False,
 ) -> str:
-    """Collect branch status, optionally polling for CI/PR.
+    """Collect branch status, optionally polling for CI/PR in parallel.
 
     Returns the report formatted via `format_for_llm()`.
     """
@@ -799,7 +797,7 @@ async def async_poll_branch_status(
         )
         return report.format_for_llm()
 
-    needs_remote = wait_for_pr or ci_timeout > 0
+    needs_remote = ci_timeout > 0 or pr_timeout > 0
     remote_present = (
         await asyncio.to_thread(remote_branch_exists, project_dir, branch)
         if needs_remote
@@ -807,18 +805,24 @@ async def async_poll_branch_status(
     )
 
     skip_msg: Optional[str] = None
+    wait_ctx: Optional[WaitContext] = None
     if needs_remote and not remote_present:
         skip_msg = "Push branch to remote before waiting for PR or CI"
-    else:
-        if wait_for_pr:
-            effective_pr_timeout = pr_timeout if pr_timeout > 0 else _DEFAULT_PR_TIMEOUT
-            await _wait_for_pr(project_dir, branch, effective_pr_timeout)
-        if ci_timeout > 0:
-            await _wait_for_ci(project_dir, branch, ci_timeout)
+    elif needs_remote:
+        ci_elapsed, pr_elapsed = await asyncio.gather(
+            _wait_for_ci(project_dir, branch, ci_timeout),
+            _wait_for_pr(project_dir, branch, pr_timeout),
+        )
+        wait_ctx = WaitContext(
+            ci_elapsed=ci_elapsed if ci_timeout > 0 else None,
+            ci_timeout=ci_timeout,
+            pr_elapsed=pr_elapsed if pr_timeout > 0 else None,
+            pr_timeout=pr_timeout,
+        )
 
     report = await asyncio.to_thread(collect_branch_status, project_dir, max_log_lines)
 
     if skip_msg:
         report = replace(report, recommendations=[skip_msg, *report.recommendations])
 
-    return report.format_for_llm()
+    return report.format_for_llm(wait_context=wait_ctx)
