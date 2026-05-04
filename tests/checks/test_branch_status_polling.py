@@ -41,9 +41,11 @@ class TestWaitForCI:
                 new_callable=AsyncMock,
             ) as mock_sleep,
         ):
-            await _wait_for_ci(project_dir, "feature/x", timeout=60)
+            elapsed = await _wait_for_ci(project_dir, "feature/x", timeout=60)
         assert ci_manager.get_latest_ci_status.call_count == 1
         mock_sleep.assert_not_called()
+        assert isinstance(elapsed, float)
+        assert elapsed >= 0.0
 
     @pytest.mark.asyncio
     async def test_returns_immediately_on_failure(self, project_dir: Path) -> None:
@@ -61,8 +63,10 @@ class TestWaitForCI:
                 new_callable=AsyncMock,
             ),
         ):
-            await _wait_for_ci(project_dir, "feature/x", timeout=60)
+            elapsed = await _wait_for_ci(project_dir, "feature/x", timeout=60)
         assert ci_manager.get_latest_ci_status.call_count == 1
+        assert isinstance(elapsed, float)
+        assert elapsed >= 0.0
 
     @pytest.mark.asyncio
     async def test_returns_after_timeout_when_in_progress(
@@ -72,9 +76,10 @@ class TestWaitForCI:
         ci_manager.get_latest_ci_status.return_value = {
             "run": {"conclusion": None, "status": "in_progress"}
         }
-        # Simulate time advancing inside the loop via monotonic side_effect.
-        # Sequence: deadline calc, then 3 loop iterations, then exceed.
-        times = iter([0.0, 0.0, 5.0, 10.0, 100.0])
+        # New loop shape: 1 call for `start`, then per iteration 1 call
+        # for the deadline check and 1 call for `remaining`, plus 1 final
+        # call on the return path.
+        times = iter([0.0, 0.0, 5.0, 10.0, 100.0, 100.0, 100.0])
         with (
             patch(
                 "mcp_workspace.checks.branch_status.CIResultsManager",
@@ -89,8 +94,9 @@ class TestWaitForCI:
                 side_effect=lambda: next(times),
             ),
         ):
-            await _wait_for_ci(project_dir, "feature/x", timeout=60)
+            elapsed = await _wait_for_ci(project_dir, "feature/x", timeout=60)
         assert ci_manager.get_latest_ci_status.call_count >= 1
+        assert isinstance(elapsed, float)
 
     @pytest.mark.asyncio
     async def test_tolerates_two_errors_then_succeeds(self, project_dir: Path) -> None:
@@ -145,9 +151,47 @@ class TestWaitForCI:
                 new_callable=AsyncMock,
             ) as mock_sleep,
         ):
-            await _wait_for_ci(project_dir, "feature/x", timeout=0)
+            elapsed = await _wait_for_ci(project_dir, "feature/x", timeout=0)
         assert ci_manager.get_latest_ci_status.call_count == 0
         mock_sleep.assert_not_called()
+        assert isinstance(elapsed, float)
+        assert elapsed == pytest.approx(0.0, abs=0.5)
+
+    @pytest.mark.asyncio
+    async def test_ci_deadline_aware_sleep_caps_at_remaining_time(
+        self, project_dir: Path
+    ) -> None:
+        ci_manager = MagicMock()
+        ci_manager.get_latest_ci_status.return_value = {
+            "run": {"conclusion": None, "status": "in_progress"}
+        }
+        # ci_timeout=5 < _CI_POLL_INTERVAL (15); sleep must cap at remaining.
+        # Use a generator that advances by 1.0 per call so the loop will
+        # eventually exit (asyncio internals may also call time.monotonic).
+        counter = {"n": 0}
+
+        def fake_monotonic() -> float:
+            counter["n"] += 1
+            return float(counter["n"])
+
+        with (
+            patch(
+                "mcp_workspace.checks.branch_status.CIResultsManager",
+                return_value=ci_manager,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status.asyncio.sleep",
+                new_callable=AsyncMock,
+            ) as mock_sleep,
+            patch(
+                "mcp_workspace.checks.branch_status.time.monotonic",
+                side_effect=fake_monotonic,
+            ),
+        ):
+            await _wait_for_ci(project_dir, "feature/x", timeout=5)
+        assert mock_sleep.call_count >= 1
+        for call in mock_sleep.call_args_list:
+            assert call.args[0] <= 5.0
 
 
 class TestWaitForPR:
@@ -167,15 +211,17 @@ class TestWaitForPR:
                 new_callable=AsyncMock,
             ) as mock_sleep,
         ):
-            await _wait_for_pr(project_dir, "feature/x", timeout=60)
+            elapsed = await _wait_for_pr(project_dir, "feature/x", timeout=60)
         assert pr_manager.find_pull_request_by_head.call_count == 1
         mock_sleep.assert_not_called()
+        assert isinstance(elapsed, float)
+        assert elapsed >= 0.0
 
     @pytest.mark.asyncio
     async def test_returns_after_timeout_when_no_pr(self, project_dir: Path) -> None:
         pr_manager = MagicMock()
         pr_manager.find_pull_request_by_head.return_value = []
-        times = iter([0.0, 0.0, 5.0, 10.0, 100.0])
+        times = iter([0.0, 0.0, 5.0, 10.0, 100.0, 100.0, 100.0])
         with (
             patch(
                 "mcp_workspace.checks.branch_status.PullRequestManager",
@@ -190,8 +236,9 @@ class TestWaitForPR:
                 side_effect=lambda: next(times),
             ),
         ):
-            await _wait_for_pr(project_dir, "feature/x", timeout=60)
+            elapsed = await _wait_for_pr(project_dir, "feature/x", timeout=60)
         assert pr_manager.find_pull_request_by_head.call_count >= 1
+        assert isinstance(elapsed, float)
 
     @pytest.mark.asyncio
     async def test_aborts_after_three_consecutive_errors(
@@ -225,9 +272,43 @@ class TestWaitForPR:
                 new_callable=AsyncMock,
             ) as mock_sleep,
         ):
-            await _wait_for_pr(project_dir, "feature/x", timeout=0)
+            elapsed = await _wait_for_pr(project_dir, "feature/x", timeout=0)
         assert pr_manager.find_pull_request_by_head.call_count == 0
         mock_sleep.assert_not_called()
+        assert isinstance(elapsed, float)
+        assert elapsed == pytest.approx(0.0, abs=0.5)
+
+    @pytest.mark.asyncio
+    async def test_pr_deadline_aware_sleep_caps_at_remaining_time(
+        self, project_dir: Path
+    ) -> None:
+        pr_manager = MagicMock()
+        pr_manager.find_pull_request_by_head.return_value = []
+        # pr_timeout=5 < _PR_POLL_INTERVAL (20); sleep must cap at remaining.
+        counter = {"n": 0}
+
+        def fake_monotonic() -> float:
+            counter["n"] += 1
+            return float(counter["n"])
+
+        with (
+            patch(
+                "mcp_workspace.checks.branch_status.PullRequestManager",
+                return_value=pr_manager,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status.asyncio.sleep",
+                new_callable=AsyncMock,
+            ) as mock_sleep,
+            patch(
+                "mcp_workspace.checks.branch_status.time.monotonic",
+                side_effect=fake_monotonic,
+            ),
+        ):
+            await _wait_for_pr(project_dir, "feature/x", timeout=5)
+        assert mock_sleep.call_count >= 1
+        for call in mock_sleep.call_args_list:
+            assert call.args[0] <= 5.0
 
 
 class TestAsyncPollBranchStatus:
