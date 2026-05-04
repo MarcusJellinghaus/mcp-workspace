@@ -34,7 +34,7 @@ Probes only run when `repo_accessible.ok=True`. All probes use `severity="warnin
 ## KISS simplifications applied
 
 - Pure-function classifier `_classify_permission_response(name, status, url, web_host)` — `web_host: str | None` (pre-resolved by orchestrator) replaces passing `hostname` and re-deriving the host class. Host-classification rule lives in exactly one place: the new `web_host` property.
-- Single `_run_probe` helper wraps the try/except + classify pattern. Each of the 4 simple probes is a one-line callable + URL pair fed into the helper. Only `perm_statuses_read` and `perm_administration_read` have dedicated functions (each requires two-call attribution: `get_commit`/`get_combined_status` and `get_branch`/`get_protection` respectively).
+- Single `_run_probe` helper wraps the try/except + classify pattern. The orchestrator inlines all 6 `out[k] = ...` assignments in `_PROBE_KEYS` order — order-correct by construction; no for-loop. The 4 simple probes share `_run_probe`; `_probe_administration` and `_probe_statuses` each get a dedicated helper for their two-call attribution (`get_branch`/`get_protection` and `get_commit`/`get_combined_status` respectively).
 - Tests use `pytest.mark.parametrize` for the success-path × 6 probes and failure-status × probe matrices — keeps coverage explicit while collapsing ~24 near-duplicate test functions.
 
 ## Files to be created or modified

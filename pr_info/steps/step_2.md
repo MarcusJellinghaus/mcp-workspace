@@ -112,7 +112,7 @@ default = repo.default_branch
 
 `repo.default_branch` is read once and reused. Because `repo` came from `manager._get_repository()` which fetches the full Repository object, `default_branch` is already populated on the Python object — accessing it does NOT issue an HTTP call and is therefore not counted in the per-probe call budget.
 
-Then run the 4 simple probes via `_run_probe(...)` with these tuples:
+The orchestrator inlines all 6 assignments in `_PROBE_KEYS` order. Below is the data each `_run_probe` call uses for the 4 simple probes (administration and statuses each have a dedicated helper).
 
 | key | name | url | call (lambda) | admin_404 |
 |---|---|---|---|---|
@@ -121,11 +121,9 @@ Then run the 4 simple probes via `_run_probe(...)` with these tuples:
 | `perm_issues_read` | `Issues: Read` | `f"{base}/issues?state=all"` | `lambda: repo.get_issues(state="all").totalCount` | False |
 | `perm_workflows_read` | `Actions: Read` | `f"{base}/actions/workflows"` | `lambda: repo.get_workflows().totalCount` | False |
 
-Then, after the simple-probe loop:
-- `out["perm_administration_read"] = _probe_administration(repo, default, base, web_host)` (parallel to `_probe_statuses`; isolates `get_branch` failures from `get_protection` classification).
-- `out["perm_statuses_read"] = _probe_statuses(repo, default, base, web_host)`.
+`_probe_administration` and `_probe_statuses` are called via dedicated helpers (parallel two-call attribution: `get_branch`/`get_protection` and `get_commit`/`get_combined_status` respectively); they isolate the first-call failure from the classifier.
 
-Result-key insertion order is preserved: `_probe_administration` is called between the for-loop and `_probe_statuses` so the dict ordering matches `_PROBE_KEYS`.
+The orchestrator inlines all 6 assignments in `_PROBE_KEYS` order; ordering is correct by construction.
 
 ## ALGORITHM
 
@@ -217,9 +215,31 @@ base = f"{identifier.api_base_url}/repos/{identifier.full_name}"
 web_host = identifier.web_host
 default = repo.default_branch
 out: dict[str, CheckResult] = {}
-for key, name, url, call, admin_404 in _PROBE_TABLE(repo, base, default):
-    out[key] = _run_probe(call=call, name=name, url=url, web_host=web_host, admin_404=admin_404)
+out["perm_contents_read"] = _run_probe(
+    call=lambda: repo.get_contents(""),
+    name="Contents: Read",
+    url=f"{base}/contents/",
+    web_host=web_host,
+)
 out["perm_administration_read"] = _probe_administration(repo, default, base, web_host)
+out["perm_pull_requests_read"] = _run_probe(
+    call=lambda: repo.get_pulls(state="all").totalCount,
+    name="Pull requests: Read",
+    url=f"{base}/pulls?state=all",
+    web_host=web_host,
+)
+out["perm_issues_read"] = _run_probe(
+    call=lambda: repo.get_issues(state="all").totalCount,
+    name="Issues: Read",
+    url=f"{base}/issues?state=all",
+    web_host=web_host,
+)
+out["perm_workflows_read"] = _run_probe(
+    call=lambda: repo.get_workflows().totalCount,
+    name="Actions: Read",
+    url=f"{base}/actions/workflows",
+    web_host=web_host,
+)
 out["perm_statuses_read"] = _probe_statuses(repo, default, base, web_host)
 return out
 ```
@@ -245,7 +265,7 @@ return out
 
 2. **Per-probe success path** (parametrized over the 4 simple probes): mock the corresponding `repo` method, assert `ok=True, value="OK"`, no URL in any field. (Two-call probes `perm_administration_read` and `perm_statuses_read` have their own success-path assertions in tests 5 / 5b.)
 
-3. **Per-probe failure paths** (parametrized over probe × status in {401, 403, 404, 500}): make the mock raise `GithubException(status=...)`, assert HTTP method (`GET`), full URL, and permission name all appear in `error`.
+3. **Per-probe failure paths** — parametrized over the **4 simple probes** (`perm_contents_read`, `perm_pull_requests_read`, `perm_issues_read`, `perm_workflows_read`) × status in `{401, 403, 404, 500}`. Make the mock raise `GithubException(status=...)`; assert HTTP method (`GET`), full URL, and permission name all appear in `error`. (`perm_administration_read` and `perm_statuses_read` are covered by tests #5 and #5b which exercise the two-call helpers; do not parametrize them through `_run_probe` directly here.)
 
 4. **`PaginatedList.totalCount` is read** — for `perm_pull_requests_read`, `perm_issues_read`, `perm_workflows_read`: configure `Mock().totalCount` as a property (e.g. via `PropertyMock`) and assert it was accessed exactly once. Without this read, the test would falsely pass.
 
@@ -269,7 +289,7 @@ return out
 
 10. **`overall_ok` unaffected** — extend the all-probes-fail scenario: when `run_permission_probes` returns 6 failed warnings but the 4 error-severity checks pass, `overall_ok=True`.
 
-11. **Skip rows in `verify_github`** — when `repo_accessible.ok=False`, all 6 probe rows present with the placeholder shape; verify no PyGithub calls were issued by the probes (patch `run_permission_probes` and assert it was called with `repo=None`).
+11. **Skip rows in `verify_github`** — when `repo_accessible.ok=False`, all 6 probe rows present with the placeholder shape (`value="not checked", error="repository not accessible"`). Do NOT patch `run_permission_probes` itself — exercise the real skip path. Instead, set up a `verify_github` scenario where `repo_accessible.ok=False` (mock `manager._get_repository()` to return `None` or trigger the existing failure handling), then assert: (a) all 6 probe keys are in the result dict in `_PROBE_KEYS` order with the placeholder shape; (b) the underlying mock for `manager._github_client` (or any `repo` method) records zero calls — proving the orchestrator's `if repo is None` early return short-circuited before any PyGithub access.
 
 ## Quality checks (mandatory after each edit)
 
