@@ -21,6 +21,23 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Add `split_args_pathspec` helper and reword `validate_args` error
+
+See [step_1.md](./steps/step_1.md) for full details.
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Wire `split_args_pathspec` into all 5 pathspec-injection sites
+
+See [step_2.md](./steps/step_2.md) for full details.
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review
+- [ ] PR summary
