@@ -174,6 +174,67 @@ class TestRepoIdentifierProperties:
         assert repo.api_base_url == "https://ghe.corp.com/api/v3"
 
 
+class TestWebHost:
+    """Test RepoIdentifier.web_host property.""" 
+
+    @pytest.mark.parametrize(
+        "hostname,expected",
+        [
+            ("github.com", "https://github.com"),
+            ("GitHub.com", "https://github.com"),
+            ("tenant.ghe.com", "https://tenant.ghe.com"),
+            ("Foo.GHE.com", "https://foo.ghe.com"),
+            ("ghe.corp.com", None),
+            ("github.example.org", None),
+        ],
+    )
+    def test_web_host(self, hostname: str, expected: str | None) -> None:
+        """Test web_host across the three host branches."""
+        repo = RepoIdentifier(owner="o", repo_name="r", hostname=hostname)
+        assert repo.web_host == expected
+
+    def test_ghe_cloud_no_api_prefix(self) -> None:
+        """Test *.ghe.com web_host does NOT contain 'api.' prefix."""
+        repo = RepoIdentifier(owner="o", repo_name="r", hostname="tenant.ghe.com")
+        assert repo.web_host is not None
+        assert "api." not in repo.web_host
+        assert repo.web_host == "https://tenant.ghe.com"
+
+    def test_github_com_debug_log(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Test github.com branch emits DEBUG with branch and URL."""
+        caplog.set_level(logging.DEBUG, logger="mcp_workspace.utils.repo_identifier")
+        repo = RepoIdentifier(owner="o", repo_name="r", hostname="github.com")
+        _ = repo.web_host
+        assert "branch=github.com" in caplog.text
+        assert "url=https://github.com" in caplog.text
+
+    def test_ghe_cloud_debug_log(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Test *.ghe.com branch emits DEBUG with branch and URL."""
+        caplog.set_level(logging.DEBUG, logger="mcp_workspace.utils.repo_identifier")
+        repo = RepoIdentifier(owner="o", repo_name="r", hostname="tenant.ghe.com")
+        _ = repo.web_host
+        assert "branch=ghe.com" in caplog.text
+        assert "url=https://tenant.ghe.com" in caplog.text
+
+    def test_ghes_fallback_debug_log(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Test GHES fallback branch emits DEBUG with branch and url=None."""
+        caplog.set_level(logging.DEBUG, logger="mcp_workspace.utils.repo_identifier")
+        repo = RepoIdentifier(owner="o", repo_name="r", hostname="ghe.corp.com")
+        _ = repo.web_host
+        assert "branch=ghes-fallback" in caplog.text
+        assert "url=None" in caplog.text
+
+    def test_mixed_case_input_normalized_in_debug(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test mixed-case input shows both raw and normalized forms in DEBUG."""
+        caplog.set_level(logging.DEBUG, logger="mcp_workspace.utils.repo_identifier")
+        repo = RepoIdentifier(owner="o", repo_name="r", hostname="GitHub.com")
+        _ = repo.web_host
+        assert "input=GitHub.com" in caplog.text
+        assert "normalized=github.com" in caplog.text
+
+
 class TestHostnameToApiBaseUrl:
     """Test hostname_to_api_base_url() standalone function."""
 

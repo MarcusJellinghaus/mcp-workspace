@@ -25,8 +25,8 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 Detail: [steps/step_1.md](./steps/step_1.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 
 ### Step 2: `_permission_probes.py` module + `verify_github` integration

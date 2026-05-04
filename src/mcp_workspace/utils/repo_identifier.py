@@ -103,6 +103,48 @@ class RepoIdentifier:
         """Return API base URL for PyGithub."""
         return hostname_to_api_base_url(self.hostname)
 
+    @property
+    def web_host(self) -> str | None:
+        """Web origin for fine-grained PAT settings URL.
+
+        Mirrors the three-branch host resolution in
+        :func:`hostname_to_api_base_url` but without the ``api.`` subdomain
+        or ``/api/v3`` suffix.
+
+        Returns:
+            ``"https://github.com"`` for ``github.com``;
+            ``"https://<host>"`` for ``*.ghe.com`` (no ``api.`` prefix);
+            ``None`` for any other host (GHES has no fine-grained PAT
+            settings page).
+        """
+        h = self.hostname.lower()
+        if h == "github.com":
+            url: str | None = "https://github.com"
+            logger.debug(
+                "web_host input=%s normalized=%s branch=github.com url=%s",
+                self.hostname,
+                h,
+                url,
+            )
+            return url
+        if h.endswith(".ghe.com"):
+            url = f"https://{h}"
+            logger.debug(
+                "web_host input=%s normalized=%s branch=ghe.com url=%s",
+                self.hostname,
+                h,
+                url,
+            )
+            return url
+        url = None
+        logger.debug(
+            "web_host input=%s normalized=%s branch=ghes-fallback url=%s",
+            self.hostname,
+            h,
+            url,
+        )
+        return url
+
     def __str__(self) -> str:
         """Return string representation (full_name format)."""
         return self.full_name
