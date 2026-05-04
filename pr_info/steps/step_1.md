@@ -79,7 +79,7 @@ Update existing helper tests:
 - `TestWaitForCI.test_timeout_zero_returns_immediately` — assert returned value is `0.0` (or near-zero float).
 - `TestWaitForPR.test_returns_immediately_when_pr_found` — assert returned `float`.
 - `TestWaitForPR.test_timeout_zero_returns_immediately` — assert returned `0.0`.
-- `TestWaitForCI.test_returns_after_timeout_when_in_progress` — this test drives `time.monotonic` via a `side_effect` iterator (currently `iter([0.0, 0.0, 5.0, 10.0, 100.0])` or similar). The new return-path computes `elapsed = time.monotonic() - start`, which adds ONE extra `monotonic()` call beyond the existing loop sequence. **Extend the iterator with one trailing value (e.g., append `100.0`)** so the iterator does not raise `StopIteration` on the final elapsed-return call. Verify against the actual current test source before patching.
+- `TestWaitForCI.test_returns_after_timeout_when_in_progress` — this test drives `time.monotonic` via a `side_effect` iterator (currently `iter([0.0, 0.0, 5.0, 10.0, 100.0])` or similar). Recount the `time.monotonic()` calls in the new loop shape — 1 call at `start = time.monotonic()`, 2 per iteration that does not exit (one for the deadline check, one for `remaining = deadline - time.monotonic()`), and 1 final call on the `return time.monotonic() - start` path. Extend the iterator accordingly — typically 2-3 additional values rather than just 1, depending on iteration count. Failing to add enough values will raise `StopIteration` mid-test. Verify against the actual current test source before patching.
 
 Add two new tests (deadline-aware sleep):
 

@@ -29,3 +29,23 @@
 - step_3.md: added `test_ci_timeout_with_remote_branch_present` to update set with new assertion; replaced `grep` with `mcp__mcp-workspace__search_files`
 
 **Status**: changes applied — pending commit
+
+
+## Round 2 — 2026-05-04
+
+**Findings**:
+- Step 1: iterator-extension note underestimates `time.monotonic()` call delta in the new loop shape (improvement)
+- Step 2: insertion point and tests verified internally consistent (no issue)
+- Step 3: `test_ci_timeout_with_remote_branch_present` update lands correctly with right assertion (no issue)
+- Cross-cutting: summary.md aligns with all step files; orchestrator vs MCP-tool default split documented (no issue)
+
+**Decisions**:
+- Accept the iterator-extension wording fix — autonomously approved (avoids implementer hitting `StopIteration`)
+- All other findings were verifications — no further action
+
+**User decisions**: none
+
+**Changes**:
+- step_1.md: replaced iterator-extension note with accurate per-call count (1 start + 2 per non-exiting iteration + 1 return; typically 2-3 additional values)
+
+**Status**: changes applied — pending commit
