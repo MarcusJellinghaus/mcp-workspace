@@ -277,6 +277,48 @@ _ALLOWLISTS: dict[str, frozenset[str]] = {
     "ls_remote": LS_REMOTE_ALLOWED_FLAGS,
 }
 
+_SUPPORTS_PATHSPEC: frozenset[str] = frozenset(
+    {"log", "diff", "show", "status", "ls_tree", "ls_files"}
+)
+
+
+def split_args_pathspec(
+    command: str,
+    args: list[str],
+    pathspec: list[str] | None,
+) -> tuple[list[str], list[str] | None]:
+    """Split args on '--' for pathspec commands; route tail into pathspec.
+
+    Returns (args, pathspec) unchanged for commands not in
+    _SUPPORTS_PATHSPEC or when '--' is absent. For pathspec commands,
+    splits on the first '--', routes the tail into pathspec, and
+    raises ValueError on multi-'--' or conflict-with-explicit-pathspec.
+
+    Args:
+        command: Git sub-command name (e.g. "log", "diff").
+        args: List of CLI arguments, possibly containing '--'.
+        pathspec: Optional explicit pathspec parameter.
+
+    Returns:
+        Tuple of (args, pathspec) after splitting.
+
+    Raises:
+        ValueError: If multiple '--' tokens are present or the tail
+            conflicts with an explicit pathspec parameter.
+    """
+    if command not in _SUPPORTS_PATHSPEC or "--" not in args:
+        return args, pathspec
+    idx = args.index("--")
+    head, tail = args[:idx], args[idx + 1 :]
+    if "--" in tail:
+        raise ValueError("Multiple '--' tokens in args are not allowed.")
+    if pathspec is not None and tail:
+        raise ValueError(
+            "Specify paths via either '--' in args or the 'pathspec' "
+            "parameter, not both."
+        )
+    return head, (tail or pathspec)
+
 
 def validate_branch_has_read_flag(args: list[str]) -> None:
     """Raise ValueError if no read-only flag is present in branch args.
@@ -320,10 +362,7 @@ def validate_args(command: str, args: list[str]) -> None:
             flag is not in the allowlist.
     """
     if "--" in args:
-        msg = (
-            "Flag '--' is not allowed in args. " "Use the 'pathspec' parameter instead."
-        )
-        raise ValueError(msg)
+        raise ValueError(f"git {command} does not accept '--'")
 
     if command not in _ALLOWLISTS:
         msg = f"Unknown command: '{command}'"

@@ -12,7 +12,11 @@ from typing import Optional
 
 from git.exc import GitCommandError
 
-from .arg_validation import validate_args, validate_branch_has_read_flag
+from .arg_validation import (
+    _SUPPORTS_PATHSPEC,
+    validate_args,
+    validate_branch_has_read_flag,
+)
 from .compact_diffs import render_compact_diff
 from .core import safe_repo_context
 from .output_filtering import filter_diff_output, filter_log_output, truncate_output
@@ -391,9 +395,6 @@ _DEFAULT_MAX_LINES: dict[str, int] = {
 
 _SUPPORTS_SEARCH: frozenset[str] = frozenset({"log", "diff", "show"})
 _SUPPORTS_COMPACT: frozenset[str] = frozenset({"diff", "show"})
-_SUPPORTS_PATHSPEC: frozenset[str] = frozenset(
-    {"log", "diff", "show", "ls_tree", "ls_files", "status"}
-)
 _SUPPORTS_CONTEXT: frozenset[str] = frozenset({"diff", "show"})
 
 
