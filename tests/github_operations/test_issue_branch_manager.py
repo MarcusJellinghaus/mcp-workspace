@@ -705,6 +705,99 @@ class TestCreateLinkedBranch:
         assert result["error"] is None
         assert result["existing_branches"] == []
 
+    def _setup_create_branch_mocks(self, mock_manager: IssueBranchManager) -> Mock:
+        mock_repo = Mock()
+        mock_repo.node_id = "R_kgDOABCDEF"
+        mock_repo.default_branch = "main"
+        mock_repo.owner.login = "test-owner"
+        mock_repo.name = "test-repo"
+        mock_manager._repository = mock_repo
+
+        mock_issue = Mock()
+        mock_issue.node_id = "I_kwDOABCDEF123"
+        mock_issue.title = "Add New Feature"
+        mock_repo.get_issue = Mock(return_value=mock_issue)
+
+        mock_branch = Mock()
+        mock_branch.commit.sha = "abc123def456"
+        mock_repo.get_branch = Mock(return_value=mock_branch)
+
+        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._github_client._Github__requester = Mock()  # type: ignore[attr-defined]
+        return mock_manager._github_client._Github__requester  # type: ignore[attr-defined,no-any-return]
+
+    def test_retries_on_missing_ref_then_succeeds(
+        self, mock_manager: IssueBranchManager
+    ) -> None:
+        requester = self._setup_create_branch_mocks(mock_manager)
+
+        flake_response = {"linkedBranch": None}
+        success_response = {
+            "linkedBranch": {
+                "id": "LB_kwDOABCDEF",
+                "ref": {
+                    "name": "123-add-new-feature",
+                    "target": {"oid": "abc123def456"},
+                },
+            }
+        }
+        requester.graphql_named_mutation = Mock(
+            side_effect=[
+                ({}, flake_response),
+                ({}, success_response),
+            ]
+        )
+
+        with patch(
+            "mcp_workspace.github_operations.issues.branch_manager.time.sleep"
+        ) as mock_sleep:
+            result = mock_manager.create_remote_branch_for_issue(123)
+
+        assert result["success"] is True
+        assert result["branch_name"] == "123-add-new-feature"
+        assert requester.graphql_named_mutation.call_count == 2
+        mock_sleep.assert_called_once_with(1.0)
+
+    def test_exhausts_retries_when_ref_always_missing(
+        self, mock_manager: IssueBranchManager
+    ) -> None:
+        requester = self._setup_create_branch_mocks(mock_manager)
+
+        flake_response = {"linkedBranch": None}
+        requester.graphql_named_mutation = Mock(return_value=({}, flake_response))
+
+        with patch(
+            "mcp_workspace.github_operations.issues.branch_manager.time.sleep"
+        ) as mock_sleep:
+            result = mock_manager.create_remote_branch_for_issue(123)
+
+        assert result["success"] is False
+        assert result["error"] is not None
+        assert "Missing branch reference" in result["error"]
+        assert requester.graphql_named_mutation.call_count == 3
+        # Two retries → two sleeps with exponential backoff: 1s, 2s
+        assert mock_sleep.call_args_list == [((1.0,),), ((2.0,),)]
+
+    def test_no_retry_on_non_transient_error(
+        self, mock_manager: IssueBranchManager
+    ) -> None:
+        requester = self._setup_create_branch_mocks(mock_manager)
+
+        # `errors` field is a permanent failure — must not retry
+        permanent_error_response = {"errors": [{"message": "Branch already exists"}]}
+        requester.graphql_named_mutation = Mock(
+            return_value=({}, permanent_error_response)
+        )
+
+        with patch(
+            "mcp_workspace.github_operations.issues.branch_manager.time.sleep"
+        ) as mock_sleep:
+            result = mock_manager.create_remote_branch_for_issue(123)
+
+        assert result["success"] is False
+        assert requester.graphql_named_mutation.call_count == 1
+        mock_sleep.assert_not_called()
+
 
 class TestDeleteLinkedBranch:
     """Test suite for IssueBranchManager.delete_linked_branch() method."""

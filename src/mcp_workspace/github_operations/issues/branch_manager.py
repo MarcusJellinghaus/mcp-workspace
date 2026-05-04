@@ -2,6 +2,7 @@
 
 import logging
 import re
+import time
 from pathlib import Path
 from typing import Any, List, Optional, cast
 
@@ -13,6 +14,11 @@ from .branch_naming import BranchCreationResult, generate_branch_name_from_issue
 
 # Configure logger for GitHub operations
 logger = logging.getLogger(__name__)
+
+# createLinkedBranch retry config — handles GitHub's eventual-consistency
+# flake where the mutation succeeds but the response omits linkedBranch.ref.
+_CREATE_LINKED_BRANCH_MAX_ATTEMPTS = 3
+_CREATE_LINKED_BRANCH_RETRY_BASE_DELAY_SECONDS = 1.0
 
 
 class IssueBranchManager(BaseGitHubManager):
@@ -323,42 +329,80 @@ class IssueBranchManager(BaseGitHubManager):
             "name": branch_name,
         }
 
-        # Execute GraphQL mutation
-        # Note: Using private attribute is the documented way to access GraphQL in PyGithub
-        # graphql_named_mutation returns (headers, data) tuple - we only need data
-        _, result = self._github_client._Github__requester.graphql_named_mutation(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public GraphQL API in PyGithub
-            mutation_name="createLinkedBranch",
-            mutation_input=mutation_input,
-            output_schema="linkedBranch { id ref { name target { oid } } }",
-        )
+        # Step 6: Run mutation with retry-on-missing-ref (eventual-consistency flake)
+        last_result: Optional[BranchCreationResult] = None
+        for attempt in range(_CREATE_LINKED_BRANCH_MAX_ATTEMPTS):
+            # Execute GraphQL mutation
+            # Note: Using private attribute is the documented way to access GraphQL in PyGithub
+            # graphql_named_mutation returns (headers, data) tuple - we only need data
+            _, result = self._github_client._Github__requester.graphql_named_mutation(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public GraphQL API in PyGithub
+                mutation_name="createLinkedBranch",
+                mutation_input=mutation_input,
+                output_schema="linkedBranch { id ref { name target { oid } } }",
+            )
 
-        # Step 6: Parse response and return result
+            last_result, retryable = self._parse_create_linked_branch_response(
+                result, issue_number
+            )
+            if last_result.get("success") or not retryable:
+                return last_result
+
+            if attempt < _CREATE_LINKED_BRANCH_MAX_ATTEMPTS - 1:
+                delay = _CREATE_LINKED_BRANCH_RETRY_BASE_DELAY_SECONDS * (2**attempt)
+                logger.warning(
+                    "createLinkedBranch returned no ref for issue #%d "
+                    "(attempt %d/%d); retrying in %.1fs",
+                    issue_number,
+                    attempt + 1,
+                    _CREATE_LINKED_BRANCH_MAX_ATTEMPTS,
+                    delay,
+                )
+                time.sleep(delay)
+
+        # Retries exhausted — last_result holds the final failure
+        assert last_result is not None
+        return last_result
+
+    @staticmethod
+    def _parse_create_linked_branch_response(
+        result: Any, issue_number: int
+    ) -> tuple[BranchCreationResult, bool]:
+        """Parse the createLinkedBranch GraphQL response.
+
+        Returns ``(result, retryable)``. ``retryable`` is True only for the
+        eventual-consistency case where the mutation appears to succeed but the
+        response omits ``linkedBranch.ref`` — all other failures are permanent.
+        """
         try:
-            # Extract mutation result from GraphQL response
             if not isinstance(result, dict):
                 error_msg = (
                     "Failed to create linked branch: Malformed response from GitHub"
                 )
                 logger.error(error_msg)
                 logger.debug(f"GraphQL mutation response: {result}")
-                return BranchCreationResult(
-                    success=False,
-                    branch_name="",
-                    error=error_msg,
-                    existing_branches=[],
+                return (
+                    BranchCreationResult(
+                        success=False,
+                        branch_name="",
+                        error=error_msg,
+                        existing_branches=[],
+                    ),
+                    False,
                 )
 
-            # Check if response has errors field
             if "errors" in result:
                 errors = result["errors"]
                 error_msg = f"Failed to create linked branch: {errors}"
                 logger.error(error_msg)
                 logger.debug(f"GraphQL mutation response: {result}")
-                return BranchCreationResult(
-                    success=False,
-                    branch_name="",
-                    error=error_msg,
-                    existing_branches=[],
+                return (
+                    BranchCreationResult(
+                        success=False,
+                        branch_name="",
+                        error=error_msg,
+                        existing_branches=[],
+                    ),
+                    False,
                 )
 
             # PyGithub returns the inner content directly, not wrapped in mutation name
@@ -379,23 +423,27 @@ class IssueBranchManager(BaseGitHubManager):
                     f"Details: {error_details}"
                 )
                 logger.error(error_msg)
-                return BranchCreationResult(
-                    success=False,
-                    branch_name="",
-                    error=error_msg,
-                    existing_branches=[],
+                return (
+                    BranchCreationResult(
+                        success=False,
+                        branch_name="",
+                        error=error_msg,
+                        existing_branches=[],
+                    ),
+                    False,
                 )
 
-            # Extract the linked branch data from the mutation result
             if linked_branch is None or "ref" not in linked_branch:
                 error_msg = "Failed to create linked branch: Missing branch reference in response"
-                logger.error(error_msg)
                 logger.debug(f"GraphQL mutation response: {result}")
-                return BranchCreationResult(
-                    success=False,
-                    branch_name="",
-                    error=error_msg,
-                    existing_branches=[],
+                return (
+                    BranchCreationResult(
+                        success=False,
+                        branch_name="",
+                        error=error_msg,
+                        existing_branches=[],
+                    ),
+                    True,
                 )
 
             created_branch_name = linked_branch["ref"]["name"]
@@ -403,21 +451,27 @@ class IssueBranchManager(BaseGitHubManager):
             logger.info(
                 f"Successfully created and linked branch '{created_branch_name}' to issue #{issue_number}",
             )
-            return BranchCreationResult(
-                success=True,
-                branch_name=created_branch_name,
-                error=None,
-                existing_branches=[],
+            return (
+                BranchCreationResult(
+                    success=True,
+                    branch_name=created_branch_name,
+                    error=None,
+                    existing_branches=[],
+                ),
+                False,
             )
 
         except (KeyError, TypeError) as e:
             error_msg = f"Error parsing GraphQL mutation response: {e}"
             logger.error(error_msg)
-            return BranchCreationResult(
-                success=False,
-                branch_name="",
-                error=error_msg,
-                existing_branches=[],
+            return (
+                BranchCreationResult(
+                    success=False,
+                    branch_name="",
+                    error=error_msg,
+                    existing_branches=[],
+                ),
+                False,
             )
 
     @log_function_call
