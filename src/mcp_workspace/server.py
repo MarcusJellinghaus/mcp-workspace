@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import FastMCP
 from mcp_coder_utils.log_utils import log_function_call
 
-from mcp_workspace.checks.branch_status import async_poll_branch_status
+from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
 from mcp_workspace.checks.file_sizes import (
     check_file_sizes,
     load_allowlist,
