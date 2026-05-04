@@ -59,14 +59,15 @@ the matching test assertion in `tests/github_operations/test_issue_cache.py`.
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 
-### Step 5: Bump `mcp-coder-utils` pin in pyproject.toml
+### Step 5: `mcp-coder-utils` dep in pyproject.toml
 
-DEFERRED: blocked on upstream release containing commit 67c11cc. Latest
-tag is 0.1.4 which lacks `user_app_data`. CI works via
-`[tool.mcp-coder.install-from-github]` fetching HEAD. Bump pin to the
-release version once it ships.
+Switched the dep from `mcp-coder-utils>=0.1.0` to a git URL pointing at
+HEAD because the `user_app_data` helper hasn't shipped in any tagged
+release yet (latest is 0.1.4). When mcp-coder-utils 0.1.5+ ships with
+the helper, revert this back to a normal version pin like
+`mcp-coder-utils>=0.1.5`.
 
-- [ ] Bump pin (waiting on upstream release)
+- [x] Dep updated (interim git URL — revert to version pin after 0.1.5 ships)
 
 ## Pull Request
 
