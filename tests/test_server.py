@@ -608,7 +608,7 @@ class TestGitTool:
     """Tests for the unified git server wrapper."""
 
     @pytest.mark.asyncio
-    @patch("mcp_workspace.server.git_impl")
+    @patch("mcp_workspace.git_operations.read_operations.git")
     async def test_delegates_to_impl(
         self, mock_impl: MagicMock, project_dir: Path
     ) -> None:
@@ -656,7 +656,10 @@ class TestCheckBranchStatusTool:
     """Tests for the async check_branch_status MCP tool."""
 
     @pytest.mark.asyncio
-    @patch("mcp_workspace.server.async_poll_branch_status", new_callable=AsyncMock)
+    @patch(
+        "mcp_workspace.checks.branch_status_polling.async_poll_branch_status",
+        new_callable=AsyncMock,
+    )
     async def test_check_branch_status_defaults(
         self, mock_poll: AsyncMock, project_dir: Path
     ) -> None:
@@ -674,7 +677,10 @@ class TestCheckBranchStatusTool:
         )
 
     @pytest.mark.asyncio
-    @patch("mcp_workspace.server.async_poll_branch_status", new_callable=AsyncMock)
+    @patch(
+        "mcp_workspace.checks.branch_status_polling.async_poll_branch_status",
+        new_callable=AsyncMock,
+    )
     async def test_check_branch_status_with_polling_params(
         self, mock_poll: AsyncMock, project_dir: Path
     ) -> None:

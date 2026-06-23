@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import FastMCP
 from mcp_coder_utils.log_utils import log_function_call
 
-from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
 from mcp_workspace.checks.file_sizes import (
     check_file_sizes,
     load_allowlist,
@@ -25,19 +24,6 @@ from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools import save_file as save_file_util
 from mcp_workspace.file_tools import search_files as search_files_util
 from mcp_workspace.file_tools.directory_utils import is_path_gitignored
-from mcp_workspace.git_operations.base_branch import detect_base_branch
-from mcp_workspace.git_operations.read_operations import git as git_impl
-from mcp_workspace.github_operations.formatters import (
-    InlineCommentData,
-    ReviewData,
-    format_issue_list,
-    format_issue_view,
-    format_pr_view,
-    format_search_results,
-)
-from mcp_workspace.github_operations.issues import IssueManager
-from mcp_workspace.github_operations.issues.types import CommentData
-from mcp_workspace.github_operations.pr_manager import PullRequestManager
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server_reference_tools import (
     get_reference_project_path,
@@ -455,6 +441,9 @@ async def git(
     Returns:
         Command output, optionally filtered/truncated.
     """
+    # Lazy import: keeps GitPython off the server startup import path
+    from mcp_workspace.git_operations.read_operations import git as git_impl
+
     if reference_name is not None:
         project_dir = await get_reference_project_path(reference_name)
     else:
@@ -491,6 +480,10 @@ def github_issue_view(
     Returns:
         Formatted issue detail text, or error message string.
     """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.formatters import format_issue_view
+    from mcp_workspace.github_operations.issues import IssueManager
+
     try:
         manager = IssueManager(project_dir=_project_dir)
         issue = manager.get_issue(number)
@@ -523,6 +516,10 @@ def github_issue_list(
     Returns:
         Compact summary lines, or error message string.
     """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.formatters import format_issue_list
+    from mcp_workspace.github_operations.issues import IssueManager
+
     try:
         manager = IssueManager(project_dir=_project_dir)
         since_dt = datetime.fromisoformat(since) if since else None
@@ -555,6 +552,15 @@ def github_pr_view(
     Returns:
         Formatted PR detail text, or error message string.
     """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.formatters import (
+        InlineCommentData,
+        ReviewData,
+        format_pr_view,
+    )
+    from mcp_workspace.github_operations.issues import IssueManager
+    from mcp_workspace.github_operations.issues.types import CommentData
+
     try:
         manager = IssueManager(project_dir=_project_dir)
         repo = manager._get_repository()  # pylint: disable=protected-access
@@ -634,6 +640,10 @@ def github_search(
     Returns:
         Compact summary lines, or error message string.
     """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.formatters import format_search_results
+    from mcp_workspace.github_operations.issues import IssueManager
+
     try:
         manager = IssueManager(project_dir=_project_dir)
         repo = manager._get_repository()  # pylint: disable=protected-access
@@ -688,6 +698,11 @@ def get_base_branch() -> str:
     Returns:
         Branch name string. Returns default branch name if detection fails.
     """
+    # Lazy import: keeps PyGithub/GitPython off the server startup import path
+    from mcp_workspace.git_operations.base_branch import detect_base_branch
+    from mcp_workspace.github_operations.issues import IssueManager
+    from mcp_workspace.github_operations.pr_manager import PullRequestManager
+
     if _project_dir is None:
         raise ValueError("Project directory has not been set")
 
@@ -750,6 +765,9 @@ async def check_branch_status(
     Returns:
         Formatted branch status report for LLM consumption.
     """
+    # Lazy import: keeps PyGithub/GitPython off the server startup import path
+    from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
+
     if _project_dir is None:
         raise ValueError("Project directory has not been set")
     return await async_poll_branch_status(
