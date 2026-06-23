@@ -101,10 +101,16 @@ def test_inject_failure_does_not_raise(
     )
 
 
-def test_main_invokes_ensure_truststore_in_correct_order(
+def test_main_activates_truststore_before_server_start(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """``main()`` invokes ``ensure_truststore()`` after logging, before server import."""
+    """``main()`` activates truststore eagerly, after logging and before the server.
+
+    This is the primary, design-enforced guarantee (issue #212): the entry point
+    activates the OS trust store before any TLS handshake can occur, covering
+    both PyGithub and the raw ``requests`` download path — independent of how or
+    whether any GitHub client is later constructed.
+    """
     monkeypatch.setattr(sys, "argv", ["mcp-workspace", "--project-dir", str(tmp_path)])
 
     parent = Mock()
@@ -125,9 +131,5 @@ def test_main_invokes_ensure_truststore_in_correct_order(
         main()
 
     call_names = [c[0] for c in parent.mock_calls]
-    setup_idx = call_names.index("setup_logging")
-    truststore_idx = call_names.index("ensure_truststore")
-    run_server_idx = call_names.index("run_server")
-
-    assert setup_idx < truststore_idx
-    assert truststore_idx < run_server_idx
+    assert call_names.index("setup_logging") < call_names.index("ensure_truststore")
+    assert call_names.index("ensure_truststore") < call_names.index("run_server")

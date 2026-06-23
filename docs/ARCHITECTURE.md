@@ -62,7 +62,54 @@ External libraries are isolated to specific modules:
 | `git` (GitPython) | git_operations/ | Git functionality isolated |
 | `github` (PyGithub) | github_operations/ | GitHub API access isolated |
 | `requests` | github_operations/ | HTTP requests isolated |
+| `truststore` | `_ssl.py`, activated eagerly by `main.py` | OS trust store for GitHub TLS (see below) |
 | `structlog` | mcp_coder_utils.log_utils (external) | Logging setup centralized in external package |
+
+### 4. Fast Startup via Lazy Imports
+
+The MCP server is spawned as a fresh OS process on every launch, so import cost
+is paid every time (and is amplified on cold start by antivirus file scanning).
+PyGithub and GitPython together pull in ~200 extra module files.
+
+To keep startup fast, the heavy libraries are imported **lazily, inside the tool
+functions that need them**, rather than at module top level:
+
+- `server.py` imports `github_operations`, `git_operations`, and the
+  branch-status checks inside the relevant `@mcp.tool()` bodies.
+- `file_tools/file_operations.py` imports the git-move helpers inside `move_file`
+  only, so the common read/write/edit/list/search path never loads GitPython.
+- `reference_projects.py` imports `clone_repo` inside `ensure_available`.
+
+**This is load-bearing, not incidental.** `tests/test_startup_performance.py`
+asserts that importing `mcp_workspace.server` does **not** eagerly import
+`github`/`git` and that a full process import stays under three seconds. Keep
+new imports of these libraries inside function bodies, not at module top level.
+
+These lazy imports do not change the architecture graph: import-linter/tach (via
+`grimp`) still see them, and the layering (higher layers may import lower) is
+unchanged.
+
+### 5. Truststore Activation (TLS trust)
+
+`truststore.inject_into_ssl()` makes Python's TLS use the OS certificate store
+(needed for corporate-proxy CA bundles). It must be active before the **first
+Python TLS handshake** — which in this server means any GitHub HTTPS call,
+whether via PyGithub or the raw `requests` download in
+`github_operations/ci_results_manager.py`. (It is irrelevant to the stdio
+transport, `git`, and the `gh` CLI, which don't use Python's `ssl`.)
+
+Activation is eager at the entry point: `main()` calls `ensure_truststore()`
+once at startup, after logging and before `run_server()`. This is a single,
+design-enforced guarantee owned by the entry point (per `_ssl.py`'s rule that
+activation is the application's decision, never an import side effect). It does
+not depend on *how* or *whether* any GitHub client is later constructed, and it
+covers the raw-`requests` path as well as PyGithub — so individual call sites
+never have to remember to activate it.
+
+`ensure_truststore()` is idempotent and cheap; the expensive part of startup
+(PyGithub/GitPython, ~530 modules) is deferred via lazy imports — truststore
+activation is **not** what made startup slow, so there is no reason to defer it
+and trade the guarantee away.
 
 ## Architecture Enforcement Tools
 

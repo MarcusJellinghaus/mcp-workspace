@@ -221,7 +221,12 @@ def main() -> None:
     # Add debug logging after logger is initialized
     stdlogger.debug("Logger initialized in main")
 
-    # Activate OS trust store BEFORE any GitHub-related code path runs
+    # Activate the OS trust store BEFORE any TLS handshake can occur. This is a
+    # hard guarantee owned by the entry point (not left to client call sites):
+    # it covers PyGithub AND the raw `requests` download path in
+    # github_operations. ensure_truststore() is idempotent and cheap; the
+    # heavy startup cost (PyGithub/GitPython, ~530 modules) is what is deferred
+    # via lazy imports, not this.
     ensure_truststore()
 
     # Parse reference projects

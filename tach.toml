@@ -40,6 +40,8 @@ depends_on = [
     { path = "mcp_workspace._ssl" },
     { path = "mcp_coder_utils.log_utils" },
 ]
+# Note: main eagerly activates _ssl (truststore) at startup, before run_server —
+# the single guarantee that the OS trust store is in place before any TLS call.
 
 # =============================================================================
 # Protocol Layer - MCP Server Implementation

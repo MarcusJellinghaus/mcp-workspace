@@ -22,7 +22,9 @@ class TestGitReferenceProject:
             new_callable=AsyncMock,
             return_value=ref_path,
         ) as mock_get_path:
-            with patch("mcp_workspace.server.git_impl") as mock_git_impl:
+            with patch(
+                "mcp_workspace.git_operations.read_operations.git"
+            ) as mock_git_impl:
                 mock_git_impl.return_value = "commit abc123"
 
                 result = await git(
@@ -77,7 +79,10 @@ class TestGitReferenceProject:
             "mcp_workspace.server.get_reference_project_path",
             side_effect=mock_get_path,
         ):
-            with patch("mcp_workspace.server.git_impl", side_effect=mock_git_impl_fn):
+            with patch(
+                "mcp_workspace.git_operations.read_operations.git",
+                side_effect=mock_git_impl_fn,
+            ):
                 await git(command="status", reference_name="proj")
 
         assert call_order == ["get_reference_project_path", "git_impl"]
@@ -93,7 +98,9 @@ class TestGitReferenceProject:
         server_module._project_dir = test_dir
 
         try:
-            with patch("mcp_workspace.server.git_impl") as mock_git_impl:
+            with patch(
+                "mcp_workspace.git_operations.read_operations.git"
+            ) as mock_git_impl:
                 mock_git_impl.return_value = "status output"
 
                 result = await git(command="status")

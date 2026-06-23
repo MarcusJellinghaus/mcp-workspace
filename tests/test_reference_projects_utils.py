@@ -221,7 +221,7 @@ class TestEnsureAvailable:
         proj = ReferenceProject(
             name="existing", path=tmp_path, url="https://github.com/org/repo"
         )
-        with patch("mcp_workspace.reference_projects.clone_repo") as mock_clone:
+        with patch("mcp_workspace.git_operations.remotes.clone_repo") as mock_clone:
             await ensure_available(proj)
             mock_clone.assert_not_called()
 
@@ -255,7 +255,7 @@ class TestEnsureAvailable:
         proj = ReferenceProject(
             name="cloneme", path=target, url="https://github.com/org/repo"
         )
-        with patch("mcp_workspace.reference_projects.clone_repo") as mock_clone:
+        with patch("mcp_workspace.git_operations.remotes.clone_repo") as mock_clone:
             await ensure_available(proj)
             mock_clone.assert_called_once_with("https://github.com/org/repo", target)
 
@@ -274,7 +274,7 @@ class TestEnsureAvailable:
             name="failproj", path=target, url="https://github.com/org/repo"
         )
         with patch(
-            "mcp_workspace.reference_projects.clone_repo",
+            "mcp_workspace.git_operations.remotes.clone_repo",
             side_effect=ValueError("auth required"),
         ) as mock_clone:
             # First call fails
@@ -302,7 +302,7 @@ class TestEnsureAvailable:
             name="retryproj", path=target, url="https://github.com/org/repo"
         )
         with patch(
-            "mcp_workspace.reference_projects.clone_repo",
+            "mcp_workspace.git_operations.remotes.clone_repo",
             side_effect=ValueError("auth required"),
         ):
             with pytest.raises(ValueError, match="Failed to clone"):
@@ -312,7 +312,7 @@ class TestEnsureAvailable:
         clear_clone_failure_cache()
 
         # Now it should try cloning again (not use cached error)
-        with patch("mcp_workspace.reference_projects.clone_repo") as mock_clone:
+        with patch("mcp_workspace.git_operations.remotes.clone_repo") as mock_clone:
             await ensure_available(proj)
             mock_clone.assert_called_once()
 
@@ -342,7 +342,7 @@ class TestEnsureAvailable:
             path.mkdir(parents=True, exist_ok=True)
 
         with patch(
-            "mcp_workspace.reference_projects.clone_repo", side_effect=fake_clone
+            "mcp_workspace.git_operations.remotes.clone_repo", side_effect=fake_clone
         ):
             await asyncio.gather(ensure_available(proj), ensure_available(proj))
 

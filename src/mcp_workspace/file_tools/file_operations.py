@@ -10,11 +10,6 @@ from typing import Any, Dict, Optional
 from mcp_coder_utils.log_utils import log_function_call
 
 from mcp_workspace.file_tools.path_utils import normalize_line_endings, normalize_path
-from mcp_workspace.git_operations import git_move as git_move_impl
-from mcp_workspace.git_operations import (
-    is_file_tracked,
-    is_git_repository,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -433,6 +428,9 @@ def _determine_move_method(src_abs: Path, project_dir: Path) -> bool:
     Returns:
         True if git should be used, False otherwise
     """
+    # Lazy import: keeps GitPython off the common file-operation import path
+    from mcp_workspace.git_operations import is_file_tracked, is_git_repository
+
     if not is_git_repository(project_dir):
         return False
 
@@ -463,6 +461,9 @@ def _execute_git_move(
     Raises:
         Exception: If git move fails
     """
+    # Lazy import: keeps GitPython off the common file-operation import path
+    from mcp_workspace.git_operations import git_move as git_move_impl
+
     logger.info("Attempting git move: %s -> %s", src_rel, dest_rel)
     logger.debug("Moving %s to %s using git mv", src_rel, dest_rel)
 

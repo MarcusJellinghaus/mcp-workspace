@@ -74,9 +74,10 @@ class TestGitMoveIntegration:
         repo.index.add([str(tracked_file)])
         repo.index.commit("Initial commit")
 
-        # Mock git_move_impl to simulate a git mv failure
+        # Mock git_move to simulate a git mv failure. The move helper imports
+        # git_move lazily from mcp_workspace.git_operations, so patch it there.
         with patch(
-            "mcp_workspace.file_tools.file_operations.git_move_impl",
+            "mcp_workspace.git_operations.git_move",
             side_effect=GitCommandError("git mv", 128),
         ):
             result = move_file("tracked.txt", "moved.txt", project_dir=tmp_path)

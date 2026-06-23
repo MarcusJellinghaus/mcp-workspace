@@ -7,8 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
 
-from mcp_workspace.git_operations.remotes import clone_repo
-
 logger = logging.getLogger(__name__)
 
 _project_locks: Dict[str, asyncio.Lock] = {}
@@ -118,6 +116,9 @@ async def ensure_available(project: ReferenceProject) -> None:
                 f"Reference project '{project.name}' directory missing "
                 f"and no URL configured"
             )
+        # Lazy import: keeps GitPython off the server startup import path
+        from mcp_workspace.git_operations.remotes import clone_repo
+
         try:
             await asyncio.to_thread(clone_repo, project.url, project.path)
         except Exception as e:

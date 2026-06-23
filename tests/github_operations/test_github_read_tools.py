@@ -69,7 +69,7 @@ def _make_comment(
 # =============================================================================
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_basic(mock_manager_cls: MagicMock) -> None:
     """Returns formatted text with title, state, body."""
     issue = _make_issue()
@@ -87,7 +87,7 @@ def test_github_issue_view_basic(mock_manager_cls: MagicMock) -> None:
     mock_mgr.get_issue.assert_called_once_with(42)
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_with_comments(mock_manager_cls: MagicMock) -> None:
     """Comments included when include_comments=True."""
     issue = _make_issue()
@@ -104,7 +104,7 @@ def test_github_issue_view_with_comments(mock_manager_cls: MagicMock) -> None:
     mock_mgr.get_comments.assert_called_once_with(42)
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_without_comments(mock_manager_cls: MagicMock) -> None:
     """No comments when include_comments=False."""
     issue = _make_issue()
@@ -118,7 +118,7 @@ def test_github_issue_view_without_comments(mock_manager_cls: MagicMock) -> None
     mock_mgr.get_comments.assert_not_called()
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_not_found(mock_manager_cls: MagicMock) -> None:
     """Returns error text when issue number=0 (empty IssueData)."""
     empty_issue = IssueData(
@@ -144,7 +144,7 @@ def test_github_issue_view_not_found(mock_manager_cls: MagicMock) -> None:
     assert "#999" in result
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_error(mock_manager_cls: MagicMock) -> None:
     """Returns 'Error: ...' on exception."""
     mock_manager_cls.side_effect = RuntimeError("connection failed")
@@ -159,7 +159,7 @@ def test_github_issue_view_error(mock_manager_cls: MagicMock) -> None:
 # =============================================================================
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_list_basic(mock_manager_cls: MagicMock) -> None:
     """Returns compact summary lines."""
     issues = [
@@ -178,7 +178,7 @@ def test_github_issue_list_basic(mock_manager_cls: MagicMock) -> None:
     assert "Second" in result
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_list_empty(mock_manager_cls: MagicMock) -> None:
     """Returns 'No issues found.' for empty list."""
     mock_mgr = MagicMock()
@@ -190,7 +190,7 @@ def test_github_issue_list_empty(mock_manager_cls: MagicMock) -> None:
     assert result == "No issues found."
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_list_with_filters(mock_manager_cls: MagicMock) -> None:
     """Verifies labels/assignee/since passed through to manager."""
     mock_mgr = MagicMock()
@@ -214,7 +214,7 @@ def test_github_issue_list_with_filters(mock_manager_cls: MagicMock) -> None:
     )
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_list_error(mock_manager_cls: MagicMock) -> None:
     """Returns 'Error: ...' on exception."""
     mock_manager_cls.side_effect = RuntimeError("API down")
@@ -254,7 +254,7 @@ def _mock_pull(
     return pr
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_pr_view_basic(mock_manager_cls: MagicMock) -> None:
     """Returns formatted text with title, state, branches."""
     mock_repo = MagicMock()
@@ -275,7 +275,7 @@ def test_github_pr_view_basic(mock_manager_cls: MagicMock) -> None:
     mock_repo.get_pull.assert_called_once_with(10)
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_pr_view_with_comments(mock_manager_cls: MagicMock) -> None:
     """Reviews + conversation + inline comments rendered."""
     mock_repo = MagicMock()
@@ -316,7 +316,7 @@ def test_github_pr_view_with_comments(mock_manager_cls: MagicMock) -> None:
     assert "nit: rename" in result
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_pr_view_without_comments(mock_manager_cls: MagicMock) -> None:
     """No comment sections when include_comments=False."""
     mock_repo = MagicMock()
@@ -336,7 +336,7 @@ def test_github_pr_view_without_comments(mock_manager_cls: MagicMock) -> None:
     mock_pr.get_review_comments.assert_not_called()
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_pr_view_not_found(mock_manager_cls: MagicMock) -> None:
     """Returns error text on 404."""
     from github.GithubException import UnknownObjectException
@@ -355,7 +355,7 @@ def test_github_pr_view_not_found(mock_manager_cls: MagicMock) -> None:
     assert "Error" in result
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_pr_view_error(mock_manager_cls: MagicMock) -> None:
     """Returns 'Error: ...' on exception."""
     mock_manager_cls.side_effect = RuntimeError("connection failed")
@@ -365,7 +365,7 @@ def test_github_pr_view_error(mock_manager_cls: MagicMock) -> None:
     assert result == "Error: connection failed"
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_pr_view_no_repo(mock_manager_cls: MagicMock) -> None:
     """Returns error when repository not accessible."""
     mock_mgr = MagicMock()
@@ -383,7 +383,7 @@ def test_github_pr_view_no_repo(mock_manager_cls: MagicMock) -> None:
 # =============================================================================
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_basic(mock_manager_cls: MagicMock) -> None:
     """Returns compact summary lines with auto-scoped repo."""
     mock_repo = MagicMock()
@@ -421,7 +421,7 @@ def test_github_search_basic(mock_manager_cls: MagicMock) -> None:
     assert "is:issue is:pull-request" in call_args[1]["query"]
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_empty(mock_manager_cls: MagicMock) -> None:
     """Returns 'No results found.' for empty results."""
     mock_repo = MagicMock()
@@ -438,7 +438,7 @@ def test_github_search_empty(mock_manager_cls: MagicMock) -> None:
     assert "(auto-added: is:issue is:pull-request)" in result
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_with_qualifiers(mock_manager_cls: MagicMock) -> None:
     """Verifies state/labels/assignee/sort/order passed through."""
     mock_repo = MagicMock()
@@ -466,7 +466,7 @@ def test_github_search_with_qualifiers(mock_manager_cls: MagicMock) -> None:
     assert call_kwargs.get("order") == "desc"
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_issue_vs_pr_indicator(mock_manager_cls: MagicMock) -> None:
     """Correct Issue/PR indicator in results."""
     mock_repo = MagicMock()
@@ -500,7 +500,7 @@ def test_github_search_issue_vs_pr_indicator(mock_manager_cls: MagicMock) -> Non
     assert "[PR]" in result_lines[1]
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_max_results_cap(mock_manager_cls: MagicMock) -> None:
     """Results capped at max_results."""
     mock_repo = MagicMock()
@@ -531,7 +531,7 @@ def test_github_search_max_results_cap(mock_manager_cls: MagicMock) -> None:
     assert len(lines) == 3
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_error(mock_manager_cls: MagicMock) -> None:
     """Returns 'Error: ...' on exception."""
     mock_manager_cls.side_effect = RuntimeError("API down")
@@ -541,7 +541,7 @@ def test_github_search_error(mock_manager_cls: MagicMock) -> None:
     assert result == "Error: API down"
 
 
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_no_repo(mock_manager_cls: MagicMock) -> None:
     """Returns error when repository not accessible."""
     mock_mgr = MagicMock()
@@ -565,7 +565,7 @@ def test_github_search_no_repo(mock_manager_cls: MagicMock) -> None:
     ],
     ids=lambda val: val if isinstance(val, str) and "→" in val else "",
 )
-@patch("mcp_workspace.server.IssueManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_qualifier_injection(
     mock_manager_cls: MagicMock,
     query: str,
