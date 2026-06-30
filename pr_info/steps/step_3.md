@@ -56,7 +56,14 @@ _collect_network_diagnostics(api_base_url):
     proxies = {s: _proxy_host_port(u) for s,u in getproxies().items() if s in ("http","https")}
     proxy_env = [n for n in ("HTTPS_PROXY","HTTP_PROXY","NO_PROXY") if n in os.environ or n.lower() in os.environ]
     pac = _read_pac_autoconfig_url()                  # "present" | None (win32 only)
-    return {api_base_url, python_proxies, proxy_env, pac, tcp_probe=_tcp_probe(host)}
+    return {
+        "api_base_url": api_base_url,
+        "host": host,
+        "python_proxies": python_proxies,
+        "proxy_env": proxy_env,
+        "pac": pac,
+        "tcp_probe": _tcp_probe(host),
+    }
 
 maybe_log_network_diagnostics(exc, api_base_url):
     global _LOGGED
@@ -71,7 +78,9 @@ _proxy_host_port(url):  p = urlsplit(url); return f"{p.hostname}:{p.port}"   # .
 
 ## DATA
 - `_collect_network_diagnostics` returns `dict[str, str]` with keys:
-  `api_base_url`, `python_proxies` (comma-joined `host:port`), `proxy_env`
+  `api_base_url`, `host` (API hostname parsed from `api_base_url` via
+  `urllib.parse` — same value used for the TCP probe; exposed so step_4 need not
+  re-parse), `python_proxies` (comma-joined `host:port`), `proxy_env`
   (comma-joined names or `"none"`), `pac` (`"present"`/`"absent"`),
   `tcp_probe` (`ok`/`refused`/`timeout`/`dns_error`).
 - Module-level `_LOGGED: bool = False`.

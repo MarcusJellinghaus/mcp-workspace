@@ -43,6 +43,13 @@ def build_github_client(token: str, base_url: str) -> Github:
   the `_cached_github_client` type annotation).
 - `verification.py`: drop `Auth, Github` from `from github import ...`
   (keep `GithubException`).
+- `verification.py`: in `verify_github`, `token` from
+  `get_github_token_with_source()` is `Optional[str]`, but
+  `build_github_client(token: str, base_url: str)` types its param non-optional
+  `str`. The verify-site call `build_github_client(token, api_base_url)` must
+  keep a `# type: ignore[arg-type]` (the same suppression the old
+  `Auth.Token(token)` carried) to satisfy mypy. (The two `base_manager.py` sites
+  pass non-optional `str` and need no ignore.)
 - **Do not** add a module-top `github` import anywhere new on the `server.py`
   import path — `_client.py` is a dedicated module, which is fine.
 

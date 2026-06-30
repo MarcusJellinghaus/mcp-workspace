@@ -25,7 +25,7 @@ def has_applicable_proxy(api_base_url: str) -> bool:
 diag = _collect_network_diagnostics(api_base_url)
 result["network_proxy"] = CheckResult(
     ok=(diag["tcp_probe"] == "ok"),
-    value=f"api={host}:443 tcp={diag['tcp_probe']} "
+    value=f"api={diag['host']}:443 tcp={diag['tcp_probe']} "
           f"proxy_env={diag['proxy_env']} pac={diag['pac']}",
     severity="warning",                     # never fail overall_ok on this
 )

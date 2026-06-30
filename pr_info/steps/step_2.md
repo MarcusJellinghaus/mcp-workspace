@@ -35,11 +35,12 @@ None (single keyword change).
 - `timeout` is now `(10, 60)` instead of `60`.
 
 ## TDD — tests first
-- In the artifact test module, patch `requests.get` (as imported in
-  `ci_results_manager`) to return a fake response wrapping a small in-memory ZIP;
-  call `_download_and_extract_zip(url)`; assert `requests.get` was called with
-  `timeout=(10, 60)`.
-- Keep/repair any existing artifact test that asserted `timeout=60`.
+- Add a NEW test in the artifact test module that patches `requests.get` (as
+  imported in `ci_results_manager`) to return a fake response wrapping a small
+  in-memory ZIP; call `_download_and_extract_zip(url)`; assert `requests.get` was
+  called with `timeout=(10, 60)`.
+  (The existing artifact test mocks `_download_and_extract_zip` wholesale, so it
+  makes no `timeout` assertion and needs no change.)
 
 ## Checks before commit
 - `run_pylint_check`, `run_mypy_check`, `run_pytest_check` (fast-unit marker set
