@@ -61,21 +61,21 @@ def _read_pac_autoconfig_url() -> str | None:
     ``winreg`` is imported lazily inside the win32 branch so a top-level import
     does not break non-Windows platforms at import time.
     """
-    if sys.platform != "win32":
-        return None
-    import winreg  # pylint: disable=import-outside-toplevel
+    if sys.platform == "win32":
+        # pylint: disable=import-outside-toplevel,import-error
+        import winreg
 
-    try:
-        with winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
-        ) as key:
-            value, _ = winreg.QueryValueEx(key, "AutoConfigURL")
-        if value:
-            return "present"
-        return None
-    except OSError:
-        return None
+        try:
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+            ) as key:
+                value, _ = winreg.QueryValueEx(key, "AutoConfigURL")
+            if value:
+                return "present"
+        except OSError:
+            return None
+    return None
 
 
 def _collect_network_diagnostics(api_base_url: str) -> dict[str, str]:
