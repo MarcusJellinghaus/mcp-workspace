@@ -13,6 +13,7 @@ from mcp_workspace.github_operations._network import (
     _collect_network_diagnostics,
     _proxy_host_port,
     _tcp_probe,
+    has_applicable_proxy,
     maybe_log_network_diagnostics,
 )
 
@@ -161,3 +162,35 @@ def test_maybe_log_ignores_unrelated_exception(
         )
 
     assert [r for r in caplog.records if r.levelno == logging.WARNING] == []
+
+
+def test_has_applicable_proxy_false_when_no_proxy_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No http/https proxy configured -> no applicable proxy."""
+    monkeypatch.setattr(f"{MODULE}.getproxies", dict)
+    assert has_applicable_proxy("https://api.example.com") is False
+
+
+def test_has_applicable_proxy_true_when_https_proxy_and_not_bypassed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """HTTPS_PROXY set and host not NO_PROXY-bypassed -> applicable proxy."""
+    monkeypatch.setattr(
+        f"{MODULE}.getproxies",
+        lambda: {"https": "http://proxy.corp:8080"},
+    )
+    monkeypatch.setattr(f"{MODULE}.proxy_bypass", lambda _host: False)
+    assert has_applicable_proxy("https://api.example.com") is True
+
+
+def test_has_applicable_proxy_false_when_host_in_no_proxy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A proxy is set but NO_PROXY bypasses the host -> no applicable proxy."""
+    monkeypatch.setattr(
+        f"{MODULE}.getproxies",
+        lambda: {"https": "http://proxy.corp:8080"},
+    )
+    monkeypatch.setattr(f"{MODULE}.proxy_bypass", lambda _host: True)
+    assert has_applicable_proxy("https://api.example.com") is False

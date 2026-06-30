@@ -45,9 +45,9 @@ See [step_3.md](./steps/step_3.md)
 ### Step 4: Verify `network_proxy` probe + verify-local short-circuit (Parts C + C′)
 See [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: add `has_applicable_proxy` to `_network.py`, add `network_proxy` CheckResult + short-circuit in `verification.py`, extend `test_verification.py`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add `has_applicable_proxy` to `_network.py`, add `network_proxy` CheckResult + short-circuit in `verification.py`, extend `test_verification.py`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

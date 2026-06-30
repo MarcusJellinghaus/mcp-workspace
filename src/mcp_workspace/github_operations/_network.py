@@ -14,7 +14,7 @@ import os
 import socket
 import sys
 from urllib.parse import urlsplit
-from urllib.request import getproxies
+from urllib.request import getproxies, proxy_bypass
 
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.exceptions import Timeout as RequestsTimeout
@@ -113,6 +113,29 @@ def _collect_network_diagnostics(api_base_url: str) -> dict[str, str]:
         "pac": pac,
         "tcp_probe": _tcp_probe(host),
     }
+
+
+def has_applicable_proxy(api_base_url: str) -> bool:
+    """True if an http/https proxy is configured AND the host is not NO_PROXY-bypassed.
+
+    The direct TCP probe ignores proxies, but ``requests``/PyGithub honour
+    ``HTTPS_PROXY``. So an unreachable-host short-circuit must be gated on there
+    being *no* applicable proxy — otherwise a user who set ``HTTPS_PROXY`` (the
+    tool's own fix hint) would still see a stale "unreachable".
+
+    Args:
+        api_base_url: The API base URL whose host the proxy gate applies to.
+
+    Returns:
+        True when an http/https proxy is configured and ``NO_PROXY`` does not
+        bypass the host parsed from ``api_base_url``; False otherwise.
+    """
+    proxies = getproxies()
+    if not ({"http", "https"} & proxies.keys()):
+        return False
+    host = urlsplit(api_base_url).hostname or ""
+    # proxy_bypass honours NO_PROXY: truthy means the host should bypass proxies.
+    return not proxy_bypass(host)
 
 
 def maybe_log_network_diagnostics(exc: BaseException, api_base_url: str) -> None:
