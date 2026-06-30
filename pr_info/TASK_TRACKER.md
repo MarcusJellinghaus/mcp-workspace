@@ -21,6 +21,35 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: GitHub client factory (Part A) + PyGithub floor bump
+See [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: create `_client.py` factory + `test_client.py`, repoint the three bare `Github()` call sites (base_manager x2, verification), bump `PyGithub>=2.1.0` in `pyproject.toml`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Bounded connect timeout on raw artifact download (Part A′)
+See [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: add `DEFAULT_CONNECT_TIMEOUT` constant + `(connect, read)` timeout tuple in `ci_results_manager.py`, add timeout-assertion test
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: Network diagnostics helper + once-per-process error logging (Part B)
+See [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation: create `_network.py` (diagnostics + once-per-process log) + `test_network.py`, wire `maybe_log_network_diagnostics` at 3 sites, add conftest guard-reset fixture
+- [ ] Quality checks: pylint, pytest, mypy, lint_imports — fix all issues
+- [ ] Commit message prepared
+
+### Step 4: Verify `network_proxy` probe + verify-local short-circuit (Parts C + C′)
+See [step_4.md](./steps/step_4.md)
+
+- [ ] Implementation: add `has_applicable_proxy` to `_network.py`, add `network_proxy` CheckResult + short-circuit in `verification.py`, extend `test_verification.py`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] Address PR review feedback
+- [ ] Final summary of changes
