@@ -79,6 +79,18 @@ def test_proxy_host_port_strips_credentials() -> None:
     assert _proxy_host_port("http://user:pass@proxy.corp:8080") == "proxy.corp:8080"
 
 
+def test_proxy_host_port_omits_port_when_absent() -> None:
+    # A port-less proxy URL renders as host only, never host:None.
+    assert _proxy_host_port("http://proxy.corp") == "proxy.corp"
+
+
+def test_proxy_host_port_omits_port_but_keeps_credential_stripping() -> None:
+    # A port-less proxy URL with credentials reduces to host only, no user:pass.
+    result = _proxy_host_port("http://user:pass@proxy.corp")
+    assert result == "proxy.corp"
+    assert "pass" not in result
+
+
 def test_collect_network_diagnostics_strips_proxy_credentials(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

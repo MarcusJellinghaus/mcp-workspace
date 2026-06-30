@@ -52,6 +52,8 @@ def _tcp_probe(host: str) -> str:
 def _proxy_host_port(url: str) -> str:
     """Reduce a proxy URL to ``host:port``, dropping any ``user:pass@`` prefix."""
     parts = urlsplit(url)
+    if parts.port is None:
+        return parts.hostname or ""
     return f"{parts.hostname}:{parts.port}"
 
 
