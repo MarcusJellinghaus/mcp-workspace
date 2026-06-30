@@ -38,9 +38,9 @@ See [step_2.md](./steps/step_2.md)
 ### Step 3: Network diagnostics helper + once-per-process error logging (Part B)
 See [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: create `_network.py` (diagnostics + once-per-process log) + `test_network.py`, wire `maybe_log_network_diagnostics` at 3 sites, add conftest guard-reset fixture
-- [ ] Quality checks: pylint, pytest, mypy, lint_imports — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: create `_network.py` (diagnostics + once-per-process log) + `test_network.py`, wire `maybe_log_network_diagnostics` at 3 sites, add conftest guard-reset fixture
+- [x] Quality checks: pylint, pytest, mypy, lint_imports — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: Verify `network_proxy` probe + verify-local short-circuit (Parts C + C′)
 See [step_4.md](./steps/step_4.md)

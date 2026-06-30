@@ -19,6 +19,7 @@ from mcp_workspace import git_operations
 from mcp_workspace.config import get_github_token
 from mcp_workspace.github_operations._client import build_github_client
 from mcp_workspace.github_operations._diagnostics import extract_diagnostic_headers
+from mcp_workspace.github_operations._network import maybe_log_network_diagnostics
 from mcp_workspace.utils.repo_identifier import RepoIdentifier, hostname_to_api_base_url
 from mcp_workspace.utils.token_fingerprint import format_token_fingerprint
 
@@ -120,6 +121,7 @@ def get_authenticated_username(hostname: Optional[str] = None) -> str:
     except (
         Exception
     ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+        maybe_log_network_diagnostics(e, base_url)
         raise ValueError(f"Failed to authenticate with GitHub: {e}") from e
 
 
@@ -303,6 +305,7 @@ class BaseGitHubManager:
         except (
             Exception
         ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+            maybe_log_network_diagnostics(e, self._repo_identifier.api_base_url)
             logger.error(
                 "Unexpected error accessing repository '%s': %s",
                 self._repo_identifier.full_name,

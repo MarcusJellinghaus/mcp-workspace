@@ -15,6 +15,7 @@ from mcp_workspace.config import get_github_token_with_source
 from mcp_workspace.git_operations.remotes import get_repository_identifier
 from mcp_workspace.github_operations._client import build_github_client
 from mcp_workspace.github_operations._diagnostics import extract_diagnostic_headers
+from mcp_workspace.github_operations._network import maybe_log_network_diagnostics
 from mcp_workspace.github_operations._permission_probes import run_permission_probes
 from mcp_workspace.github_operations._types import CheckResult
 from mcp_workspace.github_operations.base_manager import BaseGitHubManager
@@ -99,6 +100,7 @@ def verify_github(project_dir: Path) -> dict[str, object]:
             error=str(e),
         )
     except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        maybe_log_network_diagnostics(exc, api_base_url)
         logger.debug(
             "verify_github auth probe Exception base_url=%s exc=%s",
             api_base_url,
