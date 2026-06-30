@@ -8,12 +8,12 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from github import Auth, Github
 from github.GithubException import GithubException
 from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
 from mcp_workspace.config import get_github_token_with_source
 from mcp_workspace.git_operations.remotes import get_repository_identifier
+from mcp_workspace.github_operations._client import build_github_client
 from mcp_workspace.github_operations._diagnostics import extract_diagnostic_headers
 from mcp_workspace.github_operations._permission_probes import run_permission_probes
 from mcp_workspace.github_operations._types import CheckResult
@@ -73,7 +73,7 @@ def verify_github(project_dir: Path) -> dict[str, object]:
     # ------------------------------------------------------------------
     scope_str: str | None = None
     try:
-        github_client = Github(auth=Auth.Token(token), base_url=api_base_url)  # type: ignore[arg-type]
+        github_client = build_github_client(token, api_base_url)  # type: ignore[arg-type]
         user = github_client.get_user()
         result["authenticated_user"] = CheckResult(
             ok=True,

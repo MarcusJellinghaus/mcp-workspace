@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar, cast
 
-from github import Auth, Github
+from github import Github
 from github.GithubException import GithubException
 from github.Repository import Repository
 from mcp_coder_utils.log_utils import log_function_call
@@ -17,6 +17,7 @@ from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
 from mcp_workspace import git_operations
 from mcp_workspace.config import get_github_token
+from mcp_workspace.github_operations._client import build_github_client
 from mcp_workspace.github_operations._diagnostics import extract_diagnostic_headers
 from mcp_workspace.utils.repo_identifier import RepoIdentifier, hostname_to_api_base_url
 from mcp_workspace.utils.token_fingerprint import format_token_fingerprint
@@ -102,7 +103,7 @@ def get_authenticated_username(hostname: Optional[str] = None) -> str:
 
     base_url = hostname_to_api_base_url(hostname or "github.com")
     try:
-        github_client = Github(auth=Auth.Token(raw_token), base_url=base_url)
+        github_client = build_github_client(raw_token, base_url)
         user = github_client.get_user()
         return user.login
     except GithubException as e:
@@ -228,9 +229,7 @@ class BaseGitHubManager:
         if self._cached_github_client is not None:
             return self._cached_github_client
         base_url = self._repo_identifier.api_base_url
-        self._cached_github_client = Github(
-            auth=Auth.Token(self.github_token), base_url=base_url
-        )
+        self._cached_github_client = build_github_client(self.github_token, base_url)
         return self._cached_github_client
 
     def get_default_branch(self) -> str:

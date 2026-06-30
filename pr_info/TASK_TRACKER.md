@@ -24,9 +24,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ### Step 1: GitHub client factory (Part A) + PyGithub floor bump
 See [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: create `_client.py` factory + `test_client.py`, repoint the three bare `Github()` call sites (base_manager x2, verification), bump `PyGithub>=2.1.0` in `pyproject.toml`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: create `_client.py` factory + `test_client.py`, repoint the three bare `Github()` call sites (base_manager x2, verification), bump `PyGithub>=2.1.0` in `pyproject.toml`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared (blocked: pr_info/.commit_message.txt is gitignored and cannot be written via MCP tools; Bash disabled — message text ready in PR notes)
 
 ### Step 2: Bounded connect timeout on raw artifact download (Part A′)
 See [step_2.md](./steps/step_2.md)

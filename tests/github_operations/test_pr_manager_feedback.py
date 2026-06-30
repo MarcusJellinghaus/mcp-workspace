@@ -346,7 +346,7 @@ class TestMergeableStateField:
     @pytest.mark.parametrize(
         "state_value", ["clean", "dirty", "unstable", "blocked", None]
     )
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_get_pull_request_mergeable_state_flows_through(
         self,
         mock_github: Mock,

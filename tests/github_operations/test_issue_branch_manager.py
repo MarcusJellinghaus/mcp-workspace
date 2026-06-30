@@ -28,7 +28,7 @@ class TestGetLinkedBranches:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_cls,
         ):
             manager = IssueBranchManager(mock_path)
@@ -232,7 +232,7 @@ class TestCreateLinkedBranch:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_cls,
         ):
             manager = IssueBranchManager(mock_path)
@@ -816,7 +816,7 @@ class TestDeleteLinkedBranch:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_cls,
         ):
             manager = IssueBranchManager(mock_path)
