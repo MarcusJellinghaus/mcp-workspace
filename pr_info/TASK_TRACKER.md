@@ -31,9 +31,9 @@ See [step_1.md](./steps/step_1.md)
 ### Step 2: Bounded connect timeout on raw artifact download (Part A′)
 See [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: add `DEFAULT_CONNECT_TIMEOUT` constant + `(connect, read)` timeout tuple in `ci_results_manager.py`, add timeout-assertion test
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add `DEFAULT_CONNECT_TIMEOUT` constant + `(connect, read)` timeout tuple in `ci_results_manager.py`, add timeout-assertion test
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: Network diagnostics helper + once-per-process error logging (Part B)
 See [step_3.md](./steps/step_3.md)

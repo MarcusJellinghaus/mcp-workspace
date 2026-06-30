@@ -71,7 +71,7 @@ class TestDownloadAndExtractZip:
                 "Accept": "application/vnd.github.v3+json",
             },
             allow_redirects=True,
-            timeout=60,
+            timeout=(10, 60),
         )
         mock_response.raise_for_status.assert_called_once()
 
