@@ -240,7 +240,7 @@ class TestBaseGitHubManagerWithProjectDir:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             manager = BaseGitHubManager(project_dir=mock_path)
@@ -267,7 +267,7 @@ class TestBaseGitHubManagerWithProjectDir:
                 "mcp_workspace.github_operations.base_manager.get_github_token",
                 return_value="fake_token",
             ),
-            patch("mcp_workspace.github_operations.base_manager.Github"),
+            patch("mcp_workspace.github_operations._client.Github"),
         ):
             with pytest.raises(ValueError) as exc_info:
                 BaseGitHubManager(project_dir=mock_path)
@@ -285,7 +285,7 @@ class TestBaseGitHubManagerWithProjectDir:
                 "mcp_workspace.github_operations.base_manager.get_github_token",
                 return_value="fake_token",
             ),
-            patch("mcp_workspace.github_operations.base_manager.Github"),
+            patch("mcp_workspace.github_operations._client.Github"),
         ):
             with pytest.raises(ValueError) as exc_info:
                 BaseGitHubManager(project_dir=mock_path)
@@ -307,7 +307,7 @@ class TestBaseGitHubManagerWithProjectDir:
                 "mcp_workspace.github_operations.base_manager.get_github_token",
                 return_value="fake_token",
             ),
-            patch("mcp_workspace.github_operations.base_manager.Github"),
+            patch("mcp_workspace.github_operations._client.Github"),
         ):
             with pytest.raises(ValueError) as exc_info:
                 BaseGitHubManager(project_dir=mock_path)
@@ -329,7 +329,7 @@ class TestBaseGitHubManagerWithProjectDir:
                 "mcp_workspace.github_operations.base_manager.get_github_token",
                 return_value=None,  # No token configured
             ),
-            patch("mcp_workspace.github_operations.base_manager.Github"),
+            patch("mcp_workspace.github_operations._client.Github"),
         ):
             with pytest.raises(ValueError) as exc_info:
                 BaseGitHubManager(project_dir=mock_path)
@@ -358,7 +358,7 @@ class TestBaseGitHubManagerWithProjectDir:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -406,7 +406,7 @@ class TestBaseGitHubManagerWithProjectDir:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -440,7 +440,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             manager = BaseGitHubManager(
@@ -469,7 +469,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             manager = BaseGitHubManager(
@@ -496,7 +496,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             manager = BaseGitHubManager(
@@ -522,7 +522,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 "mcp_workspace.github_operations.base_manager.get_github_token",
                 return_value="fake_token",
             ),
-            patch("mcp_workspace.github_operations.base_manager.Github"),
+            patch("mcp_workspace.github_operations._client.Github"),
         ):
             with pytest.raises(ValueError) as exc_info:
                 BaseGitHubManager(repo_url="not-a-valid-url")
@@ -536,7 +536,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 "mcp_workspace.github_operations.base_manager.get_github_token",
                 return_value="fake_token",
             ),
-            patch("mcp_workspace.github_operations.base_manager.Github"),
+            patch("mcp_workspace.github_operations._client.Github"),
         ):
             with pytest.raises(ValueError) as exc_info:
                 BaseGitHubManager(repo_url="not-a-valid-url")
@@ -550,7 +550,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 "mcp_workspace.github_operations.base_manager.get_github_token",
                 return_value=None,  # No token configured
             ),
-            patch("mcp_workspace.github_operations.base_manager.Github"),
+            patch("mcp_workspace.github_operations._client.Github"),
         ):
             with pytest.raises(ValueError) as exc_info:
                 BaseGitHubManager(
@@ -569,7 +569,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -605,7 +605,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -633,7 +633,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -663,7 +663,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -690,7 +690,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -729,7 +729,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -768,7 +768,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 "mcp_workspace.github_operations.base_manager.get_github_token",
                 return_value="fake_token",
             ),
-            patch("mcp_workspace.github_operations.base_manager.Github"),
+            patch("mcp_workspace.github_operations._client.Github"),
         ):
             manager = BaseGitHubManager(project_dir=mock_path)
 
@@ -797,7 +797,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 "mcp_workspace.github_operations.base_manager.get_github_token",
                 return_value="fake_token",
             ),
-            patch("mcp_workspace.github_operations.base_manager.Github"),
+            patch("mcp_workspace.github_operations._client.Github"),
         ):
             manager = BaseGitHubManager(project_dir=mock_path)
 
@@ -827,7 +827,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -864,7 +864,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -901,7 +901,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -941,7 +941,7 @@ class TestBaseGitHubManagerWithRepoUrl:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -974,7 +974,7 @@ class TestBaseGitHubManagerParameterValidation:
                 "mcp_workspace.github_operations.base_manager.get_github_token",
                 return_value="fake_token",
             ),
-            patch("mcp_workspace.github_operations.base_manager.Github"),
+            patch("mcp_workspace.github_operations._client.Github"),
         ):
             with pytest.raises(ValueError) as exc_info:
                 BaseGitHubManager()
@@ -994,7 +994,7 @@ class TestBaseGitHubManagerParameterValidation:
                 "mcp_workspace.github_operations.base_manager.get_github_token",
                 return_value="fake_token",
             ),
-            patch("mcp_workspace.github_operations.base_manager.Github"),
+            patch("mcp_workspace.github_operations._client.Github"),
         ):
             with pytest.raises(ValueError) as exc_info:
                 BaseGitHubManager(
@@ -1018,7 +1018,7 @@ class TestGetAuthenticatedUsername:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -1042,7 +1042,7 @@ class TestGetAuthenticatedUsername:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -1102,7 +1102,7 @@ class TestGithubTokenForwarding:
                 "mcp_workspace.github_operations.base_manager.get_github_token",
                 return_value="config-token",
             ) as mock_get_token,
-            patch("mcp_workspace.github_operations.base_manager.Github"),
+            patch("mcp_workspace.github_operations._client.Github"),
         ):
             manager = manager_cls(project_dir=mock_path)
 
@@ -1124,7 +1124,7 @@ class TestGetDefaultBranch:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -1149,7 +1149,7 @@ class TestGetDefaultBranch:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -1171,7 +1171,7 @@ class TestGetDefaultBranch:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -1212,7 +1212,7 @@ class TestGetRepositoryDebugLogging:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -1245,7 +1245,7 @@ class TestGetRepositoryDebugLogging:
                 return_value="ghp_LongEnoughTokenABCDxyz",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -1271,7 +1271,7 @@ class TestGetRepositoryDebugLogging:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -1303,7 +1303,7 @@ class TestGetRepositoryDebugLogging:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -1330,7 +1330,7 @@ class TestGetRepositoryDebugLogging:
                 return_value=raw_token,
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -1367,7 +1367,7 @@ class TestGetAuthenticatedUsernameDebugLogging:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -1395,7 +1395,7 @@ class TestGetAuthenticatedUsernameDebugLogging:
                 return_value="ghp_LongEnoughTokenABCDxyz",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -1418,7 +1418,7 @@ class TestGetAuthenticatedUsernameDebugLogging:
                 return_value="fake_token",
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()
@@ -1442,7 +1442,7 @@ class TestGetAuthenticatedUsernameDebugLogging:
                 return_value=raw_token,
             ),
             patch(
-                "mcp_workspace.github_operations.base_manager.Github"
+                "mcp_workspace.github_operations._client.Github"
             ) as mock_github_class,
         ):
             mock_github_client = Mock()

@@ -210,7 +210,7 @@ class TestPullRequestManagerUnit:
     # Create Pull Request Tests
     # ========================================
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_create_pull_request_success(
         self, mock_github: Mock, tmp_path: Path
     ) -> None:
@@ -311,7 +311,7 @@ class TestPullRequestManagerUnit:
     # Get Pull Request Tests
     # ========================================
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_get_pull_request_success(self, mock_github: Mock, tmp_path: Path) -> None:
         """Test successful PR retrieval."""
         git_dir = tmp_path / "git_dir"
@@ -360,7 +360,7 @@ class TestPullRequestManagerUnit:
     # List Pull Requests Tests
     # ========================================
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_list_pull_requests_data_transformation(
         self, mock_github: Mock, tmp_path: Path
     ) -> None:
@@ -412,7 +412,7 @@ class TestPullRequestManagerUnit:
             assert result[1]["mergeable_state"] == "dirty"
             mock_repo.get_pulls.assert_called_once_with(state="open")
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_list_pull_requests_with_base_branch_filter(
         self, mock_github: Mock, tmp_path: Path
     ) -> None:
@@ -460,7 +460,7 @@ class TestPullRequestManagerUnit:
     # Close Pull Request Tests
     # ========================================
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_close_pull_request_success(
         self, mock_github: Mock, tmp_path: Path
     ) -> None:
@@ -512,7 +512,7 @@ class TestPullRequestManagerUnit:
     # Error Handling Tests
     # ========================================
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_github_api_error_returns_empty(
         self, mock_github: Mock, tmp_path: Path
     ) -> None:
@@ -547,7 +547,7 @@ class TestPullRequestManagerUnit:
 class TestCreatePullRequestDefaultBranch:
     """Tests for dynamic default branch resolution in create_pull_request()."""
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     @patch("mcp_workspace.github_operations.pr_manager.get_default_branch_name")
     def test_create_pr_resolves_default_branch_when_none(
         self, mock_get_default: Mock, mock_github: Mock, tmp_path: Path
@@ -592,7 +592,7 @@ class TestCreatePullRequestDefaultBranch:
             assert result["number"] == 1
             assert result["base_branch"] == "main"
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     @patch("mcp_workspace.github_operations.pr_manager.get_default_branch_name")
     def test_create_pr_uses_explicit_base_branch(
         self, mock_get_default: Mock, mock_github: Mock, tmp_path: Path
@@ -636,7 +636,7 @@ class TestCreatePullRequestDefaultBranch:
             assert result["number"] == 1
             assert result["base_branch"] == "develop"
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     @patch("mcp_workspace.github_operations.pr_manager.get_default_branch_name")
     def test_create_pr_returns_empty_when_default_branch_unknown(
         self, mock_get_default: Mock, mock_github: Mock, tmp_path: Path
@@ -674,7 +674,7 @@ class TestCreatePullRequestDefaultBranch:
             # PR creation should not be attempted
             mock_repo.create_pull.assert_not_called()
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     @patch("mcp_workspace.github_operations.pr_manager.get_default_branch_name")
     def test_create_pr_resolves_master_as_default_branch(
         self, mock_get_default: Mock, mock_github: Mock, tmp_path: Path

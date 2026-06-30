@@ -137,6 +137,7 @@ class CIResultsManager(BaseGitHubManager):
     """
 
     DEFAULT_REQUEST_TIMEOUT: int = 60  # seconds
+    DEFAULT_CONNECT_TIMEOUT: int = 10  # seconds
 
     def __init__(
         self,
@@ -326,7 +327,7 @@ class CIResultsManager(BaseGitHubManager):
                 url,
                 headers=headers,
                 allow_redirects=True,
-                timeout=self.DEFAULT_REQUEST_TIMEOUT,
+                timeout=(self.DEFAULT_CONNECT_TIMEOUT, self.DEFAULT_REQUEST_TIMEOUT),
             )
             response.raise_for_status()
 

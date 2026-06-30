@@ -133,7 +133,7 @@ class TestLabelsManagerUnit:
     # Create Label Tests
     # ========================================
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_create_label_success(self, mock_github: Mock, tmp_path: Path) -> None:
         """Test successful label creation."""
         git_dir = tmp_path / "git_dir"
@@ -173,7 +173,7 @@ class TestLabelsManagerUnit:
                 name="bug", color="d73a4a", description="Something isn't working"
             )
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_create_label_with_hash_prefix(
         self, mock_github: Mock, tmp_path: Path
     ) -> None:
@@ -253,7 +253,7 @@ class TestLabelsManagerUnit:
     # Get Label Tests
     # ========================================
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_get_label_success(self, mock_github: Mock, tmp_path: Path) -> None:
         """Test successful label retrieval."""
         git_dir = tmp_path / "git_dir"
@@ -309,7 +309,7 @@ class TestLabelsManagerUnit:
     # Get Labels (List All) Tests
     # ========================================
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_get_labels_data_transformation(
         self, mock_github: Mock, tmp_path: Path
     ) -> None:
@@ -371,7 +371,7 @@ class TestLabelsManagerUnit:
     # Update Label Tests
     # ========================================
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_update_label_color(self, mock_github: Mock, tmp_path: Path) -> None:
         """Test updating label color."""
         git_dir = tmp_path / "git_dir"
@@ -406,7 +406,7 @@ class TestLabelsManagerUnit:
             # Verify edit was called with normalized color
             mock_label.edit.assert_called_once()
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_update_label_description(self, mock_github: Mock, tmp_path: Path) -> None:
         """Test updating label description."""
         git_dir = tmp_path / "git_dir"
@@ -438,7 +438,7 @@ class TestLabelsManagerUnit:
             assert result["description"] == "Updated description"
             mock_label.edit.assert_called_once()
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_update_label_rename(self, mock_github: Mock, tmp_path: Path) -> None:
         """Test renaming a label."""
         git_dir = tmp_path / "git_dir"
@@ -538,7 +538,7 @@ class TestLabelsManagerUnit:
     # Delete Label Tests
     # ========================================
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_delete_label_success(self, mock_github: Mock, tmp_path: Path) -> None:
         """Test successful label deletion."""
         git_dir = tmp_path / "git_dir"
@@ -589,7 +589,7 @@ class TestLabelsManagerUnit:
     # Error Handling Tests
     # ========================================
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_github_api_error_returns_empty(
         self, mock_github: Mock, tmp_path: Path
     ) -> None:

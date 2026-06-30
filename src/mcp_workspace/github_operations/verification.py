@@ -8,13 +8,18 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from github import Auth, Github
 from github.GithubException import GithubException
 from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
 from mcp_workspace.config import get_github_token_with_source
 from mcp_workspace.git_operations.remotes import get_repository_identifier
+from mcp_workspace.github_operations._client import build_github_client
 from mcp_workspace.github_operations._diagnostics import extract_diagnostic_headers
+from mcp_workspace.github_operations._network import (
+    _collect_network_diagnostics,
+    has_applicable_proxy,
+    maybe_log_network_diagnostics,
+)
 from mcp_workspace.github_operations._permission_probes import run_permission_probes
 from mcp_workspace.github_operations._types import CheckResult
 from mcp_workspace.github_operations.base_manager import BaseGitHubManager
@@ -69,47 +74,74 @@ def verify_github(project_dir: Path) -> dict[str, object]:
         )
 
     # ------------------------------------------------------------------
+    # Proxy / reachability probe (≤3s TCP) + verify-local short-circuit.
+    # ------------------------------------------------------------------
+    diag = _collect_network_diagnostics(api_base_url)
+    result["network_proxy"] = CheckResult(
+        ok=(diag["tcp_probe"] == "ok"),
+        value=(
+            f"api={diag['host']}:443 tcp={diag['tcp_probe']} "
+            f"proxy_env={diag['proxy_env']} pac={diag['pac']}"
+        ),
+        severity="warning",  # never fail overall_ok on this
+    )
+    # Skip the two slow PyGithub calls only when the host is unreachable *and*
+    # no http/https proxy applies — a proxy would give PyGithub a transport the
+    # direct TCP probe never tested.
+    skip = diag["tcp_probe"] != "ok" and not has_applicable_proxy(api_base_url)
+
+    # ------------------------------------------------------------------
     # Checks 1 & 2: token configured + authenticated user
     # ------------------------------------------------------------------
     scope_str: str | None = None
-    try:
-        github_client = Github(auth=Auth.Token(token), base_url=api_base_url)  # type: ignore[arg-type]
-        user = github_client.get_user()
-        result["authenticated_user"] = CheckResult(
-            ok=True,
-            value=user.login,
-            severity="error",
-        )
-        scopes = github_client.oauth_scopes
-        if scopes is not None:
-            scope_str = ", ".join(scopes) if scopes else "none"
-    except GithubException as e:
-        logger.debug(
-            "verify_github auth probe GithubException base_url=%s status=%s data=%s headers=%s token=%s",
-            api_base_url,
-            e.status,
-            e.data,
-            extract_diagnostic_headers(e),
-            format_token_fingerprint(token) if token else "<none>",
-        )
+    if skip:
         result["authenticated_user"] = CheckResult(
             ok=False,
-            value="authentication failed",
-            severity="error",
-            error=str(e),
+            value="skipped — host unreachable",
+            severity="warning",
         )
-    except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        logger.debug(
-            "verify_github auth probe Exception base_url=%s exc=%s",
-            api_base_url,
-            exc,
-        )
-        result["authenticated_user"] = CheckResult(
-            ok=False,
-            value="authentication failed",
-            severity="error",
-            error=str(exc),
-        )
+    else:
+        try:
+            github_client = build_github_client(token, api_base_url)  # type: ignore[arg-type]
+            user = github_client.get_user()
+            result["authenticated_user"] = CheckResult(
+                ok=True,
+                value=user.login,
+                severity="error",
+            )
+            scopes = github_client.oauth_scopes
+            if scopes is not None:
+                scope_str = ", ".join(scopes) if scopes else "none"
+        except GithubException as e:
+            logger.debug(
+                "verify_github auth probe GithubException base_url=%s status=%s data=%s headers=%s token=%s",
+                api_base_url,
+                e.status,
+                e.data,
+                extract_diagnostic_headers(e),
+                format_token_fingerprint(token) if token else "<none>",
+            )
+            result["authenticated_user"] = CheckResult(
+                ok=False,
+                value="authentication failed",
+                severity="error",
+                error=str(e),
+            )
+        except (
+            Exception
+        ) as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            maybe_log_network_diagnostics(exc, api_base_url)
+            logger.debug(
+                "verify_github auth probe Exception base_url=%s exc=%s",
+                api_base_url,
+                exc,
+            )
+            result["authenticated_user"] = CheckResult(
+                ok=False,
+                value="authentication failed",
+                severity="error",
+                error=str(exc),
+            )
 
     if token is None:
         config_path = get_user_app_data_dir("mcp_coder") / "config.toml"
@@ -158,30 +190,39 @@ def verify_github(project_dir: Path) -> dict[str, object]:
     # ------------------------------------------------------------------
     manager = None
     repo = None
-    try:
-        manager = BaseGitHubManager(project_dir=project_dir, github_token=token)
-        repo = manager._get_repository()
-        if repo is not None:
-            result["repo_accessible"] = CheckResult(
-                ok=True,
-                value=repo.full_name,
-                severity="error",
-            )
-        else:
+    if skip:
+        result["repo_accessible"] = CheckResult(
+            ok=False,
+            value="skipped — host unreachable",
+            severity="warning",
+        )
+    else:
+        try:
+            manager = BaseGitHubManager(project_dir=project_dir, github_token=token)
+            repo = manager._get_repository()
+            if repo is not None:
+                result["repo_accessible"] = CheckResult(
+                    ok=True,
+                    value=repo.full_name,
+                    severity="error",
+                )
+            else:
+                result["repo_accessible"] = CheckResult(
+                    ok=False,
+                    value="not accessible",
+                    severity="error",
+                    error="Repository returned None from GitHub API",
+                )
+        except (
+            Exception
+        ) as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            logger.debug("Repository access check failed: %s", exc)
             result["repo_accessible"] = CheckResult(
                 ok=False,
                 value="not accessible",
                 severity="error",
-                error="Repository returned None from GitHub API",
+                error=str(exc),
             )
-    except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        logger.debug("Repository access check failed: %s", exc)
-        result["repo_accessible"] = CheckResult(
-            ok=False,
-            value="not accessible",
-            severity="error",
-            error=str(exc),
-        )
 
     # ------------------------------------------------------------------
     # Checks 5–9: branch protection

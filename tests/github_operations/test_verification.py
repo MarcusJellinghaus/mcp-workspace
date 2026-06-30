@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Literal
+from typing import Generator, Literal
 from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
@@ -12,6 +12,32 @@ from mcp_workspace.github_operations._permission_probes import _PROBE_KEYS
 from mcp_workspace.github_operations.verification import CheckResult, verify_github
 
 MODULE = "mcp_workspace.github_operations.verification"
+CLIENT = "mcp_workspace.github_operations._client"
+
+
+@pytest.fixture(autouse=True)
+def _default_network_ok() -> Generator[None, None, None]:
+    """Default the verify-local network probe to a reachable host (tcp=ok, no proxy).
+
+    Keeps the existing connectivity tests offline-safe — without this the real
+    ``_collect_network_diagnostics`` would run a live TCP probe and short-circuit.
+    Short-circuit tests re-patch these two names with their own values.
+    """
+    with (
+        patch(
+            f"{MODULE}._collect_network_diagnostics",
+            return_value={
+                "api_base_url": "https://api.github.com",
+                "host": "api.github.com",
+                "python_proxies": "none",
+                "proxy_env": "none",
+                "pac": "absent",
+                "tcp_probe": "ok",
+            },
+        ),
+        patch(f"{MODULE}.has_applicable_proxy", return_value=False),
+    ):
+        yield
 
 
 def _make_identifier(
@@ -90,7 +116,7 @@ def _patch_all_ok(
             f"{MODULE}.get_github_token_with_source",
             return_value=("ghp_testtoken", token_source),
         ),
-        patch(f"{MODULE}.Github", return_value=mock_github_client),
+        patch(f"{CLIENT}.Github", return_value=mock_github_client),
         patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
         patch(f"{MODULE}.BaseGitHubManager") as mock_manager_cls,
     ):
@@ -147,7 +173,7 @@ class TestTokenNotConfigured:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=(None, None),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=None),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -164,7 +190,7 @@ class TestTokenNotConfigured:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=(None, None),
             ),
-            patch(f"{MODULE}.Github") as mock_gh,
+            patch(f"{CLIENT}.Github") as mock_gh,
             patch(f"{MODULE}.get_repository_identifier", return_value=None),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -211,7 +237,7 @@ class TestAuthFailure:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=("ghp_test", "env"),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -239,7 +265,7 @@ class TestAuthFailureScopesUnknown:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=("ghp_test", "env"),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=None),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -273,7 +299,7 @@ class TestTokenSource:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=(None, None),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=None),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -293,7 +319,7 @@ class TestTokenSource:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=("ghp_bad", "env"),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=None),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -322,7 +348,7 @@ class TestRepoUrlNotResolvable:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=("ghp_test", "env"),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=None),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -352,7 +378,7 @@ class TestRepoNotAccessible:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=("ghp_test", "env"),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -379,7 +405,7 @@ class TestChecksIndependence:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=(None, None),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=None),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -412,7 +438,7 @@ class TestChecksIndependence:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=("ghp_test", "env"),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -489,7 +515,7 @@ class TestNoBranchProtection404:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=("ghp_test", "env"),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -576,7 +602,7 @@ class TestBranchProtectionWhenRepoNotAccessible:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=("ghp_test", "env"),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -647,7 +673,7 @@ class TestAutoDeleteBranches:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=("ghp_test", "env"),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -676,7 +702,7 @@ class TestAutoDeleteBranches:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=("ghp_test", "env"),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -736,7 +762,7 @@ def _patch_for_auth_probe(
             f"{MODULE}.get_github_token_with_source",
             return_value=("ghp_test", "env"),
         ),
-        patch(f"{MODULE}.Github", return_value=mock_github_client) as mock_github_class,
+        patch(f"{CLIENT}.Github", return_value=mock_github_client) as mock_github_class,
         patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
         patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
     ):
@@ -899,7 +925,7 @@ def _patch_with_token_and_auth_behavior(
             f"{MODULE}.get_github_token_with_source",
             return_value=(token, "env" if token is not None else None),
         ),
-        patch(f"{MODULE}.Github", return_value=mock_github_client),
+        patch(f"{CLIENT}.Github", return_value=mock_github_client),
         patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
         patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
     ):
@@ -1129,7 +1155,7 @@ class TestPermissionProbeOverallOkUnaffected:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=("ghp_test", "env"),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -1171,7 +1197,7 @@ class TestPermissionProbeSkipWhenUnreachable:
                 f"{MODULE}.get_github_token_with_source",
                 return_value=("ghp_test", "env"),
             ),
-            patch(f"{MODULE}.Github", return_value=mock_github_client),
+            patch(f"{CLIENT}.Github", return_value=mock_github_client),
             patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
             patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
         ):
@@ -1198,3 +1224,151 @@ class TestPermissionProbeSkipWhenUnreachable:
 
         # Sentinel proves no PyGithub access happened from the probe orchestrator.
         assert sentinel.mock_calls == []
+
+
+# ===================================================================
+# Step 4: network_proxy probe + verify-local short-circuit
+# ===================================================================
+
+
+def _diag(tcp_probe: str, host: str = "api.github.com") -> dict[str, str]:
+    """Build a network-diagnostics dict with a controllable tcp_probe result."""
+    return {
+        "api_base_url": f"https://{host}",
+        "host": host,
+        "python_proxies": "none",
+        "proxy_env": "none",
+        "pac": "absent",
+        "tcp_probe": tcp_probe,
+    }
+
+
+def _run_short_circuit(
+    project_dir: Path,
+    *,
+    tcp_probe: str,
+    proxy_applies: bool,
+) -> tuple[dict[str, object], Mock, Mock]:
+    """Run verify_github with a controlled diag/proxy gate.
+
+    Returns ``(result, github_client, manager)`` so the test can assert whether
+    the slow ``get_user`` / ``_get_repository`` calls were invoked.
+    """
+    mock_user = Mock()
+    mock_user.login = "testuser"
+
+    mock_github_client = Mock()
+    mock_github_client.get_user.return_value = mock_user
+    mock_github_client.oauth_scopes = ["repo"]
+
+    mock_repo = Mock()
+    mock_repo.full_name = "owner/repo"
+    mock_repo.delete_branch_on_merge = True
+    mock_branch = Mock()
+    mock_branch.get_protection.return_value = _make_mock_protection()
+    mock_repo.get_branch.return_value = mock_branch
+
+    identifier = _make_identifier()
+
+    mock_manager = Mock()
+    mock_manager._get_repository.return_value = mock_repo
+    mock_manager.get_default_branch.return_value = "main"
+
+    with (
+        patch(
+            f"{MODULE}.get_github_token_with_source",
+            return_value=("ghp_test", "env"),
+        ),
+        patch(f"{CLIENT}.Github", return_value=mock_github_client),
+        patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
+        patch(
+            f"{MODULE}._collect_network_diagnostics",
+            return_value=_diag(tcp_probe),
+        ),
+        patch(f"{MODULE}.has_applicable_proxy", return_value=proxy_applies),
+        patch(f"{MODULE}.BaseGitHubManager", return_value=mock_manager),
+    ):
+        result = verify_github(project_dir)
+
+    return result, mock_github_client, mock_manager
+
+
+class TestNetworkProbeReachable:
+    """tcp=ok: the auth probe and repo call run; network_proxy reports ok/warning."""
+
+    def test_checks_run(self, tmp_path: Path) -> None:
+        result, client, manager = _run_short_circuit(
+            tmp_path, tcp_probe="ok", proxy_applies=False
+        )
+        client.get_user.assert_called_once()
+        manager._get_repository.assert_called_once()
+
+        auth: CheckResult = result["authenticated_user"]  # type: ignore[assignment]
+        assert auth["ok"] is True
+        repo: CheckResult = result["repo_accessible"]  # type: ignore[assignment]
+        assert repo["ok"] is True
+
+    def test_network_proxy_ok_and_warning(self, tmp_path: Path) -> None:
+        result, _, _ = _run_short_circuit(tmp_path, tcp_probe="ok", proxy_applies=False)
+        np: CheckResult = result["network_proxy"]  # type: ignore[assignment]
+        assert np["ok"] is True
+        assert np["severity"] == "warning"
+        assert "tcp=ok" in np["value"]
+
+
+class TestNetworkProbeUnreachableNoProxy:
+    """tcp=timeout + no proxy: the two slow PyGithub calls are skipped."""
+
+    def test_slow_calls_not_invoked(self, tmp_path: Path) -> None:
+        _, client, manager = _run_short_circuit(
+            tmp_path, tcp_probe="timeout", proxy_applies=False
+        )
+        client.get_user.assert_not_called()
+        manager._get_repository.assert_not_called()
+
+    def test_checks_marked_skipped_warning(self, tmp_path: Path) -> None:
+        result, _, _ = _run_short_circuit(
+            tmp_path, tcp_probe="timeout", proxy_applies=False
+        )
+        for key in ("authenticated_user", "repo_accessible"):
+            check: CheckResult = result[key]  # type: ignore[assignment]
+            assert check["value"] == "skipped — host unreachable"
+            assert check["ok"] is False
+            assert check["severity"] == "warning"
+
+        np: CheckResult = result["network_proxy"]  # type: ignore[assignment]
+        assert np["ok"] is False
+        assert np["severity"] == "warning"
+
+    def test_skip_does_not_force_overall_false(self, tmp_path: Path) -> None:
+        result, _, _ = _run_short_circuit(
+            tmp_path, tcp_probe="timeout", proxy_applies=False
+        )
+        # authenticated_user/repo_accessible degraded to warning severity, so the
+        # only error-severity checks (api_base_url, repo_url, token_configured)
+        # all pass — overall_ok is not hard-failed by the skipped checks.
+        assert result["overall_ok"] is True
+
+
+class TestNetworkProbeUnreachableProxyApplies:
+    """tcp=timeout but a proxy applies: checks run normally (no skip)."""
+
+    def test_checks_still_run(self, tmp_path: Path) -> None:
+        result, client, manager = _run_short_circuit(
+            tmp_path, tcp_probe="timeout", proxy_applies=True
+        )
+        client.get_user.assert_called_once()
+        manager._get_repository.assert_called_once()
+
+        auth: CheckResult = result["authenticated_user"]  # type: ignore[assignment]
+        assert auth["ok"] is True
+        repo: CheckResult = result["repo_accessible"]  # type: ignore[assignment]
+        assert repo["ok"] is True
+
+    def test_network_proxy_reports_not_ok_warning(self, tmp_path: Path) -> None:
+        result, _, _ = _run_short_circuit(
+            tmp_path, tcp_probe="timeout", proxy_applies=True
+        )
+        np: CheckResult = result["network_proxy"]  # type: ignore[assignment]
+        assert np["ok"] is False
+        assert np["severity"] == "warning"

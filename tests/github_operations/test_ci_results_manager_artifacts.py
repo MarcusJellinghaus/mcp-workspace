@@ -284,3 +284,33 @@ class TestGetArtifacts:
 
         with pytest.raises(GithubException):
             ci_manager.get_artifacts(123456)
+
+
+class TestDownloadAndExtractZipTimeout:
+    """Test the bounded (connect, read) timeout on the raw artifact download."""
+
+    @patch("mcp_workspace.github_operations.ci_results_manager.requests.get")
+    def test_uses_connect_read_timeout_tuple(
+        self, mock_get: Mock, ci_manager: CIResultsManager
+    ) -> None:
+        """_download_and_extract_zip passes timeout=(connect, read) to requests.get."""
+        # Build a small in-memory ZIP wrapped in a fake response
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+            zip_file.writestr("result.txt", "ok")
+
+        mock_response = Mock()
+        mock_response.content = zip_buffer.getvalue()
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        url = "https://api.github.com/repos/test/repo/artifacts/456/zip"
+        result = ci_manager._download_and_extract_zip(url)
+
+        assert result == {"result.txt": "ok"}
+        mock_get.assert_called_once()
+        assert mock_get.call_args.kwargs["timeout"] == (
+            ci_manager.DEFAULT_CONNECT_TIMEOUT,
+            ci_manager.DEFAULT_REQUEST_TIMEOUT,
+        )
+        assert mock_get.call_args.kwargs["timeout"] == (10, 60)

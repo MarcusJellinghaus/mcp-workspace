@@ -10,7 +10,16 @@ import git
 import pytest
 
 from mcp_workspace.github_operations import CIResultsManager
+from mcp_workspace.github_operations._network import _reset_network_diagnostics_guard
 from mcp_workspace.github_operations.issues import CacheData, IssueData, IssueManager
+
+
+@pytest.fixture(autouse=True)
+def reset_network_diagnostics_guard() -> Generator[None, None, None]:
+    """Reset the once-per-process network-diagnostics guard for test isolation."""
+    _reset_network_diagnostics_guard()
+    yield
+    _reset_network_diagnostics_guard()
 
 
 @pytest.fixture

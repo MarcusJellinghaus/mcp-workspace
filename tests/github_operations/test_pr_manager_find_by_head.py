@@ -19,7 +19,7 @@ from .test_pr_manager import create_mock_pr
 class TestFindPullRequestByHead:
     """Tests for find_pull_request_by_head() method."""
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_find_pr_by_head_success(self, mock_github: Mock, tmp_path: Path) -> None:
         """Single PR found — verify API called with head='owner:branch', returns list with 1 item."""
         git_dir = tmp_path / "git_dir"
@@ -56,7 +56,7 @@ class TestFindPullRequestByHead:
                 state="open", head="testowner:feature/xyz"
             )
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_find_pr_by_head_multiple_prs(
         self, mock_github: Mock, tmp_path: Path
     ) -> None:
@@ -85,7 +85,7 @@ class TestFindPullRequestByHead:
             assert result[0]["number"] == 10
             assert result[1]["number"] == 11
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_find_pr_by_head_not_found(self, mock_github: Mock, tmp_path: Path) -> None:
         """No PRs — returns empty list."""
         git_dir = tmp_path / "git_dir"
@@ -124,7 +124,7 @@ class TestFindPullRequestByHead:
 
             assert result == []
 
-    @patch("mcp_workspace.github_operations.base_manager.Github")
+    @patch("mcp_workspace.github_operations._client.Github")
     def test_find_pr_by_head_api_error(self, mock_github: Mock, tmp_path: Path) -> None:
         """GithubException — returns empty list (decorator handles)."""
         git_dir = tmp_path / "git_dir"
