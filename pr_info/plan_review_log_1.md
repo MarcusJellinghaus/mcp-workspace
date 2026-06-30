@@ -35,3 +35,24 @@ Supervisor-driven automated plan review. Plan under review: `pr_info/steps/` (st
 - step_4: `network_proxy` value snippet now uses `diag['host']`.
 
 **Status**: plan changed — committing; loop continues with a fresh review round.
+
+## Round 2 — 2026-06-30
+
+**Findings** (fresh engineer review of round-1-fixed plan):
+- Round-1 fixes verified internally consistent (`host` defined in step_3 + consumed in step_4; `# type: ignore` note doesn't contradict dropping Auth/Github imports; step_2 wording coherent).
+- #1 step_3: ALGORITHM pseudocode yields a list `proxy_env` and `pac=None`, violating the `-> dict[str, str]` signature and producing `proxy_env=['HTTPS_PROXY'] pac=None` instead of the acceptance example (mechanical).
+- #2 step_3: return dict references `python_proxies`, never defined in pseudocode (mechanical).
+- #3 step_3: `host = urlsplit(...).hostname` can be `None` (theoretical edge case; nit).
+- Verdict: plan substantively ready; all decisions (D1–D11) and load-bearing constraints confirmed covered with matching test assertions. No blocking issues.
+
+**Decisions**: all three accepted as mechanical fixes (reconcile ALGORITHM pseudocode to its own DATA section). No human decision required.
+
+**User decisions**: none — nothing escalated.
+
+**Changes** (applied to step_3.md ALGORITHM pseudocode):
+- `host = urlsplit(api_base_url).hostname or ""` (None guard).
+- `python_proxies = ",".join(proxies.values()) or "none"` (define the referenced name).
+- `proxy_env = ",".join(present_names) or "none"` (string, not list).
+- `pac = _read_pac_autoconfig_url() or "absent"` (normalize to string).
+
+**Status**: plan changed — committing; loop continues with a fresh review round.

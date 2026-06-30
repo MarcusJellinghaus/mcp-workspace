@@ -52,10 +52,12 @@ _tcp_probe(host):
     except OSError:                         return "refused"
 
 _collect_network_diagnostics(api_base_url):
-    host = urlsplit(api_base_url).hostname
+    host = urlsplit(api_base_url).hostname or ""       # .hostname may be None -> keep str
     proxies = {s: _proxy_host_port(u) for s,u in getproxies().items() if s in ("http","https")}
-    proxy_env = [n for n in ("HTTPS_PROXY","HTTP_PROXY","NO_PROXY") if n in os.environ or n.lower() in os.environ]
-    pac = _read_pac_autoconfig_url()                  # "present" | None (win32 only)
+    python_proxies = ",".join(proxies.values()) or "none"     # comma-joined host:port
+    present_names = [n for n in ("HTTPS_PROXY","HTTP_PROXY","NO_PROXY") if n in os.environ or n.lower() in os.environ]
+    proxy_env = ",".join(present_names) or "none"             # comma-joined names or "none"
+    pac = _read_pac_autoconfig_url() or "absent"      # "present" | None -> "present"/"absent"
     return {
         "api_base_url": api_base_url,
         "host": host,
