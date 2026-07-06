@@ -21,6 +21,23 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1 — `server.py`: per-project default limit (global, setter, resolution, threading)
+
+See [steps/step_1.md](./steps/step_1.md).
+
+- [ ] Implementation (tests + production code): add `_file_size_limit` global and `set_file_size_limit()` setter; change `check_file_size` signature/resolution/docstring; add `file_size_limit` param to `run_server` and call the setter; add tests in `tests/test_server.py`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2 — `main.py`: `--file-size-limit` CLI flag, fail-fast validation, wiring
+
+See [steps/step_2.md](./steps/step_2.md).
+
+- [ ] Implementation (tests + production code): add `--file-size-limit` arg (`type=int`, default `None`); `<= 0` validation in `main()`; pass `file_size_limit=args.file_size_limit` to `run_server`; add tests in `tests/test_reference_projects.py`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] Address PR review feedback
+- [ ] Write PR summary
