@@ -79,15 +79,17 @@ class TestRunServerFileSizeLimit:
     def test_run_server_threads_value(self) -> None:
         """run_server passes the file_size_limit through to the setter."""
         with patch("mcp_workspace.server.mcp.run"):
-            with patch("mcp_workspace.server.set_file_size_limit") as mock_setter:
-                run_server(Path("/test/project"), file_size_limit=750)
+            with patch("mcp_workspace.server.set_project_dir"):
+                with patch("mcp_workspace.server.set_file_size_limit") as mock_setter:
+                    run_server(Path("/test/project"), file_size_limit=750)
 
         mock_setter.assert_called_once_with(750)
 
     def test_run_server_default_is_none(self) -> None:
         """run_server defaults file_size_limit to None when omitted."""
         with patch("mcp_workspace.server.mcp.run"):
-            with patch("mcp_workspace.server.set_file_size_limit") as mock_setter:
-                run_server(Path("/test/project"))
+            with patch("mcp_workspace.server.set_project_dir"):
+                with patch("mcp_workspace.server.set_file_size_limit") as mock_setter:
+                    run_server(Path("/test/project"))
 
         mock_setter.assert_called_once_with(None)
