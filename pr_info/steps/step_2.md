@@ -76,24 +76,27 @@ Mirror the existing `sys.argv`-patching and `main()`-mocking patterns already in
    "--file-size-limit", "750"]`; assert `args.file_size_limit == 750`.
 2. **`parse_args` default is `None`** — `sys.argv = ["script.py", "--project-dir", "/tmp"]`;
    assert `args.file_size_limit is None`.
-3. **`main()` fails fast on `<= 0`** — patch `Path.exists`/`Path.is_dir` (True),
+3. **`parse_args` rejects a non-integer** — `sys.argv = ["script.py", "--project-dir",
+   "/tmp", "--file-size-limit", "abc"]`; assert `pytest.raises(SystemExit)` (argparse's
+   `type=int` exits automatically).
+4. **`main()` fails fast on `<= 0`** — patch `Path.exists`/`Path.is_dir` (True),
    `mcp_workspace.main.setup_logging`, and `mcp_workspace.server.run_server`;
    `sys.argv = [..., "--file-size-limit", "0"]`; assert `pytest.raises(SystemExit)` and
    that `run_server` was **not** called.
-4. **`main()` passes the value through** — same mocks; `sys.argv = [..., "--file-size-limit",
+5. **`main()` passes the value through** — same mocks; `sys.argv = [..., "--file-size-limit",
    "750"]`; call `main()`; assert
    `mock_run_server.call_args[1]["file_size_limit"] == 750`.
-5. **Backward compatibility** — no flag; assert
+6. **Backward compatibility** — no flag; assert
    `mock_run_server.call_args[1]["file_size_limit"] is None`.
 
 ## Definition of done
 
 - New tests pass; existing tests still pass.
 - Run all checks and fix any issue before committing:
-  - `mcp__tools-py__run_pylint_check`
-  - `mcp__tools-py__run_pytest_check` with
+  - `mcp__mcp-tools-py__run_pylint_check`
+  - `mcp__mcp-tools-py__run_pytest_check` with
     `extra_args=["-n", "auto", "-m", "not git_integration and not claude_cli_integration and not claude_api_integration and not formatter_integration and not github_integration and not langchain_integration"]`
-  - `mcp__tools-py__run_mypy_check`
+  - `mcp__mcp-tools-py__run_mypy_check`
 - Exactly one commit for this step (run `./tools/format_all.sh` before committing).
 - All issue acceptance criteria are now met; if the full arch suite (lint-imports,
   vulture, tach) is part of the gate, run it and confirm green.

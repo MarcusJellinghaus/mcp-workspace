@@ -90,8 +90,9 @@ def _reset_globals():
    `check_file_size()`; assert resolved value is `750`.
 3. **Fallback 600** — `set_file_size_limit(None)` (or leave reset), `check_file_size()`;
    assert resolved value is `600`.
-4. **`run_server` threads the value** — mirror the existing
-   `test_run_server_with_reference_projects` pattern: patch
+4. **`run_server` threads the value** — mirror the `run_server` mock pattern used in
+   `tests/test_reference_projects.py::TestReferenceProjectServerStorage` (that file, not
+   this one, holds the existing `run_server` coverage): patch
    `mcp_workspace.server.mcp.run` and `mcp_workspace.server.set_file_size_limit`; call
    `run_server(Path("/test/project"), file_size_limit=750)`; assert
    `set_file_size_limit` called once with `750`. Add a second case asserting the default
@@ -104,10 +105,10 @@ def _reset_globals():
 
 - New tests pass; existing tests still pass.
 - Run all checks and fix any issue before committing:
-  - `mcp__tools-py__run_pylint_check`
-  - `mcp__tools-py__run_pytest_check` with
+  - `mcp__mcp-tools-py__run_pylint_check`
+  - `mcp__mcp-tools-py__run_pytest_check` with
     `extra_args=["-n", "auto", "-m", "not git_integration and not claude_cli_integration and not claude_api_integration and not formatter_integration and not github_integration and not langchain_integration"]`
-  - `mcp__tools-py__run_mypy_check`
+  - `mcp__mcp-tools-py__run_mypy_check`
 - `set_file_size_limit` is called by `run_server` in this same commit, so vulture sees it
   as used.
 - Exactly one commit for this step (run `./tools/format_all.sh` before committing).
