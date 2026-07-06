@@ -25,9 +25,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 See [steps/step_1.md](./steps/step_1.md).
 
-- [ ] Implementation (tests + production code): add `_file_size_limit` global and `set_file_size_limit()` setter; change `check_file_size` signature/resolution/docstring; add `file_size_limit` param to `run_server` and call the setter; add tests in `tests/test_server.py`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code): add `_file_size_limit` global and `set_file_size_limit()` setter; change `check_file_size` signature/resolution/docstring; add `file_size_limit` param to `run_server` and call the setter; add tests in `tests/test_server.py`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared (blocked: MCP save_file refuses the gitignored path pr_info/.commit_message.txt; no shell/Write tool available)
 
 ### Step 2 — `main.py`: `--file-size-limit` CLI flag, fail-fast validation, wiring
 

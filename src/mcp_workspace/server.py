@@ -43,6 +43,9 @@ register_reference_tools(mcp)
 # Store the project directory as a module-level variable
 _project_dir: Optional[Path] = None
 
+# Per-project default line limit for check_file_size (set via --file-size-limit)
+_file_size_limit: Optional[int] = None
+
 # Per-file locks for concurrent edit safety
 _file_locks: dict[str, asyncio.Lock] = {}
 
@@ -78,6 +81,18 @@ def set_project_dir(directory: Path) -> None:
     global _project_dir  # pylint: disable=global-statement
     _project_dir = Path(directory)
     logger.info("Project directory set to: %s", _project_dir)
+
+
+@log_function_call
+def set_file_size_limit(limit: Optional[int]) -> None:
+    """Set the per-project default line limit used by check_file_size.
+
+    Args:
+        limit: Default line limit, or None to fall back to the built-in default.
+    """
+    global _file_size_limit  # pylint: disable=global-statement
+    _file_size_limit = limit
+    logger.info("File size limit set to: %s", limit)
 
 
 @mcp.tool()
@@ -731,21 +746,26 @@ def get_base_branch() -> str:
 
 @mcp.tool()
 @log_function_call
-def check_file_size(max_lines: int = 600) -> str:
+def check_file_size(max_lines: Optional[int] = None) -> str:
     """Check file line counts against threshold.
 
     Args:
-        max_lines: Maximum allowed lines per file (default 600).
+        max_lines: Maximum allowed lines per file. When omitted, the default
+            comes from the server's --file-size-limit flag, falling back to
+            600 if that flag was not given.
 
     Returns:
         Formatted report of files exceeding the threshold.
     """
     if _project_dir is None:
         raise ValueError("Project directory has not been set")
+    effective = max_lines if max_lines is not None else _file_size_limit
+    if effective is None:
+        effective = 600
     allowlist_path = _project_dir / ".large-files-allowlist"
     allowlist = load_allowlist(allowlist_path)
-    result = check_file_sizes(_project_dir, max_lines=max_lines, allowlist=allowlist)
-    return render_output(result, max_lines)
+    result = check_file_sizes(_project_dir, max_lines=effective, allowlist=allowlist)
+    return render_output(result, effective)
 
 
 @mcp.tool()
@@ -782,17 +802,22 @@ async def check_branch_status(
 def run_server(
     project_dir: Path,
     reference_projects: Optional[Dict[str, ReferenceProject]] = None,
+    file_size_limit: Optional[int] = None,
 ) -> None:
     """Run the MCP server with the given project directory and optional reference projects.
 
     Args:
         project_dir: Path to the project directory
         reference_projects: Optional dictionary mapping project names to directory paths
+        file_size_limit: Optional per-project default line limit for check_file_size
     """
     logger.debug("Entering run_server function")
 
     # Set the project directory
     set_project_dir(project_dir)
+
+    # Set the per-project default file size limit
+    set_file_size_limit(file_size_limit)
 
     # Set reference projects if provided
     if reference_projects:

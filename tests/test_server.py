@@ -6,16 +6,20 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import mcp_workspace.server as server_module
 from mcp_workspace.server import (
     append_file,
     check_branch_status,
+    check_file_size,
     delete_this_file,
     edit_file,
     git,
     list_directory,
     move_file,
     read_file,
+    run_server,
     save_file,
+    set_file_size_limit,
     set_project_dir,
 )
 
@@ -713,3 +717,69 @@ class TestCheckBranchStatusTool:
                 await check_branch_status()
         finally:
             srv._project_dir = original
+
+
+class TestCheckFileSizeLimit:
+    """Test the per-project default limit resolution for check_file_size."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_globals(self) -> Generator[None, None, None]:
+        """Reset the module-level file size limit after each test."""
+        yield
+        server_module._file_size_limit = None
+
+    def test_explicit_max_lines_overrides_flag(self, tmp_path: Path) -> None:
+        """Explicit max_lines wins over the configured flag value."""
+        set_project_dir(tmp_path)
+        set_file_size_limit(750)
+
+        with patch("mcp_workspace.server.check_file_sizes") as mock_check:
+            with patch("mcp_workspace.server.render_output") as mock_render:
+                check_file_size(500)
+
+        assert mock_check.call_args.kwargs["max_lines"] == 500
+        assert mock_render.call_args.args[1] == 500
+
+    def test_flag_used_when_omitted(self, tmp_path: Path) -> None:
+        """The configured flag value is used when max_lines is omitted."""
+        set_project_dir(tmp_path)
+        set_file_size_limit(750)
+
+        with patch("mcp_workspace.server.check_file_sizes") as mock_check:
+            with patch("mcp_workspace.server.render_output") as mock_render:
+                check_file_size()
+
+        assert mock_check.call_args.kwargs["max_lines"] == 750
+        assert mock_render.call_args.args[1] == 750
+
+    def test_fallback_to_600(self, tmp_path: Path) -> None:
+        """Falls back to 600 when neither max_lines nor the flag are set."""
+        set_project_dir(tmp_path)
+        set_file_size_limit(None)
+
+        with patch("mcp_workspace.server.check_file_sizes") as mock_check:
+            with patch("mcp_workspace.server.render_output") as mock_render:
+                check_file_size()
+
+        assert mock_check.call_args.kwargs["max_lines"] == 600
+        assert mock_render.call_args.args[1] == 600
+
+
+class TestRunServerFileSizeLimit:
+    """Test that run_server threads file_size_limit to set_file_size_limit."""
+
+    def test_run_server_threads_value(self) -> None:
+        """run_server passes the file_size_limit through to the setter."""
+        with patch("mcp_workspace.server.mcp.run"):
+            with patch("mcp_workspace.server.set_file_size_limit") as mock_setter:
+                run_server(Path("/test/project"), file_size_limit=750)
+
+        mock_setter.assert_called_once_with(750)
+
+    def test_run_server_default_is_none(self) -> None:
+        """run_server defaults file_size_limit to None when omitted."""
+        with patch("mcp_workspace.server.mcp.run"):
+            with patch("mcp_workspace.server.set_file_size_limit") as mock_setter:
+                run_server(Path("/test/project"))
+
+        mock_setter.assert_called_once_with(None)
