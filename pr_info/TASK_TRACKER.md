@@ -33,9 +33,23 @@ See [steps/step_1.md](./steps/step_1.md).
 
 See [steps/step_2.md](./steps/step_2.md).
 
-- [ ] Implementation (tests + production code): add `--file-size-limit` arg (`type=int`, default `None`); `<= 0` validation in `main()`; pass `file_size_limit=args.file_size_limit` to `run_server`; add tests in `tests/test_reference_projects.py`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code): add `--file-size-limit` arg (`type=int`, default `None`); `<= 0` validation in `main()`; pass `file_size_limit=args.file_size_limit` to `run_server`; add tests in `tests/test_reference_projects.py`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared — `pr_info/.commit_message.txt` is gitignored and MCP `save_file`/`append_file` refuse it (re-verified), with no shell/Write tool available, so the message is captured here instead:
+
+  ```
+  feat(workspace): add --file-size-limit CLI flag
+
+  Add a --file-size-limit argument to main.py so operators can configure
+  the default line limit used by the check_file_size MCP tool when
+  max_lines is omitted.
+
+  - parse_args() adds --file-size-limit (type=int, default None)
+  - main() fails fast with exit code 1 when the value is <= 0
+  - the value is threaded to run_server(file_size_limit=...)
+  - tests cover parsing, non-integer rejection, <= 0 validation,
+    pass-through, and backward-compatible default (None)
+  ```
 
 ## Pull Request
 

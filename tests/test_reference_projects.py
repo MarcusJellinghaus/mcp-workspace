@@ -49,6 +49,42 @@ class TestReferenceProjectCLI:
                 "name=proj2,path=/path/to/proj2",
             ]
 
+    def test_parse_file_size_limit(self) -> None:
+        """Test parsing the --file-size-limit argument."""
+        with patch(
+            "sys.argv",
+            [
+                "script.py",
+                "--project-dir",
+                "/tmp",
+                "--file-size-limit",
+                "750",
+            ],
+        ):
+            args = parse_args()
+            assert args.file_size_limit == 750
+
+    def test_parse_file_size_limit_default(self) -> None:
+        """Test --file-size-limit defaults to None when omitted."""
+        with patch("sys.argv", ["script.py", "--project-dir", "/tmp"]):
+            args = parse_args()
+            assert args.file_size_limit is None
+
+    def test_parse_file_size_limit_rejects_non_integer(self) -> None:
+        """Test argparse rejects a non-integer --file-size-limit value."""
+        with patch(
+            "sys.argv",
+            [
+                "script.py",
+                "--project-dir",
+                "/tmp",
+                "--file-size-limit",
+                "abc",
+            ],
+        ):
+            with pytest.raises(SystemExit):
+                parse_args()
+
     @patch("mcp_workspace.main.detect_and_verify_url", return_value=None)
     @patch("mcp_workspace.main.Path.exists")
     @patch("mcp_workspace.main.Path.is_dir")
@@ -538,3 +574,78 @@ class TestReferenceProjectIntegration:
                 with pytest.raises(SystemExit) as exc_info:
                     main()
                 assert exc_info.value.code == 1
+
+    @patch("mcp_workspace.server.run_server")
+    @patch("mcp_workspace.main.Path.exists")
+    @patch("mcp_workspace.main.Path.is_dir")
+    def test_main_file_size_limit_invalid_exits(
+        self, mock_is_dir: MagicMock, mock_exists: MagicMock, mock_run_server: MagicMock
+    ) -> None:
+        """Test main() fails fast when --file-size-limit is <= 0."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        test_args = [
+            "script.py",
+            "--project-dir",
+            "/test/project",
+            "--file-size-limit",
+            "0",
+        ]
+
+        with patch("sys.argv", test_args):
+            with patch("mcp_workspace.main.setup_logging"):
+                from mcp_workspace.main import main
+
+                with pytest.raises(SystemExit) as exc_info:
+                    main()
+                assert exc_info.value.code == 1
+                mock_run_server.assert_not_called()
+
+    @patch("mcp_workspace.server.run_server")
+    @patch("mcp_workspace.main.Path.exists")
+    @patch("mcp_workspace.main.Path.is_dir")
+    def test_main_passes_file_size_limit(
+        self, mock_is_dir: MagicMock, mock_exists: MagicMock, mock_run_server: MagicMock
+    ) -> None:
+        """Test main() passes --file-size-limit through to run_server()."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        test_args = [
+            "script.py",
+            "--project-dir",
+            "/test/project",
+            "--file-size-limit",
+            "750",
+        ]
+
+        with patch("sys.argv", test_args):
+            with patch("mcp_workspace.main.setup_logging"):
+                from mcp_workspace.main import main
+
+                main()
+
+                mock_run_server.assert_called_once()
+                assert mock_run_server.call_args[1]["file_size_limit"] == 750
+
+    @patch("mcp_workspace.server.run_server")
+    @patch("mcp_workspace.main.Path.exists")
+    @patch("mcp_workspace.main.Path.is_dir")
+    def test_main_file_size_limit_default_none(
+        self, mock_is_dir: MagicMock, mock_exists: MagicMock, mock_run_server: MagicMock
+    ) -> None:
+        """Test main() passes file_size_limit=None when the flag is omitted."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        test_args = ["script.py", "--project-dir", "/test/project"]
+
+        with patch("sys.argv", test_args):
+            with patch("mcp_workspace.main.setup_logging"):
+                from mcp_workspace.main import main
+
+                main()
+
+                mock_run_server.assert_called_once()
+                assert mock_run_server.call_args[1]["file_size_limit"] is None

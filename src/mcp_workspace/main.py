@@ -63,6 +63,13 @@ def parse_args() -> argparse.Namespace:
         action="append",
         help="Reference project as key-value pairs: name=myproj,path=/path/to/dir,url=https://... (name and path required, url optional)",
     )
+    parser.add_argument(
+        "--file-size-limit",
+        type=int,
+        default=None,
+        help="Default line limit for check_file_size when max_lines is omitted "
+        "(must be > 0; falls back to 600 if not set).",
+    )
     return parser.parse_args()
 
 
@@ -204,6 +211,13 @@ def main() -> None:
     # Convert to canonical resolved path
     project_dir = project_dir.resolve()
 
+    # Validate file size limit (must be a positive integer when provided)
+    if args.file_size_limit is not None and args.file_size_limit <= 0:
+        print(
+            f"Error: --file-size-limit must be a positive integer: {args.file_size_limit}"
+        )
+        sys.exit(1)
+
     # Generate default log file path if not specified
     if args.console_only:
         log_file = None
@@ -251,7 +265,11 @@ def main() -> None:
     )
 
     # Run the server with the project directory and reference projects
-    run_server(project_dir, reference_projects=reference_projects)
+    run_server(
+        project_dir,
+        reference_projects=reference_projects,
+        file_size_limit=args.file_size_limit,
+    )
 
 
 if __name__ == "__main__":
