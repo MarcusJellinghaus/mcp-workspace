@@ -154,6 +154,8 @@ _.mock_zip_content
 _.sample_issue
 _._patch_get_default_branch
 _._reset_activated_flag
+# Autouse fixture resetting server globals (referenced by pytest collection only)
+_._reset_globals
 # Autouse fixtures for network diagnostics (referenced by pytest collection only)
 _.reset_network_diagnostics_guard
 _._default_network_ok
