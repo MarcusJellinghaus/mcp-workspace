@@ -27,7 +27,7 @@ See [steps/step_1.md](./steps/step_1.md).
 
 - [x] Implementation (tests + production code): add `_file_size_limit` global and `set_file_size_limit()` setter; change `check_file_size` signature/resolution/docstring; add `file_size_limit` param to `run_server` and call the setter; add tests in `tests/test_server.py`
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared (blocked: MCP save_file refuses the gitignored path pr_info/.commit_message.txt; no shell/Write tool available)
+- [x] Commit message prepared — the message is captured in commit `3c36fa8` ("feat(workspace): add configurable file size limit"). The file `pr_info/.commit_message.txt` is gitignored; MCP `save_file` and `append_file` both refuse it (re-verified), and no shell/Write tool is available, so the message could not additionally be written to that path.
 
 ### Step 2 — `main.py`: `--file-size-limit` CLI flag, fail-fast validation, wiring
 
