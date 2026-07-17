@@ -27,7 +27,7 @@ Detail: [step_1.md](./steps/step_1.md)
 
 - [x] Implementation (tests + production code): add `SINCE_OVERLAP_MINUTES` to `constants.py`; extend `CacheData` TypedDict with `updates_covered_through`, `cached_at`, `version`; update `_load_cache_file` to surface them with safe defaults on all return paths; update docstrings
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Commit message prepared
 
 ### Step 2: The fix — two-clock split + read-time overlap + migration + DEBUG logs
 
