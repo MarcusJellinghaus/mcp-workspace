@@ -117,6 +117,9 @@ class TestCacheFileOperations:
             assert result == {
                 "last_checked": None,
                 "last_full_refresh": None,
+                "updates_covered_through": None,
+                "cached_at": {},
+                "version": None,
                 "issues": {},
             }
 
@@ -127,7 +130,14 @@ class TestCacheFileOperations:
             cache_path.write_text(json.dumps(sample_cache_data))
 
             result = _load_cache_file(cache_path)
-            assert result == sample_cache_data
+            # New schema fields are surfaced with safe defaults for old-shape data
+            expected: CacheData = {
+                **sample_cache_data,
+                "updates_covered_through": None,
+                "cached_at": {},
+                "version": None,
+            }
+            assert result == expected
 
     def test_load_cache_file_invalid_json(self) -> None:
         """Test loading corrupted JSON file returns empty structure."""
@@ -139,6 +149,9 @@ class TestCacheFileOperations:
             assert result == {
                 "last_checked": None,
                 "last_full_refresh": None,
+                "updates_covered_through": None,
+                "cached_at": {},
+                "version": None,
                 "issues": {},
             }
 
@@ -152,6 +165,9 @@ class TestCacheFileOperations:
             assert result == {
                 "last_checked": None,
                 "last_full_refresh": None,
+                "updates_covered_through": None,
+                "cached_at": {},
+                "version": None,
                 "issues": {},
             }
 
@@ -1651,4 +1667,65 @@ class TestLastFullRefresh:
         loaded = _load_cache_file(cache_file)
         assert loaded["last_full_refresh"] is None
         assert loaded["last_checked"] == "2025-12-31T10:30:00Z"
+        assert "1" in loaded["issues"]
+
+
+class TestNewCacheSchemaFields:
+    """Tests for the new schema fields surfaced by _load_cache_file.
+
+    Covers updates_covered_through (data cursor), cached_at (sidecar map) and
+    version (schema version), including backward compatibility with old-shape
+    caches that lack these fields.
+    """
+
+    def test_load_cache_file_nonexistent_has_new_field_defaults(self) -> None:
+        """Nonexistent cache returns safe defaults for all new schema fields."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_path = Path(tmpdir) / "nonexistent.json"
+            result = _load_cache_file(cache_path)
+
+            assert result["updates_covered_through"] is None
+            assert result["cached_at"] == {}
+            assert result["version"] is None
+
+    def test_load_cache_preserves_new_fields(self, tmp_path: Path) -> None:
+        """A file containing all three new fields round-trips unchanged."""
+        cache_file = tmp_path / "test.json"
+        stored = {
+            "last_checked": "2025-12-31T10:30:00Z",
+            "last_full_refresh": "2025-12-31T10:30:00Z",
+            "updates_covered_through": "2025-12-31T09:15:00Z",
+            "cached_at": {"1": "2025-12-31T09:00:00Z"},
+            "version": 1,
+            "issues": {"1": {"number": 1, "state": "open", "labels": []}},
+        }
+        with cache_file.open("w") as f:
+            json.dump(stored, f)
+
+        loaded = _load_cache_file(cache_file)
+        assert loaded["updates_covered_through"] == "2025-12-31T09:15:00Z"
+        assert loaded["cached_at"] == {"1": "2025-12-31T09:00:00Z"}
+        assert loaded["version"] == 1
+        assert loaded["last_checked"] == "2025-12-31T10:30:00Z"
+        assert "1" in loaded["issues"]
+
+    def test_load_old_shape_cache_defaults_new_fields(self, tmp_path: Path) -> None:
+        """Old-shape cache (only last_checked + issues) self-heal precondition.
+
+        Loads with updates_covered_through/version None and cached_at {} while
+        keeping issues intact - the None cursor is what triggers the self-healing
+        full refresh in later steps.
+        """
+        cache_file = tmp_path / "test.json"
+        old_cache = {
+            "last_checked": "2025-12-31T10:30:00Z",
+            "issues": {"1": {"number": 1, "state": "open", "labels": []}},
+        }
+        with cache_file.open("w") as f:
+            json.dump(old_cache, f)
+
+        loaded = _load_cache_file(cache_file)
+        assert loaded["updates_covered_through"] is None
+        assert loaded["version"] is None
+        assert loaded["cached_at"] == {}
         assert "1" in loaded["issues"]

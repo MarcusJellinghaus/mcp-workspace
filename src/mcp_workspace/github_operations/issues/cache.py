@@ -49,26 +49,54 @@ class CacheData(TypedDict):
     Attributes:
         last_checked: ISO 8601 timestamp of last cache refresh, or None if never checked
         last_full_refresh: ISO 8601 timestamp of last successful full refresh, or None
+        updates_covered_through: ISO 8601 data cursor (max observed issue
+            ``updated_at``) used as the ``since`` floor for incremental refreshes,
+            or None if never set (old-shape caches). Distinct from
+            ``last_checked`` (wall-clock poll time).
+        cached_at: Sidecar map ``{issue_number: ISO 8601 timestamp}`` recording
+            when each cached entry was last written. Cache-level metadata, never
+            a field on IssueData.
+        version: Cache-schema version for safe migrations, or None if unset.
         issues: Dictionary mapping issue number (as string) to IssueData
     """
 
     last_checked: Optional[str]
     last_full_refresh: NotRequired[Optional[str]]
+    updates_covered_through: NotRequired[Optional[str]]
+    cached_at: NotRequired[Dict[str, str]]
+    version: NotRequired[Optional[int]]
     issues: Dict[str, IssueData]
 
 
 def _load_cache_file(cache_file_path: Path) -> CacheData:
     """Load cache file or return empty cache structure.
 
+    Surfaces the schema fields with safe defaults on every return path, so
+    callers always receive a fully-shaped ``CacheData``. Old-shape files (no
+    ``updates_covered_through`` / ``version``) load with those set to None and
+    ``cached_at`` defaulting to an empty dict, which is the precondition for the
+    self-healing full refresh.
+
     Args:
         cache_file_path: Path to cache file
 
     Returns:
-        CacheData with last_checked and issues, or empty structure on errors
+        CacheData with ``last_checked``, ``last_full_refresh``,
+        ``updates_covered_through``, ``cached_at``, ``version`` and ``issues``.
+        Returns an empty structure (new fields defaulted) on missing files,
+        invalid structure or load errors.
     """
+    empty: CacheData = {
+        "last_checked": None,
+        "last_full_refresh": None,
+        "updates_covered_through": None,
+        "cached_at": {},
+        "version": None,
+        "issues": {},
+    }
     try:
         if not cache_file_path.exists():
-            return {"last_checked": None, "last_full_refresh": None, "issues": {}}
+            return empty
 
         with cache_file_path.open("r") as f:
             data = json.load(f)
@@ -76,18 +104,21 @@ def _load_cache_file(cache_file_path: Path) -> CacheData:
         # Validate structure
         if not isinstance(data, dict) or "issues" not in data:
             logger.warning(f"Invalid cache structure in {cache_file_path}, recreating")
-            return {"last_checked": None, "last_full_refresh": None, "issues": {}}
+            return empty
 
         # Return as CacheData since we validated the structure
         return {
             "last_checked": data.get("last_checked"),
             "last_full_refresh": data.get("last_full_refresh"),
+            "updates_covered_through": data.get("updates_covered_through"),
+            "cached_at": data.get("cached_at", {}),
+            "version": data.get("version"),
             "issues": data["issues"],
         }
 
     except (json.JSONDecodeError, OSError, PermissionError) as e:
         logger.warning(f"Cache load error for {cache_file_path}: {e}, starting fresh")
-        return {"last_checked": None, "last_full_refresh": None, "issues": {}}
+        return empty
 
 
 def _log_cache_metrics(action: str, repo_name: str, **kwargs: Any) -> None:
