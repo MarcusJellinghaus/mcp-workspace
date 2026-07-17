@@ -26,7 +26,7 @@ from typing import (
 
 from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
-from mcp_workspace.constants import DUPLICATE_PROTECTION_SECONDS
+from mcp_workspace.constants import DUPLICATE_PROTECTION_SECONDS, SINCE_OVERLAP_MINUTES
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 from mcp_workspace.utils.timezone_utils import (
     format_for_cache,
@@ -42,6 +42,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Cache-schema version written on every save. Not branched on: the self-healing
+# migration keys off updates_covered_through absence (see _fetch_and_merge_issues).
+CACHE_SCHEMA_VERSION: int = 1
+
 
 class CacheData(TypedDict):
     """Type definition for coordinator issue cache structure.
@@ -49,26 +53,54 @@ class CacheData(TypedDict):
     Attributes:
         last_checked: ISO 8601 timestamp of last cache refresh, or None if never checked
         last_full_refresh: ISO 8601 timestamp of last successful full refresh, or None
+        updates_covered_through: ISO 8601 data cursor (max observed issue
+            ``updated_at``) used as the ``since`` floor for incremental refreshes,
+            or None if never set (old-shape caches). Distinct from
+            ``last_checked`` (wall-clock poll time).
+        cached_at: Sidecar map ``{issue_number: ISO 8601 timestamp}`` recording
+            when each cached entry was last written. Cache-level metadata, never
+            a field on IssueData.
+        version: Cache-schema version for safe migrations, or None if unset.
         issues: Dictionary mapping issue number (as string) to IssueData
     """
 
     last_checked: Optional[str]
     last_full_refresh: NotRequired[Optional[str]]
+    updates_covered_through: NotRequired[Optional[str]]
+    cached_at: NotRequired[Dict[str, str]]
+    version: NotRequired[Optional[int]]
     issues: Dict[str, IssueData]
 
 
 def _load_cache_file(cache_file_path: Path) -> CacheData:
     """Load cache file or return empty cache structure.
 
+    Surfaces the schema fields with safe defaults on every return path, so
+    callers always receive a fully-shaped ``CacheData``. Old-shape files (no
+    ``updates_covered_through`` / ``version``) load with those set to None and
+    ``cached_at`` defaulting to an empty dict, which is the precondition for the
+    self-healing full refresh.
+
     Args:
         cache_file_path: Path to cache file
 
     Returns:
-        CacheData with last_checked and issues, or empty structure on errors
+        CacheData with ``last_checked``, ``last_full_refresh``,
+        ``updates_covered_through``, ``cached_at``, ``version`` and ``issues``.
+        Returns an empty structure (new fields defaulted) on missing files,
+        invalid structure or load errors.
     """
+    empty: CacheData = {
+        "last_checked": None,
+        "last_full_refresh": None,
+        "updates_covered_through": None,
+        "cached_at": {},
+        "version": None,
+        "issues": {},
+    }
     try:
         if not cache_file_path.exists():
-            return {"last_checked": None, "last_full_refresh": None, "issues": {}}
+            return empty
 
         with cache_file_path.open("r") as f:
             data = json.load(f)
@@ -76,18 +108,21 @@ def _load_cache_file(cache_file_path: Path) -> CacheData:
         # Validate structure
         if not isinstance(data, dict) or "issues" not in data:
             logger.warning(f"Invalid cache structure in {cache_file_path}, recreating")
-            return {"last_checked": None, "last_full_refresh": None, "issues": {}}
+            return empty
 
         # Return as CacheData since we validated the structure
         return {
             "last_checked": data.get("last_checked"),
             "last_full_refresh": data.get("last_full_refresh"),
+            "updates_covered_through": data.get("updates_covered_through"),
+            "cached_at": data.get("cached_at", {}),
+            "version": data.get("version"),
             "issues": data["issues"],
         }
 
     except (json.JSONDecodeError, OSError, PermissionError) as e:
         logger.warning(f"Cache load error for {cache_file_path}: {e}, starting fresh")
-        return {"last_checked": None, "last_full_refresh": None, "issues": {}}
+        return empty
 
 
 def _log_cache_metrics(action: str, repo_name: str, **kwargs: Any) -> None:
@@ -310,7 +345,7 @@ def _fetch_additional_issues(
     return result
 
 
-def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
     issue_manager: "IssueManager",
     cache_data: CacheData,
     repo_name: str,
@@ -319,8 +354,15 @@ def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-posi
     now: datetime,
     cache_refresh_minutes: int,
     last_full_refresh: Optional[datetime] = None,
-) -> Tuple[List[IssueData], bool]:
+    updates_covered_through: Optional[datetime] = None,
+) -> Tuple[List[IssueData], bool, Optional[datetime]]:
     """Fetch fresh issues and merge into cache.
+
+    Splits the wall-clock poll time (``last_checked``) from the data cursor
+    (``updates_covered_through``). Incremental refreshes use the cursor minus a
+    fixed ``SINCE_OVERLAP_MINUTES`` margin as the ``since`` floor, and the
+    returned ``new_cursor`` is the honest high-water mark (max ``updated_at``
+    actually observed in the incremental list), never wall-clock ``now``.
 
     Args:
         issue_manager: IssueManager for GitHub API calls
@@ -331,15 +373,24 @@ def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-posi
         now: Current UTC timestamp
         cache_refresh_minutes: Full refresh threshold in minutes
         last_full_refresh: Last full refresh timestamp (or None)
+        updates_covered_through: Parsed data cursor (max observed ``updated_at``)
+            used as the ``since`` floor, or None for old-shape caches (which
+            triggers a self-healing full refresh).
 
     Returns:
-        Tuple of (fresh issues fetched from API, whether a full refresh was performed)
+        Tuple of (fresh issues fetched from API, whether a full refresh was
+        performed, new data cursor). ``new_cursor`` is ``now`` on full refresh,
+        the max ``updated_at`` over the incremental list on incremental refresh,
+        or None when the incremental list is empty (so the caller leaves the
+        stored cursor unchanged).
     """
-    # Determine refresh strategy
+    # Determine refresh strategy. A missing updates_covered_through (old-shape
+    # cache) self-heals via one full refresh.
     is_full_refresh = (
         force_refresh
         or not last_checked
         or not last_full_refresh
+        or not updates_covered_through
         or (now - last_full_refresh) > timedelta(minutes=cache_refresh_minutes)
     )
 
@@ -362,17 +413,29 @@ def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-posi
             fresh_dict = {str(issue["number"]): issue for issue in fresh_issues}
             _log_stale_cache_entries(cache_data["issues"], fresh_dict)
 
-        # Clear cache on full refresh to remove closed issues
+        # Clear cache on full refresh to remove closed issues. Rebuild the
+        # cached_at sidecar from scratch too, dropping stale entries for issues
+        # no longer returned (re-stamped from fresh_dict in get_all_cached_issues).
         cache_data["issues"] = {}
+        cache_data["cached_at"] = {}
+
+        # A full, unfiltered enumeration is a complete observation.
+        new_cursor: Optional[datetime] = now
     else:
-        # last_checked is guaranteed to be non-None here
+        # last_checked / updates_covered_through are guaranteed non-None here
         assert last_checked is not None
+        assert updates_covered_through is not None
+
+        # Re-scan a short trailing window to absorb GitHub's since-index lag.
+        since = updates_covered_through - timedelta(minutes=SINCE_OVERLAP_MINUTES)
         cache_age_minutes = int((now - last_checked).total_seconds() / 60)
         logger.debug(
-            f"Incremental refresh for {repo_name} since {last_checked} (age={cache_age_minutes}m)"
+            f"Incremental refresh for {repo_name} since {since} "
+            f"(cursor={updates_covered_through}, overlap={SINCE_OVERLAP_MINUTES}m, "
+            f"last_checked_age={cache_age_minutes}m)"
         )
         fresh_issues = issue_manager._list_issues_no_error_handling(
-            state="all", include_pull_requests=False, since=last_checked
+            state="all", include_pull_requests=False, since=since
         )
         _log_cache_metrics(
             "refresh",
@@ -381,7 +444,26 @@ def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-posi
             issue_count=len(fresh_issues),
         )
 
-    return fresh_issues, is_full_refresh
+        # Advance the cursor from the max updated_at actually observed, not
+        # wall-clock now. None values are filtered; an empty list leaves the
+        # cursor unchanged (an empty response is exactly the lag hiding a write).
+        stamps = [
+            parse_iso_timestamp(updated)
+            for issue in fresh_issues
+            if (updated := issue.get("updated_at"))
+        ]
+        new_cursor = max(stamps) if stamps else None
+        min_stamp = min(stamps) if stamps else None
+        max_stamp = max(stamps) if stamps else None
+        gap = new_cursor - updates_covered_through if new_cursor is not None else None
+        logger.debug(
+            f"Incremental result for {repo_name}: count={len(fresh_issues)}, "
+            f"updated_at min={min_stamp} max={max_stamp}, "
+            f"cursor {updates_covered_through} -> {new_cursor} (gap={gap}), "
+            f"numbers={[issue['number'] for issue in fresh_issues]}"
+        )
+
+    return fresh_issues, is_full_refresh, new_cursor
 
 
 def get_all_cached_issues(  # pylint: disable=too-many-locals
@@ -450,6 +532,19 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
                 f"Invalid last_full_refresh in cache: {last_full_refresh_str}, error: {e}"
             )
 
+    # Parse updates_covered_through data cursor (like last_full_refresh). A
+    # missing or malformed value stays None and self-heals via a full refresh.
+    updates_covered_through = None
+    updates_covered_through_str = cache_data.get("updates_covered_through")
+    if updates_covered_through_str:
+        try:
+            updates_covered_through = parse_iso_timestamp(updates_covered_through_str)
+        except ValueError as e:
+            logger.debug(
+                f"Invalid updates_covered_through in cache: "
+                f"{updates_covered_through_str}, error: {e}"
+            )
+
     # Step 2: Fetch additional issues BEFORE duplicate protection check
     additional_dict: dict[str, IssueData] = {}
     if additional_issues:
@@ -490,7 +585,7 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
 
     try:
         # Step 4: Fetch and merge issues
-        fresh_issues, was_full_refresh = _fetch_and_merge_issues(
+        fresh_issues, was_full_refresh, new_cursor = _fetch_and_merge_issues(
             issue_manager,
             cache_data,
             repo_name,
@@ -499,6 +594,7 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
             now,
             cache_refresh_minutes,
             last_full_refresh,
+            updates_covered_through,
         )
 
         # Step 5: Update cache with fresh data
@@ -506,10 +602,24 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
         cache_data["issues"].update(fresh_dict)
 
         # Step 5b: Restore additional issues (they may have been cleared during full refresh)
+        # Note: additional issues are fetched by number, bypassing `since`, so
+        # they must never feed the data cursor (new_cursor already excludes them).
         if additional_dict:
             cache_data["issues"].update(additional_dict)
 
+        # Step 5c: Stamp the cached_at sidecar for every issue written this
+        # refresh (fresh + additional). On full refresh cached_at was reset to {}
+        # in _fetch_and_merge_issues, so this rebuilds it from scratch.
+        now_str = format_for_cache(now)
+        for issue_key in fresh_dict:
+            cache_data["cached_at"][issue_key] = now_str
+        for issue_key in additional_dict:
+            cache_data["cached_at"][issue_key] = now_str
+        cache_data["version"] = CACHE_SCHEMA_VERSION
+
         cache_data["last_checked"] = format_for_cache(now)
+        if new_cursor is not None:
+            cache_data["updates_covered_through"] = format_for_cache(new_cursor)
         if was_full_refresh:
             cache_data["last_full_refresh"] = format_for_cache(now)
 

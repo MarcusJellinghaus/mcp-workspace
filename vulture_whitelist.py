@@ -148,6 +148,8 @@ _.issues
 _.resolved_thread_count
 # CommitResult TypedDict field - accessed via subscript
 _.error_category
+# CacheData TypedDict field - accessed via subscript
+_.cached_at
 
 # Test fixtures
 _.mock_zip_content
