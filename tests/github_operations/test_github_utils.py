@@ -280,7 +280,9 @@ class TestPullRequestManagerIntegration:
             repo = git.Repo(pr_manager.project_dir)
             try:
                 # List all remote branches
-                remote_branches = repo.git.ls_remote("--heads", "origin").split("\n")
+                remote_branches = str(repo.git.ls_remote("--heads", "origin")).split(
+                    "\n"
+                )
                 remote_branch_names = [
                     line.split("/")[-1] for line in remote_branches if line.strip()
                 ]
