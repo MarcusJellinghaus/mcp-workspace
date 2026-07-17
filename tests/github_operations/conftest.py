@@ -92,6 +92,7 @@ def sample_cache_data() -> CacheData:
     return {
         "last_checked": "2025-12-31T10:30:00Z",
         "last_full_refresh": "2025-12-31T10:30:00Z",
+        "updates_covered_through": "2025-12-31T09:00:00Z",
         "issues": {
             "123": {
                 "number": 123,

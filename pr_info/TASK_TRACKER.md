@@ -33,9 +33,9 @@ Detail: [step_1.md](./steps/step_1.md)
 
 Detail: [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation (tests + production code): change `_fetch_and_merge_issues` to return `(fresh_issues, is_full_refresh, new_cursor)` and take parsed cursor; compute incremental `since` as `cursor - SINCE_OVERLAP_MINUTES`; extend full-refresh trigger with `or not updates_covered_through`; wire cursor through `get_all_cached_issues`; add DEBUG logs; update incremental-path fixtures
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code): change `_fetch_and_merge_issues` to return `(fresh_issues, is_full_refresh, new_cursor)` and take parsed cursor; compute incremental `since` as `cursor - SINCE_OVERLAP_MINUTES`; extend full-refresh trigger with `or not updates_covered_through`; wire cursor through `get_all_cached_issues`; add DEBUG logs; update incremental-path fixtures
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared (blocked: `pr_info/.commit_message.txt` is gitignored and cannot be written via MCP tools; no Bash tool available this session — message text ready, see run output)
 
 ### Step 3: Schema bookkeeping — `cached_at` sidecar + `version` write
 
