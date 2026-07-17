@@ -22,6 +22,7 @@ from mcp_workspace.github_operations.issues import (
     update_issue_labels_in_cache,
 )
 from mcp_workspace.github_operations.issues.cache import (
+    CACHE_SCHEMA_VERSION,
     _get_cache_file_path,
     _load_cache_file,
     _log_cache_metrics,
@@ -2088,3 +2089,151 @@ class TestWatermarkRecovery:
         assert len(calls) == 2
         for call in calls:
             assert call.kwargs["state"] == "all"
+
+
+class TestCacheBookkeeping:
+    """Tests for the cached_at sidecar map and version stamping on save.
+
+    Verifies the schema bookkeeping deliverables: ``version`` is written on every
+    save, ``cached_at`` stamps every issue merged this refresh (fresh + additional)
+    with the poll timestamp, and a full refresh rebuilds ``cached_at`` from scratch
+    (dropping stale entries for issues no longer returned).
+    """
+
+    NOW = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+    NOW_STR = "2025-12-31T12:00:00+00:00"
+
+    def _incremental_seed(self) -> CacheData:
+        """Cache seed that stays on the incremental path under ``NOW``."""
+        return {
+            "last_checked": "2025-12-31T11:58:00+00:00",
+            "last_full_refresh": "2025-12-31T10:00:00+00:00",
+            "updates_covered_through": "2025-12-31T11:00:00+00:00",
+            "issues": {"1": _make_cursor_issue(1, "2025-12-31T09:00:00Z")},
+        }
+
+    def _run(
+        self,
+        manager: Mock,
+        cache_file: Path,
+        seed: CacheData,
+        *,
+        force_refresh: bool = False,
+        additional_issues: Optional[List[int]] = None,
+    ) -> Dict[str, Any]:
+        """Save the seed, run get_all_cached_issues, return the reloaded JSON."""
+        _save_cache_file(cache_file, seed)
+        get_all_cached_issues(
+            RepoIdentifier.from_full_name("test/repo"),
+            manager,
+            force_refresh=force_refresh,
+            additional_issues=additional_issues,
+        )
+        with cache_file.open("r") as f:
+            data: Dict[str, Any] = json.load(f)
+        return data
+
+    @patch("mcp_workspace.github_operations.issues.cache._get_cache_file_path")
+    @patch("mcp_workspace.github_operations.issues.cache.now_utc")
+    def test_version_written_on_save(
+        self,
+        mock_now: Mock,
+        mock_path: Mock,
+        tmp_path: Path,
+        mock_cache_issue_manager: Mock,
+    ) -> None:
+        """Every saved cache carries version == CACHE_SCHEMA_VERSION."""
+        mock_now.return_value = self.NOW
+        cache_file = tmp_path / "test.json"
+        mock_path.return_value = cache_file
+        mock_cache_issue_manager._list_issues_no_error_handling.return_value = [
+            _make_cursor_issue(10, "2025-12-31T11:30:00Z"),
+        ]
+
+        saved = self._run(
+            mock_cache_issue_manager, cache_file, self._incremental_seed()
+        )
+
+        assert saved["version"] == CACHE_SCHEMA_VERSION
+
+    @patch("mcp_workspace.github_operations.issues.cache._get_cache_file_path")
+    @patch("mcp_workspace.github_operations.issues.cache.now_utc")
+    def test_cached_at_stamped_for_merged_issues(
+        self,
+        mock_now: Mock,
+        mock_path: Mock,
+        tmp_path: Path,
+        mock_cache_issue_manager: Mock,
+    ) -> None:
+        """An incremental issue is stamped in cached_at with the poll timestamp."""
+        mock_now.return_value = self.NOW
+        cache_file = tmp_path / "test.json"
+        mock_path.return_value = cache_file
+        mock_cache_issue_manager._list_issues_no_error_handling.return_value = [
+            _make_cursor_issue(10, "2025-12-31T11:30:00Z"),
+        ]
+
+        saved = self._run(
+            mock_cache_issue_manager, cache_file, self._incremental_seed()
+        )
+
+        assert saved["cached_at"]["10"] == self.NOW_STR
+        assert saved["cached_at"]["10"] == saved["last_checked"]
+
+    @patch("mcp_workspace.github_operations.issues.cache._get_cache_file_path")
+    @patch("mcp_workspace.github_operations.issues.cache.now_utc")
+    def test_cached_at_rebuilt_on_full_refresh(
+        self,
+        mock_now: Mock,
+        mock_path: Mock,
+        tmp_path: Path,
+        mock_cache_issue_manager: Mock,
+    ) -> None:
+        """A full refresh drops stale cached_at entries and stamps only fresh ones."""
+        mock_now.return_value = self.NOW
+        cache_file = tmp_path / "test.json"
+        mock_path.return_value = cache_file
+        # Seed a stale cached_at entry for an issue no longer returned.
+        seed = self._incremental_seed()
+        seed["cached_at"] = {"999": "2025-12-01T00:00:00+00:00"}
+        mock_cache_issue_manager._list_issues_no_error_handling.return_value = [
+            _make_cursor_issue(10, "2025-12-31T09:00:00Z"),
+        ]
+
+        saved = self._run(
+            mock_cache_issue_manager, cache_file, seed, force_refresh=True
+        )
+
+        assert "999" not in saved["cached_at"]
+        assert set(saved["cached_at"].keys()) == {"10"}
+        assert saved["cached_at"]["10"] == self.NOW_STR
+
+    @patch("mcp_workspace.github_operations.issues.cache._get_cache_file_path")
+    @patch("mcp_workspace.github_operations.issues.cache.now_utc")
+    def test_cached_at_includes_additional_issues(
+        self,
+        mock_now: Mock,
+        mock_path: Mock,
+        tmp_path: Path,
+        mock_cache_issue_manager: Mock,
+    ) -> None:
+        """A force-fetched additional issue is stamped in cached_at."""
+        mock_now.return_value = self.NOW
+        cache_file = tmp_path / "test.json"
+        mock_path.return_value = cache_file
+        mock_cache_issue_manager._list_issues_no_error_handling.return_value = [
+            _make_cursor_issue(10, "2025-12-31T11:30:00Z"),
+        ]
+        mock_cache_issue_manager.get_issue.return_value = _make_cursor_issue(
+            99, "2025-12-31T11:59:00Z"
+        )
+
+        saved = self._run(
+            mock_cache_issue_manager,
+            cache_file,
+            self._incremental_seed(),
+            additional_issues=[99],
+        )
+
+        assert saved["cached_at"]["99"] == self.NOW_STR
+        assert saved["cached_at"]["10"] == self.NOW_STR

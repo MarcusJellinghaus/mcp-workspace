@@ -42,6 +42,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Cache-schema version written on every save. Not branched on: the self-healing
+# migration keys off updates_covered_through absence (see _fetch_and_merge_issues).
+CACHE_SCHEMA_VERSION: int = 1
+
 
 class CacheData(TypedDict):
     """Type definition for coordinator issue cache structure.
@@ -409,8 +413,11 @@ def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-posi
             fresh_dict = {str(issue["number"]): issue for issue in fresh_issues}
             _log_stale_cache_entries(cache_data["issues"], fresh_dict)
 
-        # Clear cache on full refresh to remove closed issues
+        # Clear cache on full refresh to remove closed issues. Rebuild the
+        # cached_at sidecar from scratch too, dropping stale entries for issues
+        # no longer returned (re-stamped from fresh_dict in get_all_cached_issues).
         cache_data["issues"] = {}
+        cache_data["cached_at"] = {}
 
         # A full, unfiltered enumeration is a complete observation.
         new_cursor: Optional[datetime] = now
@@ -599,6 +606,16 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
         # they must never feed the data cursor (new_cursor already excludes them).
         if additional_dict:
             cache_data["issues"].update(additional_dict)
+
+        # Step 5c: Stamp the cached_at sidecar for every issue written this
+        # refresh (fresh + additional). On full refresh cached_at was reset to {}
+        # in _fetch_and_merge_issues, so this rebuilds it from scratch.
+        now_str = format_for_cache(now)
+        for issue_key in fresh_dict:
+            cache_data["cached_at"][issue_key] = now_str
+        for issue_key in additional_dict:
+            cache_data["cached_at"][issue_key] = now_str
+        cache_data["version"] = CACHE_SCHEMA_VERSION
 
         cache_data["last_checked"] = format_for_cache(now)
         if new_cursor is not None:

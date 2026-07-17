@@ -41,9 +41,29 @@ Detail: [step_2.md](./steps/step_2.md)
 
 Detail: [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation (tests + production code): add `CACHE_SCHEMA_VERSION = 1`; reset `cached_at = {}` on full refresh; stamp `cached_at` for merged issues (fresh + additional); write `version` on save
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code): add `CACHE_SCHEMA_VERSION = 1`; reset `cached_at = {}` on full refresh; stamp `cached_at` for merged issues (fresh + additional); write `version` on save
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared (message below; `pr_info/.commit_message.txt` cannot be written — MCP `save_file`/`append_file` refuse gitignored paths and no Bash tool this session, same as Step 2)
+
+Step 3 commit message:
+
+```
+feat(issues): stamp cached_at sidecar and cache schema version
+
+Complete the cache-schema bookkeeping for the incremental-refresh fix.
+
+- Add CACHE_SCHEMA_VERSION = 1 module constant, written on every save.
+  Not branched on: the self-healing migration keys off
+  updates_covered_through absence.
+- Reset cached_at = {} alongside issues = {} on full refresh so stale
+  entries for issues no longer returned are dropped and rebuilt.
+- Stamp cached_at[issue_number] = format_for_cache(now) for every issue
+  merged this refresh (fresh since-list + force-fetched additional).
+- Write version on save.
+
+Adds TestCacheBookkeeping covering version-on-save, cached_at stamping
+for merged and additional issues, and cached_at rebuild on full refresh.
+```
 
 ## Pull Request
 
