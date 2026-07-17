@@ -44,6 +44,10 @@ loaded-data return, exactly mirroring how `last_full_refresh` is already handled
   `data.get("version")`.
 - `_save_cache_file` needs **no change** — it dumps the whole dict; new keys are
   written by callers in later steps.
+- **Docstrings (Boy Scout):** update the `CacheData` TypedDict docstring **and**
+  the `_load_cache_file` docstring to document the three new fields
+  (`updates_covered_through`, `cached_at`, `version`) — they currently only
+  document `last_checked`/`issues`.
 
 ## ALGORITHM (`_load_cache_file`, unchanged shape)
 ```
@@ -89,7 +93,9 @@ mcp__tools-py__run_mypy_check
 > `src/mcp_workspace/github_operations/issues/cache.py` with
 > `updates_covered_through`, `cached_at`, and `version` (all `NotRequired`); and
 > update `_load_cache_file` to surface them with safe defaults on every return
-> path, mirroring `last_full_refresh`. Do **not** change refresh behavior,
+> path, mirroring `last_full_refresh`. Per the Boy Scout rule, update the
+> `CacheData` TypedDict docstring and the `_load_cache_file` docstring to
+> document the three new fields. Do **not** change refresh behavior,
 > `_save_cache_file`, `IssueData`, or `__init__.py`. Use MCP tools for all file
 > and check operations. After the edits, run pylint, pytest (with the
 > not-integration marker exclusion and `-n auto`), and mypy; fix everything until
