@@ -40,6 +40,11 @@ Signature **unchanged** (no new public param). Internally:
   refresh). `version` is **not** read here.
 - Incremental `since` floor is computed at read time from the cursor, not
   `last_checked`.
+- **DEBUG-log style:** keep the new incremental-refresh DEBUG lines consistent
+  with the existing `_log_cache_metrics(action, repo_name, **kwargs)` helper in
+  `cache.py` — include `repo_name` context so all cache logging shares one
+  idiom. Inline `logger.debug(...)` is acceptable, but do not introduce a second
+  divergent logging style in the module.
 
 ## ALGORITHM — `_fetch_and_merge_issues`
 ```
@@ -93,11 +98,17 @@ Unit (new `TestUpdatesCoveredThrough` class):
    `since == cursor - timedelta(minutes=SINCE_OVERLAP_MINUTES)`.
 7. `test_old_shape_cache_triggers_full_refresh` — seed with no
    `updates_covered_through` ⇒ called with `state="open"` (migration).
-8. DEBUG-log test — `caplog` at DEBUG asserts the since/count/min-max/cursor
+8. `test_malformed_cursor_triggers_full_refresh` — seed a **malformed**
+   `updates_covered_through` (unparseable timestamp) that parses to `None`;
+   assert it self-heals into a full refresh (`state="open"`) via the existing
+   `or not updates_covered_through` clause. No new validation code — rely on the
+   implicit malformed→`None`→full-refresh behavior; this test just covers the
+   edge.
+9. DEBUG-log test — `caplog` at DEBUG asserts the since/count/min-max/cursor
    before→after lines are emitted on incremental refresh.
 
 Acceptance / recovery (headline — `TestWatermarkRecovery`):
-9. `test_missed_update_recovered_on_next_incremental` — construct **two
+10. `test_missed_update_recovered_on_next_incremental` — construct **two
    consecutive incremental refreshes**:
    - seed recent `last_full_refresh` (stays incremental), seed
      `updates_covered_through` + `last_checked` > 60s old;
@@ -112,10 +123,20 @@ Fixture updates (so existing incremental-path tests stay incremental under the
 new migration clause — add `updates_covered_through` to their seeds):
 - `conftest.py` `sample_cache_data`: add
   `"updates_covered_through": "2025-12-31T09:00:00Z"`.
-- `TestLastFullRefresh.test_incremental_refresh_does_not_update_last_full_refresh`
-  and `test_full_refresh_triggers_when_last_full_refresh_is_old` seeds: add
+- **Search ALL of `test_issue_cache.py` (and the `conftest.py` fixtures)** for
+  tests that construct a cache dict inline (grep the seed shapes, e.g.
+  `"last_checked"` / `"last_full_refresh"` / `"issues":`) and are on an
+  **intended incremental path**. Add `updates_covered_through` to **every** such
+  seed so it stays incremental under the new `or not updates_covered_through`
+  migration clause — do not stop at the two named `TestLastFullRefresh` tests;
+  those are only examples of the class, not the full set. (Full-refresh /
+  force-refresh / empty-cache seeds should be left as-is.)
+- Concretely, this includes at least
+  `TestLastFullRefresh.test_incremental_refresh_does_not_update_last_full_refresh`
+  and `test_full_refresh_triggers_when_last_full_refresh_is_old`: add
   `updates_covered_through` so the incremental case is genuinely incremental and
-  the full-refresh case still triggers via the age threshold.
+  the full-refresh case still triggers via the age threshold — but audit the
+  whole file, not just these two.
 
 ## CHECKS (before commit)
 ```
