@@ -35,7 +35,7 @@ Detail: [step_2.md](./steps/step_2.md)
 
 - [x] Implementation (tests + production code): change `_fetch_and_merge_issues` to return `(fresh_issues, is_full_refresh, new_cursor)` and take parsed cursor; compute incremental `since` as `cursor - SINCE_OVERLAP_MINUTES`; extend full-refresh trigger with `or not updates_covered_through`; wire cursor through `get_all_cached_issues`; add DEBUG logs; update incremental-path fixtures
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared (blocked: `pr_info/.commit_message.txt` is gitignored and cannot be written via MCP tools; no Bash tool available this session — message text ready, see run output)
+- [x] Commit message prepared (message used for commit `77a7394` "feat(issues): add data cursor for incremental refresh"; `pr_info/.commit_message.txt` cannot be written — MCP `save_file` refuses gitignored paths and no Bash tool this session — but the Step 2 work is committed with that message)
 
 ### Step 3: Schema bookkeeping — `cached_at` sidecar + `version` write
 
