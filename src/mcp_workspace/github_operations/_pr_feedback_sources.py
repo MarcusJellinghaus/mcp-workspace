@@ -8,6 +8,7 @@ and should not be called from outside the `github_operations` package.
 from __future__ import annotations
 
 import logging
+import time
 from typing import TYPE_CHECKING, Any, Optional, Tuple
 
 from github.GithubException import GithubException
@@ -16,6 +17,14 @@ if TYPE_CHECKING:
     from .pr_manager import PullRequestManager
 
 logger = logging.getLogger(__name__)
+
+# reviewThreads GraphQL retry config — handles GitHub's eventual-consistency
+# flake where querying a brand-new PR node raises GithubException 400/404.
+# Note: a genuinely-missing PR (404) now costs ~3s (1s + 2s backoff) before
+# falling through to [unavailable]; 404 is included defensively — only 400 was
+# reproduced.
+_REVIEW_DATA_MAX_ATTEMPTS = 3
+_REVIEW_DATA_RETRY_BASE_DELAY_SECONDS = 1.0
 
 
 def fetch_review_data(
@@ -54,9 +63,19 @@ def fetch_review_data(
 
     variables = {"owner": owner, "repo": repo_name, "prNumber": pr_number}
 
-    _, result = manager._github_client._Github__requester.graphql_query(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public GraphQL API in PyGithub
-        query=query, variables=variables
-    )
+    # Default overwritten on success; unused if every attempt raises (satisfies possibly-unbound).
+    result: dict[str, Any] = {}
+    for attempt in range(_REVIEW_DATA_MAX_ATTEMPTS):
+        try:
+            _, result = manager._github_client._Github__requester.graphql_query(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public GraphQL API in PyGithub
+                query=query, variables=variables
+            )
+            break
+        except GithubException as e:
+            # permanent error, or retries exhausted -> give up (caller renders unavailable)
+            if e.status not in (400, 404) or attempt == _REVIEW_DATA_MAX_ATTEMPTS - 1:
+                raise
+            time.sleep(_REVIEW_DATA_RETRY_BASE_DELAY_SECONDS * 2**attempt)
 
     pr_data = result.get("data", {}).get("repository", {}).get("pullRequest")
     if pr_data is None:

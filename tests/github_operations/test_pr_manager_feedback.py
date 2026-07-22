@@ -292,13 +292,117 @@ class TestGetPRFeedback:
             alerts_response=[],
         )
 
-        result = mock_manager.get_pr_feedback(42)
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            result = mock_manager.get_pr_feedback(42)
 
+        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
+        assert requester.graphql_query.call_count == 1
+        sleep.assert_not_called()
         assert result["unresolved_threads"] == []
         assert result["resolved_thread_count"] == 0
         assert result["changes_requested"] == []
         assert "threads" in result["unavailable"]
         assert isinstance(result["unavailable"]["threads"], GithubException)
+
+    def test_review_data_retry_then_success(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Transient 400 then success → retried once, threads populated."""
+        valid_response = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "nodes": [
+                                {
+                                    "isResolved": False,
+                                    "comments": {
+                                        "nodes": [
+                                            {
+                                                "author": {"login": "alice"},
+                                                "body": "issue here",
+                                                "path": "src/foo.py",
+                                                "line": 10,
+                                                "diffSide": "RIGHT",
+                                                "diffHunk": "@@ ... @@",
+                                            }
+                                        ]
+                                    },
+                                }
+                            ]
+                        },
+                        "reviews": {"nodes": []},
+                    }
+                }
+            }
+        }
+        self._setup_mocks(
+            mock_manager,
+            graphql_raises=[
+                GithubException(400, {"message": "not found yet"}, None),
+                ({}, valid_response),
+            ],
+            comments=[],
+            alerts_response=[],
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            result = mock_manager.get_pr_feedback(42)
+
+        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
+        assert requester.graphql_query.call_count == 2
+        assert len(result["unresolved_threads"]) == 1
+        assert result["unresolved_threads"][0]["author"] == "alice"
+        assert "threads" not in result["unavailable"]
+        assert sleep.call_count == 1
+
+    def test_review_data_retry_exhausted_unavailable(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Persistent 400 → exhausts 3 attempts, 'threads' unavailable."""
+        self._setup_mocks(
+            mock_manager,
+            graphql_raises=GithubException(400, {"message": "not found yet"}, None),
+            comments=[],
+            alerts_response=[],
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            result = mock_manager.get_pr_feedback(42)
+
+        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
+        assert requester.graphql_query.call_count == 3
+        assert "threads" in result["unavailable"]
+        assert isinstance(result["unavailable"]["threads"], GithubException)
+        assert sleep.call_count == 2
+
+    def test_review_data_retry_exhausted_404(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Persistent 404 → exhausts 3 attempts, 'threads' unavailable."""
+        self._setup_mocks(
+            mock_manager,
+            graphql_raises=GithubException(404, {"message": "not found yet"}, None),
+            comments=[],
+            alerts_response=[],
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            result = mock_manager.get_pr_feedback(42)
+
+        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
+        assert requester.graphql_query.call_count == 3
+        assert "threads" in result["unavailable"]
+        assert isinstance(result["unavailable"]["threads"], GithubException)
+        assert sleep.call_count == 2
 
     def test_conversation_comments_failure(
         self, mock_manager: PullRequestManager
