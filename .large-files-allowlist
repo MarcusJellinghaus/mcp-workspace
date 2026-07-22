@@ -14,7 +14,6 @@
 src/mcp_workspace/server.py
 
 # GitHub operations test files - comprehensive test coverage for GitHub API integration
-tests/github_operations/test_issue_cache.py
 tests/github_operations/test_issue_branch_manager.py
 tests/github_operations/test_base_manager.py
 tests/github_operations/test_github_utils.py

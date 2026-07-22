@@ -57,9 +57,9 @@ Detail: [step_4.md](./steps/step_4.md)
 
 Detail: [step_5.md](./steps/step_5.md)
 
-- [ ] Implementation: split into 4–5 `test_cache_*.py` files by whole class (keep `_make_cursor_issue` with its users), delete original, remove its `.large-files-allowlist` line
-- [ ] Quality checks: pylint, pytest (incl. git markers), mypy, `check_file_size(750)` — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: split into 4–5 `test_cache_*.py` files by whole class (keep `_make_cursor_issue` with its users), delete original, remove its `.large-files-allowlist` line
+- [x] Quality checks: pylint, pytest (incl. git markers), mypy, `check_file_size(750)` — fix all issues
+- [x] Commit message prepared
 
 ### Step 6: Split branch-manager tests → `test_branch_manager_*.py` (fold 3) + drop 2 allowlist lines
 
