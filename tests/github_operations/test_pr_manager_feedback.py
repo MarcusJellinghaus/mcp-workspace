@@ -382,6 +382,28 @@ class TestGetPRFeedback:
         assert isinstance(result["unavailable"]["threads"], GithubException)
         assert sleep.call_count == 2
 
+    def test_review_data_retry_exhausted_404(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Persistent 404 → exhausts 3 attempts, 'threads' unavailable."""
+        self._setup_mocks(
+            mock_manager,
+            graphql_raises=GithubException(404, {"message": "not found yet"}, None),
+            comments=[],
+            alerts_response=[],
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            result = mock_manager.get_pr_feedback(42)
+
+        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
+        assert requester.graphql_query.call_count == 3
+        assert "threads" in result["unavailable"]
+        assert isinstance(result["unavailable"]["threads"], GithubException)
+        assert sleep.call_count == 2
+
     def test_conversation_comments_failure(
         self, mock_manager: PullRequestManager
     ) -> None:

@@ -63,6 +63,7 @@ def fetch_review_data(
 
     variables = {"owner": owner, "repo": repo_name, "prNumber": pr_number}
 
+    # Default overwritten on success; unused if every attempt raises (satisfies possibly-unbound).
     result: dict[str, Any] = {}
     for attempt in range(_REVIEW_DATA_MAX_ATTEMPTS):
         try:
