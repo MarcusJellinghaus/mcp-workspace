@@ -30,3 +30,23 @@ Reorganize issue-manager tests to mirror `issues/` package + split oversized tes
 - `pr_info/steps/step_3.md` — `test_issue_manager_comments.py` → `test_comments_mixin.py` (post-Step-1 name).
 
 **Status**: committed (2 plan files changed → loop to Round 2).
+
+## Round 2 — 2026-07-22
+
+Re-review after Round 1 fixes. Commit `09014da`.
+
+**Findings**:
+- Round-1 fixes verified: Step 5 `NameError` blocker resolved (helper + consumers now grouped), Step 3 filenames all post-Step-1. ✓
+1. **[improvement]** Step 5 suggested `test_cache_refresh.py` still bundles `TestLastFullRefresh` (~182 lines) with the helper group → ~780 lines, over 750. `TestLastFullRefresh` does not use `_make_cursor_issue`, so it can move to a 5th file for a clean split.
+2. [nit] Step 5 labels "four `_make_cursor_issue` consumers (~562 lines)"; actually three consume it — `TestNewCacheSchemaFields` is defined above the helper and never calls it. Accuracy only, no collection impact.
+- Verified clean: Step 6 split math (all groups <750), Step 4 math (~620 single file), Step 3 `parse_base_branch` cases match source, allowlist entries exact, dependencies/verification steps correct.
+
+**Decisions**:
+- Findings 1 & 2 — **accept, fix**: move `TestLastFullRefresh` out of `test_cache_refresh.py` into a 5th cache file so every suggested group lands <750; correct "four consumers → three".
+
+**User decisions**: none. No design/requirements questions raised.
+
+**Changes**:
+- `pr_info/steps/step_5.md` — split the over-750 `test_cache_refresh.py` row into two: `test_cache_full_refresh.py` (`TestLastFullRefresh`, ~182) + `test_cache_refresh.py` (helper + its 3 real consumers, ~600). Now a 5-file cache split, each <750. Corrected "four consumers" → "three".
+
+**Status**: committed (1 plan file changed → loop to Round 3).

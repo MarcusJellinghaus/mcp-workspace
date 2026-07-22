@@ -24,14 +24,18 @@ file. Suggested grouping (finalize from actual sizes; each must be < 750):
 | `test_cache_io.py` | `TestCacheMetricsLogging`, `TestCacheFilePath`, `TestCacheFileOperations`, `TestStalenessLogging` |
 | `test_cache_update.py` | `TestCacheIssueUpdate`, `TestCacheUpdateIntegration` |
 | `test_cache_additional.py` | `TestAdditionalIssuesParameter`, `TestApiFailureHandling` |
-| `test_cache_refresh.py` | `TestLastFullRefresh`, `_make_cursor_issue`, `TestNewCacheSchemaFields`, `TestUpdatesCoveredThrough`, `TestWatermarkRecovery`, `TestCacheBookkeeping` |
+| `test_cache_full_refresh.py` | `TestLastFullRefresh` |
+| `test_cache_refresh.py` | `TestNewCacheSchemaFields`, `_make_cursor_issue`, `TestUpdatesCoveredThrough`, `TestWatermarkRecovery`, `TestCacheBookkeeping` |
 
-(`_make_cursor_issue` and its four consumers `TestNewCacheSchemaFields` /
-`TestUpdatesCoveredThrough` / `TestWatermarkRecovery` / `TestCacheBookkeeping` (~562 lines
-total) stay together in one file so the helper is defined where every user sees it; they may
-be regrouped into other files only if all consumers move with the helper and each file stays
-< 750 — the rule is whole-class packing keeping `_make_cursor_issue` with its users, not this
-exact table.)
+(`_make_cursor_issue` and its three consumers `TestUpdatesCoveredThrough` /
+`TestWatermarkRecovery` / `TestCacheBookkeeping` (~600 lines with the import header) stay
+together in one file so the helper is defined where every user sees it. `TestNewCacheSchemaFields`
+is defined *above* the helper and does not call it, so it can share that file freely without
+depending on the helper. `TestLastFullRefresh` (~182 lines) is a large non-helper class, so it
+moves to its own `test_cache_full_refresh.py` to keep every group under 750. These groups may
+be regrouped into other files only if all `_make_cursor_issue` consumers move with the helper and
+each file stays < 750 — the rule is whole-class packing keeping `_make_cursor_issue` with its
+users, not this exact table.)
 
 ## HOW — imports / fixtures
 Each new file repeats only the imports its classes need (e.g.
