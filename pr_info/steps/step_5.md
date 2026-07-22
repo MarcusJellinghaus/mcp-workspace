@@ -24,12 +24,14 @@ file. Suggested grouping (finalize from actual sizes; each must be < 750):
 | `test_cache_io.py` | `TestCacheMetricsLogging`, `TestCacheFilePath`, `TestCacheFileOperations`, `TestStalenessLogging` |
 | `test_cache_update.py` | `TestCacheIssueUpdate`, `TestCacheUpdateIntegration` |
 | `test_cache_additional.py` | `TestAdditionalIssuesParameter`, `TestApiFailureHandling` |
-| `test_cache_refresh.py` | `TestLastFullRefresh`, `TestNewCacheSchemaFields`, `_make_cursor_issue`, `TestUpdatesCoveredThrough` |
-| `test_cache_watermark.py` | `TestWatermarkRecovery`, `TestCacheBookkeeping` |
+| `test_cache_refresh.py` | `TestLastFullRefresh`, `_make_cursor_issue`, `TestNewCacheSchemaFields`, `TestUpdatesCoveredThrough`, `TestWatermarkRecovery`, `TestCacheBookkeeping` |
 
-(`_make_cursor_issue` and its consumers `TestUpdatesCoveredThrough` / `TestWatermarkRecovery`
-/ `TestCacheBookkeeping` may be regrouped into fewer files if all stay < 750 — the rule is
-whole-class packing, not this exact table.)
+(`_make_cursor_issue` and its four consumers `TestNewCacheSchemaFields` /
+`TestUpdatesCoveredThrough` / `TestWatermarkRecovery` / `TestCacheBookkeeping` (~562 lines
+total) stay together in one file so the helper is defined where every user sees it; they may
+be regrouped into other files only if all consumers move with the helper and each file stays
+< 750 — the rule is whole-class packing keeping `_make_cursor_issue` with its users, not this
+exact table.)
 
 ## HOW — imports / fixtures
 Each new file repeats only the imports its classes need (e.g.

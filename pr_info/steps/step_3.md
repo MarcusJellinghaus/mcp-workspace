@@ -32,7 +32,7 @@ from mcp_workspace.github_operations.issues.base import (
 Lift the two existing tests **verbatim** (as plain module-level functions; drop the unused
 `self`/`tmp_path`). They need no fixtures and no `git_integration` marker.
 
-**Do NOT** remove the `validate_*` imports from `test_issue_manager_comments.py`,
+**Do NOT** remove the `validate_*` imports from `test_comments_mixin.py`,
 `test_events_mixin.py`, or `test_labels_mixin.py` — they use them as helpers (untouched).
 
 ## ALGORITHM (test logic)
