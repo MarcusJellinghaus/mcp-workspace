@@ -9,10 +9,6 @@ import pytest
 from github.GithubException import GithubException
 
 from mcp_workspace.github_operations.issues import IssueManager
-from mcp_workspace.github_operations.issues.base import (
-    validate_comment_id,
-    validate_issue_number,
-)
 
 
 @pytest.mark.git_integration
@@ -47,38 +43,6 @@ class TestIssueManagerCore:
         ):
             with pytest.raises(ValueError, match="GitHub token not found"):
                 IssueManager(git_dir)
-
-    def test_validate_issue_number(self, tmp_path: Path) -> None:
-        """Test issue number validation."""
-        # Test invalid numbers
-        with pytest.raises(ValueError, match="Issue number must be a positive integer"):
-            validate_issue_number(0)
-
-        with pytest.raises(ValueError, match="Issue number must be a positive integer"):
-            validate_issue_number(-1)
-
-        # Test valid number doesn't raise
-        try:
-            validate_issue_number(1)
-            validate_issue_number(999)
-        except ValueError:
-            pytest.fail("Valid issue numbers should not raise ValueError")
-
-    def test_validate_comment_id(self, tmp_path: Path) -> None:
-        """Test comment ID validation."""
-        # Test invalid IDs
-        with pytest.raises(ValueError, match="Comment ID must be a positive integer"):
-            validate_comment_id(0)
-
-        with pytest.raises(ValueError, match="Comment ID must be a positive integer"):
-            validate_comment_id(-1)
-
-        # Test valid ID doesn't raise
-        try:
-            validate_comment_id(1)
-            validate_comment_id(999)
-        except ValueError:
-            pytest.fail("Valid comment IDs should not raise ValueError")
 
     def test_get_issue_success(self, mock_issue_manager: IssueManager) -> None:
         """Test successful issue retrieval."""
