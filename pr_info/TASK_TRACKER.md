@@ -49,9 +49,9 @@ Detail: [step_3.md](./steps/step_3.md)
 
 Detail: [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: `move_file` core to `issues/test_manager.py`, fold in `TestListIssuesExtendedParams`, delete `test_list_issues.py`
-- [ ] Quality checks: pylint, pytest (incl. git markers + `--collect-only`), mypy, `check_file_size(750)` — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `move_file` core to `issues/test_manager.py`, fold in `TestListIssuesExtendedParams`, delete `test_list_issues.py`
+- [x] Quality checks: pylint, pytest (incl. git markers + `--collect-only`), mypy, `check_file_size(750)` — fix all issues
+- [x] Commit message prepared
 
 ### Step 5: Split `test_issue_cache.py` → `test_cache_*.py` + drop allowlist line
 
