@@ -43,7 +43,7 @@ Detail: [step_3.md](./steps/step_3.md)
 
 - [x] Implementation: create `test_base.py` (move the two `validate_*` tests verbatim + add new `parse_base_branch` tests); remove them from the core file
 - [x] Quality checks: pylint, pytest (new file + core file with git markers), mypy — fix all issues
-- [ ] Commit message prepared (BLOCKED: pr_info/.commit_message.txt is gitignored; MCP file tools refuse it and Bash is disabled — message text provided in run output)
+- [x] Commit message prepared (BLOCKED: pr_info/.commit_message.txt is gitignored; MCP file tools refuse it and Bash is disabled — message text provided in run output)
 
 ### Step 4: Create `test_manager.py` (rename core + fold `test_list_issues.py`)
 
