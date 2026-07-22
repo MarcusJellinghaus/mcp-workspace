@@ -28,6 +28,9 @@ New module-local constants near the top of `_pr_feedback_sources.py`:
 ```python
 # reviewThreads GraphQL retry config — handles GitHub's eventual-consistency
 # flake where querying a brand-new PR node raises GithubException 400/404.
+# Note: a genuinely-missing PR (404) now costs ~3s (1s + 2s backoff) before
+# falling through to [unavailable]; 404 is included defensively — only 400 was
+# reproduced.
 _REVIEW_DATA_MAX_ATTEMPTS = 3
 _REVIEW_DATA_RETRY_BASE_DELAY_SECONDS = 1.0
 ```
@@ -45,7 +48,7 @@ _REVIEW_DATA_RETRY_BASE_DELAY_SECONDS = 1.0
 ## ALGORITHM (core logic — replaces only the `graphql_query` call)
 
 ```
-result: dict[str, Any] = {}            # init only if mypy flags possibly-unbound
+result: dict[str, Any] = {}            # init before the loop (retry-loop shape statically triggers possibly-unbound)
 for attempt in range(_REVIEW_DATA_MAX_ATTEMPTS):
     try:
         _, result = manager..._Github__requester.graphql_query(query, variables)
@@ -62,7 +65,8 @@ Notes:
 - One combined `if` covers both "non-retryable status" and "last attempt exhausted" —
   no `last_result`, no `assert`, no nested `attempt < MAX-1` guard, no per-retry logging
   (KISS; the caller already logs on final failure).
-- Only add the `result = {}` initializer if mypy reports possibly-unbound; do not add
+- Add the `result: dict[str, Any] = {}` initializer before the retry loop (expected/default):
+  the retry-loop shape statically triggers a possibly-unbound warning. Do not add
   branch_manager's `Optional` + `assert` ceremony.
 
 ## DATA
