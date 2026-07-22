@@ -27,7 +27,7 @@ Detail: [step_1.md](./steps/step_1.md)
 
 - [x] Implementation: `move_file` the six healthy test files into `tests/github_operations/issues/` with the exact renames (no content changes)
 - [x] Quality checks: pylint, pytest (incl. git markers + repo-wide `--collect-only`), mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Commit message prepared
 
 ### Step 2: Create `test_types.py` (`create_empty_issue_data`)
 
