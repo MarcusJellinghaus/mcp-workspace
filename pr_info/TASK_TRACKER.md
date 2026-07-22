@@ -65,9 +65,9 @@ Detail: [step_5.md](./steps/step_5.md)
 
 Detail: [step_6.md](./steps/step_6.md)
 
-- [ ] Implementation: split/fold four source files into 4–5 `test_branch_manager_*.py` files by whole class (only `TestGetBranchWithPRFallback` divided), delete sources, remove the two allowlist lines
-- [ ] Quality checks: pylint, pytest (incl. git markers + `--collect-only`), mypy, tach, lint-imports, `check_file_size(750)` — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: split/fold four source files into 4–5 `test_branch_manager_*.py` files by whole class (only `TestGetBranchWithPRFallback` divided), delete sources, remove the two allowlist lines
+- [x] Quality checks: pylint, pytest (incl. git markers + `--collect-only`), mypy, tach, lint-imports, `check_file_size(750)` — fix all issues
+- [x] Commit message prepared (BLOCKED: pr_info/.commit_message.txt is gitignored; MCP file tools refuse it and Bash is disabled — message text provided in run output)
 
 ## Pull Request
 
