@@ -50,3 +50,27 @@ Re-review after Round 1 fixes. Commit `09014da`.
 - `pr_info/steps/step_5.md` — split the over-750 `test_cache_refresh.py` row into two: `test_cache_full_refresh.py` (`TestLastFullRefresh`, ~182) + `test_cache_refresh.py` (helper + its 3 real consumers, ~600). Now a 5-file cache split, each <750. Corrected "four consumers" → "three".
 
 **Status**: committed (1 plan file changed → loop to Round 3).
+
+## Round 3 — 2026-07-22
+
+Re-review after Round 2 fix. Commit `cd7c4c1`.
+
+**Findings**: **No new findings.**
+- Round 2 fix verified against source (`test_issue_cache.py`, 2239 lines, 13 classes): 5-file cache split, all 13 classes map 1:1 across files (4+2+2+1+4), helper `_make_cursor_issue` grouped with its 3 real consumers, no drop/duplication, every group <750 (io ~370, update ~544, additional ~650, full_refresh ~217, refresh ~598). "three consumers" prose correct.
+- Reconfirmed clean: Step 3 `parse_base_branch` cases match source, allowlist entries exact (3 remove / 3 retain), `issues/` fold-source files present, Step 3→4 dependency sound.
+
+**Decisions**: none needed.
+**User decisions**: none.
+**Changes**: none (zero plan changes this round → loop terminates).
+**Status**: plan ready for approval.
+
+---
+
+## Final Status
+
+- **Rounds run**: 3
+- **Commits produced**: `09014da` (Round 1 — Step 5 cache-grouping `NameError` fix + Step 3 filename), `cd7c4c1` (Round 2 — Step 5 5-file cache split, consumer count fix), plus this log finalization.
+- **Blockers found & fixed**: 1 (Round 1 — `_make_cursor_issue` separated from consumers → collection `NameError`).
+- **Improvements applied**: Step 5 over-750 grouping split into a clean 5-file partition; Step 3 post-rename filename consistency; consumer-count accuracy.
+- **Escalations to user**: none — all findings were mechanical/factual within the issue's already-settled decisions.
+- **Outcome**: Round 3 produced zero plan changes. **Plan is ready for approval.** All 6 steps verified against the live codebase (file existence, class layout, line counts, fixture cascade, split math, allowlist, new-coverage source behavior).
