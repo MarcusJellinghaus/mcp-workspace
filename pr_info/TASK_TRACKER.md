@@ -33,8 +33,8 @@ Detail: [step_1.md](./steps/step_1.md)
 
 Detail: [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: create `tests/github_operations/issues/test_types.py` with focused unit tests for `create_empty_issue_data`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Implementation: create `tests/github_operations/issues/test_types.py` with focused unit tests for `create_empty_issue_data`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 
 ### Step 3: Create `test_base.py` (move `validate_*` + NEW `parse_base_branch`)
