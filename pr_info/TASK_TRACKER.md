@@ -21,6 +21,15 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Inline bounded retry for the reviewThreads GraphQL query (TDD)
+
+Detail: [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: add the three tests (TDD) — `test_review_data_retry_then_success`, `test_review_data_retry_exhausted_unavailable`, and the extension of `test_graphql_failure` — then add `import time`, the `_REVIEW_DATA_*` constants, and the bounded retry loop around the `graphql_query` call in `fetch_review_data`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] Review the PR (address feedback)
+- [ ] Write the PR summary
