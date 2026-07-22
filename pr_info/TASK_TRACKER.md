@@ -44,5 +44,5 @@ Detail: [step_1.md](./steps/step_1.md)
 
 ## Pull Request
 
-- [ ] Review the PR (address feedback)
+- [x] Review the PR (address feedback)
 - [ ] Write the PR summary
