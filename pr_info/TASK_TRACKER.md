@@ -25,9 +25,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 Detail: [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: add the three tests (TDD) — `test_review_data_retry_then_success`, `test_review_data_retry_exhausted_unavailable`, and the extension of `test_graphql_failure` — then add `import time`, the `_REVIEW_DATA_*` constants, and the bounded retry loop around the `graphql_query` call in `fetch_review_data`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add the three tests (TDD) — `test_review_data_retry_then_success`, `test_review_data_retry_exhausted_unavailable`, and the extension of `test_graphql_failure` — then add `import time`, the `_REVIEW_DATA_*` constants, and the bounded retry loop around the `graphql_query` call in `fetch_review_data`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared (blocked: `pr_info/.commit_message.txt` is gitignored; MCP workspace tools refuse it and Bash is disabled — message drafted below, needs manual save)
 
 ## Pull Request
 
