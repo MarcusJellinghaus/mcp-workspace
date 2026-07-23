@@ -50,6 +50,9 @@ The **12** call sites:
   clean and mojibake text.
 - Do **not** change any downstream logic (`truncate_output`, `filter_*`, empty-checks,
   compact rendering). Only the raw-output acquisition changes.
+- The local annotations `plain: str` / `ansi: str` / `output: str` at the routed call
+  sites remain `str` (since `run_git_text` returns `str`), so **no** annotation changes
+  or `# type: ignore` are needed — do not let a mypy pass drive edits here.
 
 ## ALGORITHM (`run_git_text`)
 ```
@@ -81,6 +84,10 @@ def test_run_git_text_decodes_utf8_em_dash() -> None:
 Optionally add a second assertion that a search pattern containing the em-dash now
 matches `result` (documents the search consequence). Import `run_git_text` from
 `mcp_workspace.git_operations.core`.
+
+Also add a test asserting the `errors="replace"` contract explicitly: feeding invalid
+UTF-8 bytes (e.g. `b"bad \xff byte"`) to `run_git_text` decodes to the replacement char
+`�` and does **not** raise (the sample test above only covers valid UTF-8).
 
 ### B. Fix broken mocks — switch `str` → `bytes`
 Every mock whose value now flows through `run_git_text().decode()` must return `bytes`.

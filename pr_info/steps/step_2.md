@@ -43,11 +43,21 @@ if search:
 `filter_content_output` to the existing `from .output_filtering import (...)` import.
 `git_diff` is **untouched** (its output is always a real diff).
 
+`git_show` still applies `truncate_output(output, max_lines)` **after**
+`filter_content_output`, so existing truncation semantics are intentionally preserved (a
+large filtered result can still be truncated). No behavior change.
+
 ## HOW (integration points)
 - Keep `filter_content_output` self-contained (KISS) — do **not** refactor a shared
   grep helper with `_filter_hunks`.
 - Placement: define it beside `filter_diff_output` in `output_filtering.py`; no new
   imports beyond the already-present `re`.
+- **Non-contiguous match groups:** when matches whose ±context windows don't overlap
+  produce separate kept-line groups, the helper joins the kept lines directly with `\n`
+  **without** a grep-style `--` gap separator. This is a deliberate accepted
+  simplification — it keeps the helper self-contained (~12 lines), consistent with the
+  plan's existing KISS notes. Match-correctness is unaffected; it is purely a display
+  nuance. Do **not** add separator logic.
 
 ## ALGORITHM (`filter_content_output`)
 ```
