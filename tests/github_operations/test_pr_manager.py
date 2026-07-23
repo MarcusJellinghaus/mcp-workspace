@@ -49,6 +49,10 @@ def create_mock_pr(**overrides: Any) -> MagicMock:
         mock_pr.user.login = overrides.get("user_login", "testuser")
     else:
         mock_pr.user = overrides.get("user")
+    # Handle assignees (list of NamedUser-like objects with .login).
+    # Default [] keeps existing tests green (an unconfigured MagicMock
+    # would not be iterable in [a.login for a in pr.assignees]).
+    mock_pr.assignees = overrides.get("assignees", [])
     return mock_pr
 
 
@@ -335,6 +339,7 @@ class TestPullRequestManagerUnit:
             assert result["number"] == 123
             assert result["title"] == "Test PR"
             assert result["mergeable_state"] == "clean"
+            assert result["assignees"] == []
             mock_repo.get_pull.assert_called_once_with(123)
 
     def test_get_pull_request_invalid_number(self, tmp_path: Path) -> None:
@@ -355,6 +360,38 @@ class TestPullRequestManagerUnit:
 
             result = manager.get_pull_request(0)
             assert not result
+
+    @patch("mcp_workspace.github_operations._client.Github")
+    def test_assignees_serialized_across_methods(
+        self, mock_github: Mock, tmp_path: Path
+    ) -> None:
+        """Assignees flatten to logins on both get_pull_request and list_pull_requests."""
+        git_dir = tmp_path / "git_dir"
+        git_dir.mkdir()
+        repo = git.Repo.init(git_dir)
+        repo.create_remote("origin", "https://github.com/test/repo.git")
+
+        mock_pr = create_mock_pr(
+            assignees=[MagicMock(login="alice"), MagicMock(login="bob")]
+        )
+        mock_repo = MagicMock()
+        mock_repo.get_pull.return_value = mock_pr
+        mock_repo.get_pulls.return_value = [mock_pr]
+        mock_github_client = MagicMock()
+        mock_github_client.get_repo.return_value = mock_repo
+        mock_github.return_value = mock_github_client
+
+        with patch(
+            "mcp_workspace.github_operations.base_manager.get_github_token",
+            return_value="dummy-token",
+        ):
+            manager = PullRequestManager(git_dir)
+
+            get_result = manager.get_pull_request(123)
+            assert get_result["assignees"] == ["alice", "bob"]
+
+            list_result = manager.list_pull_requests(state="open")
+            assert list_result[0]["assignees"] == ["alice", "bob"]
 
     # ========================================
     # List Pull Requests Tests

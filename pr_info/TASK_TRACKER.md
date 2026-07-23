@@ -25,9 +25,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 See [step_1.md](./steps/step_1.md).
 
-- [ ] Implementation: add `assignees` field + `_pr_to_data` helper, route the 5 serialization sites, remove redundant inner `try/except`, update `create_pull_request` docstring, and add `create_mock_pr` `assignees=[]` default with cross-method assertions
-- [ ] Quality checks: pylint, pytest (`-n auto`, marker `git_integration`), mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add `assignees` field + `_pr_to_data` helper, route the 5 serialization sites, remove redundant inner `try/except`, update `create_pull_request` docstring, and add `create_mock_pr` `assignees=[]` default with cross-method assertions
+- [x] Quality checks: pylint, pytest (`-n auto`, marker `git_integration`), mypy — fix all issues
+- [ ] Commit message prepared (blocked: pr_info/.commit_message.txt is gitignored and MCP file tools refuse gitignored paths; no Bash tool available — message text provided in run output)
 
 ### Step 2: Add `PullRequestManager.add_assignees()` + tests
 
