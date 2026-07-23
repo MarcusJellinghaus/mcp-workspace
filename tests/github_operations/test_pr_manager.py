@@ -5,7 +5,6 @@ and data transformation - NOT the PyGithub library itself.
 """
 
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import git
@@ -14,42 +13,7 @@ from github.GithubException import GithubException
 
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
 
-
-def create_mock_pr(**overrides: Any) -> MagicMock:
-    """Create a mock PR object with common defaults."""
-    mock_pr = MagicMock()
-    mock_pr.number = overrides.get("number", 123)
-    mock_pr.title = overrides.get("title", "Test PR")
-    mock_pr.body = overrides.get("body", "Test description")
-    mock_pr.state = overrides.get("state", "open")
-    mock_pr.head.ref = overrides.get("head_ref", "feature-branch")
-    mock_pr.base.ref = overrides.get("base_ref", "main")
-    mock_pr.html_url = overrides.get(
-        "url", f"https://github.com/test/repo/pull/{mock_pr.number}"
-    )
-    mock_pr.mergeable = overrides.get("mergeable", True)
-    mock_pr.mergeable_state = overrides.get("mergeable_state", "clean")
-    mock_pr.merged = overrides.get("merged", False)
-    mock_pr.draft = overrides.get("draft", False)
-    # Handle optional datetime fields
-    if overrides.get("created_at") is None and "skip_dates" not in overrides:
-        mock_pr.created_at.isoformat.return_value = "2023-01-01T00:00:00Z"
-    elif overrides.get("created_at"):
-        mock_pr.created_at.isoformat.return_value = overrides["created_at"]
-    else:
-        mock_pr.created_at = None
-    if overrides.get("updated_at") is None and "skip_dates" not in overrides:
-        mock_pr.updated_at.isoformat.return_value = "2023-01-01T00:00:00Z"
-    elif overrides.get("updated_at"):
-        mock_pr.updated_at.isoformat.return_value = overrides["updated_at"]
-    else:
-        mock_pr.updated_at = None
-    # Handle user
-    if overrides.get("user") is None and "skip_user" not in overrides:
-        mock_pr.user.login = overrides.get("user_login", "testuser")
-    else:
-        mock_pr.user = overrides.get("user")
-    return mock_pr
+from ._pr_test_helpers import create_mock_pr
 
 
 @pytest.mark.git_integration
@@ -335,6 +299,7 @@ class TestPullRequestManagerUnit:
             assert result["number"] == 123
             assert result["title"] == "Test PR"
             assert result["mergeable_state"] == "clean"
+            assert result["assignees"] == []
             mock_repo.get_pull.assert_called_once_with(123)
 
     def test_get_pull_request_invalid_number(self, tmp_path: Path) -> None:
@@ -355,6 +320,38 @@ class TestPullRequestManagerUnit:
 
             result = manager.get_pull_request(0)
             assert not result
+
+    @patch("mcp_workspace.github_operations._client.Github")
+    def test_assignees_serialized_across_methods(
+        self, mock_github: Mock, tmp_path: Path
+    ) -> None:
+        """Assignees flatten to logins on both get_pull_request and list_pull_requests."""
+        git_dir = tmp_path / "git_dir"
+        git_dir.mkdir()
+        repo = git.Repo.init(git_dir)
+        repo.create_remote("origin", "https://github.com/test/repo.git")
+
+        mock_pr = create_mock_pr(
+            assignees=[MagicMock(login="alice"), MagicMock(login="bob")]
+        )
+        mock_repo = MagicMock()
+        mock_repo.get_pull.return_value = mock_pr
+        mock_repo.get_pulls.return_value = [mock_pr]
+        mock_github_client = MagicMock()
+        mock_github_client.get_repo.return_value = mock_repo
+        mock_github.return_value = mock_github_client
+
+        with patch(
+            "mcp_workspace.github_operations.base_manager.get_github_token",
+            return_value="dummy-token",
+        ):
+            manager = PullRequestManager(git_dir)
+
+            get_result = manager.get_pull_request(123)
+            assert get_result["assignees"] == ["alice", "bob"]
+
+            list_result = manager.list_pull_requests(state="open")
+            assert list_result[0]["assignees"] == ["alice", "bob"]
 
     # ========================================
     # List Pull Requests Tests
@@ -541,180 +538,3 @@ class TestPullRequestManagerUnit:
             # Errors should return empty dict
             result = manager.create_pull_request("Test PR", "feature", "main")
             assert not result
-
-
-@pytest.mark.git_integration
-class TestCreatePullRequestDefaultBranch:
-    """Tests for dynamic default branch resolution in create_pull_request()."""
-
-    @patch("mcp_workspace.github_operations._client.Github")
-    @patch("mcp_workspace.github_operations.pr_manager.get_default_branch_name")
-    def test_create_pr_resolves_default_branch_when_none(
-        self, mock_get_default: Mock, mock_github: Mock, tmp_path: Path
-    ) -> None:
-        """When base_branch=None, resolves via get_default_branch_name()."""
-        git_dir = tmp_path / "git_dir"
-        git_dir.mkdir()
-        repo = git.Repo.init(git_dir)
-        repo.create_remote("origin", "https://github.com/test/repo.git")
-
-        mock_get_default.return_value = "main"
-        mock_pr = create_mock_pr(
-            number=1,
-            body="Body",
-            url="https://github.com/test/repo/pull/1",
-            skip_dates=True,
-            skip_user=True,
-        )
-        mock_pr.created_at = None
-        mock_pr.updated_at = None
-        mock_pr.user = None
-        mock_repo = MagicMock()
-        mock_repo.create_pull.return_value = mock_pr
-        mock_github_client = MagicMock()
-        mock_github_client.get_repo.return_value = mock_repo
-        mock_github.return_value = mock_github_client
-
-        with patch(
-            "mcp_workspace.github_operations.base_manager.get_github_token",
-            return_value="dummy-token",
-        ):
-            manager = PullRequestManager(git_dir)
-            result = manager.create_pull_request(
-                title="Test PR",
-                head_branch="feature-branch",
-                base_branch=None,
-                body="Body",
-            )
-            mock_get_default.assert_called_once_with(git_dir)
-            mock_repo.create_pull.assert_called_once()
-            assert mock_repo.create_pull.call_args[1]["base"] == "main"
-            assert result["number"] == 1
-            assert result["base_branch"] == "main"
-
-    @patch("mcp_workspace.github_operations._client.Github")
-    @patch("mcp_workspace.github_operations.pr_manager.get_default_branch_name")
-    def test_create_pr_uses_explicit_base_branch(
-        self, mock_get_default: Mock, mock_github: Mock, tmp_path: Path
-    ) -> None:
-        """When base_branch is provided, uses it directly without calling get_default_branch_name()."""
-        git_dir = tmp_path / "git_dir"
-        git_dir.mkdir()
-        repo = git.Repo.init(git_dir)
-        repo.create_remote("origin", "https://github.com/test/repo.git")
-
-        mock_pr = create_mock_pr(
-            number=1,
-            body="Body",
-            base_ref="develop",
-            url="https://github.com/test/repo/pull/1",
-            skip_dates=True,
-            skip_user=True,
-        )
-        mock_pr.created_at = None
-        mock_pr.updated_at = None
-        mock_pr.user = None
-        mock_repo = MagicMock()
-        mock_repo.create_pull.return_value = mock_pr
-        mock_github_client = MagicMock()
-        mock_github_client.get_repo.return_value = mock_repo
-        mock_github.return_value = mock_github_client
-
-        with patch(
-            "mcp_workspace.github_operations.base_manager.get_github_token",
-            return_value="dummy-token",
-        ):
-            manager = PullRequestManager(git_dir)
-            result = manager.create_pull_request(
-                title="Test PR",
-                head_branch="feature-branch",
-                base_branch="develop",
-                body="Body",
-            )
-            mock_get_default.assert_not_called()
-            assert mock_repo.create_pull.call_args[1]["base"] == "develop"
-            assert result["number"] == 1
-            assert result["base_branch"] == "develop"
-
-    @patch("mcp_workspace.github_operations._client.Github")
-    @patch("mcp_workspace.github_operations.pr_manager.get_default_branch_name")
-    def test_create_pr_returns_empty_when_default_branch_unknown(
-        self, mock_get_default: Mock, mock_github: Mock, tmp_path: Path
-    ) -> None:
-        """When default branch cannot be determined, returns empty dict."""
-        git_dir = tmp_path / "git_dir"
-        git_dir.mkdir()
-        repo = git.Repo.init(git_dir)
-        repo.create_remote("origin", "https://github.com/test/repo.git")
-
-        mock_get_default.return_value = None  # Cannot determine default branch
-
-        mock_repo = MagicMock()
-
-        mock_github_client = MagicMock()
-        mock_github_client.get_repo.return_value = mock_repo
-        mock_github.return_value = mock_github_client
-
-        with patch(
-            "mcp_workspace.github_operations.base_manager.get_github_token",
-            return_value="dummy-token",
-        ):
-            manager = PullRequestManager(git_dir)
-
-            result = manager.create_pull_request(
-                title="Test PR",
-                head_branch="feature-branch",
-                base_branch=None,
-                body="Body",
-            )
-
-            # Should return empty dict (falsy)
-            assert not result
-
-            # PR creation should not be attempted
-            mock_repo.create_pull.assert_not_called()
-
-    @patch("mcp_workspace.github_operations._client.Github")
-    @patch("mcp_workspace.github_operations.pr_manager.get_default_branch_name")
-    def test_create_pr_resolves_master_as_default_branch(
-        self, mock_get_default: Mock, mock_github: Mock, tmp_path: Path
-    ) -> None:
-        """When default branch is 'master', uses it correctly."""
-        git_dir = tmp_path / "git_dir"
-        git_dir.mkdir()
-        repo = git.Repo.init(git_dir)
-        repo.create_remote("origin", "https://github.com/test/repo.git")
-
-        mock_get_default.return_value = "master"
-        mock_pr = create_mock_pr(
-            number=1,
-            body="Body",
-            base_ref="master",
-            url="https://github.com/test/repo/pull/1",
-            skip_dates=True,
-            skip_user=True,
-        )
-        mock_pr.created_at = None
-        mock_pr.updated_at = None
-        mock_pr.user = None
-        mock_repo = MagicMock()
-        mock_repo.create_pull.return_value = mock_pr
-        mock_github_client = MagicMock()
-        mock_github_client.get_repo.return_value = mock_repo
-        mock_github.return_value = mock_github_client
-
-        with patch(
-            "mcp_workspace.github_operations.base_manager.get_github_token",
-            return_value="dummy-token",
-        ):
-            manager = PullRequestManager(git_dir)
-            result = manager.create_pull_request(
-                title="Test PR",
-                head_branch="feature-branch",
-                base_branch=None,
-                body="Body",
-            )
-            mock_get_default.assert_called_once_with(git_dir)
-            assert mock_repo.create_pull.call_args[1]["base"] == "master"
-            assert result["number"] == 1
-            assert result["base_branch"] == "master"

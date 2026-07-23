@@ -1,6 +1,6 @@
-"""Tests for PullRequestManager.find_pull_request_by_head() method.
+"""Tests for PullRequestManager.add_assignees() method.
 
-Tests PR discovery by head branch name using mocked GitHub API.
+Tests adding assignees to a pull request using mocked GitHub API.
 """
 
 from pathlib import Path
@@ -16,25 +16,49 @@ from ._pr_test_helpers import create_mock_pr
 
 
 @pytest.mark.git_integration
-class TestFindPullRequestByHead:
-    """Tests for find_pull_request_by_head() method."""
+class TestAddAssignees:
+    """Tests for add_assignees() method."""
 
     @patch("mcp_workspace.github_operations._client.Github")
-    def test_find_pr_by_head_success(self, mock_github: Mock, tmp_path: Path) -> None:
-        """Single PR found — verify API called with head='owner:branch', returns list with 1 item."""
+    def test_add_assignees_success(self, mock_github: Mock, tmp_path: Path) -> None:
+        """Happy path — single login assigned, mutated assignees reflected in result."""
+        git_dir = tmp_path / "git_dir"
+        git_dir.mkdir()
+        repo = git.Repo.init(git_dir)
+        repo.create_remote("origin", "https://github.com/testowner/testrepo.git")
+
+        mock_pr = create_mock_pr(assignees=[MagicMock(login="alice")])
+        mock_repo = MagicMock()
+        mock_repo.get_pull.return_value = mock_pr
+        mock_github_client = MagicMock()
+        mock_github_client.get_repo.return_value = mock_repo
+        mock_github.return_value = mock_github_client
+
+        with patch(
+            "mcp_workspace.github_operations.base_manager.get_github_token",
+            return_value="dummy-token",
+        ):
+            manager = PullRequestManager(git_dir)
+            result = manager.add_assignees(123, "alice")
+
+            mock_pr.add_to_assignees.assert_called_once_with("alice")
+            assert result["assignees"] == ["alice"]
+
+    @patch("mcp_workspace.github_operations._client.Github")
+    def test_add_assignees_multiple_logins(
+        self, mock_github: Mock, tmp_path: Path
+    ) -> None:
+        """Multiple logins — add_to_assignees called once with all logins."""
         git_dir = tmp_path / "git_dir"
         git_dir.mkdir()
         repo = git.Repo.init(git_dir)
         repo.create_remote("origin", "https://github.com/testowner/testrepo.git")
 
         mock_pr = create_mock_pr(
-            number=42,
-            title="Feature PR",
-            head_ref="feature/xyz",
-            base_ref="main",
+            assignees=[MagicMock(login="alice"), MagicMock(login="bob")]
         )
         mock_repo = MagicMock()
-        mock_repo.get_pulls.return_value = [mock_pr]
+        mock_repo.get_pull.return_value = mock_pr
         mock_github_client = MagicMock()
         mock_github_client.get_repo.return_value = mock_repo
         mock_github.return_value = mock_github_client
@@ -44,32 +68,24 @@ class TestFindPullRequestByHead:
             return_value="dummy-token",
         ):
             manager = PullRequestManager(git_dir)
-            result = manager.find_pull_request_by_head("feature/xyz")
+            result = manager.add_assignees(123, "alice", "bob")
 
-            assert len(result) == 1
-            assert result[0]["number"] == 42
-            assert result[0]["title"] == "Feature PR"
-            assert result[0]["head_branch"] == "feature/xyz"
-            assert result[0]["base_branch"] == "main"
-            assert result[0]["mergeable_state"] == "clean"
-            mock_repo.get_pulls.assert_called_once_with(
-                state="open", head="testowner:feature/xyz"
-            )
+            mock_pr.add_to_assignees.assert_called_once_with("alice", "bob")
+            assert result["assignees"] == ["alice", "bob"]
 
     @patch("mcp_workspace.github_operations._client.Github")
-    def test_find_pr_by_head_multiple_prs(
+    def test_add_assignees_empty_logins(
         self, mock_github: Mock, tmp_path: Path
     ) -> None:
-        """Two PRs found — returns list with 2 items."""
+        """Empty logins — no API write, returns current PR data."""
         git_dir = tmp_path / "git_dir"
         git_dir.mkdir()
         repo = git.Repo.init(git_dir)
         repo.create_remote("origin", "https://github.com/testowner/testrepo.git")
 
-        mock_pr1 = create_mock_pr(number=10, title="PR One", head_ref="feature/abc")
-        mock_pr2 = create_mock_pr(number=11, title="PR Two", head_ref="feature/abc")
+        mock_pr = create_mock_pr()
         mock_repo = MagicMock()
-        mock_repo.get_pulls.return_value = [mock_pr1, mock_pr2]
+        mock_repo.get_pull.return_value = mock_pr
         mock_github_client = MagicMock()
         mock_github_client.get_repo.return_value = mock_repo
         mock_github.return_value = mock_github_client
@@ -79,22 +95,22 @@ class TestFindPullRequestByHead:
             return_value="dummy-token",
         ):
             manager = PullRequestManager(git_dir)
-            result = manager.find_pull_request_by_head("feature/abc")
+            result = manager.add_assignees(123)
 
-            assert len(result) == 2
-            assert result[0]["number"] == 10
-            assert result[1]["number"] == 11
+            mock_pr.add_to_assignees.assert_not_called()
+            assert result["number"] == 123
 
     @patch("mcp_workspace.github_operations._client.Github")
-    def test_find_pr_by_head_not_found(self, mock_github: Mock, tmp_path: Path) -> None:
-        """No PRs — returns empty list."""
+    def test_add_assignees_invalid_pr_number(
+        self, mock_github: Mock, tmp_path: Path
+    ) -> None:
+        """Invalid pr_number — returns empty dict, get_pull not called."""
         git_dir = tmp_path / "git_dir"
         git_dir.mkdir()
         repo = git.Repo.init(git_dir)
         repo.create_remote("origin", "https://github.com/testowner/testrepo.git")
 
         mock_repo = MagicMock()
-        mock_repo.get_pulls.return_value = []
         mock_github_client = MagicMock()
         mock_github_client.get_repo.return_value = mock_repo
         mock_github.return_value = mock_github_client
@@ -104,36 +120,21 @@ class TestFindPullRequestByHead:
             return_value="dummy-token",
         ):
             manager = PullRequestManager(git_dir)
-            result = manager.find_pull_request_by_head("nonexistent-branch")
+            result = manager.add_assignees(0, "alice")
 
-            assert result == []
-
-    def test_find_pr_by_head_invalid_branch(self, tmp_path: Path) -> None:
-        """Invalid branch name — returns empty list (validation)."""
-        git_dir = tmp_path / "git_dir"
-        git_dir.mkdir()
-        repo = git.Repo.init(git_dir)
-        repo.create_remote("origin", "https://github.com/testowner/testrepo.git")
-
-        with patch(
-            "mcp_workspace.github_operations.base_manager.get_github_token",
-            return_value="dummy-token",
-        ):
-            manager = PullRequestManager(git_dir)
-            result = manager.find_pull_request_by_head("invalid~branch")
-
-            assert result == []
+            assert not result  # empty dict
+            mock_repo.get_pull.assert_not_called()
 
     @patch("mcp_workspace.github_operations._client.Github")
-    def test_find_pr_by_head_api_error(self, mock_github: Mock, tmp_path: Path) -> None:
-        """GithubException — returns empty list (decorator handles)."""
+    def test_add_assignees_api_error(self, mock_github: Mock, tmp_path: Path) -> None:
+        """GithubException — returns empty dict (decorator handles)."""
         git_dir = tmp_path / "git_dir"
         git_dir.mkdir()
         repo = git.Repo.init(git_dir)
         repo.create_remote("origin", "https://github.com/testowner/testrepo.git")
 
         mock_repo = MagicMock()
-        mock_repo.get_pulls.side_effect = GithubException(
+        mock_repo.get_pull.side_effect = GithubException(
             500, {"message": "Internal Server Error"}, None
         )
         mock_github_client = MagicMock()
@@ -145,6 +146,6 @@ class TestFindPullRequestByHead:
             return_value="dummy-token",
         ):
             manager = PullRequestManager(git_dir)
-            result = manager.find_pull_request_by_head("feature/xyz")
+            result = manager.add_assignees(123, "alice")
 
-            assert result == []
+            assert not result  # empty dict

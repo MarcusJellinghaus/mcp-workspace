@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, List, Optional, TypedDict, cast
 
 from github.GithubException import GithubException
+from github.PullRequest import PullRequest
 from mcp_coder_utils.log_utils import log_function_call
 
 from mcp_workspace.git_operations import get_default_branch_name
@@ -37,6 +38,7 @@ class PullRequestData(TypedDict):
     mergeable_state: Optional[str]
     merged: bool
     draft: bool
+    assignees: list[str]
 
 
 class PRFeedback(TypedDict):
@@ -59,6 +61,27 @@ def _empty_pr_feedback() -> PRFeedback:
         "conversation_comments": [],
         "alerts": [],
         "unavailable": {},
+    }
+
+
+def _pr_to_data(pr: PullRequest) -> PullRequestData:
+    """Flatten a live PyGithub PullRequest into a plain PullRequestData dict."""
+    return {
+        "number": pr.number,
+        "title": pr.title,
+        "body": pr.body,
+        "state": pr.state,
+        "head_branch": pr.head.ref,
+        "base_branch": pr.base.ref,
+        "url": pr.html_url,
+        "created_at": pr.created_at.isoformat() if pr.created_at else None,
+        "updated_at": pr.updated_at.isoformat() if pr.updated_at else None,
+        "user": pr.user.login if pr.user else None,
+        "mergeable": pr.mergeable,
+        "mergeable_state": pr.mergeable_state,
+        "merged": pr.merged,
+        "draft": pr.draft,
+        "assignees": [a.login for a in pr.assignees],
     }
 
 
@@ -149,7 +172,7 @@ class PullRequestManager(BaseGitHubManager):
         return True
 
     @log_function_call
-    @_handle_github_errors(lambda: cast(PullRequestData, {}))
+    @_handle_github_errors(cast(PullRequestData, {}))
     def create_pull_request(
         self,
         title: str,
@@ -180,8 +203,10 @@ class PullRequestManager(BaseGitHubManager):
             - updated_at: ISO timestamp (str)
             - user: GitHub username of creator (str)
             - mergeable: Whether PR can be merged (bool)
+            - mergeable_state: Mergeability state string (str)
             - merged: Whether PR is already merged (bool)
             - draft: Whether PR is a draft (bool)
+            - assignees: GitHub usernames assigned to the PR (list[str])
         """
         # Resolve base_branch if not provided
         if base_branch is None:
@@ -206,41 +231,19 @@ class PullRequestManager(BaseGitHubManager):
         if not self._validate_branch_name(base_branch):
             return cast(PullRequestData, {})
 
-        try:
-            repo = self._get_repository()
-            if repo is None:
-                return cast(PullRequestData, {})
-
-            # Create the pull request using GitHub API
-            pr = repo.create_pull(
-                title=title, body=body, head=head_branch, base=base_branch
-            )
-
-            # Return structured dictionary with PR information
-            return {
-                "number": pr.number,
-                "title": pr.title,
-                "body": pr.body,
-                "state": pr.state,
-                "head_branch": pr.head.ref,
-                "base_branch": pr.base.ref,
-                "url": pr.html_url,
-                "created_at": pr.created_at.isoformat() if pr.created_at else None,
-                "updated_at": pr.updated_at.isoformat() if pr.updated_at else None,
-                "user": pr.user.login if pr.user else None,
-                "mergeable": pr.mergeable,
-                "mergeable_state": pr.mergeable_state,
-                "merged": pr.merged,
-                "draft": pr.draft,
-            }
-
-        except GithubException as e:
-            # Log the error and return empty dict on failure
-            logger.error(f"GitHub API error creating pull request: {e}")
+        repo = self._get_repository()
+        if repo is None:
             return cast(PullRequestData, {})
 
+        # Create the pull request using GitHub API
+        pr = repo.create_pull(
+            title=title, body=body, head=head_branch, base=base_branch
+        )
+
+        return _pr_to_data(pr)
+
     @log_function_call
-    @_handle_github_errors(lambda: cast(PullRequestData, {}))
+    @_handle_github_errors(cast(PullRequestData, {}))
     def get_pull_request(self, pr_number: int) -> PullRequestData:
         """Get information about a specific pull request.
 
@@ -254,36 +257,14 @@ class PullRequestManager(BaseGitHubManager):
         if not self._validate_pr_number(pr_number):
             return cast(PullRequestData, {})
 
-        try:
-            repo = self._get_repository()
-            if repo is None:
-                return cast(PullRequestData, {})
-
-            # Get the pull request using GitHub API
-            pr = repo.get_pull(pr_number)
-
-            # Return structured dictionary with PR information
-            return {
-                "number": pr.number,
-                "title": pr.title,
-                "body": pr.body,
-                "state": pr.state,
-                "head_branch": pr.head.ref,
-                "base_branch": pr.base.ref,
-                "url": pr.html_url,
-                "created_at": pr.created_at.isoformat() if pr.created_at else None,
-                "updated_at": pr.updated_at.isoformat() if pr.updated_at else None,
-                "user": pr.user.login if pr.user else None,
-                "mergeable": pr.mergeable,
-                "mergeable_state": pr.mergeable_state,
-                "merged": pr.merged,
-                "draft": pr.draft,
-            }
-
-        except GithubException as e:
-            # Log the error and return empty dict on failure
-            logger.error(f"GitHub API error getting pull request {pr_number}: {e}")
+        repo = self._get_repository()
+        if repo is None:
             return cast(PullRequestData, {})
+
+        # Get the pull request using GitHub API
+        pr = repo.get_pull(pr_number)
+
+        return _pr_to_data(pr)
 
     @log_function_call
     @_handle_github_errors(lambda: [])
@@ -327,30 +308,7 @@ class PullRequestManager(BaseGitHubManager):
                 if max_results is not None and i >= max_results:
                     break
 
-                pr_dict = cast(
-                    PullRequestData,
-                    {
-                        "number": pr.number,
-                        "title": pr.title,
-                        "body": pr.body,
-                        "state": pr.state,
-                        "head_branch": pr.head.ref,
-                        "base_branch": pr.base.ref,
-                        "url": pr.html_url,
-                        "created_at": (
-                            pr.created_at.isoformat() if pr.created_at else None
-                        ),
-                        "updated_at": (
-                            pr.updated_at.isoformat() if pr.updated_at else None
-                        ),
-                        "user": pr.user.login if pr.user else None,
-                        "mergeable": pr.mergeable,
-                        "mergeable_state": pr.mergeable_state,
-                        "merged": pr.merged,
-                        "draft": pr.draft,
-                    },
-                )
-                pr_list.append(pr_dict)
+                pr_list.append(_pr_to_data(pr))
 
             return pr_list
 
@@ -381,35 +339,10 @@ class PullRequestManager(BaseGitHubManager):
         owner = self._repo_identifier.owner
         prs = repo.get_pulls(state="open", head=f"{owner}:{head_branch}")
 
-        return [
-            cast(
-                PullRequestData,
-                {
-                    "number": pr.number,
-                    "title": pr.title,
-                    "body": pr.body,
-                    "state": pr.state,
-                    "head_branch": pr.head.ref,
-                    "base_branch": pr.base.ref,
-                    "url": pr.html_url,
-                    "created_at": (
-                        pr.created_at.isoformat() if pr.created_at else None
-                    ),
-                    "updated_at": (
-                        pr.updated_at.isoformat() if pr.updated_at else None
-                    ),
-                    "user": pr.user.login if pr.user else None,
-                    "mergeable": pr.mergeable,
-                    "mergeable_state": pr.mergeable_state,
-                    "merged": pr.merged,
-                    "draft": pr.draft,
-                },
-            )
-            for pr in prs
-        ]
+        return [_pr_to_data(pr) for pr in prs]
 
     @log_function_call
-    @_handle_github_errors(lambda: cast(PullRequestData, {}))
+    @_handle_github_errors(cast(PullRequestData, {}))
     def close_pull_request(self, pr_number: int) -> PullRequestData:
         """Close a pull request.
 
@@ -423,46 +356,56 @@ class PullRequestManager(BaseGitHubManager):
         if not self._validate_pr_number(pr_number):
             return cast(PullRequestData, {})
 
-        try:
-            repo = self._get_repository()
-            if repo is None:
-                return cast(PullRequestData, {})
-
-            # Get the pull request using GitHub API
-            pr = repo.get_pull(pr_number)
-
-            # Close the pull request by editing it
-            pr.edit(state="closed")
-
-            # Get updated PR information after closing
-            updated_pr = repo.get_pull(pr_number)
-
-            # Return structured dictionary with updated PR information
-            return {
-                "number": updated_pr.number,
-                "title": updated_pr.title,
-                "body": updated_pr.body,
-                "state": updated_pr.state,
-                "head_branch": updated_pr.head.ref,
-                "base_branch": updated_pr.base.ref,
-                "url": updated_pr.html_url,
-                "created_at": (
-                    updated_pr.created_at.isoformat() if updated_pr.created_at else None
-                ),
-                "updated_at": (
-                    updated_pr.updated_at.isoformat() if updated_pr.updated_at else None
-                ),
-                "user": updated_pr.user.login if updated_pr.user else None,
-                "mergeable": updated_pr.mergeable,
-                "mergeable_state": updated_pr.mergeable_state,
-                "merged": updated_pr.merged,
-                "draft": updated_pr.draft,
-            }
-
-        except GithubException as e:
-            # Log the error and return empty dict on failure
-            logger.error(f"GitHub API error closing pull request {pr_number}: {e}")
+        repo = self._get_repository()
+        if repo is None:
             return cast(PullRequestData, {})
+
+        # Get the pull request using GitHub API
+        pr = repo.get_pull(pr_number)
+
+        # Close the pull request by editing it
+        pr.edit(state="closed")
+
+        # Get updated PR information after closing
+        updated_pr = repo.get_pull(pr_number)
+
+        return _pr_to_data(updated_pr)
+
+    @log_function_call
+    @_handle_github_errors(cast(PullRequestData, {}))
+    def add_assignees(self, pr_number: int, *logins: str) -> PullRequestData:
+        """Add one or more assignees to an existing pull request.
+
+        Wraps PyGithub's PullRequest.add_to_assignees(*logins) on the authenticated
+        PyGithub path. Returns the updated PullRequestData.
+
+        Note: GitHub silently drops logins that are not assignable (not a collaborator /
+        no repo access) — add_to_assignees succeeds with no error and no effect, so a
+        non-empty return is not proof the user was actually assigned. Intended for
+        best-effort use.
+
+        Args:
+            pr_number: Pull request number
+            *logins: GitHub usernames to assign to the pull request
+
+        Returns:
+            PullRequestData containing updated pull request information or empty dict
+            on failure
+        """
+        if not self._validate_pr_number(pr_number):
+            return cast(PullRequestData, {})
+
+        repo = self._get_repository()
+        if repo is None:
+            return cast(PullRequestData, {})
+
+        pr = repo.get_pull(pr_number)
+
+        # Empty *logins -> no API write (no-op); still returns current PR data.
+        if logins:
+            pr.add_to_assignees(*logins)
+
+        return _pr_to_data(pr)
 
     @log_function_call
     @_handle_github_errors(default_return=[])
