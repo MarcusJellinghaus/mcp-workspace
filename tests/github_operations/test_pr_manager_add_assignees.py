@@ -12,7 +12,7 @@ from github.GithubException import GithubException
 
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
 
-from .test_pr_manager import create_mock_pr
+from ._pr_test_helpers import create_mock_pr
 
 
 @pytest.mark.git_integration
