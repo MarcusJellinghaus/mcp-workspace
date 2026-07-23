@@ -33,9 +33,9 @@ See [step_1.md](./steps/step_1.md).
 
 See [step_2.md](./steps/step_2.md).
 
-- [ ] Implementation: add `add_assignees(self, pr_number, *logins)` method and create `tests/github_operations/test_pr_manager_add_assignees.py` with the five cases
-- [ ] Quality checks: pylint, pytest (`-n auto`, marker `git_integration`), mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add `add_assignees(self, pr_number, *logins)` method and create `tests/github_operations/test_pr_manager_add_assignees.py` with the five cases
+- [x] Quality checks: pylint, pytest (`-n auto`, marker `git_integration`), mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

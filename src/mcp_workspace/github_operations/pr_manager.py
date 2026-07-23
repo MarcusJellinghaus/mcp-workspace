@@ -372,6 +372,42 @@ class PullRequestManager(BaseGitHubManager):
         return _pr_to_data(updated_pr)
 
     @log_function_call
+    @_handle_github_errors(cast(PullRequestData, {}))
+    def add_assignees(self, pr_number: int, *logins: str) -> PullRequestData:
+        """Add one or more assignees to an existing pull request.
+
+        Wraps PyGithub's PullRequest.add_to_assignees(*logins) on the authenticated
+        PyGithub path. Returns the updated PullRequestData.
+
+        Note: GitHub silently drops logins that are not assignable (not a collaborator /
+        no repo access) — add_to_assignees succeeds with no error and no effect, so a
+        non-empty return is not proof the user was actually assigned. Intended for
+        best-effort use.
+
+        Args:
+            pr_number: Pull request number
+            *logins: GitHub usernames to assign to the pull request
+
+        Returns:
+            PullRequestData containing updated pull request information or empty dict
+            on failure
+        """
+        if not self._validate_pr_number(pr_number):
+            return cast(PullRequestData, {})
+
+        repo = self._get_repository()
+        if repo is None:
+            return cast(PullRequestData, {})
+
+        pr = repo.get_pull(pr_number)
+
+        # Empty *logins -> no API write (no-op); still returns current PR data.
+        if logins:
+            pr.add_to_assignees(*logins)
+
+        return _pr_to_data(pr)
+
+    @log_function_call
     @_handle_github_errors(default_return=[])
     def get_closing_issue_numbers(self, pr_number: int) -> List[int]:
         """Query closing issue references for a PR via GraphQL.
