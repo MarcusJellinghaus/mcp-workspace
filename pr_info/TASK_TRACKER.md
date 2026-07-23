@@ -39,5 +39,5 @@ See [step_2.md](./steps/step_2.md).
 
 ## Pull Request
 
-- [ ] PR review: verify all steps complete and checks pass across the branch
+- [x] PR review: verify all steps complete and checks pass across the branch
 - [ ] PR summary prepared
