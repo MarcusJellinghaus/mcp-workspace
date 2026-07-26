@@ -94,13 +94,6 @@ profile = "black"
 line_length = 88
 float_to_top = true
 
-[tool.uv.sources]
-# Map sibling MCP packages to their GitHub sources so uv can satisfy the
-# plain-named dependency (mcp-coder-utils) above without listing it as a
-# direct URL dep in [project] (which PyPI rejects). uv-specific keys are
-# stripped from built wheels/sdists.
-mcp-coder-utils = { git = "https://github.com/MarcusJellinghaus/mcp-coder-utils.git" }
-
 [tool.mcp-coder.install-from-github]
 # Installed WITH deps (picks up external deps like jedi)
 packages = [
