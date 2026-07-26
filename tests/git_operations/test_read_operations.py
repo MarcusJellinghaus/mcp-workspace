@@ -656,7 +656,9 @@ class TestGitShow:
         (project_dir / "notes.txt").write_text("intro\nFetch the issue\noutro\n")
         repo.index.add(["notes.txt"])
         repo.index.commit("add notes")
-        result = git_show(project_dir, args=["HEAD:notes.txt"], search="Fetch the issue")
+        result = git_show(
+            project_dir, args=["HEAD:notes.txt"], search="Fetch the issue"
+        )
         assert "Fetch the issue" in result
         assert "No matches" not in result
 

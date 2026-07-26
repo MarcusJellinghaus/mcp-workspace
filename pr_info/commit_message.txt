@@ -1,9 +1,6 @@
-fix(git): use line-based filter for show <blob> search (content, not diff)
+Fix Black formatting in test_read_operations.py
 
-git_show with a colon argument (e.g. HEAD:README.md) returns plain file
-content, not a diff, so filter_diff_output found no hunks and always
-reported "No matches". Add filter_content_output, a line-based grep with
-context that reuses the sibling filters' no-match and invalid-pattern
-messages, and select it in git_show when has_colon is set. git_diff is
-unchanged. Covered by unit tests for the new filter and a real-repo
-integration guard.
+Wrap the git_show call in TestGitShow.test_show_blob_search_matches_content
+onto multiple lines; at its 8-space indentation the single-line form was 89
+characters, one over Black's 88-character limit, causing the CI black job
+to fail with "1 file would be reformatted".
