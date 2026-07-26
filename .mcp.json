@@ -27,6 +27,8 @@
         "${MCP_CODER_PROJECT_DIR}",
         "--log-level",
         "DEBUG",
+        "--file-size-limit",
+        "750",
         "--reference-project",
         "name=mcp_coder,path=${USERPROFILE}\\Documents\\GitHub\\mcp_coder,url=https://github.com/MarcusJellinghaus/mcp_coder",
         "--reference-project",

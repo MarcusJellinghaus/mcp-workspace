@@ -84,23 +84,23 @@ class RepoIdentifier:
 
     @property
     def full_name(self) -> str:
-        """Return repository in 'owner/repo' format."""
+        """Repository in 'owner/repo' format."""
         return f"{self.owner}/{self.repo_name}"
 
     @property
     def cache_safe_name(self) -> str:
-        """Return repository in 'hostname_owner_repo' format (safe for filenames)."""
+        """Repository in 'hostname_owner_repo' format (safe for filenames)."""
         safe_hostname = self.hostname.replace(".", "_")
         return f"{safe_hostname}_{self.owner}_{self.repo_name}"
 
     @property
     def https_url(self) -> str:
-        """Return repository HTTPS URL."""
+        """Repository HTTPS URL."""
         return f"https://{self.hostname}/{self.owner}/{self.repo_name}"
 
     @property
     def api_base_url(self) -> str:
-        """Return API base URL for PyGithub."""
+        """API base URL for PyGithub."""
         return hostname_to_api_base_url(self.hostname)
 
     @property

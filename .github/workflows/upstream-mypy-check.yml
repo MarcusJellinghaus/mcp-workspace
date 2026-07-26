@@ -28,11 +28,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install mcp-coder-utils from main
-        run: uv pip install --system "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git"
-
-      - name: Install mcp-workspace with typecheck extra
-        run: uv pip install --system ".[typecheck]"
+      - name: Install dependencies
+        run: |
+          uv pip install --system \
+            "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
+            ".[typecheck]"
 
       - name: Run mypy --strict
         run: mypy --strict src tests

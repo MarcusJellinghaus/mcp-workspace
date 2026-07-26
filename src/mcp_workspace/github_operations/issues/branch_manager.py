@@ -369,9 +369,11 @@ class IssueBranchManager(BaseGitHubManager):
     ) -> tuple[BranchCreationResult, bool]:
         """Parse the createLinkedBranch GraphQL response.
 
-        Returns ``(result, retryable)``. ``retryable`` is True only for the
-        eventual-consistency case where the mutation appears to succeed but the
-        response omits ``linkedBranch.ref`` — all other failures are permanent.
+        Returns:
+            ``(result, retryable)``. ``retryable`` is True only for the
+            eventual-consistency case where the mutation appears to succeed
+            but the response omits ``linkedBranch.ref`` — all other failures
+            are permanent.
         """
 
         def _fail(

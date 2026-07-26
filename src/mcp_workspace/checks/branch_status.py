@@ -263,7 +263,11 @@ def _format_wait_line(
     report: BranchStatusReport,
     wait_context: Optional[WaitContext],
 ) -> Optional[str]:
-    """Build the ``Wait: ...`` line, or None when nothing to render."""
+    """Build the ``Wait: ...`` line for the report.
+
+    Returns:
+        The formatted ``Wait: ...`` line, or None when nothing to render.
+    """
     if wait_context is None:
         return None
     parts: List[str] = []
@@ -284,7 +288,11 @@ def _format_wait_line(
 
 
 def create_empty_report() -> BranchStatusReport:
-    """Create an empty/default report for error cases."""
+    """Create an empty/default report for error cases.
+
+    Returns:
+        A BranchStatusReport with placeholder/unknown values.
+    """
     return BranchStatusReport(
         branch_name="unknown",
         base_branch="unknown",

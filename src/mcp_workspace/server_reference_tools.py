@@ -81,7 +81,14 @@ def get_reference_projects() -> Dict[str, Any]:
 
 
 async def get_reference_project_path(name: str) -> Path:
-    """Resolve a reference project name to its local path, ensuring availability."""
+    """Resolve a reference project name to its local path, ensuring availability.
+
+    Returns:
+        Local filesystem path of the reference project.
+
+    Raises:
+        ValueError: If no reference project with the given name exists.
+    """
     if name not in _reference_projects:
         raise ValueError(f"Reference project '{name}' not found")
     project = _reference_projects[name]

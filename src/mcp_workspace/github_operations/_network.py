@@ -29,8 +29,10 @@ def _tcp_probe(host: str) -> str:
     """Probe a direct TCP connection to ``host:443`` with a 3s timeout.
 
     Ignores proxies on purpose — it answers "is the host reachable from this
-    Python process at all?". Returns one of ``ok``/``refused``/``timeout``/
-    ``dns_error``.
+    Python process at all?".
+
+    Returns:
+        One of ``ok``/``refused``/``timeout``/``dns_error``.
 
     Note:
         Catch order matters: ``socket.gaierror`` (DNS) is an ``OSError`` subclass
@@ -50,7 +52,11 @@ def _tcp_probe(host: str) -> str:
 
 
 def _proxy_host_port(url: str) -> str:
-    """Reduce a proxy URL to ``host:port``, dropping any ``user:pass@`` prefix."""
+    """Reduce a proxy URL to ``host:port``, dropping any ``user:pass@`` prefix.
+
+    Returns:
+        ``host:port``, or just the hostname when the URL carries no port.
+    """
     parts = urlsplit(url)
     if parts.port is None:
         return parts.hostname or ""

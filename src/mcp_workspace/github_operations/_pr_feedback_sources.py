@@ -34,6 +34,10 @@ def fetch_review_data(
 
     Returns:
         Tuple of (unresolved_threads, resolved_count, changes_requested_reviews)
+
+    Raises:
+        GithubException: On a permanent GraphQL error (status other than
+            400/404) or once the eventual-consistency retries are exhausted.
     """
     repo = manager._get_repository()  # pylint: disable=protected-access
     if repo is None:
@@ -117,7 +121,12 @@ def fetch_review_data(
 def fetch_conversation_comments(
     manager: "PullRequestManager", pr_number: int
 ) -> list[dict[str, Any]]:
-    """Fetch top-level PR conversation comments via REST."""
+    """Fetch top-level PR conversation comments via REST.
+
+    Returns:
+        List of dicts with ``author`` and ``body`` keys; empty list when the
+        repository is unavailable.
+    """
     repo = manager._get_repository()  # pylint: disable=protected-access
     if repo is None:
         return []

@@ -23,7 +23,8 @@ def _search_content(
 ) -> Dict[str, Any]:
     """Search file contents for regex matches.
 
-    Returns content_search result dict.
+    Returns:
+        content_search result dict.
     """
     matches: List[Dict[str, Any]] = []
     total_matches = 0
