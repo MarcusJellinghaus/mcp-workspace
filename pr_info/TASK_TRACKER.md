@@ -21,6 +21,19 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Bug 1 — UTF-8 decode chokepoint (`run_git_text`) ([details](./steps/step_1.md))
+
+- [ ] Implementation (tests + production code): add `run_git_text` helper in `core.py`, route all 12 read-only call sites in `read_operations.py`, add unit guards, fix broken str→bytes mocks
+- [ ] Quality checks: pylint, pytest (fast set + `git_integration` markers), mypy — fix all issues
+- [ ] Commit message prepared: `fix(git): decode read-only git output as UTF-8 via run_git_text chokepoint`
+
+### Step 2: Bug 2 — content-aware search for `git show <blob>` ([details](./steps/step_2.md))
+
+- [ ] Implementation (tests + production code): add `filter_content_output` in `output_filtering.py`, select it in `git_show` when `has_colon`, add unit tests + real-repo integration guard
+- [ ] Quality checks: pylint, pytest (fast set + `git_integration` markers), mypy — fix all issues
+- [ ] Commit message prepared: `fix(git): use line-based filter for show <blob> search (content, not diff)`
 
 ## Pull Request
+
+- [ ] PR review completed
+- [ ] PR summary prepared
