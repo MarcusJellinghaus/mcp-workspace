@@ -19,7 +19,7 @@ from .arg_validation import (
     validate_branch_has_read_flag,
 )
 from .compact_diffs import render_compact_diff
-from .core import safe_repo_context
+from .core import run_git_text, safe_repo_context
 from .output_filtering import filter_diff_output, filter_log_output, truncate_output
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ def _run_simple_command(
         cmd_args += ["--"] + pathspec
 
     with safe_repo_context(project_dir) as repo:
-        output: str = getattr(repo.git, git_method)(*cmd_args)
+        output: str = run_git_text(repo, git_method, *cmd_args)
 
     if not output:
         return no_output_message
@@ -121,7 +121,7 @@ def git_log(
 
     with safe_repo_context(project_dir) as repo:
         try:
-            output: str = repo.git.log(*cmd_args)
+            output: str = run_git_text(repo, "log", *cmd_args)
         except GitCommandError as exc:
             if "does not have any commits yet" in str(exc):
                 return "No commits found."
@@ -188,7 +188,7 @@ def git_diff(
             if pathspec:
                 base_args += ["--"] + pathspec
 
-            plain: str = repo.git.diff(*base_args)
+            plain: str = run_git_text(repo, "diff", *base_args)
             if not plain:
                 return "No changes found"
 
@@ -206,8 +206,12 @@ def git_diff(
             if not patch_portion:
                 output = prefix
             else:
-                ansi: str = repo.git.diff(
-                    "--color=always", "--color-moved=dimmed-zebra", *base_args
+                ansi: str = run_git_text(
+                    repo,
+                    "diff",
+                    "--color=always",
+                    "--color-moved=dimmed-zebra",
+                    *base_args,
                 )
                 compacted = render_compact_diff(patch_portion, ansi)
                 if not compacted:
@@ -230,7 +234,7 @@ def git_diff(
             cmd_args = list(_SAFETY_FLAGS) + user_args
             if pathspec:
                 cmd_args += ["--"] + pathspec
-            output = repo.git.diff(*cmd_args)
+            output = run_git_text(repo, "diff", *cmd_args)
 
     if not output:
         return "No changes found"
@@ -270,7 +274,7 @@ def git_status(
         cmd_args += ["--"] + pathspec
 
     with safe_repo_context(project_dir) as repo:
-        output: str = repo.git.status(*cmd_args)
+        output: str = run_git_text(repo, "status", *cmd_args)
 
     if not output:
         return "No changes found"
@@ -300,7 +304,7 @@ def git_merge_base(
 
     with safe_repo_context(project_dir) as repo:
         try:
-            output: str = repo.git.merge_base(*safe_args)
+            output: str = run_git_text(repo, "merge_base", *safe_args)
         except GitCommandError as exc:
             # --is-ancestor: exit code 1 means "not ancestor"
             if "--is-ancestor" in safe_args and exc.status == 1:
@@ -373,7 +377,7 @@ def git_show(
             if pathspec:
                 base_args += ["--"] + pathspec
 
-            plain: str = repo.git.show(*base_args)
+            plain: str = run_git_text(repo, "show", *base_args)
             if not plain:
                 return "No output."
 
@@ -392,8 +396,12 @@ def git_show(
             if not patch_portion:
                 output = prefix
             else:
-                ansi: str = repo.git.show(
-                    "--color=always", "--color-moved=dimmed-zebra", *base_args
+                ansi: str = run_git_text(
+                    repo,
+                    "show",
+                    "--color=always",
+                    "--color-moved=dimmed-zebra",
+                    *base_args,
                 )
                 compacted = render_compact_diff(patch_portion, ansi)
                 if not compacted:
@@ -417,7 +425,7 @@ def git_show(
             cmd_args = list(_SAFETY_FLAGS) + user_args
             if pathspec:
                 cmd_args += ["--"] + pathspec
-            output = repo.git.show(*cmd_args)
+            output = run_git_text(repo, "show", *cmd_args)
 
     if not output:
         return "No output."
@@ -454,7 +462,7 @@ def git_branch(
     validate_branch_has_read_flag(safe_args)
 
     with safe_repo_context(project_dir) as repo:
-        output: str = repo.git.branch(*safe_args)
+        output: str = run_git_text(repo, "branch", *safe_args)
 
     if not output:
         return "No branches found."
@@ -500,7 +508,7 @@ def git_check_ignore(
 
     with safe_repo_context(project_dir) as repo:
         try:
-            output: str = repo.git.check_ignore(*cmd_args)
+            output: str = run_git_text(repo, "check_ignore", *cmd_args)
         except GitCommandError as exc:
             if exc.status == 1:
                 return "No paths are ignored."

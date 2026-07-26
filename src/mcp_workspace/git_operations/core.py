@@ -87,6 +87,18 @@ def safe_repo_context(project_dir: Path) -> Iterator[Repo]:
             _close_repo_safely(repo)
 
 
+def run_git_text(repo: Repo, method: str, *args: str) -> str:
+    """Run a git method and decode its output as UTF-8.
+
+    Forces UTF-8 decoding of git stdout (GitPython otherwise decodes with the
+    OS locale code page, e.g. cp1252 on Windows). Strips trailing newlines to
+    match GitPython's string-mode output exactly.
+    """
+    raw_bytes = getattr(repo.git, method)(*args, stdout_as_string=False)
+    text: str = raw_bytes.decode("utf-8", errors="replace")
+    return text.rstrip("\n")
+
+
 def _normalize_git_path(path: Path, base_dir: Path) -> str:
     """Convert a path to git-compatible format.
 

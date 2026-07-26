@@ -8,6 +8,7 @@ import pytest
 from git import Repo
 from git.exc import GitCommandError
 
+from mcp_workspace.git_operations.core import run_git_text
 from mcp_workspace.git_operations.read_operations import (
     _run_simple_command,
     git,
@@ -18,6 +19,32 @@ from mcp_workspace.git_operations.read_operations import (
     git_show,
     git_status,
 )
+
+
+class TestRunGitText:
+    """Unit guards for run_git_text() — the UTF-8 decode chokepoint (Bug 1).
+
+    CI runs a UTF-8 locale, so real git would not reproduce the cp1252
+    mangling; injecting raw bytes here is the regression guard.
+    """
+
+    def test_run_git_text_decodes_utf8_em_dash(self) -> None:
+        mock_repo = MagicMock()
+        # e2 80 94 == U+2014 em dash; returned as raw bytes (stdout_as_string=False)
+        mock_repo.git.diff.return_value = b"analysing \xe2\x80\x94 done\n"
+        result = run_git_text(mock_repo, "diff", "--no-ext-diff")
+        assert result == "analysing — done"  # decoded, trailing \n stripped
+        mock_repo.git.diff.assert_called_once_with(
+            "--no-ext-diff", stdout_as_string=False
+        )
+        # A non-ASCII search pattern now matches the decoded output
+        assert re.search("analysing —", result) is not None
+
+    def test_run_git_text_replaces_invalid_utf8(self) -> None:
+        mock_repo = MagicMock()
+        mock_repo.git.log.return_value = b"bad \xff byte"
+        result = run_git_text(mock_repo, "log")
+        assert result == "bad � byte"
 
 
 @pytest.mark.git_integration
@@ -95,7 +122,7 @@ class TestGitLog:
             "mcp_workspace.git_operations.read_operations.safe_repo_context"
         ) as mock_ctx:
             mock_repo = MagicMock()
-            mock_repo.git.log.return_value = "mocked"
+            mock_repo.git.log.return_value = b"mocked"
             mock_ctx.return_value.__enter__ = MagicMock(return_value=mock_repo)
             mock_ctx.return_value.__exit__ = MagicMock(return_value=False)
 
@@ -216,7 +243,7 @@ class TestGitDiff:
             "mcp_workspace.git_operations.read_operations.safe_repo_context"
         ) as mock_ctx:
             mock_repo = MagicMock()
-            mock_repo.git.diff.return_value = ""
+            mock_repo.git.diff.return_value = b""
             mock_ctx.return_value.__enter__ = MagicMock(return_value=mock_repo)
             mock_ctx.return_value.__exit__ = MagicMock(return_value=False)
 
@@ -385,7 +412,7 @@ class TestGitStatus:
             "mcp_workspace.git_operations.read_operations.safe_repo_context"
         ) as mock_ctx:
             mock_repo = MagicMock()
-            mock_repo.git.status.return_value = "mocked status"
+            mock_repo.git.status.return_value = b"mocked status"
             mock_ctx.return_value.__enter__ = MagicMock(return_value=mock_repo)
             mock_ctx.return_value.__exit__ = MagicMock(return_value=False)
 
@@ -483,7 +510,7 @@ class TestRunSimpleCommand:
         mock_ctx_obj, mock_repo = self._make_mock_context()
         mock_ctx.side_effect = mock_ctx_obj.side_effect
         mock_ctx.return_value = mock_ctx_obj.return_value
-        mock_repo.git.fetch.return_value = "ok"
+        mock_repo.git.fetch.return_value = b"ok"
 
         _run_simple_command(
             git_method="fetch",
@@ -499,7 +526,7 @@ class TestRunSimpleCommand:
     def test_appends_pathspec(self, mock_ctx: MagicMock, tmp_path: Path) -> None:
         mock_ctx_obj, mock_repo = self._make_mock_context()
         mock_ctx.return_value = mock_ctx_obj.return_value
-        mock_repo.git.ls_files.return_value = "file.txt"
+        mock_repo.git.ls_files.return_value = b"file.txt"
 
         _run_simple_command(
             git_method="ls_files",
@@ -517,7 +544,9 @@ class TestRunSimpleCommand:
     def test_truncates_output(self, mock_ctx: MagicMock, tmp_path: Path) -> None:
         mock_ctx_obj, mock_repo = self._make_mock_context()
         mock_ctx.return_value = mock_ctx_obj.return_value
-        mock_repo.git.ls_files.return_value = "\n".join(f"file_{i}" for i in range(200))
+        mock_repo.git.ls_files.return_value = "\n".join(
+            f"file_{i}" for i in range(200)
+        ).encode()
 
         result = _run_simple_command(
             git_method="ls_files",
@@ -533,7 +562,7 @@ class TestRunSimpleCommand:
     def test_no_output_message(self, mock_ctx: MagicMock, tmp_path: Path) -> None:
         mock_ctx_obj, mock_repo = self._make_mock_context()
         mock_ctx.return_value = mock_ctx_obj.return_value
-        mock_repo.git.fetch.return_value = ""
+        mock_repo.git.fetch.return_value = b""
 
         result = _run_simple_command(
             git_method="fetch",
@@ -550,7 +579,7 @@ class TestRunSimpleCommand:
     def test_includes_safety_flags(self, mock_ctx: MagicMock, tmp_path: Path) -> None:
         mock_ctx_obj, mock_repo = self._make_mock_context()
         mock_ctx.return_value = mock_ctx_obj.return_value
-        mock_repo.git.ls_tree.return_value = "blob"
+        mock_repo.git.ls_tree.return_value = b"blob"
 
         _run_simple_command(
             git_method="ls_tree",
@@ -569,7 +598,7 @@ class TestRunSimpleCommand:
     def test_no_safety_flags(self, mock_ctx: MagicMock, tmp_path: Path) -> None:
         mock_ctx_obj, mock_repo = self._make_mock_context()
         mock_ctx.return_value = mock_ctx_obj.return_value
-        mock_repo.git.rev_parse.return_value = "abc123"
+        mock_repo.git.rev_parse.return_value = b"abc123"
 
         _run_simple_command(
             git_method="rev_parse",

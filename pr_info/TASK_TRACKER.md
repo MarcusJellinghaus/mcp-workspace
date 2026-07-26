@@ -23,9 +23,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: Bug 1 — UTF-8 decode chokepoint (`run_git_text`) ([details](./steps/step_1.md))
 
-- [ ] Implementation (tests + production code): add `run_git_text` helper in `core.py`, route all 12 read-only call sites in `read_operations.py`, add unit guards, fix broken str→bytes mocks
-- [ ] Quality checks: pylint, pytest (fast set + `git_integration` markers), mypy — fix all issues
-- [ ] Commit message prepared: `fix(git): decode read-only git output as UTF-8 via run_git_text chokepoint`
+- [x] Implementation (tests + production code): add `run_git_text` helper in `core.py`, route all 12 read-only call sites in `read_operations.py`, add unit guards, fix broken str→bytes mocks
+- [x] Quality checks: pylint, pytest (fast set + `git_integration` markers), mypy — fix all issues
+- [ ] Commit message prepared: `fix(git): decode read-only git output as UTF-8 via run_git_text chokepoint` (blocked: MCP server refuses to write gitignored `pr_info/.commit_message.txt`)
 
 ### Step 2: Bug 2 — content-aware search for `git show <blob>` ([details](./steps/step_2.md))
 
