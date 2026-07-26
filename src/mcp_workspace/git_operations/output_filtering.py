@@ -84,6 +84,45 @@ def _filter_hunks(
     return result
 
 
+def filter_content_output(text: str, search: str, context: int = 3) -> str:
+    """Line-based grep for plain content (not a diff).
+
+    Returns lines matching `search` (case-insensitive) plus `context` lines
+    before/after each match. Non-adjacent regions are separated by a ``--``
+    line (grep-style). Sibling to filter_diff_output / filter_log_output.
+
+    Args:
+        text: Plain text content (e.g. from git show HEAD:<file>).
+        search: Regex pattern to search for (case-insensitive).
+        context: Number of lines before/after each match.
+
+    Returns:
+        Matching lines with context, or a descriptive message if no matches found.
+    """
+    try:
+        pattern = re.compile(search, re.IGNORECASE)
+    except re.error as e:
+        return f"Invalid search pattern: {e}"
+
+    lines = text.splitlines()
+    keep: set[int] = set()
+    for i, line in enumerate(lines):
+        if pattern.search(line):
+            keep.update(range(max(0, i - context), min(len(lines), i + context + 1)))
+
+    if not keep:
+        return f"No matches for search pattern '{search}'"
+
+    result_lines: list[str] = []
+    prev = -2
+    for i in sorted(keep):
+        if prev >= 0 and i > prev + 1:
+            result_lines.append("--")
+        result_lines.append(lines[i])
+        prev = i
+    return "\n".join(result_lines)
+
+
 def filter_log_output(text: str, search: str) -> str:
     """Structure-aware log filtering.
 
