@@ -65,7 +65,11 @@ def _empty_pr_feedback() -> PRFeedback:
 
 
 def _pr_to_data(pr: PullRequest) -> PullRequestData:
-    """Flatten a live PyGithub PullRequest into a plain PullRequestData dict."""
+    """Flatten a live PyGithub PullRequest into a plain PullRequestData dict.
+
+    Returns:
+        PullRequestData dict with plain scalar fields extracted from the PR.
+    """
     return {
         "number": pr.number,
         "title": pr.title,
@@ -530,7 +534,7 @@ class PullRequestManager(BaseGitHubManager):
 
     @property
     def repository_name(self) -> str:
-        """Get the repository name in 'owner/repo' format.
+        """Repository name in 'owner/repo' format.
 
         Returns:
             Repository name in format "owner/repo" or empty string on failure
@@ -542,7 +546,7 @@ class PullRequestManager(BaseGitHubManager):
 
     @property
     def default_branch(self) -> str:
-        """Get the default branch of the repository.
+        """Default branch of the repository.
 
         Returns:
             Default branch name (typically "main" or "master") or empty string on failure

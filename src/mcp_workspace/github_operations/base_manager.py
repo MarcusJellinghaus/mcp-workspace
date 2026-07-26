@@ -213,7 +213,12 @@ class BaseGitHubManager:
 
     @property
     def _repo_identifier(self) -> RepoIdentifier:
-        """Lazy property — resolves from git remote in project_dir mode."""
+        """Lazy property — resolves from git remote in project_dir mode.
+
+        Raises:
+            ValueError: If the repository cannot be detected from the
+                git remote.
+        """
         if self._cached_repo_identifier is not None:
             return self._cached_repo_identifier
         # project_dir mode — discover from git remote

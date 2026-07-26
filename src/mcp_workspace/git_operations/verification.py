@@ -39,10 +39,13 @@ __all__ = ["CheckResult", "PROBE_PAYLOAD", "verify_git"]
 
 
 def _get_config(repo: Repo, key: str, *extra_args: str) -> Optional[str]:
-    """Read a git config value; return None if the key is unset.
+    """Read a git config value.
 
     Manually logs only the requested key (never the value) to honour
     Decision #11: signing-related config values must never be logged.
+
+    Returns:
+        The stripped config value, or None if the key is unset or empty.
     """
     logger.debug("_get_config: reading key=%s", key)
     try:
@@ -62,6 +65,9 @@ def _run(args: list[str], timeout: float) -> "subprocess.CompletedProcess[str]":
 
     Manually logs only the binary name (args[0]) at debug level — never
     the full argv, since callers may pass signing key IDs.
+
+    Returns:
+        The completed process with captured stdout/stderr.
     """
     if args:
         logger.debug("_run: invoking binary=%s timeout=%s", args[0], timeout)
@@ -89,6 +95,9 @@ def _run_with_input(
 
     Manually logs only the binary name; never the argv (which contains the
     signing key id) and never ``input`` or the resulting signed output.
+
+    Returns:
+        The completed process with captured stdout/stderr.
     """
     if args:
         logger.debug("_run_with_input: invoking binary=%s timeout=%s", args[0], timeout)

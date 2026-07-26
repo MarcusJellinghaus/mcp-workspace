@@ -1,3 +1,5 @@
+"""MCP server exposing workspace file, search, git, and GitHub tools."""
+
 import asyncio
 import logging
 import re
@@ -54,6 +56,9 @@ def _check_not_gitignored(file_path: str) -> None:
     """Raise ValueError if path is excluded by .gitignore.
 
     This is a security boundary — always enforced, no toggle.
+
+    Raises:
+        ValueError: If the path is excluded by .gitignore.
     """
     if _project_dir is None:
         return  # Can't check without project_dir; other validation will catch this
@@ -122,6 +127,9 @@ def search_files(
     Returns:
         Dict with matches (content search) or file list (file search),
         plus truncated flag if results were capped.
+
+    Raises:
+        ValueError: If the project directory has not been set.
     """
     if _project_dir is None:
         raise ValueError("Project directory has not been set")
@@ -150,6 +158,10 @@ def list_directory(path: str = ".", dirs_only: bool = False) -> List[str]:
         A list of path strings: files, directories (trailing ``/``),
         collapsed summaries (``dir/ (N files)``), or a truncation line
         when output exceeds the internal limit.
+
+    Raises:
+        ValueError: If the project directory has not been set or the
+            path points to a file instead of a directory.
     """
     try:
         if _project_dir is None:
@@ -198,6 +210,10 @@ def read_file(
 
     Returns:
         The contents of the file as a string
+
+    Raises:
+        ValueError: If file_path is not a non-empty string or the
+            project directory has not been set.
     """
     if not file_path or not isinstance(file_path, str):
         logger.error("Invalid file path parameter: %s", file_path)
@@ -234,6 +250,10 @@ def save_file(file_path: str, content: str) -> bool:
 
     Returns:
         True if the file was written successfully
+
+    Raises:
+        ValueError: If file_path is not a non-empty string, content is
+            not a string, or the project directory has not been set.
     """
     if not file_path or not isinstance(file_path, str):
         logger.error("Invalid file path parameter: %s", file_path)
@@ -271,6 +291,10 @@ def append_file(file_path: str, content: str) -> bool:
 
     Returns:
         True if the content was appended successfully
+
+    Raises:
+        ValueError: If file_path is not a non-empty string, content is
+            not a string, or the project directory has not been set.
     """
     if not file_path or not isinstance(file_path, str):
         logger.error("Invalid file path parameter: %s", file_path)
@@ -307,6 +331,10 @@ def delete_this_file(file_path: str) -> bool:
 
     Returns:
         True if the file was deleted successfully
+
+    Raises:
+        ValueError: If file_path is not a non-empty string or the
+            project directory has not been set.
     """
     # delete_file does not work with Claude Desktop (!!!)  ;-)
     # Validate the file_path parameter
@@ -346,6 +374,8 @@ def move_file(source_path: str, destination_path: str) -> bool:
         ValueError: If inputs are invalid
         FileNotFoundError: If source doesn't exist
         FileExistsError: If destination already exists
+        PermissionError: If permission is denied
+        RuntimeError: If the move operation fails for any other reason
     """
     # Validate inputs with simple error messages
     if not source_path or not isinstance(source_path, str):
@@ -410,6 +440,10 @@ async def edit_file(
     Returns:
         Git-style unified diff showing the changes, or a message
         if the edit was already applied.
+
+    Raises:
+        ValueError: If file_path is not a non-empty string or the
+            project directory has not been set.
     """
     if not file_path or not isinstance(file_path, str):
         raise ValueError(f"File path must be a non-empty string, got {type(file_path)}")
@@ -455,6 +489,10 @@ async def git(
 
     Returns:
         Command output, optionally filtered/truncated.
+
+    Raises:
+        ValueError: If no reference project is given and the project
+            directory has not been set.
     """
     # Lazy import: keeps GitPython off the server startup import path
     from mcp_workspace.git_operations.read_operations import git as git_impl
@@ -712,6 +750,9 @@ def get_base_branch() -> str:
 
     Returns:
         Branch name string. Returns default branch name if detection fails.
+
+    Raises:
+        ValueError: If the project directory has not been set.
     """
     # Lazy import: keeps PyGithub/GitPython off the server startup import path
     from mcp_workspace.git_operations.base_branch import detect_base_branch
@@ -756,6 +797,9 @@ def check_file_size(max_lines: Optional[int] = None) -> str:
 
     Returns:
         Formatted report of files exceeding the threshold.
+
+    Raises:
+        ValueError: If the project directory has not been set.
     """
     if _project_dir is None:
         raise ValueError("Project directory has not been set")
@@ -784,6 +828,9 @@ async def check_branch_status(
 
     Returns:
         Formatted branch status report for LLM consumption.
+
+    Raises:
+        ValueError: If the project directory has not been set.
     """
     # Lazy import: keeps PyGithub/GitPython off the server startup import path
     from mcp_workspace.checks.branch_status_polling import async_poll_branch_status

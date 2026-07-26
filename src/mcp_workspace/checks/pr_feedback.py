@@ -20,7 +20,11 @@ _MAX_LINES_PER_COMMENT = 10
 
 
 def _truncate_body(body: str) -> str:
-    """Truncate a comment body at `_MAX_LINES_PER_COMMENT` lines."""
+    """Truncate a comment body at `_MAX_LINES_PER_COMMENT` lines.
+
+    Returns:
+        The body, truncated with a "... (truncated)" marker if too long.
+    """
     lines = body.splitlines()
     if len(lines) <= _MAX_LINES_PER_COMMENT:
         return body
@@ -30,8 +34,9 @@ def _truncate_body(body: str) -> str:
 def format_pr_feedback(feedback: PRFeedback) -> str:
     """Render a `PRFeedback` dict as a multi-line block.
 
-    Returns the empty-state affirmation when there is nothing to surface,
-    otherwise a `PR Reviews:` block. No trailing newline.
+    Returns:
+        The empty-state affirmation when there is nothing to surface,
+        otherwise a `PR Reviews:` block. No trailing newline.
     """
     unresolved = feedback["unresolved_threads"]
     comments = feedback["conversation_comments"]
@@ -99,9 +104,11 @@ def format_pr_feedback(feedback: PRFeedback) -> str:
 def collect_pr_feedback(
     pr_manager: PullRequestManager, pr_number: int
 ) -> Tuple[Optional[str], bool]:
-    """Fetch PR feedback and return (formatted_text, blocks_merge).
+    """Fetch PR feedback for a pull request.
 
-    Returns (None, False) on total failure (logged at debug level).
+    Returns:
+        Tuple of (formatted_text, blocks_merge), or (None, False) on
+        total failure (logged at debug level).
     """
     try:
         feedback = pr_manager.get_pr_feedback(pr_number)

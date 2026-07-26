@@ -158,6 +158,9 @@ def _is_meta_task(task_name: str) -> bool:
 
     Meta tasks are top-level step entries like 'Step 1: ...'
     that contain sub-tasks.
+
+    Returns:
+        True if the task name is a step-level meta-task.
     """
     return bool(re.match(r"^Step\s+\d+", task_name))
 

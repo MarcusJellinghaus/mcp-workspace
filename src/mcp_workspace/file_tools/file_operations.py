@@ -21,8 +21,7 @@ def read_file(
     end_line: Optional[int] = None,
     with_line_numbers: Optional[bool] = None,
 ) -> str:
-    """
-    Read the contents of a file.
+    """Read the contents of a file.
 
     Args:
         file_path: Path to the file to read (relative to project directory)
@@ -40,6 +39,7 @@ def read_file(
 
     Raises:
         FileNotFoundError: If the file does not exist
+        IsADirectoryError: If the path is not a file
         PermissionError: If access to the file is denied
         ValueError: If the file is outside the project directory, or if
             *start_line* / *end_line* are invalid
@@ -249,8 +249,7 @@ def _write_file_atomically(abs_path: Path, rel_path: str, content: str) -> bool:
 
 
 def save_file(file_path: str, content: Any, project_dir: Path) -> bool:
-    """
-    Write content to a file atomically.
+    """Write content to a file atomically.
 
     Args:
         file_path: Path to the file to write to (relative to project directory)
@@ -281,8 +280,7 @@ write_file = save_file
 
 
 def append_file(file_path: str, content: Any, project_dir: Path) -> bool:
-    """
-    Append content to the end of a file.
+    """Append content to the end of a file.
 
     Args:
         file_path: Path to the file to append to (relative to project directory)
@@ -294,6 +292,7 @@ def append_file(file_path: str, content: Any, project_dir: Path) -> bool:
 
     Raises:
         FileNotFoundError: If the file does not exist
+        IsADirectoryError: If the path is not a file
         PermissionError: If access to the file is denied
         ValueError: If the file is outside the project directory
     """
@@ -322,8 +321,7 @@ def append_file(file_path: str, content: Any, project_dir: Path) -> bool:
 
 
 def delete_file(file_path: str, project_dir: Path) -> bool:
-    """
-    Delete a file.
+    """Delete a file.
 
     Args:
         file_path: Path to the file to delete (relative to project directory)
@@ -523,8 +521,7 @@ def _execute_filesystem_move(
 def move_file(
     source_path: str, destination_path: str, project_dir: Path
 ) -> Dict[str, Any]:
-    """
-    Move or rename a file or directory.
+    """Move or rename a file or directory.
 
     Automatically uses git mv if the file is tracked by git,
     otherwise uses standard filesystem operations.

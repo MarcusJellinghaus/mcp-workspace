@@ -60,7 +60,11 @@ def _build_tree(file_paths: List[str], base_path: str) -> _TreeNode:
 
 
 def _count_lines(node: _TreeNode, dirs_only: bool) -> int:
-    """Count how many output lines the tree would produce."""
+    """Count how many output lines the tree would produce.
+
+    Returns:
+        Number of output lines for this node's subtree.
+    """
     if node.collapsed:
         return 1
     count = 0
@@ -77,7 +81,11 @@ def _count_lines(node: _TreeNode, dirs_only: bool) -> int:
 
 
 def _recursive_file_count(node: _TreeNode) -> int:
-    """Count all files recursively under a node (post-collapse)."""
+    """Count all files recursively under a node (post-collapse).
+
+    Returns:
+        Total number of files in the node's subtree.
+    """
     total = len(node.files)
     for child in node.children.values():
         total += _recursive_file_count(child)
@@ -85,14 +93,22 @@ def _recursive_file_count(node: _TreeNode) -> int:
 
 
 def _score(node: _TreeNode, depth: int) -> float:
-    """Score = (len(files) + len(children) * 0.3) * depth."""
+    """Score a node for collapse priority.
+
+    Returns:
+        (len(files) + len(children) * 0.3) * depth.
+    """
     return (len(node.files) + len(node.children) * 0.3) * depth
 
 
 def _find_collapsible(
     node: _TreeNode, depth: int
 ) -> List[Tuple[float, str, _TreeNode]]:
-    """Find all collapsible directories (depth >= 2, not already collapsed)."""
+    """Find all collapsible directories (depth >= 2, not already collapsed).
+
+    Returns:
+        List of (score, name, node) tuples for collapsible directories.
+    """
     results: List[Tuple[float, str, _TreeNode]] = []
     for child in node.children.values():
         if depth >= 2 and not child.collapsed:
@@ -150,7 +166,12 @@ def _render(node: _TreeNode, prefix: str, dirs_only: bool) -> List[str]:
 
 
 def _truncate(lines: List[str], limit: int = _COLLAPSE_THRESHOLD) -> List[str]:
-    """If lines exceed limit, keep first `limit` entries and append summary."""
+    """If lines exceed limit, keep first `limit` entries and append summary.
+
+    Returns:
+        The lines unchanged if within limit, otherwise the first `limit`
+        entries plus a summary line.
+    """
     if len(lines) <= limit:
         return lines
     kept = lines[:limit]

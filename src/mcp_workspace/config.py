@@ -8,7 +8,12 @@ from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
 
 def _read_config_value(section: str, key: str) -> str | None:
-    """Read a value from the user config file."""
+    """Read a value from the user config file.
+
+    Returns:
+        The configured value, or None if the file or key is missing
+        or unreadable.
+    """
     config_path = get_user_app_data_dir("mcp_coder") / "config.toml"
     if not config_path.exists():
         return None
@@ -22,7 +27,12 @@ def _read_config_value(section: str, key: str) -> str | None:
 def get_github_token_with_source() -> (
     tuple[str | None, Literal["env", "config"] | None]
 ):
-    """Resolve GitHub token with source: env var → config file → (None, None)."""
+    """Resolve GitHub token and its source: env var, then config file.
+
+    Returns:
+        Tuple of (token, source) where source is "env" or "config",
+        or (None, None) if no token is found.
+    """
     token = os.environ.get("GITHUB_TOKEN")
     if token:
         return (token, "env")
@@ -33,12 +43,20 @@ def get_github_token_with_source() -> (
 
 
 def get_github_token() -> str | None:
-    """Resolve GitHub token: env var → config file → None."""
+    """Resolve GitHub token: env var, then config file.
+
+    Returns:
+        The token string, or None if not configured.
+    """
     return get_github_token_with_source()[0]
 
 
 def get_test_repo_url() -> str | None:
-    """Resolve test repo URL: env var → config file → None."""
+    """Resolve test repo URL: env var, then config file.
+
+    Returns:
+        The URL string, or None if not configured.
+    """
     url = os.environ.get("GITHUB_TEST_REPO_URL")
     if url:
         return url

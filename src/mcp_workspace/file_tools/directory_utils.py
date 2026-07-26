@@ -17,7 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 def is_path_in_git_dir(path: str) -> bool:
-    """Check if a path is inside a .git directory."""
+    """Check if a path is inside a .git directory.
+
+    Returns:
+        True if any component of the path is ".git".
+    """
     return ".git" in Path(path).parts
 
 
@@ -49,7 +53,11 @@ def is_path_gitignored(path: str, project_dir: Path) -> bool:
 
 
 def _discover_files(directory: Path, project_dir: Path) -> List[str]:
-    """Discover all files recursively, excluding the .git directory."""
+    """Discover all files recursively, excluding the .git directory.
+
+    Returns:
+        List of file paths relative to project_dir.
+    """
     discovered_files = []
 
     for root, dirs, files in os.walk(directory):
@@ -119,6 +127,9 @@ def apply_gitignore_filter(
 
     Returns:
         Filtered list of file paths that are not ignored
+
+    Raises:
+        ValueError: If project_dir is None
     """
     if matcher is None:
         return file_paths
@@ -182,6 +193,11 @@ def list_files(
 
     Returns:
         List of file paths
+
+    Raises:
+        ValueError: If project_dir is None
+        FileNotFoundError: If the directory does not exist
+        NotADirectoryError: If the path is not a directory
     """
     # Validate project_dir parameter
     if project_dir is None:
