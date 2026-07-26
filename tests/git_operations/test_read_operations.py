@@ -649,6 +649,17 @@ class TestGitShow:
         result = git_show(project_dir, args=["HEAD"], search="SHOW_MARKER_TOKEN")
         assert "SHOW_MARKER_TOKEN" in result
 
+    def test_show_blob_search_matches_content(
+        self, git_repo_with_commit: tuple[Repo, Path]
+    ) -> None:
+        repo, project_dir = git_repo_with_commit
+        (project_dir / "notes.txt").write_text("intro\nFetch the issue\noutro\n")
+        repo.index.add(["notes.txt"])
+        repo.index.commit("add notes")
+        result = git_show(project_dir, args=["HEAD:notes.txt"], search="Fetch the issue")
+        assert "Fetch the issue" in result
+        assert "No matches" not in result
+
     def test_show_rejected_flag_raises(
         self, git_repo_with_commit: tuple[Repo, Path]
     ) -> None:

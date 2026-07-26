@@ -1,6 +1,7 @@
 """Tests for output filtering with synthetic string inputs."""
 
 from mcp_workspace.git_operations.output_filtering import (
+    filter_content_output,
     filter_diff_output,
     filter_log_output,
     truncate_output,
@@ -27,6 +28,13 @@ diff --git a/bar.py b/bar.py
  unrelated context
 -unrelated_old
 +unrelated_new"""
+
+SAMPLE_CONTENT = """\
+first line
+second line
+Fetch the issue
+fourth line
+fifth line"""
 
 SAMPLE_LOG = """\
 commit abc1234567890
@@ -90,6 +98,39 @@ class TestFilterDiffOutput:
 
     def test_invalid_regex_returns_error_message(self) -> None:
         result = filter_diff_output(SAMPLE_DIFF, "[unclosed")
+        assert result.startswith("Invalid search pattern:")
+
+
+class TestFilterContentOutput:
+    """Line-based content filtering tests."""
+
+    def test_match_returns_matching_line(self) -> None:
+        result = filter_content_output(SAMPLE_CONTENT, "Fetch the issue", context=0)
+        assert "Fetch the issue" in result
+
+    def test_context_one_includes_adjacent_lines(self) -> None:
+        result = filter_content_output(SAMPLE_CONTENT, "Fetch the issue", context=1)
+        assert "second line" in result
+        assert "fourth line" in result
+        assert "first line" not in result
+        assert "fifth line" not in result
+
+    def test_context_zero_excludes_adjacent_lines(self) -> None:
+        result = filter_content_output(SAMPLE_CONTENT, "Fetch the issue", context=0)
+        assert "second line" not in result
+        assert "fourth line" not in result
+
+    def test_no_matches_returns_descriptive_message(self) -> None:
+        result = filter_content_output(SAMPLE_CONTENT, "nonexistent_xyz")
+        assert "No matches" in result
+        assert "nonexistent_xyz" in result
+
+    def test_search_is_case_insensitive(self) -> None:
+        result = filter_content_output(SAMPLE_CONTENT, "FETCH", context=0)
+        assert "Fetch the issue" in result
+
+    def test_invalid_regex_returns_error_message(self) -> None:
+        result = filter_content_output(SAMPLE_CONTENT, "[unclosed")
         assert result.startswith("Invalid search pattern:")
 
 

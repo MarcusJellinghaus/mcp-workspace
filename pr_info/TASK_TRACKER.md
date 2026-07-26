@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: Bug 2 — content-aware search for `git show <blob>` ([details](./steps/step_2.md))
 
-- [ ] Implementation (tests + production code): add `filter_content_output` in `output_filtering.py`, select it in `git_show` when `has_colon`, add unit tests + real-repo integration guard
-- [ ] Quality checks: pylint, pytest (fast set + `git_integration` markers), mypy — fix all issues
-- [ ] Commit message prepared: `fix(git): use line-based filter for show <blob> search (content, not diff)`
+- [x] Implementation (tests + production code): add `filter_content_output` in `output_filtering.py`, select it in `git_show` when `has_colon`, add unit tests + real-repo integration guard
+- [x] Quality checks: pylint, pytest (fast set + `git_integration` markers), mypy — fix all issues
+- [x] Commit message prepared: `fix(git): use line-based filter for show <blob> search (content, not diff)`
 
 ## Pull Request
 

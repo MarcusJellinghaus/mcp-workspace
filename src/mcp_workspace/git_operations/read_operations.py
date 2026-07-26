@@ -20,7 +20,12 @@ from .arg_validation import (
 )
 from .compact_diffs import render_compact_diff
 from .core import run_git_text, safe_repo_context
-from .output_filtering import filter_diff_output, filter_log_output, truncate_output
+from .output_filtering import (
+    filter_content_output,
+    filter_diff_output,
+    filter_log_output,
+    truncate_output,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -431,7 +436,10 @@ def git_show(
         return "No output."
 
     if search:
-        output = filter_diff_output(output, search, context)
+        if has_colon:
+            output = filter_content_output(output, search, context)
+        else:
+            output = filter_diff_output(output, search, context)
 
     return truncate_output(output, max_lines)
 
