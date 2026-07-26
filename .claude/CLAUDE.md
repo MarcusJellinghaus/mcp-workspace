@@ -96,6 +96,10 @@ This project uses **mcp-coder-utils** (`mcp-coder-utils` reference project) for 
 
 Be concise. If one line works, don't use three.
 
+## Asking questions
+
+Never use the AskUserQuestion tool. Ask questions as plain text in the chat.
+
 ## MCP server issues
 
 Alert immediately if MCP tools are not accessible — this blocks all work.
