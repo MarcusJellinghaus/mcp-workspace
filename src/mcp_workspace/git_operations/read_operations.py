@@ -115,6 +115,8 @@ def git_log(
 
     Raises:
         ValueError: If any flag in *args* is not in the allowlist.
+        GitCommandError: If ``git log`` fails for a reason other than an
+            empty repository.
     """
     safe_args = args or []
     safe_args, pathspec = split_args_pathspec("log", safe_args, pathspec)
@@ -303,6 +305,8 @@ def git_merge_base(
 
     Raises:
         ValueError: If any flag in *args* is not in the allowlist.
+        GitCommandError: If ``git merge-base`` fails, except the
+            ``--is-ancestor`` "not an ancestor" case (exit code 1).
     """
     safe_args = args or []
     validate_args("merge_base", safe_args)
@@ -504,6 +508,8 @@ def git_check_ignore(
     Raises:
         ValueError: If ``pathspec`` is empty/None, or any flag in
             ``args`` is not in the allowlist.
+        GitCommandError: If ``git check-ignore`` fails with an exit code
+            other than 1 (which just means "no paths ignored").
     """
     if not pathspec:
         raise ValueError("git check_ignore requires at least one path in 'pathspec'")

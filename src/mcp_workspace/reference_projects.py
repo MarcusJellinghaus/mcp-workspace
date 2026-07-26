@@ -27,6 +27,9 @@ def normalize_git_url(url: str) -> str:
 
     Converts SSH URLs to HTTPS, strips trailing .git and /,
     and lowercases the host portion.
+
+    Returns:
+        The normalized URL string.
     """
     url = url.strip()
 
@@ -58,7 +61,11 @@ def normalize_git_url(url: str) -> str:
 
 
 def verify_url_match(explicit_url: str, detected_url: str, project_name: str) -> None:
-    """Compare two URLs after normalization. Raises ValueError on mismatch."""
+    """Compare two URLs after normalization.
+
+    Raises:
+        ValueError: If the URLs do not match after normalization.
+    """
     if normalize_git_url(explicit_url) != normalize_git_url(detected_url):
         raise ValueError(
             f"URL mismatch for '{project_name}': "
@@ -71,8 +78,10 @@ def detect_and_verify_url(
 ) -> Optional[str]:
     """Detect URL from git repo and/or verify against explicit URL.
 
-    Returns the resolved URL (explicit or auto-detected), or None.
     Raises ValueError if explicit URL doesn't match detected URL.
+
+    Returns:
+        The resolved URL (explicit or auto-detected), or None.
     """
     from mcp_workspace.git_operations import is_git_repository
     from mcp_workspace.git_operations.remotes import get_remote_url

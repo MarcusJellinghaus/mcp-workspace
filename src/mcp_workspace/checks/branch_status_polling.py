@@ -105,7 +105,8 @@ async def async_poll_branch_status(
 ) -> str:
     """Collect branch status, optionally polling for CI/PR in parallel.
 
-    Returns the report formatted via `format_for_llm()`.
+    Returns:
+        The report formatted via `format_for_llm()`.
     """
     branch = await asyncio.to_thread(get_current_branch_name, project_dir)
 

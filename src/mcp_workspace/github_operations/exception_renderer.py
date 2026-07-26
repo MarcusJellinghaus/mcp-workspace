@@ -8,8 +8,9 @@ from github.GithubException import GithubException
 def render_exception_for_display(exc: Exception) -> str:
     """Render an exception as a single-line string for the [unavailable] section.
 
-    Returns the portion that follows '<section>: '. Truncated at 200 chars
-    with '...' appended if exceeded.
+    Returns:
+        The portion that follows '<section>: '. Truncated at 200 chars
+        with '...' appended if exceeded.
     """
     type_name = type(exc).__name__
     if isinstance(exc, GithubException):

@@ -30,7 +30,11 @@ class CheckResult:
 
 
 def count_lines(file_path: Path) -> int:
-    """Count lines in a file. Returns -1 for binary/non-UTF-8."""
+    """Count lines in a file.
+
+    Returns:
+        Number of lines, or -1 for binary/non-UTF-8 files.
+    """
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             return sum(1 for _ in f)
@@ -39,7 +43,11 @@ def count_lines(file_path: Path) -> int:
 
 
 def load_allowlist(allowlist_path: Path) -> Set[str]:
-    """Load allowlist from file. Returns set of normalized path strings."""
+    """Load allowlist from file.
+
+    Returns:
+        Set of normalized (forward-slash) path strings.
+    """
     if not allowlist_path.is_file():
         return set()
 
@@ -63,7 +71,11 @@ def load_allowlist(allowlist_path: Path) -> Set[str]:
 
 
 def get_file_metrics(files: List[Path], project_dir: Path) -> List[FileMetrics]:
-    """Get file metrics for a list of files."""
+    """Get file metrics for a list of files.
+
+    Returns:
+        List of FileMetrics for readable (non-binary) files.
+    """
     metrics: List[FileMetrics] = []
     for file_path in files:
         abs_path = project_dir / file_path
@@ -131,7 +143,11 @@ def check_file_sizes(
 
 
 def render_output(result: CheckResult, max_lines: int) -> str:
-    """Render check result for terminal output."""
+    """Render check result for terminal output.
+
+    Returns:
+        Multi-line report string describing the check outcome.
+    """
     lines: List[str] = []
 
     if result.passed:
@@ -166,5 +182,9 @@ def render_output(result: CheckResult, max_lines: int) -> str:
 
 
 def render_allowlist(violations: List[FileMetrics]) -> str:
-    """Render violations as allowlist entries."""
+    """Render violations as allowlist entries.
+
+    Returns:
+        Newline-separated normalized paths, one per violation.
+    """
     return "\n".join(str(v.path).replace("\\", "/") for v in violations)

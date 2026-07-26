@@ -1,3 +1,5 @@
+"""Selective file editing via exact string matching."""
+
 import difflib
 import logging
 from pathlib import Path
@@ -117,6 +119,9 @@ def _is_position_aware_already_applied(
     new_string, the old_string will still be found in content even after the
     edit is applied. This checks if the content at the match position already
     contains new_string.
+
+    Returns:
+        True if the content at the match position already contains new_string.
     """
     if len(new_string) <= len(old_string):
         return False
@@ -126,14 +131,22 @@ def _is_position_aware_already_applied(
 
 
 def _truncate(text: str, max_len: int = 50) -> str:
-    """Truncate text for error messages."""
+    """Truncate text for error messages.
+
+    Returns:
+        The text unchanged if within max_len, otherwise truncated with "...".
+    """
     if len(text) <= max_len:
         return text
     return text[: max_len - 3] + "..."
 
 
 def _create_diff(original: str, modified: str, filename: str) -> str:
-    """Create unified diff between original and modified content."""
+    """Create unified diff between original and modified content.
+
+    Returns:
+        Unified diff as a single string.
+    """
     filename = filename.replace("\\", "/")
     original_lines = original.splitlines(keepends=True)
     modified_lines = modified.splitlines(keepends=True)
@@ -151,6 +164,7 @@ def _create_diff(original: str, modified: str, filename: str) -> str:
 def _is_edit_already_applied(content: str, old_string: str, new_string: str) -> bool:
     """Check if an edit has already been applied by verifying contextual conditions.
 
-    Returns True if old_string is NOT found in content AND new_string IS found.
+    Returns:
+        True if old_string is NOT found in content AND new_string IS found.
     """
     return old_string not in content and new_string in content

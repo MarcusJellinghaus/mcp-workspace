@@ -95,6 +95,9 @@ def run_git_text(repo: Repo, method: str, *args: str) -> str:
     single trailing newline in bytes mode (``strip_newline_in_stdout``), same
     as string mode, so no extra stripping happens here — stripping more would
     drop trailing blank lines from blob content (``show HEAD:<file>``).
+
+    Returns:
+        The command's stdout decoded as UTF-8 (invalid bytes replaced).
     """
     raw_bytes = getattr(repo.git, method)(*args, stdout_as_string=False)
     text: str = raw_bytes.decode("utf-8", errors="replace")

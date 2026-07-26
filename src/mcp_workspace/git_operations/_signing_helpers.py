@@ -26,7 +26,12 @@ class CheckResult(TypedDict):
 def build_user_identity_result(
     name: Optional[str], email: Optional[str]
 ) -> "CheckResult":
-    """Construct the user_identity CheckResult from raw config values."""
+    """Construct the user_identity CheckResult from raw config values.
+
+    Returns:
+        A CheckResult: failing (with hint) when user.name or user.email
+        is missing, otherwise passing with the identity string.
+    """
     missing = [
         label
         for label, value in (("user.name", name), ("user.email", email))
@@ -51,7 +56,12 @@ def build_user_identity_result(
 
 
 def build_signing_intent_result(flags_truthy: dict[str, bool]) -> "CheckResult":
-    """Construct the signing_intent CheckResult from per-flag truthy map."""
+    """Construct the signing_intent CheckResult from per-flag truthy map.
+
+    Returns:
+        A passing CheckResult: "not configured" (with hint) when no flag
+        is set, otherwise listing the detected signing flags.
+    """
     if not any(flags_truthy.values()):
         return CheckResult(
             ok=True,
@@ -76,6 +86,10 @@ def build_signing_consistency_result(flags_truthy: dict[str, bool]) -> "CheckRes
     Precondition: ``flags_truthy["commit.gpgsign"]`` is True. The caller is
     responsible for handling the "not applicable" case before invoking this
     helper.
+
+    Returns:
+        A warning-severity CheckResult; failing (with joined error text)
+        when rebase.gpgSign or tag.gpgsign is unset.
     """
     rebase_label = (
         "rebase ok" if flags_truthy["rebase.gpgSign"] else "rebase.gpgSign unset"
@@ -103,9 +117,10 @@ def classify_signing_format(
 ) -> tuple[str, "CheckResult"]:
     """Resolve the configured signing format and build its CheckResult.
 
-    Returns a tuple ``(resolved_format, check_result)``. ``resolved_format``
-    is one of ``"openpgp"``, ``"ssh"``, ``"x509"`` (defaulting to
-    ``"openpgp"`` when unset or invalid).
+    Returns:
+        A tuple ``(resolved_format, check_result)``. ``resolved_format``
+        is one of ``"openpgp"``, ``"ssh"``, ``"x509"`` (defaulting to
+        ``"openpgp"`` when unset or invalid).
     """
     if raw_format is None:
         return "openpgp", CheckResult(
@@ -130,7 +145,12 @@ def classify_signing_format(
 def build_signing_key_result(
     signing_key: Optional[str], commit_gpgsign: bool
 ) -> "CheckResult":
-    """Construct the signing_key CheckResult per Decision #10 severity rules."""
+    """Construct the signing_key CheckResult per Decision #10 severity rules.
+
+    Returns:
+        A CheckResult: failing (error severity if commit_gpgsign, else
+        warning) when the key is unset, otherwise passing.
+    """
     if signing_key is None:
         sev: Literal["error", "warning"] = "error" if commit_gpgsign else "warning"
         return CheckResult(

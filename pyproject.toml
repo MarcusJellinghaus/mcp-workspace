@@ -40,6 +40,7 @@ dev = [
     "black>=26.5.1",
     "isort>=5.13.2",
     "mypy>=1.13.0",
+    "ruff>=0.9.0",
     "types-requests>=2.31.0",
     # "mcp-tools-py",  # TODO: uncomment once mcp-tools-py is published on PyPI
     # "mcp-coder",  # TODO: uncomment once mcp-coder is published on PyPI
@@ -93,6 +94,32 @@ target-version = ["py311"]
 profile = "black"
 line_length = 88
 float_to_top = true
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+# Only enable docstring rules for now
+# preview needed for DOC rules (pydoclint)
+preview = true
+select = ["D", "DOC"]
+ignore = [
+    "D104",  # missing docstring in __init__.py (low value)
+    "D107",  # missing docstring in __init__ method (redundant with class docstring)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D", "DOC"]
+# DOC502: these modules document exceptions propagated from OS/git/GitHub
+# calls (PermissionError, GitCommandError, ...) — useful docs, keep them.
+"src/mcp_workspace/file_tools/file_operations.py" = ["DOC502"]
+"src/mcp_workspace/git_operations/read_operations.py" = ["DOC502"]
+"src/mcp_workspace/main.py" = ["DOC502"]
+"src/mcp_workspace/workflows/task_tracker.py" = ["DOC502"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.uv.sources]
 # Map sibling MCP packages to their GitHub sources so uv can satisfy the

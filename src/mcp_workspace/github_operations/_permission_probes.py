@@ -32,7 +32,12 @@ def _classify_permission_response(
     *,
     admin_404: bool = False,
 ) -> CheckResult:
-    """Classify an HTTP status code into a permission probe CheckResult."""
+    """Classify an HTTP status code into a permission probe CheckResult.
+
+    Returns:
+        CheckResult with ok=True for status 200; otherwise ok=False with an
+        ``error`` hint naming the permission, HTTP status, and probed URL.
+    """
     if status == 200:
         return CheckResult(ok=True, value="OK", severity="warning")
 
@@ -69,7 +74,13 @@ def _run_probe(
     web_host: str | None,
     admin_404: bool = False,
 ) -> CheckResult:
-    """Execute a probe call and classify the outcome."""
+    """Execute a probe call and classify the outcome.
+
+    Returns:
+        CheckResult from classifying the outcome's HTTP status: 200 on
+        success, the ``GithubException`` status on API failure, or a
+        network-error result for any other exception.
+    """
     try:
         call()
     except GithubException as e:
@@ -92,7 +103,12 @@ def _probe_statuses(
     base: str,
     web_host: str | None,
 ) -> CheckResult:
-    """Probe Commit statuses: Read with two-call attribution."""
+    """Probe Commit statuses: Read with two-call attribution.
+
+    Returns:
+        CheckResult for the combined-status probe, or a "not checked" result
+        when the preliminary commit lookup fails.
+    """
     url = f"{base}/commits/{default_branch}/status"
     try:
         commit = repo.get_commit(default_branch)
@@ -117,7 +133,12 @@ def _probe_administration(
     base: str,
     web_host: str | None,
 ) -> CheckResult:
-    """Probe Administration: Read with two-call attribution."""
+    """Probe Administration: Read with two-call attribution.
+
+    Returns:
+        CheckResult for the branch-protection probe, or a "not checked"
+        result when the preliminary branch lookup fails.
+    """
     url = f"{base}/branches/{default_branch}/protection"
     try:
         branch = repo.get_branch(default_branch)
@@ -146,6 +167,9 @@ def run_permission_probes(
     When ``repo`` is None (repo_accessible.ok=False), returns 6 placeholder
     rows with value="not checked", error="repository not accessible" and
     issues NO PyGithub calls.
+
+    Returns:
+        Mapping from each probe key to its CheckResult.
     """
     if repo is None:
         return {

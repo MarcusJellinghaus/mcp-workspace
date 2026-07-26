@@ -19,8 +19,7 @@ stdlogger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
-    """
-    Parse command line arguments.
+    """Parse command line arguments.
 
     Returns:
         Parsed arguments
@@ -82,6 +81,9 @@ def validate_reference_projects(
     Validates name and path are present. Logs warnings for invalid
     references and continues with valid ones only. Auto-renames duplicates.
     Filters out reference projects that overlap with project_dir.
+
+    Returns:
+        Dict mapping project names to validated ReferenceProject entries.
 
     Raises:
         ValueError: If explicit URL doesn't match detected git remote URL.
@@ -194,9 +196,7 @@ def validate_reference_projects(
 
 
 def main() -> None:
-    """
-    Main entry point for the MCP server.
-    """
+    """Main entry point for the MCP server."""
     # Parse command line arguments
     args = parse_args()
 

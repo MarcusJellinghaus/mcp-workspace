@@ -110,6 +110,7 @@ jobs:
           - {name: "unit-tests", cmd: "pytest --version && pytest -n auto -m 'not git_integration and not github_integration'"}
           - {name: "git-integration-tests", cmd: "pytest --version && pytest -n auto -m 'git_integration'"}
           - {name: "mypy", cmd: "mypy --version && mypy --strict src tests"}
+          - {name: "ruff-docstrings", cmd: "ruff --version && ruff check src tests"}
           - {name: "no-url-deps", cmd: "python tools/check_no_url_deps.py"}
 
     name: ${{ matrix.check.name }}
