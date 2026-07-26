@@ -1,6 +1,0 @@
-Fix Black formatting in test_read_operations.py
-
-Wrap the git_show call in TestGitShow.test_show_blob_search_matches_content
-onto multiple lines; at its 8-space indentation the single-line form was 89
-characters, one over Black's 88-character limit, causing the CI black job
-to fail with "1 file would be reformatted".
