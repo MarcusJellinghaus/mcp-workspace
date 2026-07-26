@@ -88,7 +88,8 @@ def filter_content_output(text: str, search: str, context: int = 3) -> str:
     """Line-based grep for plain content (not a diff).
 
     Returns lines matching `search` (case-insensitive) plus `context` lines
-    before/after each match. Sibling to filter_diff_output / filter_log_output.
+    before/after each match. Non-adjacent regions are separated by a ``--``
+    line (grep-style). Sibling to filter_diff_output / filter_log_output.
 
     Args:
         text: Plain text content (e.g. from git show HEAD:<file>).
@@ -112,7 +113,14 @@ def filter_content_output(text: str, search: str, context: int = 3) -> str:
     if not keep:
         return f"No matches for search pattern '{search}'"
 
-    return "\n".join(lines[i] for i in sorted(keep))
+    result_lines: list[str] = []
+    prev = -2
+    for i in sorted(keep):
+        if prev >= 0 and i > prev + 1:
+            result_lines.append("--")
+        result_lines.append(lines[i])
+        prev = i
+    return "\n".join(result_lines)
 
 
 def filter_log_output(text: str, search: str) -> str:

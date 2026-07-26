@@ -91,12 +91,14 @@ def run_git_text(repo: Repo, method: str, *args: str) -> str:
     """Run a git method and decode its output as UTF-8.
 
     Forces UTF-8 decoding of git stdout (GitPython otherwise decodes with the
-    OS locale code page, e.g. cp1252 on Windows). Strips trailing newlines to
-    match GitPython's string-mode output exactly.
+    OS locale code page, e.g. cp1252 on Windows). GitPython already strips the
+    single trailing newline in bytes mode (``strip_newline_in_stdout``), same
+    as string mode, so no extra stripping happens here — stripping more would
+    drop trailing blank lines from blob content (``show HEAD:<file>``).
     """
     raw_bytes = getattr(repo.git, method)(*args, stdout_as_string=False)
     text: str = raw_bytes.decode("utf-8", errors="replace")
-    return text.rstrip("\n")
+    return text
 
 
 def _normalize_git_path(path: Path, base_dir: Path) -> str:

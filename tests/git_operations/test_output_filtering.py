@@ -129,6 +129,14 @@ class TestFilterContentOutput:
         result = filter_content_output(SAMPLE_CONTENT, "FETCH", context=0)
         assert "Fetch the issue" in result
 
+    def test_disjoint_regions_get_gap_separator(self) -> None:
+        result = filter_content_output(SAMPLE_CONTENT, "first|fifth", context=0)
+        assert result == "first line\n--\nfifth line"
+
+    def test_contiguous_region_has_no_separator(self) -> None:
+        result = filter_content_output(SAMPLE_CONTENT, "Fetch the issue", context=1)
+        assert "--" not in result
+
     def test_invalid_regex_returns_error_message(self) -> None:
         result = filter_content_output(SAMPLE_CONTENT, "[unclosed")
         assert result.startswith("Invalid search pattern:")

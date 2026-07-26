@@ -30,10 +30,11 @@ class TestRunGitText:
 
     def test_run_git_text_decodes_utf8_em_dash(self) -> None:
         mock_repo = MagicMock()
-        # e2 80 94 == U+2014 em dash; returned as raw bytes (stdout_as_string=False)
-        mock_repo.git.diff.return_value = b"analysing \xe2\x80\x94 done\n"
+        # e2 80 94 == U+2014 em dash; raw bytes (stdout_as_string=False) with
+        # the single trailing newline already stripped by GitPython itself
+        mock_repo.git.diff.return_value = b"analysing \xe2\x80\x94 done"
         result = run_git_text(mock_repo, "diff", "--no-ext-diff")
-        assert result == "analysing — done"  # decoded, trailing \n stripped
+        assert result == "analysing — done"
         mock_repo.git.diff.assert_called_once_with(
             "--no-ext-diff", stdout_as_string=False
         )
@@ -45,6 +46,14 @@ class TestRunGitText:
         mock_repo.git.log.return_value = b"bad \xff byte"
         result = run_git_text(mock_repo, "log")
         assert result == "bad � byte"
+
+    def test_run_git_text_preserves_trailing_blank_lines(self) -> None:
+        # GitPython strips exactly one trailing newline itself; the helper
+        # must not strip more, or blob content loses trailing blank lines.
+        mock_repo = MagicMock()
+        mock_repo.git.show.return_value = b"line1\n\n"
+        result = run_git_text(mock_repo, "show")
+        assert result == "line1\n\n"
 
 
 @pytest.mark.git_integration
@@ -661,6 +670,18 @@ class TestGitShow:
         )
         assert "Fetch the issue" in result
         assert "No matches" not in result
+
+    def test_show_blob_preserves_trailing_blank_lines(
+        self, git_repo_with_commit: tuple[Repo, Path]
+    ) -> None:
+        repo, project_dir = git_repo_with_commit
+        (project_dir / "blank_end.txt").write_bytes(b"line1\n\n\n")
+        repo.index.add(["blank_end.txt"])
+        repo.index.commit("add blank_end")
+        result = git_show(project_dir, args=["HEAD:blank_end.txt"])
+        # Blob ends with two blank lines; git strips one trailing newline,
+        # the rest must survive.
+        assert result == "line1\n\n"
 
     def test_show_rejected_flag_raises(
         self, git_repo_with_commit: tuple[Repo, Path]
