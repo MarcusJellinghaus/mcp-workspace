@@ -25,3 +25,21 @@ Scope: documentation-only change to two surfaced `move_file` descriptions (`serv
 - Still a single step / single commit (documentation only).
 
 **Status**: committed (plan update).
+
+## Round 2 — 2026-07-27
+
+**Findings** (engineer `/plan_review`, after Option B scope expansion):
+- All three edit targets confirmed to exist with matching current text (`server.py:413`, `README.md:31`, `README.md:221`); `README.md:332-336` exclusion correct; proposed wording accurate vs. real impl; one-step/one-commit and no-new-test decisions still sound.
+- [CRITICAL] `step_1.md` "One commit: the **two** doc edits" — stale, now three edits.
+- [CRITICAL] `summary.md` Architectural-changes line "alignment of **two** human/LLM-facing descriptions" — stale, should be three.
+
+**Decisions**:
+- Both stale-count findings accepted as straightforward consistency fixes (no user escalation — purely internal wording).
+
+**User decisions**: none this round.
+
+**Changes** (engineer `/plan_update`):
+- `pr_info/steps/step_1.md` — "two doc edits" → "three doc edits".
+- `pr_info/steps/summary.md` — "two human/LLM-facing descriptions" → "three".
+
+**Status**: committed (plan consistency fix).

@@ -47,7 +47,7 @@ README Features bullet (`README.md:31`), kept to a single line:
 ## Architectural / design changes
 
 **None.** No code paths, signatures, decorators, imports, or data structures change.
-This is purely a wording alignment of two human/LLM-facing descriptions so they match
+This is purely a wording alignment of three human/LLM-facing descriptions so they match
 the tool's existing, correct behavior. No new modules, no API surface change.
 
 ## TDD applicability

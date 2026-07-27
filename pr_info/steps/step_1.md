@@ -1,6 +1,6 @@
 # Step 1 — Document git-aware behavior in the surfaced `move_file` descriptions
 
-**One commit:** the two doc edits + all quality checks passing.
+**One commit:** the three doc edits + all quality checks passing.
 
 See `pr_info/steps/summary.md` for full context, rationale, and out-of-scope notes.
 
