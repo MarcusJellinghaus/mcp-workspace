@@ -97,7 +97,8 @@ existing `project_dir` fixture. Add:
 7. `test_delete_directory_outside_project_raises` — `"../evil"`; `ValueError`
    with `Security error`.
 8. `test_delete_directory_truncation_summary` — create 25 files in a dir;
-   `recursive=True`; result length is 21; entry #21 startswith `... and 5 more`
+   `recursive=True`; result length is 21; entry #21 startswith `... and 6 more`
+   (25 files + the prepended target dir = 26 returned paths; 26 − 20 = 6)
    and contains `dirs deleted total`.
 
 ## Checks (mandatory, after edits)
