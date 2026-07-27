@@ -370,7 +370,17 @@ def delete_file(file_path: str, project_dir: Path) -> bool:
 
 
 def _format_deleted_paths(paths: list[str], n_files: int, n_dirs: int) -> list[str]:
-    """Cap the deleted-path list at 20, appending a summary line as entry #21."""
+    """Cap the deleted-path list at 20, appending a summary line as entry #21.
+
+    Args:
+        paths: The deleted paths (relative to project_dir) to cap.
+        n_files: Total number of files deleted, used in the summary line.
+        n_dirs: Total number of directories deleted, used in the summary line.
+
+    Returns:
+        The original path list unchanged when it holds 20 or fewer entries;
+        otherwise the first 20 paths plus a summary line as entry #21.
+    """
     if len(paths) <= 20:
         return paths
     return paths[:20] + [
