@@ -35,7 +35,7 @@ Detail: [step_2.md](./steps/step_2.md)
 
 - [x] Implementation: register `delete_directory` `@mcp.tool()` in `server.py` (gitignore-guarded wrapper), tighten `save_file`/`delete_this_file` docstrings, add server tests (TDD, tests first); update `vulture_whitelist.py` if flagged
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared (blocked: pr_info/.commit_message.txt is gitignored; MCP file tools refuse gitignored paths and no Bash/Write tool is available this session)
+- [x] Commit message prepared (satisfied by commit d11dd3a "feat(workspace): add delete_directory MCP tool" — Step 2 is already committed with a descriptive message; the .commit_message.txt transport file is moot)
 
 ### Step 3: README documentation
 
