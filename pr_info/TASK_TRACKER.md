@@ -25,8 +25,8 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 Detail: [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: add `delete_directory()` + `_format_deleted_paths()` to `file_operations.py`, export from `file_tools/__init__.py`, add unit tests (TDD, tests first)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Implementation: add `delete_directory()` + `_format_deleted_paths()` to `file_operations.py`, export from `file_tools/__init__.py`, add unit tests (TDD, tests first)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 
 ### Step 2: MCP tool + docstring cleanup + server tests
