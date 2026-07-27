@@ -25,7 +25,8 @@ By connecting your AI assistant to your filesystem, you can transform your workf
 - `read_file`: Read the contents of a file
 - `save_file`: Write content to a file atomically
 - `append_file`: Append content to the end of a file
-- `delete_this_file`: Delete a specified file from the filesystem
+- `delete_this_file`: Delete a single specified file from the filesystem
+- `delete_directory`: Delete a directory (empty by default, whole tree with `recursive=True`)
 - `edit_file`: Make selective edits using exact string matching
 - `move_file`: Move or rename files and directories within the project
 - `get_reference_projects`: Discover available reference projects
@@ -215,6 +216,7 @@ The server exposes the following MCP tools:
 | `save_file` | Creates or overwrites files atomically | "Create a new file called app.js" |
 | `append_file` | Adds content to existing files | "Add a function to utils.js" |
 | `delete_this_file` | Removes files from the filesystem | "Delete the temporary.txt file" |
+| `delete_directory` | Deletes a directory (empty, or a whole tree with recursive) | "Delete the pr_info directory and its contents" |
 | `edit_file` | Makes selective edits using exact string matching | "Fix the bug in the fetch function" |
 | `move_file` | Moves or renames files and directories | "Rename config.js to settings.js" |
 | `get_reference_projects` | Lists available reference projects | "What reference projects are available?" |
@@ -252,6 +254,22 @@ The server exposes the following MCP tools:
 - Parameters: `file_path` (string): Path to the file to delete
 - Returns a boolean indicating success
 - Note: This operation is irreversible and will permanently remove the file
+
+#### Delete Directory
+Deletes a directory within the project directory.
+
+**Parameters:**
+- `dir_path` (string): Path to the directory to delete (relative to project)
+- `recursive` (boolean, optional): Delete the whole tree when `True` (default: `False`)
+
+**Features:**
+- Deletes an **empty** directory by default (`recursive=False`)
+- `recursive=True` deletes the whole tree, including its contents (via `shutil.rmtree`)
+- Handles **directories only** - use `delete_this_file` for files
+- Idempotent: deleting a missing directory returns a message, not an error
+- Refuses to delete the project root
+- Enforces `.gitignore` on the top-level path; a recursive delete still removes individually-gitignored **children** (e.g. nested `__pycache__/`)
+- Returns the list of deleted paths (capped at 20 entries with a summary line)
 
 #### Edit File
 Makes precise edits to files using exact string matching. This tool is designed for reliability and predictability.
