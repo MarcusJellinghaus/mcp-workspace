@@ -7,10 +7,12 @@ See `pr_info/steps/summary.md` for full context, rationale, and out-of-scope not
 ## WHERE
 
 - `src/mcp_workspace/server.py` — `move_file` tool function docstring (summary line, ~line 413).
-- `README.md` — `move_file` row in the tools table (line 221).
+- `README.md` — `move_file` row in the tools table (~line 221) **and** the `move_file`
+  bullet in the Features list (~line 31). Two edits in this file.
 
 **Do not** modify `src/mcp_workspace/file_tools/file_operations.py` (already correct,
-out of scope), nor the `README.md:31` bullet, nor the `README.md:332-336` Features section.
+out of scope), nor the `README.md:332-336` Move File detail section (already documents
+git behavior correctly).
 
 ## WHAT
 
@@ -38,6 +40,18 @@ Edit 2 — `README.md:221`, replace the single table row (keep `| ... |` structu
 
 ```
 | `move_file` | Moves or renames files/directories (git-aware: uses git mv for tracked files, else filesystem move) | "Rename config.js to settings.js" |
+```
+
+Edit 3 — `README.md:31`, replace the Features-list bullet. Current text:
+
+```
+- `move_file`: Move or rename files and directories within the project
+```
+
+New text (single line):
+
+```
+- `move_file`: Move or rename files and directories (git-aware: uses git mv for tracked files, else filesystem move)
 ```
 
 ## HOW (integration points)

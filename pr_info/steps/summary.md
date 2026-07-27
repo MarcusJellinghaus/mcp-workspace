@@ -21,11 +21,12 @@ Note: the issue cites `file_operations.py:616`; in this tree the file is
 
 ## The defect (what we fix)
 
-Two surfaced descriptions omit git-awareness:
+Three surfaced descriptions omit git-awareness:
 
 1. `src/mcp_workspace/server.py:413` — the `@mcp.tool()` docstring surfaced to MCP clients
    (the actual defect).
 2. `README.md:221` — the one-line tool description in the docs table.
+3. `README.md:31` — the `move_file` bullet in the Features list.
 
 ## Proposed wording
 
@@ -38,6 +39,10 @@ Client-facing docstring summary (`server.py`):
 README table row (`README.md:221`), kept to a single Markdown table line:
 
 > `| `move_file` | Moves or renames files/directories (git-aware: uses git mv for tracked files, else filesystem move) | "Rename config.js to settings.js" |`
+
+README Features bullet (`README.md:31`), kept to a single line:
+
+> `- `move_file`: Move or rename files and directories (git-aware: uses git mv for tracked files, else filesystem move)`
 
 ## Architectural / design changes
 
@@ -55,9 +60,9 @@ Verification is via the mandatory static/quality checks, which must still pass.
 
 ## KISS decisions
 
-- Touch **only** the two locations named in the issue. Do **not** edit the `README.md:31`
-  bullet or the `README.md:332-336` Features section (the Features section already
-  documents git behavior correctly). Avoids scope creep and doc churn.
+- Touch the three human-facing descriptions so they all agree (`server.py:413`,
+  `README.md:221`, `README.md:31`). Do **not** edit the `README.md:332-336` Move File
+  detail section — it already documents git behavior correctly. Avoids doc churn.
 - README edit stays a single table line with `| ... |` cell structure intact.
 
 ## Files created / modified
@@ -65,7 +70,7 @@ Verification is via the mandatory static/quality checks, which must still pass.
 | Path | Action | Note |
 |------|--------|------|
 | `src/mcp_workspace/server.py` | Modify | Expand `move_file` tool docstring summary line (~line 413) |
-| `README.md` | Modify | Update `move_file` table row (line 221) |
+| `README.md` | Modify | Update `move_file` table row (line 221) and Features bullet (line 31) |
 | `pr_info/steps/summary.md` | Create | This document |
 | `pr_info/steps/step_1.md` | Create | Single implementation step |
 
@@ -73,4 +78,4 @@ No folders/modules created. `file_operations.py` unchanged (out of scope).
 
 ## Steps
 
-- **Step 1** — Update the two surfaced `move_file` descriptions (single commit).
+- **Step 1** — Update the three surfaced `move_file` descriptions (single commit).
