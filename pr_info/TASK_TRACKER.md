@@ -21,6 +21,31 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Util layer — `delete_directory()` + unit tests
+
+Detail: [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: add `delete_directory()` + `_format_deleted_paths()` to `file_operations.py`, export from `file_tools/__init__.py`, add unit tests (TDD, tests first)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: MCP tool + docstring cleanup + server tests
+
+Detail: [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: register `delete_directory` `@mcp.tool()` in `server.py` (gitignore-guarded wrapper), tighten `save_file`/`delete_this_file` docstrings, add server tests (TDD, tests first); update `vulture_whitelist.py` if flagged
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: README documentation
+
+Detail: [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation: add `delete_directory` features bullet, Available Tools table row, and `#### Delete Directory` detail section to `README.md`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] Review full PR diff for consistency and completeness
+- [ ] Prepare PR summary (title + description)
