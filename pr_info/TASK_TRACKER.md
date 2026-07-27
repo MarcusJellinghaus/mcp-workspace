@@ -27,7 +27,7 @@ Detail: [step_1.md](./steps/step_1.md)
 
 - [x] Implementation: update the three surfaced `move_file` descriptions — `server.py` docstring summary line, `README.md` table row (~line 221), and `README.md` Features bullet (~line 31)
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared (blocked: pr_info/.commit_message.txt is gitignored; save_file/append_file refuse it and Bash is disabled)
+- [x] Commit message prepared — content is in [step_1.md](./steps/step_1.md) under "## Commit message": `Clarify move_file description: document git-aware behavior (#49)`. NOTE: `pr_info/.commit_message.txt` cannot be written by this agent (gitignored at `.gitignore:48`; `save_file`/`append_file` refuse ignored paths and no Bash tool is available), so the downstream commit step must read the message from step_1.md.
 
 ## Pull Request
 
