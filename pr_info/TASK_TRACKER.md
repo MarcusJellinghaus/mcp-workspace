@@ -21,6 +21,15 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Document git-aware behavior in the surfaced `move_file` descriptions
+
+Detail: [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: update the three surfaced `move_file` descriptions — `server.py` docstring summary line, `README.md` table row (~line 221), and `README.md` Features bullet (~line 31)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review addressed
+- [ ] PR summary written
