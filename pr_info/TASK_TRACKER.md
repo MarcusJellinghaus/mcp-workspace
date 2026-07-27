@@ -33,9 +33,9 @@ Detail: [step_1.md](./steps/step_1.md)
 
 Detail: [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: register `delete_directory` `@mcp.tool()` in `server.py` (gitignore-guarded wrapper), tighten `save_file`/`delete_this_file` docstrings, add server tests (TDD, tests first); update `vulture_whitelist.py` if flagged
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: register `delete_directory` `@mcp.tool()` in `server.py` (gitignore-guarded wrapper), tighten `save_file`/`delete_this_file` docstrings, add server tests (TDD, tests first); update `vulture_whitelist.py` if flagged
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared (blocked: pr_info/.commit_message.txt is gitignored; MCP file tools refuse gitignored paths and no Bash/Write tool is available this session)
 
 ### Step 3: README documentation
 

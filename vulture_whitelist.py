@@ -24,6 +24,7 @@ _.read_file
 _.save_file
 _.append_file
 _.delete_this_file
+_.delete_directory
 _.move_file
 _.edit_file
 
