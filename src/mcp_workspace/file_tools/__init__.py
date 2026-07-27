@@ -4,6 +4,7 @@ from mcp_workspace.file_tools.directory_utils import list_files
 from mcp_workspace.file_tools.edit_file import edit_file
 from mcp_workspace.file_tools.file_operations import (
     append_file,
+    delete_directory,
     delete_file,
     move_file,
     read_file,
@@ -22,6 +23,7 @@ __all__ = [
     "save_file",
     "append_file",
     "delete_file",
+    "delete_directory",
     "move_file",
     "list_files",
     "edit_file",

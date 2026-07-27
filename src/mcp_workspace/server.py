@@ -16,6 +16,7 @@ from mcp_workspace.checks.file_sizes import (
     render_output,
 )
 from mcp_workspace.file_tools import append_file as append_file_util
+from mcp_workspace.file_tools import delete_directory as delete_directory_util
 from mcp_workspace.file_tools import delete_file as delete_file_util
 from mcp_workspace.file_tools import edit_file as edit_file_util
 from mcp_workspace.file_tools import list_directory_tree
@@ -244,6 +245,8 @@ def read_file(
 def save_file(file_path: str, content: str) -> bool:
     """Write content to a file.
 
+    Auto-creates parent directories if they do not exist.
+
     Args:
         file_path: Path to the file to write to (relative to project directory)
         content: Content to write to the file
@@ -326,6 +329,8 @@ def append_file(file_path: str, content: str) -> bool:
 def delete_this_file(file_path: str) -> bool:
     """Delete a specified file from the filesystem.
 
+    Handles files only, not directories — use delete_directory for directories.
+
     Args:
         file_path: Path to the file to delete (relative to project directory)
 
@@ -355,6 +360,50 @@ def delete_this_file(file_path: str) -> bool:
         return success
     except Exception as e:
         logger.error("Error deleting file %s: %s", file_path, str(e))
+        raise
+
+
+@mcp.tool()
+@log_function_call
+def delete_directory(dir_path: str, recursive: bool = False) -> list[str]:
+    """Delete a directory from the filesystem.
+
+    Handles directories only — for files use delete_this_file. Deletes an empty
+    directory by default; pass recursive=True to delete a non-empty tree. Missing
+    directory is a no-op (returns a message, no error).
+
+    Args:
+        dir_path: Path to the directory to delete (relative to project directory)
+        recursive: Delete the directory and all its contents when True
+
+    Returns:
+        List of deleted paths (relative to project directory), or a single
+        message when the directory does not exist.
+
+    Raises:
+        ValueError: If dir_path is not a non-empty string, the project directory
+            has not been set, the path is excluded by .gitignore, or the
+            underlying deletion is rejected (outside project, project root,
+            path-is-a-file, or non-empty without recursive).
+    """
+    if not dir_path or not isinstance(dir_path, str):
+        logger.error("Invalid directory path parameter: %s", dir_path)
+        raise ValueError(
+            f"Directory path must be a non-empty string, got {type(dir_path)}"
+        )
+
+    if _project_dir is None:
+        raise ValueError("Project directory has not been set")
+
+    _check_not_gitignored(dir_path)
+
+    logger.info("Deleting directory: %s", dir_path)
+    try:
+        return delete_directory_util(
+            dir_path, project_dir=_project_dir, recursive=recursive
+        )
+    except Exception as e:
+        logger.error("Error deleting directory %s: %s", dir_path, str(e))
         raise
 
 

@@ -369,6 +369,101 @@ def delete_file(file_path: str, project_dir: Path) -> bool:
         raise
 
 
+def _format_deleted_paths(paths: list[str], n_files: int, n_dirs: int) -> list[str]:
+    """Cap the deleted-path list at 20, appending a summary line as entry #21.
+
+    Args:
+        paths: The deleted paths (relative to project_dir) to cap.
+        n_files: Total number of files deleted, used in the summary line.
+        n_dirs: Total number of directories deleted, used in the summary line.
+
+    Returns:
+        The original path list unchanged when it holds 20 or fewer entries;
+        otherwise the first 20 paths plus a summary line as entry #21.
+    """
+    if len(paths) <= 20:
+        return paths
+    return paths[:20] + [
+        f"... and {len(paths) - 20} more "
+        f"({n_files} files, {n_dirs} dirs deleted total)"
+    ]
+
+
+def delete_directory(
+    dir_path: str, project_dir: Path, recursive: bool = False
+) -> list[str]:
+    """Delete a directory (empty by default, whole tree with recursive=True).
+
+    Plain filesystem — no git. Files-only tool is delete_file. Handles
+    directories only. Missing directory is idempotent (no error).
+
+    Args:
+        dir_path: Path to the directory to delete (relative to project directory)
+        project_dir: Project directory path
+        recursive: If True, delete the directory tree via shutil.rmtree;
+            otherwise only an empty directory is removed via Path.rmdir.
+
+    Returns:
+        List of deleted paths (relative to project_dir), capped at 20 entries
+        with a summary line as entry #21 when more were deleted. A missing
+        directory returns a single "does not exist" message.
+
+    Raises:
+        ValueError: If dir_path is invalid, project_dir is None, the path is
+            outside the project directory, resolves to the project root, points
+            to a file, or the directory is non-empty without recursive=True.
+    """
+    # Validate dir_path parameter
+    if not dir_path or not isinstance(dir_path, str):
+        logger.error("Invalid directory path: %s", dir_path)
+        raise ValueError(
+            f"Directory path must be a non-empty string, got {type(dir_path)}"
+        )
+
+    # Validate project_dir parameter
+    if project_dir is None:
+        raise ValueError("Project directory cannot be None")
+
+    # Normalize the path to be relative to the project directory
+    abs_path, rel_path = normalize_path(dir_path, project_dir)
+
+    # Refuse to delete the project root (would wipe the repo incl. .git)
+    if abs_path.resolve() == project_dir.resolve():
+        raise ValueError("Refusing to delete the project root directory")
+
+    if not abs_path.exists():
+        logger.debug("Directory not found (idempotent): %s", rel_path)
+        return [f"Directory '{rel_path}' does not exist — nothing to delete"]
+
+    if abs_path.is_file():
+        logger.error("Path is a file, not a directory: %s", rel_path)
+        raise ValueError(
+            f"Path '{rel_path}' is a file, not a directory. "
+            "Use delete_this_file instead."
+        )
+
+    # Single walk collected before deleting — paths vanish after rmtree.
+    children = sorted(abs_path.rglob("*"))
+    if children and not recursive:
+        raise ValueError(
+            f"Directory '{rel_path}' is not empty. "
+            "Pass recursive=True to delete it and its contents."
+        )
+
+    n_files = sum(1 for p in children if p.is_file())
+    n_dirs = sum(1 for p in children if p.is_dir()) + 1
+    all_rel = [rel_path] + [str(p.relative_to(project_dir)) for p in children]
+
+    logger.debug("Deleting directory: %s (recursive=%s)", rel_path, recursive)
+    if recursive:
+        shutil.rmtree(abs_path)
+    else:
+        abs_path.rmdir()
+    logger.debug("Successfully deleted directory: %s", rel_path)
+
+    return _format_deleted_paths(all_rel, n_files, n_dirs)
+
+
 def _validate_move_parameters(
     source_path: str, destination_path: str, project_dir: Path
 ) -> tuple[Path, str, Path, str]:

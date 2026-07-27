@@ -9,6 +9,7 @@ import pytest
 from mcp_workspace.server import (
     append_file,
     check_branch_status,
+    delete_directory,
     delete_this_file,
     edit_file,
     git,
@@ -500,6 +501,26 @@ def test_delete_file_gitignored(gitignore_project: Path) -> None:
     (gitignore_project / "debug.log").write_text("to delete")
     with pytest.raises(ValueError, match="excluded by .gitignore"):
         delete_this_file("debug.log")
+
+
+def test_delete_directory_gitignored(gitignore_project: Path) -> None:
+    """delete_directory on a gitignored top-level dir raises ValueError."""
+    cache_dir = gitignore_project / "__pycache__"
+    cache_dir.mkdir()
+    with pytest.raises(ValueError, match="excluded by .gitignore"):
+        delete_directory("__pycache__")
+
+
+def test_delete_directory_recursive_deletes_gitignored_children(
+    gitignore_project: Path,
+) -> None:
+    """Recursive delete removes a tree including gitignored children."""
+    build_dir = gitignore_project / "build"
+    nested_cache = build_dir / "__pycache__"
+    nested_cache.mkdir(parents=True)
+    (nested_cache / "x.pyc").write_text("bytecode")
+    delete_directory("build", recursive=True)
+    assert not build_dir.exists()
 
 
 def test_move_file_gitignored_source(gitignore_project: Path) -> None:
