@@ -25,9 +25,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 Detail: [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: update the three surfaced `move_file` descriptions — `server.py` docstring summary line, `README.md` table row (~line 221), and `README.md` Features bullet (~line 31)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: update the three surfaced `move_file` descriptions — `server.py` docstring summary line, `README.md` table row (~line 221), and `README.md` Features bullet (~line 31)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared (blocked: pr_info/.commit_message.txt is gitignored; save_file/append_file refuse it and Bash is disabled)
 
 ## Pull Request
 
