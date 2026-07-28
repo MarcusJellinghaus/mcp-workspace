@@ -8,6 +8,7 @@ from mcp_workspace.checks.branch_status import (
     BranchStatusReport,
     _collect_ci_status,
     _generate_recommendations,
+    collect_branch_status,
 )
 from mcp_workspace.checks.branch_status_rendering import (
     GITHUB_TOKEN_HINT,
@@ -156,3 +157,25 @@ class TestReviewGateHeader:
     def test_review_gate_helper_returns_none_when_off(self) -> None:
         report = _make_gate_report(CIStatus.PASSED, pr_feedback_blocks_merge=True)
         assert _review_gate_header(report, False) is None
+
+    def test_review_gate_collection_failure_is_unknown_not_clean(self) -> None:
+        """A status-collection failure must not fail open to 'clean'.
+
+        The catch-all handler in collect_branch_status returns an empty report
+        on any exception; with the gate on it must render UNKNOWN, since the
+        review state was never determined.
+        """
+        with patch(
+            "mcp_workspace.checks.branch_status.get_current_branch_name",
+            side_effect=RuntimeError("boom"),
+        ):
+            report = collect_branch_status(Path("/tmp"))
+
+        assert report.ci_status == CIStatus.UNAVAILABLE
+        for output in (
+            report.format_for_human(fail_on_reviews=True),
+            report.format_for_llm(fail_on_reviews=True),
+        ):
+            assert "Review Gate: UNKNOWN (no token)" in output
+            assert "Review Gate: clean" not in output
+            assert "Review Gate: BLOCKED" not in output

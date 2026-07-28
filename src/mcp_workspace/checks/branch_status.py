@@ -592,4 +592,7 @@ def collect_branch_status(
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error collecting branch status: {e}")
-        return create_empty_report()
+        # Collection failed — review state is undeterminable, so surface
+        # UNAVAILABLE (review gate renders UNKNOWN) rather than fail open to
+        # a misleading "clean" verdict.
+        return create_empty_report(ci_status=CIStatus.UNAVAILABLE)
