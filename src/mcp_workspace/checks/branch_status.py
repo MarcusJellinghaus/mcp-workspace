@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from mcp_workspace.checks.pr_feedback import collect_pr_feedback
+from mcp_workspace.config import get_github_token
 from mcp_workspace.git_operations.base_branch import detect_base_branch
 from mcp_workspace.git_operations.branch_queries import (
     extract_issue_number_from_branch,
@@ -39,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_LABEL = "unknown"
 EMPTY_RECOMMENDATIONS: List[str] = []
+GITHUB_TOKEN_HINT = "no GitHub token; set GITHUB_TOKEN or add to config.toml"
 
 _JOB_FAIL_CONCLUSIONS: frozenset[str] = frozenset({"failure", "cancelled", "timed_out"})
 _BLOCKING_MERGE_STATES: frozenset[str] = frozenset({"unstable", "blocked", "dirty"})
@@ -51,6 +53,7 @@ class CIStatus(str, Enum):
     FAILED = "FAILED"
     NOT_CONFIGURED = "NOT_CONFIGURED"
     PENDING = "PENDING"
+    UNAVAILABLE = "UNAVAILABLE"  # auth/token missing — CI truth unknown
 
 
 @dataclass(frozen=True)
@@ -101,6 +104,7 @@ class BranchStatusReport:
         """
         # Determine status icons
         ci_icon_map: Dict[CIStatus, str] = {
+            CIStatus.UNAVAILABLE: "\U0001f512",
             CIStatus.PASSED: "\u2705",
             CIStatus.FAILED: "\u274c",
             CIStatus.PENDING: "\u23f3",
@@ -157,7 +161,10 @@ class BranchStatusReport:
                 lines.append("PR: \u274c No PR found")
             lines.append("")
 
-        lines.append(f"CI Status: {ci_icon} {self.ci_status.value}")
+        ci_line = f"CI Status: {ci_icon} {self.ci_status.value}"
+        if self.ci_status == CIStatus.UNAVAILABLE:
+            ci_line += f" — {GITHUB_TOKEN_HINT}"  # em dash
+        lines.append(ci_line)
 
         # Add CI details if they exist
         if self.ci_details:
@@ -212,6 +219,8 @@ class BranchStatusReport:
             f"Branch Status: CI={self.ci_status.value}, Rebase={rebase_status}, "
             f"Tasks={self.tasks_status.value} ({self.tasks_reason})"
         )
+        if self.ci_status == CIStatus.UNAVAILABLE:
+            status_summary += f" ({GITHUB_TOKEN_HINT})"
         if self.pr_found is True:
             mergeable_str = (
                 str(self.pr_mergeable) if self.pr_mergeable is not None else "None"
@@ -379,6 +388,9 @@ def _collect_ci_status(
     Returns:
         Tuple of (CIStatus, optional details string, failing job names).
     """
+    if get_github_token() is None:
+        logger.info("GitHub token not configured — CI status unavailable")
+        return CIStatus.UNAVAILABLE, None, []
     try:
         ci_manager = CIResultsManager(project_dir=project_dir)
         status_result = ci_manager.get_latest_ci_status(branch_name)
@@ -589,6 +601,8 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
         recommendations.append("Wait for CI to complete")
     elif ci_status == CIStatus.NOT_CONFIGURED:
         recommendations.append("Configure CI pipeline")
+    elif ci_status == CIStatus.UNAVAILABLE:
+        recommendations.append(f"Set a GitHub token ({GITHUB_TOKEN_HINT})")
 
     if tasks_status == TaskTrackerStatus.INCOMPLETE:
         recommendations.append(f"Complete remaining tasks ({tasks_reason})")

@@ -1,13 +1,25 @@
 """Tests for branch_status._collect_ci_status."""
 
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from mcp_workspace.checks.branch_status import CIStatus, _collect_ci_status
 
 
 class TestCollectCIStatus:
     """Tests for _collect_ci_status."""
+
+    @pytest.fixture(autouse=True)
+    def _github_token(self) -> Iterator[None]:
+        """Provide a token so the missing-token gate does not short-circuit."""
+        with patch(
+            "mcp_workspace.checks.branch_status.get_github_token",
+            return_value="tok",
+        ):
+            yield
 
     @patch("mcp_workspace.checks.branch_status.CIResultsManager")
     def test_passed(self, mock_ci_cls: MagicMock) -> None:

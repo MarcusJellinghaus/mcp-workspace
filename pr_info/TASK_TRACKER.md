@@ -25,9 +25,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 See [step_1.md](./steps/step_1.md).
 
-- [ ] Implementation: `CIStatus.UNAVAILABLE`, `GITHUB_TOKEN_HINT`, `get_github_token` import + token gate in `_collect_ci_status`, UNAVAILABLE rendering in `format_for_human` / `format_for_llm` / `_generate_recommendations`; tests in `tests/checks/test_branch_status.py` + patch existing `_collect_ci_status` tests in `tests/checks/test_branch_status_ci.py`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `CIStatus.UNAVAILABLE`, `GITHUB_TOKEN_HINT`, `get_github_token` import + token gate in `_collect_ci_status`, UNAVAILABLE rendering in `format_for_human` / `format_for_llm` / `_generate_recommendations`; tests in `tests/checks/test_branch_status.py` + patch existing `_collect_ci_status` tests in `tests/checks/test_branch_status_ci.py`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared (blocked: pr_info/.commit_message.txt is gitignored; MCP tools refuse gitignored paths and no shell tool is available — see message text below)
 
 ### Step 2: Opt-in review-gate header (three-state, both formatters)
 
