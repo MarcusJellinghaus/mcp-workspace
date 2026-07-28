@@ -35,9 +35,9 @@ Detail: [step_2.md](./steps/step_2.md)
 
 > Shares a single commit with Step 1 (README bullets must be byte-identical to the Step 1 docstring first lines).
 
-- [ ] Implementation: update the `read_file`, `save_file`, `edit_file`, and `read_reference_file` feature bullets in `README.md` to match the Step 1 summaries
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: update the `read_file`, `save_file`, `edit_file`, and `read_reference_file` feature bullets in `README.md` to match the Step 1 summaries
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 
