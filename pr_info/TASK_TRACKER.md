@@ -27,7 +27,14 @@ See [step_1.md](./steps/step_1.md).
 
 - [x] Implementation: `CIStatus.UNAVAILABLE`, `GITHUB_TOKEN_HINT`, `get_github_token` import + token gate in `_collect_ci_status`, UNAVAILABLE rendering in `format_for_human` / `format_for_llm` / `_generate_recommendations`; tests in `tests/checks/test_branch_status.py` + patch existing `_collect_ci_status` tests in `tests/checks/test_branch_status_ci.py`
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared (blocked: pr_info/.commit_message.txt is gitignored; MCP tools refuse gitignored paths and no shell tool is available — see message text below)
+- [x] Commit message prepared (pr_info/.commit_message.txt is gitignored — MCP tools refuse gitignored paths and no shell tool is available, both verified; message captured below and already carried by commit d916f31)
+
+  ```
+  feat(checks): add UNAVAILABLE CI status for missing token
+
+  When no GitHub token is configured, CI status reports UNAVAILABLE with a
+  hint instead of failing, across all formatters and recommendations.
+  ```
 
 ### Step 2: Opt-in review-gate header (three-state, both formatters)
 
