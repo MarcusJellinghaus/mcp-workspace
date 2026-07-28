@@ -85,6 +85,26 @@ class TestReferenceProjectCLI:
             with pytest.raises(SystemExit):
                 parse_args()
 
+    def test_parse_fail_on_reviews(self) -> None:
+        """Test parsing the --fail-on-reviews flag sets True."""
+        with patch(
+            "sys.argv",
+            [
+                "script.py",
+                "--project-dir",
+                "/tmp",
+                "--fail-on-reviews",
+            ],
+        ):
+            args = parse_args()
+            assert args.fail_on_reviews is True
+
+    def test_parse_fail_on_reviews_default(self) -> None:
+        """Test --fail-on-reviews defaults to False when omitted."""
+        with patch("sys.argv", ["script.py", "--project-dir", "/tmp"]):
+            args = parse_args()
+            assert args.fail_on_reviews is False
+
     @patch("mcp_workspace.main.detect_and_verify_url", return_value=None)
     @patch("mcp_workspace.main.Path.exists")
     @patch("mcp_workspace.main.Path.is_dir")
@@ -649,3 +669,50 @@ class TestReferenceProjectIntegration:
 
                 mock_run_server.assert_called_once()
                 assert mock_run_server.call_args[1]["file_size_limit"] is None
+
+    @patch("mcp_workspace.server.run_server")
+    @patch("mcp_workspace.main.Path.exists")
+    @patch("mcp_workspace.main.Path.is_dir")
+    def test_main_passes_fail_on_reviews(
+        self, mock_is_dir: MagicMock, mock_exists: MagicMock, mock_run_server: MagicMock
+    ) -> None:
+        """Test main() passes --fail-on-reviews through to run_server()."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        test_args = [
+            "script.py",
+            "--project-dir",
+            "/test/project",
+            "--fail-on-reviews",
+        ]
+
+        with patch("sys.argv", test_args):
+            with patch("mcp_workspace.main.setup_logging"):
+                from mcp_workspace.main import main
+
+                main()
+
+                mock_run_server.assert_called_once()
+                assert mock_run_server.call_args[1]["fail_on_reviews"] is True
+
+    @patch("mcp_workspace.server.run_server")
+    @patch("mcp_workspace.main.Path.exists")
+    @patch("mcp_workspace.main.Path.is_dir")
+    def test_main_fail_on_reviews_default_false(
+        self, mock_is_dir: MagicMock, mock_exists: MagicMock, mock_run_server: MagicMock
+    ) -> None:
+        """Test main() passes fail_on_reviews=False when the flag is omitted."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        test_args = ["script.py", "--project-dir", "/test/project"]
+
+        with patch("sys.argv", test_args):
+            with patch("mcp_workspace.main.setup_logging"):
+                from mcp_workspace.main import main
+
+                main()
+
+                mock_run_server.assert_called_once()
+                assert mock_run_server.call_args[1]["fail_on_reviews"] is False

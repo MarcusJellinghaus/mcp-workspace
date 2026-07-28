@@ -102,8 +102,13 @@ async def async_poll_branch_status(
     max_log_lines: int = 300,
     ci_timeout: int = 0,
     pr_timeout: int = 0,
+    fail_on_reviews: bool = False,
 ) -> str:
     """Collect branch status, optionally polling for CI/PR in parallel.
+
+    Args:
+        fail_on_reviews: Resolved bool controlling the review-gate header in
+            the formatted report (already resolved by the caller).
 
     Returns:
         The report formatted via `format_for_llm()`.
@@ -114,7 +119,7 @@ async def async_poll_branch_status(
         report = await asyncio.to_thread(
             collect_branch_status, project_dir, max_log_lines
         )
-        return report.format_for_llm()
+        return report.format_for_llm(fail_on_reviews=fail_on_reviews)
 
     needs_remote = ci_timeout > 0 or pr_timeout > 0
     remote_present = (
@@ -144,4 +149,6 @@ async def async_poll_branch_status(
     if skip_msg:
         report = replace(report, recommendations=[skip_msg, *report.recommendations])
 
-    return report.format_for_llm(wait_context=wait_ctx)
+    return report.format_for_llm(
+        wait_context=wait_ctx, fail_on_reviews=fail_on_reviews
+    )

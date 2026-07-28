@@ -675,6 +675,76 @@ class TestAsyncPollBranchStatus:
         assert wait_ctx.ci_elapsed == 12.3
 
     @pytest.mark.asyncio
+    async def test_async_poll_passes_fail_on_reviews_to_format(
+        self, project_dir: Path
+    ) -> None:
+        from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
+
+        mock_report = MagicMock(spec=BranchStatusReport)
+        mock_report.format_for_llm.return_value = "captured"
+
+        with (
+            patch(
+                "mcp_workspace.checks.branch_status_polling.get_current_branch_name",
+                return_value="feature/x",
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling.remote_branch_exists",
+                return_value=True,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling.collect_branch_status",
+                return_value=mock_report,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling._wait_for_ci",
+                new_callable=AsyncMock,
+                return_value=1.0,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling._wait_for_pr",
+                new_callable=AsyncMock,
+                return_value=1.0,
+            ),
+        ):
+            await async_poll_branch_status(
+                project_dir, ci_timeout=30, pr_timeout=30, fail_on_reviews=True
+            )
+
+        assert (
+            mock_report.format_for_llm.call_args.kwargs["fail_on_reviews"] is True
+        )
+
+    @pytest.mark.asyncio
+    async def test_async_poll_fail_on_reviews_defaults_false(
+        self, project_dir: Path
+    ) -> None:
+        from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
+
+        mock_report = MagicMock(spec=BranchStatusReport)
+        mock_report.format_for_llm.return_value = "captured"
+
+        with (
+            patch(
+                "mcp_workspace.checks.branch_status_polling.get_current_branch_name",
+                return_value="feature/x",
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling.remote_branch_exists",
+                return_value=True,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling.collect_branch_status",
+                return_value=mock_report,
+            ),
+        ):
+            await async_poll_branch_status(project_dir)
+
+        assert (
+            mock_report.format_for_llm.call_args.kwargs["fail_on_reviews"] is False
+        )
+
+    @pytest.mark.asyncio
     async def test_no_branch_skips_helpers_and_remote_check(
         self, project_dir: Path
     ) -> None:

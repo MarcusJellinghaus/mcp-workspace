@@ -66,9 +66,31 @@ See [step_2.md](./steps/step_2.md).
 
 See [step_3.md](./steps/step_3.md).
 
-- [ ] Implementation: thread `fail_on_reviews` through `async_poll_branch_status`, `_fail_on_reviews` global + `set_fail_on_reviews` + tool param + `run_server` in `server.py`, `--fail-on-reviews` argparse flag in `main.py`; tests in new `tests/test_server_fail_on_reviews.py`, `tests/checks/test_branch_status_polling.py`, `tests/test_reference_projects.py`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: thread `fail_on_reviews` through `async_poll_branch_status`, `_fail_on_reviews` global + `set_fail_on_reviews` + tool param + `run_server` in `server.py`, `--fail-on-reviews` argparse flag in `main.py`; tests in new `tests/test_server_fail_on_reviews.py`, `tests/checks/test_branch_status_polling.py`, `tests/test_reference_projects.py`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues (pylint clean, mypy clean, pytest 1538 passed / 1 skipped)
+- [x] Commit message prepared (pr_info/.commit_message.txt is gitignored — MCP tools refuse gitignored paths and no shell write tool is available; message captured below)
+
+  ```
+  feat(server): add --fail-on-reviews default and per-call override
+
+  Wire the review-gate flag end to end, mirroring --file-size-limit:
+
+  - async_poll_branch_status gains a plain `fail_on_reviews: bool` param,
+    threaded into both format_for_llm call sites.
+  - server.py adds the `_fail_on_reviews` module global, a
+    `set_fail_on_reviews` setter, a `fail_on_reviews: Optional[bool] = None`
+    parameter on check_branch_status (the only tri-state boundary; resolves
+    `effective = fail_on_reviews if fail_on_reviews is not None else
+    _fail_on_reviews` and threads a plain bool downstream), and a
+    `fail_on_reviews` param on run_server calling the setter.
+  - main.py adds a `--fail-on-reviews` store_true flag passed through.
+
+  Default behaviour is unchanged (off unless set). Tests added in
+  tests/test_server_fail_on_reviews.py,
+  tests/checks/test_branch_status_polling.py, and
+  tests/test_reference_projects.py; existing check_branch_status call-arg
+  assertions updated for the new default kwarg.
+  ```
 
 ## Pull Request
 

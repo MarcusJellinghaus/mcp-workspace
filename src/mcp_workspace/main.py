@@ -69,6 +69,12 @@ def parse_args() -> argparse.Namespace:
         help="Default line limit for check_file_size when max_lines is omitted "
         "(must be > 0; falls back to 600 if not set).",
     )
+    parser.add_argument(
+        "--fail-on-reviews",
+        action="store_true",
+        help="Default for check_branch_status' review gate; the tool "
+        "parameter overrides per call.",
+    )
     return parser.parse_args()
 
 
@@ -269,6 +275,7 @@ def main() -> None:
         project_dir,
         reference_projects=reference_projects,
         file_size_limit=args.file_size_limit,
+        fail_on_reviews=args.fail_on_reviews,
     )
 
 
