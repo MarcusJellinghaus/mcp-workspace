@@ -15,4 +15,27 @@
 - `summary.md`: `read_reference_file` reference `~line 124` → `line 107` (kept "matched by tool name" guidance).
 - `step_1.md`: WHAT table `(~124)` → `(107)`; verification block tool names `mcp__tools-py__*` → `mcp__mcp-tools-py__*` (pylint/pytest/mypy).
 
-**Status**: committed
+**Status**: committed (`8ddd361`)
+
+## Round 2 — 2026-07-28
+**Findings**:
+- Zero findings. Engineer re-verified both round-1 corrections are accurate against source (docstring at `server_reference_tools.py:107`; tool-name prefixes now `mcp__mcp-tools-py__*`). Full plan-vs-source cross-check matches exactly (7 docstrings, 4 README bullets). No new inaccuracies introduced.
+- One standing open item (not a defect): the plan's README-sync scope (4 bullets) exceeds issue #235's literal approved scope (2 bullets), because the issue's premise "the other five tools are not individually summarized there" is factually wrong. The plan correctly flags this for user sign-off.
+
+**Decisions**:
+- No plan changes. Escalated the README-scope item to the user (scope question, per triage rules).
+
+**User decisions**:
+- Q: Sync 4 README bullets (read_file, save_file, edit_file, read_reference_file) per the plan, or only the issue's literal 2 (read_file, save_file)?
+- A: **Option A — sync all 4 bullets.** Plan as written is approved; the issue's mistaken 2-line premise is superseded.
+
+**Changes**: None — plan already reflects option A.
+
+**Status**: no changes needed
+
+## Final Status
+
+- **Rounds run this supervisor session:** 2 (round 1 applied 2 accuracy fixes; round 2 clean).
+- **Commits produced:** 1 — `8ddd361` (docs(pr_info): fix read_reference_file line ref and tool-name prefixes; add review log 2). Plus this log finalization.
+- **Open design/scope items:** none — README 4-bullet sync approved by user (option A).
+- **Plan verdict:** internally consistent, all line numbers and old/new strings verified against source, no test changes required. **Ready for approval / implementation.**
