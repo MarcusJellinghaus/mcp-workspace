@@ -1,6 +1,9 @@
 # Step 2 — Sync the stale README feature summaries
 
-**Commit:** 1 (README docs sync + verification passing)
+**Commit:** shared with Step 1 — the docstring rewrites and this README sync form a **single
+commit**. Both are trivially small and tightly coupled (the README bullet text must be
+byte-identical to the Step 1 docstring first lines), so per planning_principles' "merge tiny or
+intertwined steps" they are not split into separate commits.
 
 > Prerequisite reading: `pr_info/steps/summary.md` and `pr_info/steps/step_1.md`
 > (the new summary strings must match Step 1 exactly).
@@ -8,6 +11,15 @@
 ## WHERE
 
 - `README.md` (feature list, lines 25–26, 30, 34)
+
+> **Scope deviation — flag for reconciliation.** Issue #235's approved Decisions table scopes
+> the README sync to `read_file` and `save_file` only (lines 25–26) and states the other tools
+> "are not individually summarized there." That claim is factually wrong: the README feature
+> list (lines 24–34) summarizes every tool individually. This plan therefore edits **4** bullets
+> (25, 26, 30, 34), not 2 — extending the sync to `edit_file` (30) and `read_reference_file`
+> (34) so the public docs also carry the newly-surfaced capabilities (`replace_all`, line
+> slice). This is a deliberate expansion beyond the approved 2-line scope; surface it for
+> sign-off rather than presenting it as already authorized.
 
 ## WHAT
 

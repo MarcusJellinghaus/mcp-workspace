@@ -63,11 +63,17 @@ No folders or modules are created. No source files other than the two above are 
 
 ## Step breakdown (KISS)
 
-The change splits into **2 commits** along the natural code/docs boundary:
+The whole change is ~11 one-line text edits, so it is a **single commit** covering both the
+docstring rewrites and the README sync — they are trivially small and tightly coupled (the
+README bullet text must be byte-identical to the Step 1 docstring first lines), so per
+planning_principles' "merge tiny or intertwined steps" they are not split:
 
 - **Step 1** — All 7 docstring summary rewrites (source of the auto-generated schemas).
-  One cohesive concern = one commit.
-- **Step 2** — README feature-list sync (public docs). Independent of Step 1 = separate commit.
+- **Step 2** — README feature-list sync (public docs), committed together with Step 1.
 
-Both are in scope per the issue's Decisions table (`read_reference_file` parity fix and
-README sync are explicitly required — do not drop them as a "simplification").
+Scope note: the issue's Decisions table explicitly authorizes the `read_reference_file`
+docstring parity fix and a README sync limited to `read_file` and `save_file` (lines 25–26).
+Extending the README sync to the `edit_file` (line 30) and `read_reference_file` (line 34)
+bullets goes **beyond** that approved decision (the issue wrongly claims those tools are not
+summarized in the README) — see `step_2.md` for the justification and flagged deviation.
+Neither the parity fix nor the README sync should be dropped as a "simplification."
