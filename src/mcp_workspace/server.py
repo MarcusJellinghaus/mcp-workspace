@@ -412,6 +412,9 @@ def delete_directory(dir_path: str, recursive: bool = False) -> list[str]:
 def move_file(source_path: str, destination_path: str) -> bool:
     """Move or rename a file or directory within the project.
 
+    Git-aware: uses `git mv` for tracked files (preserving rename/history);
+    falls back to a plain filesystem move for untracked files or non-git repos.
+
     Args:
         source_path: Source file/directory path (relative to project)
         destination_path: Destination path (relative to project)

@@ -28,7 +28,7 @@ By connecting your AI assistant to your filesystem, you can transform your workf
 - `delete_this_file`: Delete a single specified file from the filesystem
 - `delete_directory`: Delete a directory (empty by default, whole tree with `recursive=True`)
 - `edit_file`: Make selective edits using exact string matching
-- `move_file`: Move or rename files and directories within the project
+- `move_file`: Move or rename files and directories (git-aware: uses git mv for tracked files, else filesystem move)
 - `get_reference_projects`: Discover available reference projects
 - `list_reference_directory`: List files in reference projects
 - `read_reference_file`: Read files from reference projects
@@ -218,7 +218,7 @@ The server exposes the following MCP tools:
 | `delete_this_file` | Removes files from the filesystem | "Delete the temporary.txt file" |
 | `delete_directory` | Deletes a directory (empty, or a whole tree with recursive) | "Delete the pr_info directory and its contents" |
 | `edit_file` | Makes selective edits using exact string matching | "Fix the bug in the fetch function" |
-| `move_file` | Moves or renames files and directories | "Rename config.js to settings.js" |
+| `move_file` | Moves or renames files/directories (git-aware: uses git mv for tracked files, else filesystem move) | "Rename config.js to settings.js" |
 | `get_reference_projects` | Lists available reference projects | "What reference projects are available?" |
 | `list_reference_directory` | Lists files in a reference project | "List files in the docs reference project" |
 | `read_reference_file` | Reads files from reference projects | "Show me the README from the examples project" |
