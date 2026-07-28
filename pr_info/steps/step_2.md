@@ -1,4 +1,4 @@
-# Step 2 — Sync the 2 stale README feature summaries
+# Step 2 — Sync the stale README feature summaries
 
 **Commit:** 1 (README docs sync + verification passing)
 
@@ -7,18 +7,23 @@
 
 ## WHERE
 
-- `README.md` (feature list, lines 25–26)
+- `README.md` (feature list, lines 25–26, 30, 34)
 
 ## WHAT
 
-Update the two feature-list bullets whose summaries now drift from the docstrings changed in
-Step 1. These are the only two README lines affected; the other five tools are not
-individually summarized in the README.
+Update the feature-list bullets whose summaries drift from the docstrings changed in Step 1.
+Four bullets are affected: `read_file` and `save_file` are stale exact copies of the old
+docstrings, and `edit_file` and `read_reference_file` omit the newly-surfaced capabilities
+(`replace_all`, line slice). The README **does** individually summarize the other tools too,
+but `delete_directory` (README:29) and `move_file` (README:31) already surface their key
+capability (recursive delete, git-aware move) and so need no change.
 
 | Line | Old | New |
 |---|---|---|
 | 25 | `- `read_file`: Read the contents of a file` | `- `read_file`: Read a file, or a line slice via start_line/end_line.` |
 | 26 | `- `save_file`: Write content to a file atomically` | `- `save_file`: Write a file, creating parent directories as needed.` |
+| 30 | `- `edit_file`: Make selective edits using exact string matching` | `- `edit_file`: Edit a file by exact string match; replace_all for multiple matches.` |
+| 34 | `- `read_reference_file`: Read files from reference projects` | `- `read_reference_file`: Read a reference-project file, or a line slice via start_line/end_line.` |
 
 Preserve the existing bullet/backtick formatting; change only the summary text after the
 tool name.
@@ -31,7 +36,7 @@ tool name.
 
 ## ALGORITHM
 
-None — two exact-string Markdown replacements.
+None — four exact-string Markdown replacements.
 
 ## DATA
 
@@ -43,16 +48,17 @@ Not applicable — documentation change.
 
 ## Verification (must pass before committing)
 
-1. Confirm the two new README summaries are byte-identical to the Step 1 first lines for
-   `read_file` and `save_file`.
+1. Confirm the four new README summaries are byte-identical to the Step 1 first lines for
+   `read_file`, `save_file`, `edit_file`, and `read_reference_file`.
 2. Run the standard quality gate (pylint/pytest/mypy) — expected unaffected, run for safety.
 3. `./tools/format_all.sh`, review diff is docs-only, then commit.
 
 ## Suggested commit message
 
 ```
-Sync README feature summaries for read_file and save_file
+Sync README feature summaries with updated tool docstrings
 
-Refresh the two stale README bullets to match the updated tool docstrings,
-keeping public docs consistent with the discoverability goal of #235.
+Refresh the read_file, save_file, edit_file, and read_reference_file README
+bullets to match the updated tool docstrings, keeping public docs consistent
+with the discoverability goal of #235.
 ```

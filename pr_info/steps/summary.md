@@ -9,7 +9,7 @@ analysis showed two tools bypassed via Bash because their most useful capability
 `read_file`'s line-slicing and `git`'s reference-project targeting.
 
 This change rewrites **7 docstring summary lines** so the selection-relevant capability is
-visible up front, and syncs **2 stale README summaries** to match. It is a
+visible up front, and syncs **4 README summaries** to match. It is a
 **docstring-and-docs-only change** — no runtime logic is touched.
 
 ## Architectural / design changes
@@ -42,7 +42,7 @@ The issue's paths are abbreviated. In this repo the files are:
 |------|--------|
 | `src/mcp_workspace/server.py` | Rewrite 6 docstring first lines (`read_file`, `save_file`, `delete_directory`, `move_file`, `edit_file`, `git`) |
 | `src/mcp_workspace/server_reference_tools.py` | Rewrite 1 docstring first line (`read_reference_file`) |
-| `README.md` | Sync 2 feature-list summaries (`read_file`, `save_file`) |
+| `README.md` | Sync 4 feature-list summaries (`read_file`, `save_file`, `edit_file`, `read_reference_file`) |
 | `pr_info/steps/summary.md` | This document (planning artifact) |
 | `pr_info/steps/step_1.md` | Step 1 plan (planning artifact) |
 | `pr_info/steps/step_2.md` | Step 2 plan (planning artifact) |
