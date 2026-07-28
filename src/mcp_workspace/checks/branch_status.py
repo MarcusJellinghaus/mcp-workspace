@@ -127,8 +127,10 @@ def create_empty_report(
 
     Args:
         ci_status: CI status for the placeholder report. The
-            branch-undeterminable path passes ``UNAVAILABLE`` so the review
-            gate renders ``UNKNOWN`` instead of a misleading ``clean``.
+            branch-undeterminable and collection-failure paths pass
+            ``UNKNOWN`` so the review gate renders ``UNKNOWN`` instead of a
+            misleading ``clean``, without misattributing the cause to a
+            missing token.
 
     Returns:
         A BranchStatusReport with placeholder/unknown values.
@@ -488,7 +490,7 @@ def collect_branch_status(
         branch_name = get_current_branch_name(project_dir)
         if branch_name is None:
             logger.error("Could not determine current branch name")
-            return create_empty_report(ci_status=CIStatus.UNAVAILABLE)
+            return create_empty_report(ci_status=CIStatus.UNKNOWN)
 
         # 2. Fetch issue data once for sharing
         issue_data: Optional[IssueData] = None
@@ -593,6 +595,8 @@ def collect_branch_status(
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error collecting branch status: {e}")
         # Collection failed — review state is undeterminable, so surface
-        # UNAVAILABLE (review gate renders UNKNOWN) rather than fail open to
-        # a misleading "clean" verdict.
-        return create_empty_report(ci_status=CIStatus.UNAVAILABLE)
+        # UNKNOWN (review gate renders UNKNOWN) rather than fail open to a
+        # misleading "clean" verdict. UNKNOWN (not UNAVAILABLE) keeps the
+        # CI line and recommendations from blaming a missing token, which
+        # may well be present.
+        return create_empty_report(ci_status=CIStatus.UNKNOWN)

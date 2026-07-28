@@ -149,11 +149,11 @@ class TestCollectBranchStatusBranchUndeterminable:
     """Review-gate guarantee when the current branch cannot be determined."""
 
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
-    def test_branch_none_returns_unavailable(self, mock_branch: MagicMock) -> None:
-        """No branch → UNAVAILABLE so the review gate never renders 'clean'."""
+    def test_branch_none_returns_unknown(self, mock_branch: MagicMock) -> None:
+        """No branch → UNKNOWN so the review gate never renders 'clean'."""
         mock_branch.return_value = None
         report = collect_branch_status(Path("/tmp"))
-        assert report.ci_status == CIStatus.UNAVAILABLE
+        assert report.ci_status == CIStatus.UNKNOWN
         output = report.format_for_llm(fail_on_reviews=True)
         assert "Review Gate: UNKNOWN (no token)" in output
         assert "Review Gate: clean" not in output

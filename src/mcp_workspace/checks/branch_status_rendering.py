@@ -30,6 +30,7 @@ class CIStatus(str, Enum):
     NOT_CONFIGURED = "NOT_CONFIGURED"
     PENDING = "PENDING"
     UNAVAILABLE = "UNAVAILABLE"  # auth/token missing — CI truth unknown
+    UNKNOWN = "UNKNOWN"  # status undeterminable (collection failed); not token-specific
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,7 @@ def format_report_for_human(
     # Determine status icons
     ci_icon_map: Dict[CIStatus, str] = {
         CIStatus.UNAVAILABLE: "\U0001f512",
+        CIStatus.UNKNOWN: "❓",
         CIStatus.PASSED: "✅",
         CIStatus.FAILED: "❌",
         CIStatus.PENDING: "⏳",
@@ -244,15 +246,17 @@ def _review_gate_header(
     """Build the three-state ``Review Gate: ...`` header line.
 
     Pure function of ``report.ci_status``, ``report.pr_feedback_blocks_merge``,
-    and the flag. No token lookup — an ``UNAVAILABLE`` CI status is reused as
-    the no-token signal and takes precedence over the blocked/clean states.
+    and the flag. No token lookup — an undeterminable CI status
+    (``UNAVAILABLE`` for a missing token, ``UNKNOWN`` for a collection
+    failure) yields the UNKNOWN verdict and takes precedence over the
+    blocked/clean states.
 
     Returns:
         One of the three fixed header strings, or None when the gate is off.
     """
     if not fail_on_reviews:
         return None
-    if report.ci_status == CIStatus.UNAVAILABLE:
+    if report.ci_status in (CIStatus.UNAVAILABLE, CIStatus.UNKNOWN):
         return "Review Gate: UNKNOWN (no token)"
     if report.pr_feedback_blocks_merge:
         return "Review Gate: BLOCKED (reviews)"

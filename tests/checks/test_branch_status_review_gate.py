@@ -171,7 +171,7 @@ class TestReviewGateHeader:
         ):
             report = collect_branch_status(Path("/tmp"))
 
-        assert report.ci_status == CIStatus.UNAVAILABLE
+        assert report.ci_status == CIStatus.UNKNOWN
         for output in (
             report.format_for_human(fail_on_reviews=True),
             report.format_for_llm(fail_on_reviews=True),
@@ -179,3 +179,43 @@ class TestReviewGateHeader:
             assert "Review Gate: UNKNOWN (no token)" in output
             assert "Review Gate: clean" not in output
             assert "Review Gate: BLOCKED" not in output
+
+    @patch(
+        "mcp_workspace.checks.branch_status.get_github_token",
+        return_value="tok",
+    )
+    def test_undeterminable_paths_do_not_misattribute_missing_token(
+        self, _mock_token: MagicMock
+    ) -> None:
+        """Undeterminable paths must not blame a missing token when one is present.
+
+        With a token available, both the branch-undeterminable path and the
+        generic collection-failure path must yield the review-gate UNKNOWN
+        verdict while rendering a neutral (UNKNOWN, not UNAVAILABLE) CI cause
+        and omitting the GITHUB_TOKEN_HINT from the CI line and recommendations.
+        """
+        branch_none = patch(
+            "mcp_workspace.checks.branch_status.get_current_branch_name",
+            return_value=None,
+        )
+        collection_fails = patch(
+            "mcp_workspace.checks.branch_status.get_current_branch_name",
+            side_effect=RuntimeError("boom"),
+        )
+        for path_patch in (branch_none, collection_fails):
+            with path_patch:
+                report = collect_branch_status(Path("/tmp"))
+
+            assert report.ci_status == CIStatus.UNKNOWN
+            human = report.format_for_human(fail_on_reviews=True)
+            llm = report.format_for_llm(fail_on_reviews=True)
+            for output in (human, llm):
+                # Review-gate verdict is still UNKNOWN (undeterminable).
+                assert "Review Gate: UNKNOWN (no token)" in output
+                assert "Review Gate: clean" not in output
+                assert "Review Gate: BLOCKED" not in output
+                # ...but the CI cause must not blame a token that is present.
+                assert GITHUB_TOKEN_HINT not in output
+                assert "UNAVAILABLE" not in output
+            assert "CI Status: ❓ UNKNOWN" in human
+            assert "CI=UNKNOWN" in llm
