@@ -32,7 +32,7 @@ visible up front, and syncs **4 README summaries** to match. It is a
 The issue's paths are abbreviated. In this repo the files are:
 
 - `src/mcp_workspace/server.py` (line numbers 203, 246, 369, 413, 479, 528 match exactly)
-- `src/mcp_workspace/server_reference_tools.py` (`read_reference_file` docstring ~line 124,
+- `src/mcp_workspace/server_reference_tools.py` (`read_reference_file` docstring line 107,
   matched by tool name, not line number)
 - `README.md` (lines 25–26)
 

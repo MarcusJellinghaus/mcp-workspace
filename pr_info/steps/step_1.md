@@ -29,7 +29,7 @@ Change **only the first line** of each of the following docstrings. Signatures, 
 
 | Tool (approx line) | Old first line | New first line |
 |---|---|---|
-| `read_reference_file` (~124) | `Read the contents of a file from a reference project.` | `Read a reference-project file, or a line slice via start_line/end_line.` |
+| `read_reference_file` (107) | `Read the contents of a file from a reference project.` | `Read a reference-project file, or a line slice via start_line/end_line.` |
 
 ## HOW
 
@@ -68,9 +68,9 @@ are asserted, (2) run the standard quality gate.
    `read the contents of a file`, `Write content to a file`,
    `Delete a directory from the filesystem`, `within the project`,
    `Make a selective edit`, `Run a read-only git command`.
-2. `mcp__tools-py__run_pylint_check`
-3. `mcp__tools-py__run_pytest_check` with `extra_args=["-n", "auto", "-m", "not git_integration and not claude_cli_integration and not claude_api_integration and not formatter_integration and not github_integration and not langchain_integration"]`
-4. `mcp__tools-py__run_mypy_check`
+2. `mcp__mcp-tools-py__run_pylint_check`
+3. `mcp__mcp-tools-py__run_pytest_check` with `extra_args=["-n", "auto", "-m", "not git_integration and not claude_cli_integration and not claude_api_integration and not formatter_integration and not github_integration and not langchain_integration"]`
+4. `mcp__mcp-tools-py__run_mypy_check`
 5. `./tools/format_all.sh`, review diff is docstring-only, then commit.
 
 ## Suggested commit message
