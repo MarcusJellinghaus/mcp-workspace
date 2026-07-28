@@ -25,8 +25,8 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 Detail: [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: rewrite the first docstring line of `read_file`, `save_file`, `delete_directory`, `move_file`, `edit_file`, `git` (`server.py`) and `read_reference_file` (`server_reference_tools.py`); grep tests confirm no old summary strings are pinned
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Implementation: rewrite the first docstring line of `read_file`, `save_file`, `delete_directory`, `move_file`, `edit_file`, `git` (`server.py`) and `read_reference_file` (`server_reference_tools.py`); grep tests confirm no old summary strings are pinned
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 
 ### Step 2: Sync the stale README feature summaries
