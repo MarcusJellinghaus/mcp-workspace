@@ -125,7 +125,16 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: uv pip install --system -e ".[dev]"
+        # mcp-coder-utils is a git-only dependency (declared in
+        # [tool.mcp-coder.install-from-github]); it is not on PyPI. It must be
+        # pre-installed from git so the editable project install can resolve
+        # the bare `mcp-coder-utils` requirement. Without this the whole
+        # install aborts, leaving runtime deps like `mcp` uninstalled and
+        # breaking every downstream check (mypy/pylint/pytest).
+        run: |
+          uv pip install --system \
+            "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
+            -e ".[dev]"
 
       - name: Environment info
         run: |
@@ -190,7 +199,16 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: uv pip install --system -e ".[dev]"
+        # mcp-coder-utils is a git-only dependency (declared in
+        # [tool.mcp-coder.install-from-github]); it is not on PyPI. It must be
+        # pre-installed from git so the editable project install can resolve
+        # the bare `mcp-coder-utils` requirement. Without this the whole
+        # install aborts, leaving runtime deps like `mcp` uninstalled and
+        # breaking every downstream check (mypy/pylint/pytest).
+        run: |
+          uv pip install --system \
+            "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
+            -e ".[dev]"
 
       - name: Environment info
         run: |
@@ -255,7 +273,12 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: uv pip install --system -e ".[dev,architecture]"
+        # See note in the `test` job: mcp-coder-utils is git-only and must be
+        # pre-installed so the editable project install can resolve it.
+        run: |
+          uv pip install --system \
+            "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
+            -e ".[dev,architecture]"
 
       - name: Environment info
         run: |
