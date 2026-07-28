@@ -92,12 +92,15 @@ class BranchStatusReport:
     def format_for_human(
         self,
         wait_context: Optional["WaitContext"] = None,
+        fail_on_reviews: bool = False,
     ) -> str:
         """Format report for human consumption.
 
         Args:
             wait_context: Optional polling context; renders a ``Wait:`` line
                 between ``Base Branch:`` and the report header.
+            fail_on_reviews: When True, render a three-state ``Review Gate:``
+                header near the top of the report.
 
         Returns:
             Formatted string with status icons and recommendations.
@@ -141,6 +144,10 @@ class BranchStatusReport:
                 "",
             ]
         )
+
+        header = _review_gate_header(self, fail_on_reviews)
+        if header is not None:
+            lines.append(header)
 
         # PR section (only when pr_found is not None)
         if self.pr_found is not None:
@@ -200,6 +207,7 @@ class BranchStatusReport:
         self,
         max_lines: int = 300,
         wait_context: Optional["WaitContext"] = None,
+        fail_on_reviews: bool = False,
     ) -> str:
         """Format report for LLM consumption with truncation.
 
@@ -207,6 +215,8 @@ class BranchStatusReport:
             max_lines: Maximum number of lines for CI error details.
             wait_context: Optional polling context; renders a ``Wait:`` line
                 directly below the ``Branch Status:`` summary line.
+            fail_on_reviews: When True, render a three-state ``Review Gate:``
+                header directly below the status summary line.
 
         Returns:
             Compact formatted string optimized for LLM context windows.
@@ -237,6 +247,9 @@ class BranchStatusReport:
             f"Branch: {self.branch_name} | Base: {self.base_branch}",
             status_summary,
         ]
+        header = _review_gate_header(self, fail_on_reviews)
+        if header is not None:
+            lines.append(header)
         wait_line = _format_wait_line(self, wait_context)
         if wait_line is not None:
             lines.append(wait_line)
@@ -266,6 +279,28 @@ class BranchStatusReport:
             )
 
         return "\n".join(lines)
+
+
+def _review_gate_header(
+    report: BranchStatusReport,
+    fail_on_reviews: bool,
+) -> Optional[str]:
+    """Build the three-state ``Review Gate: ...`` header line.
+
+    Pure function of ``report.ci_status``, ``report.pr_feedback_blocks_merge``,
+    and the flag. No token lookup — an ``UNAVAILABLE`` CI status is reused as
+    the no-token signal and takes precedence over the blocked/clean states.
+
+    Returns:
+        One of the three fixed header strings, or None when the gate is off.
+    """
+    if not fail_on_reviews:
+        return None
+    if report.ci_status == CIStatus.UNAVAILABLE:
+        return "Review Gate: UNKNOWN (no token)"
+    if report.pr_feedback_blocks_merge:
+        return "Review Gate: BLOCKED (reviews)"
+    return "Review Gate: clean"
 
 
 def _format_wait_line(

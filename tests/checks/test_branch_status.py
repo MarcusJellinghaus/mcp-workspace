@@ -1,5 +1,6 @@
 """Tests for branch_status check module."""
 
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -13,6 +14,7 @@ from mcp_workspace.checks.branch_status import (
     _collect_rebase_status,
     _collect_task_status,
     _generate_recommendations,
+    _review_gate_header,
     collect_branch_status,
     create_empty_report,
     get_failed_jobs_summary,
@@ -763,3 +765,65 @@ class TestUnavailableCIStatus:
         assert f"Set a GitHub token ({GITHUB_TOKEN_HINT})" in recommendations
         assert "Configure CI pipeline" not in recommendations
         assert "Ready to merge" not in recommendations
+
+
+def _make_gate_report(
+    ci_status: CIStatus,
+    pr_feedback_blocks_merge: bool,
+) -> BranchStatusReport:
+    """Build a report for review-gate rendering tests."""
+    return replace(
+        _make_report(ci_status),
+        pr_feedback_blocks_merge=pr_feedback_blocks_merge,
+    )
+
+
+class TestReviewGateHeader:
+    """Tests for the opt-in three-state review-gate header."""
+
+    def test_review_gate_absent_when_off(self) -> None:
+        """Default (fail_on_reviews=False): no gate line in either formatter."""
+        report = _make_gate_report(CIStatus.PASSED, pr_feedback_blocks_merge=True)
+        assert "Review Gate:" not in report.format_for_human()
+        assert "Review Gate:" not in report.format_for_llm()
+
+    def test_review_gate_blocked(self) -> None:
+        report = _make_gate_report(CIStatus.PASSED, pr_feedback_blocks_merge=True)
+        assert "Review Gate: BLOCKED (reviews)" in report.format_for_human(
+            fail_on_reviews=True
+        )
+        assert "Review Gate: BLOCKED (reviews)" in report.format_for_llm(
+            fail_on_reviews=True
+        )
+
+    def test_review_gate_clean(self) -> None:
+        report = _make_gate_report(CIStatus.PASSED, pr_feedback_blocks_merge=False)
+        assert "Review Gate: clean" in report.format_for_human(fail_on_reviews=True)
+        assert "Review Gate: clean" in report.format_for_llm(fail_on_reviews=True)
+
+    def test_review_gate_unknown_no_token(self) -> None:
+        report = _make_gate_report(
+            CIStatus.UNAVAILABLE, pr_feedback_blocks_merge=False
+        )
+        for output in (
+            report.format_for_human(fail_on_reviews=True),
+            report.format_for_llm(fail_on_reviews=True),
+        ):
+            assert "Review Gate: UNKNOWN (no token)" in output
+            assert "Review Gate: clean" not in output
+            assert "Review Gate: BLOCKED" not in output
+
+    def test_review_gate_unknown_wins_over_blocks(self) -> None:
+        report = _make_gate_report(
+            CIStatus.UNAVAILABLE, pr_feedback_blocks_merge=True
+        )
+        for output in (
+            report.format_for_human(fail_on_reviews=True),
+            report.format_for_llm(fail_on_reviews=True),
+        ):
+            assert "Review Gate: UNKNOWN (no token)" in output
+            assert "Review Gate: BLOCKED" not in output
+
+    def test_review_gate_helper_returns_none_when_off(self) -> None:
+        report = _make_gate_report(CIStatus.PASSED, pr_feedback_blocks_merge=True)
+        assert _review_gate_header(report, False) is None
