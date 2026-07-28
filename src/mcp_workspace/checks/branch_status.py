@@ -558,8 +558,12 @@ def collect_branch_status(
                 pr_feedback_undeterminable,
             ) = collect_pr_feedback(pr_manager, pr_number)
         else:
+            # pr_found is None => the PR lookup raised or the PR/GitHub
+            # manager failed to init => review state is undeterminable.
+            # pr_found is False => confirmed no PR (nothing to review, so
+            # still clean-eligible).
             pr_feedback_text, pr_feedback_blocks_merge = None, False
-            pr_feedback_undeterminable = False
+            pr_feedback_undeterminable = pr_found is None
 
         # 11. Generate recommendations
         report_data: Dict[str, Any] = {

@@ -691,3 +691,106 @@ class TestCollectBranchStatusRegressions:
         assert "CI=FAILED" in llm_output
         assert "Mergeable_State=unstable" in llm_output
         assert "Fix failing job(s): mssql-integration" in llm_output
+
+    @patch("mcp_workspace.checks.branch_status._collect_pr_info")
+    @patch("mcp_workspace.checks.branch_status._collect_github_label")
+    @patch("mcp_workspace.checks.branch_status._collect_task_status")
+    @patch("mcp_workspace.checks.branch_status._collect_rebase_status")
+    @patch("mcp_workspace.checks.branch_status._collect_ci_status")
+    @patch("mcp_workspace.checks.branch_status.detect_base_branch")
+    @patch("mcp_workspace.checks.branch_status.PullRequestManager")
+    @patch("mcp_workspace.checks.branch_status.IssueManager")
+    @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
+    @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    def test_pr_lookup_failure_threads_undeterminable(
+        self,
+        mock_branch: MagicMock,
+        mock_extract: MagicMock,
+        mock_issue_mgr_cls: MagicMock,
+        mock_pr_mgr_cls: MagicMock,
+        mock_detect: MagicMock,
+        mock_ci: MagicMock,
+        mock_rebase: MagicMock,
+        mock_tasks: MagicMock,
+        mock_label: MagicMock,
+        mock_pr_info: MagicMock,
+    ) -> None:
+        """PR lookup failure (pr_found is None) → undeterminable threaded through.
+
+        Step 10 must set pr_feedback_undeterminable=True so the review gate
+        does not fail open to 'clean' when PR existence was never determined.
+        """
+        mock_branch.return_value = "123-feature"
+        mock_extract.return_value = 123
+        mock_issue_mgr = MagicMock()
+        mock_issue_mgr.get_issue.return_value = {"number": 123, "labels": []}
+        mock_issue_mgr_cls.return_value = mock_issue_mgr
+        mock_pr_mgr_cls.return_value = MagicMock()
+        mock_detect.return_value = "main"
+        mock_ci.return_value = (CIStatus.PASSED, None, [])
+        mock_rebase.return_value = (False, "up-to-date")
+        mock_tasks.return_value = (TaskTrackerStatus.COMPLETE, "done", False)
+        mock_label.return_value = "unknown"
+        # PR lookup failed: pr_found is None (undeterminable).
+        mock_pr_info.return_value = (None, None, None, None, None)
+
+        report = collect_branch_status(Path("/tmp"))
+
+        assert report.pr_found is None
+        assert report.pr_feedback_undeterminable is True
+        # With the gate on, this must render UNKNOWN, not clean.
+        for output in (
+            report.format_for_human(fail_on_reviews=True),
+            report.format_for_llm(fail_on_reviews=True),
+        ):
+            assert "Review Gate: UNKNOWN (undeterminable)" in output
+            assert "Review Gate: clean" not in output
+
+    @patch("mcp_workspace.checks.branch_status._collect_pr_info")
+    @patch("mcp_workspace.checks.branch_status._collect_github_label")
+    @patch("mcp_workspace.checks.branch_status._collect_task_status")
+    @patch("mcp_workspace.checks.branch_status._collect_rebase_status")
+    @patch("mcp_workspace.checks.branch_status._collect_ci_status")
+    @patch("mcp_workspace.checks.branch_status.detect_base_branch")
+    @patch("mcp_workspace.checks.branch_status.PullRequestManager")
+    @patch("mcp_workspace.checks.branch_status.IssueManager")
+    @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
+    @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    def test_confirmed_no_pr_stays_clean_eligible(
+        self,
+        mock_branch: MagicMock,
+        mock_extract: MagicMock,
+        mock_issue_mgr_cls: MagicMock,
+        mock_pr_mgr_cls: MagicMock,
+        mock_detect: MagicMock,
+        mock_ci: MagicMock,
+        mock_rebase: MagicMock,
+        mock_tasks: MagicMock,
+        mock_label: MagicMock,
+        mock_pr_info: MagicMock,
+    ) -> None:
+        """Confirmed no PR (pr_found is False) stays clean-eligible.
+
+        A legitimately-absent PR means nothing to review, so
+        pr_feedback_undeterminable must remain False.
+        """
+        mock_branch.return_value = "123-feature"
+        mock_extract.return_value = 123
+        mock_issue_mgr = MagicMock()
+        mock_issue_mgr.get_issue.return_value = {"number": 123, "labels": []}
+        mock_issue_mgr_cls.return_value = mock_issue_mgr
+        mock_pr_mgr_cls.return_value = MagicMock()
+        mock_detect.return_value = "main"
+        mock_ci.return_value = (CIStatus.PASSED, None, [])
+        mock_rebase.return_value = (False, "up-to-date")
+        mock_tasks.return_value = (TaskTrackerStatus.COMPLETE, "done", False)
+        mock_label.return_value = "unknown"
+        # Confirmed no PR: pr_found is False.
+        mock_pr_info.return_value = (None, None, False, None, None)
+
+        report = collect_branch_status(Path("/tmp"))
+
+        assert report.pr_found is False
+        assert report.pr_feedback_undeterminable is False
+        # Nothing to review + CI PASSED → gate renders clean.
+        assert "Review Gate: clean" in report.format_for_llm(fail_on_reviews=True)
