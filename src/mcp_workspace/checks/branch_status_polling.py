@@ -107,6 +107,10 @@ async def async_poll_branch_status(
     """Collect branch status, optionally polling for CI/PR in parallel.
 
     Args:
+        project_dir: Path to the project directory.
+        max_log_lines: Maximum CI log lines to include in the report.
+        ci_timeout: Seconds to poll for CI completion (0 disables polling).
+        pr_timeout: Seconds to poll for PR existence (0 disables polling).
         fail_on_reviews: Resolved bool controlling the review-gate header in
             the formatted report (already resolved by the caller).
 
@@ -149,6 +153,4 @@ async def async_poll_branch_status(
     if skip_msg:
         report = replace(report, recommendations=[skip_msg, *report.recommendations])
 
-    return report.format_for_llm(
-        wait_context=wait_ctx, fail_on_reviews=fail_on_reviews
-    )
+    return report.format_for_llm(wait_context=wait_ctx, fail_on_reviews=fail_on_reviews)

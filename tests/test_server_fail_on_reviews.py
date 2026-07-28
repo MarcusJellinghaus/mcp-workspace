@@ -43,9 +43,7 @@ class TestRunServerFailOnReviews:
         """run_server passes fail_on_reviews through to the setter."""
         with patch("mcp_workspace.server.mcp.run"):
             with patch("mcp_workspace.server.set_project_dir"):
-                with patch(
-                    "mcp_workspace.server.set_fail_on_reviews"
-                ) as mock_setter:
+                with patch("mcp_workspace.server.set_fail_on_reviews") as mock_setter:
                     run_server(Path("/test/project"), fail_on_reviews=True)
 
         mock_setter.assert_called_once_with(True)
@@ -54,9 +52,7 @@ class TestRunServerFailOnReviews:
         """run_server defaults fail_on_reviews to False when omitted."""
         with patch("mcp_workspace.server.mcp.run"):
             with patch("mcp_workspace.server.set_project_dir"):
-                with patch(
-                    "mcp_workspace.server.set_fail_on_reviews"
-                ) as mock_setter:
+                with patch("mcp_workspace.server.set_fail_on_reviews") as mock_setter:
                     run_server(Path("/test/project"))
 
         mock_setter.assert_called_once_with(False)

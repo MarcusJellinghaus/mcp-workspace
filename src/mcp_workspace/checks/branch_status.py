@@ -7,10 +7,16 @@ check_branch_status MCP tool.
 
 import logging
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
+from mcp_workspace.checks.branch_status_rendering import (
+    GITHUB_TOKEN_HINT,
+    CIStatus,
+    WaitContext,
+    format_report_for_human,
+    format_report_for_llm,
+)
 from mcp_workspace.checks.pr_feedback import collect_pr_feedback
 from mcp_workspace.config import get_github_token
 from mcp_workspace.git_operations.base_branch import detect_base_branch
@@ -38,32 +44,23 @@ from mcp_workspace.workflows.task_tracker import (
 
 logger = logging.getLogger(__name__)
 
+# Re-exported from branch_status_rendering for backwards compatibility. Listed
+# in __all__ so type checkers treat them as explicit exports of this module.
+__all__ = [
+    "GITHUB_TOKEN_HINT",
+    "CIStatus",
+    "WaitContext",
+    "BranchStatusReport",
+    "collect_branch_status",
+    "create_empty_report",
+    "get_failed_jobs_summary",
+]
+
 DEFAULT_LABEL = "unknown"
 EMPTY_RECOMMENDATIONS: List[str] = []
-GITHUB_TOKEN_HINT = "no GitHub token; set GITHUB_TOKEN or add to config.toml"
 
 _JOB_FAIL_CONCLUSIONS: frozenset[str] = frozenset({"failure", "cancelled", "timed_out"})
 _BLOCKING_MERGE_STATES: frozenset[str] = frozenset({"unstable", "blocked", "dirty"})
-
-
-class CIStatus(str, Enum):
-    """CI pipeline status."""
-
-    PASSED = "PASSED"
-    FAILED = "FAILED"
-    NOT_CONFIGURED = "NOT_CONFIGURED"
-    PENDING = "PENDING"
-    UNAVAILABLE = "UNAVAILABLE"  # auth/token missing — CI truth unknown
-
-
-@dataclass(frozen=True)
-class WaitContext:
-    """Describes how long the orchestrator waited on CI/PR polling."""
-
-    pr_elapsed: Optional[float] = None
-    pr_timeout: int = 0
-    ci_elapsed: Optional[float] = None
-    ci_timeout: int = 0
 
 
 @dataclass(frozen=True)
@@ -91,7 +88,7 @@ class BranchStatusReport:
 
     def format_for_human(
         self,
-        wait_context: Optional["WaitContext"] = None,
+        wait_context: Optional[WaitContext] = None,
         fail_on_reviews: bool = False,
     ) -> str:
         """Format report for human consumption.
@@ -105,108 +102,12 @@ class BranchStatusReport:
         Returns:
             Formatted string with status icons and recommendations.
         """
-        # Determine status icons
-        ci_icon_map: Dict[CIStatus, str] = {
-            CIStatus.UNAVAILABLE: "\U0001f512",
-            CIStatus.PASSED: "\u2705",
-            CIStatus.FAILED: "\u274c",
-            CIStatus.PENDING: "\u23f3",
-            CIStatus.NOT_CONFIGURED: "\u2699\ufe0f",
-        }
-        ci_icon = ci_icon_map.get(self.ci_status, "\u2753")
-
-        rebase_icon = "\u2705" if not self.rebase_needed else "\u26a0\ufe0f"
-        rebase_status_text = "UP TO DATE" if not self.rebase_needed else "BEHIND"
-
-        tasks_icon_map = {
-            TaskTrackerStatus.COMPLETE: "\u2705",
-            TaskTrackerStatus.INCOMPLETE: "\u274c",
-            TaskTrackerStatus.ERROR: "\u26a0\ufe0f",
-        }
-        if self.tasks_status == TaskTrackerStatus.N_A:
-            tasks_icon = "\u26a0\ufe0f" if self.tasks_is_blocking else "\u2796"
-        else:
-            tasks_icon = tasks_icon_map.get(self.tasks_status, "\u2753")
-        tasks_status_text = self.tasks_status.value
-
-        # Build the report sections - Branch info first
-        lines: List[str] = [
-            f"Branch: {self.branch_name}",
-            f"Base Branch: {self.base_branch}",
-        ]
-        wait_line = _format_wait_line(self, wait_context)
-        if wait_line is not None:
-            lines.append(wait_line)
-        lines.extend(
-            [
-                "",
-                "Branch Status Report",
-                "",
-            ]
-        )
-
-        header = _review_gate_header(self, fail_on_reviews)
-        if header is not None:
-            lines.append(header)
-
-        # PR section (only when pr_found is not None)
-        if self.pr_found is not None:
-            if self.pr_found:
-                lines.append(f"PR: \u2705 #{self.pr_number} ({self.pr_url})")
-                if self.pr_mergeable is True:
-                    lines.append("Merge Status: \u2705 Mergeable (squash-merge safe)")
-                elif self.pr_mergeable is False:
-                    lines.append("Merge Status: \u274c Not mergeable (has conflicts)")
-                else:
-                    lines.append("Merge Status: \u23f3 Pending")
-                if self.pr_mergeable_state is not None:
-                    lines.append(f"Mergeable State: {self.pr_mergeable_state}")
-                if self.pr_feedback_text is not None:
-                    lines.append("")
-                    lines.append(self.pr_feedback_text)
-            else:
-                lines.append("PR: \u274c No PR found")
-            lines.append("")
-
-        ci_line = f"CI Status: {ci_icon} {self.ci_status.value}"
-        if self.ci_status == CIStatus.UNAVAILABLE:
-            ci_line += f" — {GITHUB_TOKEN_HINT}"  # em dash
-        lines.append(ci_line)
-
-        # Add CI details if they exist
-        if self.ci_details:
-            lines.extend(
-                [
-                    "",
-                    "CI Error Details:",
-                    self.ci_details,
-                ]
-            )
-
-        lines.extend(
-            [
-                "",
-                f"Rebase Status: {rebase_icon} {rebase_status_text}",
-                f"- {self.rebase_reason}",
-                "",
-                f"Task Tracker: {tasks_icon} {tasks_status_text} ({self.tasks_reason})",
-                "",
-                f"GitHub Status: {self.current_github_label}",
-                "",
-                "Recommendations:",
-            ]
-        )
-
-        # Add recommendations
-        for recommendation in self.recommendations:
-            lines.append(f"- {recommendation}")
-
-        return "\n".join(lines)
+        return format_report_for_human(self, wait_context, fail_on_reviews)
 
     def format_for_llm(
         self,
         max_lines: int = 300,
-        wait_context: Optional["WaitContext"] = None,
+        wait_context: Optional[WaitContext] = None,
         fail_on_reviews: bool = False,
     ) -> str:
         """Format report for LLM consumption with truncation.
@@ -221,114 +122,7 @@ class BranchStatusReport:
         Returns:
             Compact formatted string optimized for LLM context windows.
         """
-        # Convert rebase_needed to status string
-        rebase_status = "BEHIND" if self.rebase_needed else "UP_TO_DATE"
-
-        # Build status summary line
-        status_summary = (
-            f"Branch Status: CI={self.ci_status.value}, Rebase={rebase_status}, "
-            f"Tasks={self.tasks_status.value} ({self.tasks_reason})"
-        )
-        if self.ci_status == CIStatus.UNAVAILABLE:
-            status_summary += f" ({GITHUB_TOKEN_HINT})"
-        if self.pr_found is True:
-            mergeable_str = (
-                str(self.pr_mergeable) if self.pr_mergeable is not None else "None"
-            )
-            status_summary += f", PR=#{self.pr_number}, Mergeable={mergeable_str}"
-            if self.pr_mergeable_state is not None:
-                status_summary += f", Mergeable_State={self.pr_mergeable_state}"
-        elif self.pr_found is False:
-            status_summary += ", PR=NOT_FOUND"
-        recommendations_text = ", ".join(self.recommendations)
-
-        # Branch info on first line
-        lines: List[str] = [
-            f"Branch: {self.branch_name} | Base: {self.base_branch}",
-            status_summary,
-        ]
-        header = _review_gate_header(self, fail_on_reviews)
-        if header is not None:
-            lines.append(header)
-        wait_line = _format_wait_line(self, wait_context)
-        if wait_line is not None:
-            lines.append(wait_line)
-        lines.extend(
-            [
-                f"GitHub Label: {self.current_github_label}",
-                f"Recommendations: {recommendations_text}",
-            ]
-        )
-
-        if self.pr_feedback_text is not None:
-            lines.append("")
-            lines.append(self.pr_feedback_text)
-
-        # Add CI details if they exist, with truncation and footer
-        if self.ci_details:
-            truncated_details = truncate_ci_details(self.ci_details, max_lines)
-            lines.extend(
-                [
-                    "",
-                    "CI Errors:",
-                    truncated_details,
-                    "",
-                    "---",
-                    f"Summary: {status_summary} | Action: {recommendations_text}",
-                ]
-            )
-
-        return "\n".join(lines)
-
-
-def _review_gate_header(
-    report: BranchStatusReport,
-    fail_on_reviews: bool,
-) -> Optional[str]:
-    """Build the three-state ``Review Gate: ...`` header line.
-
-    Pure function of ``report.ci_status``, ``report.pr_feedback_blocks_merge``,
-    and the flag. No token lookup — an ``UNAVAILABLE`` CI status is reused as
-    the no-token signal and takes precedence over the blocked/clean states.
-
-    Returns:
-        One of the three fixed header strings, or None when the gate is off.
-    """
-    if not fail_on_reviews:
-        return None
-    if report.ci_status == CIStatus.UNAVAILABLE:
-        return "Review Gate: UNKNOWN (no token)"
-    if report.pr_feedback_blocks_merge:
-        return "Review Gate: BLOCKED (reviews)"
-    return "Review Gate: clean"
-
-
-def _format_wait_line(
-    report: BranchStatusReport,
-    wait_context: Optional[WaitContext],
-) -> Optional[str]:
-    """Build the ``Wait: ...`` line for the report.
-
-    Returns:
-        The formatted ``Wait: ...`` line, or None when nothing to render.
-    """
-    if wait_context is None:
-        return None
-    parts: List[str] = []
-    if wait_context.ci_timeout > 0 and wait_context.ci_elapsed is not None:
-        if report.ci_status == CIStatus.PASSED:
-            ci_state = "ok"
-        elif report.ci_status == CIStatus.FAILED:
-            ci_state = "fail"
-        else:
-            ci_state = "pending"
-        parts.append(f"ci={int(round(wait_context.ci_elapsed))}s {ci_state}")
-    if wait_context.pr_timeout > 0 and wait_context.pr_elapsed is not None:
-        pr_state = "ok" if report.pr_found else "missing"
-        parts.append(f"pr={int(round(wait_context.pr_elapsed))}s {pr_state}")
-    if not parts:
-        return None
-    return f"Wait: {', '.join(parts)}"
+        return format_report_for_llm(self, max_lines, wait_context, fail_on_reviews)
 
 
 def create_empty_report() -> BranchStatusReport:
@@ -523,7 +317,7 @@ def _collect_task_status(
         logger.info("No TASK_TRACKER.md but steps files exist — blocking")
         return (
             TaskTrackerStatus.N_A,
-            "Create task tracker \u2014 implementation plan exists but no TASK_TRACKER.md",
+            "Create task tracker — implementation plan exists but no TASK_TRACKER.md",
             True,
         )
     except TaskTrackerSectionNotFoundError:
