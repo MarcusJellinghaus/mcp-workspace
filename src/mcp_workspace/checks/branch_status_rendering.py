@@ -2,9 +2,10 @@
 
 Holds the human/LLM formatting functions and the small header helpers
 (review gate, wait line) split out of :mod:`branch_status` to keep that
-module under the file-size limit. Also defines ``CIStatus``,
-``WaitContext`` and ``GITHUB_TOKEN_HINT``, which the rendering logic keys
-off of; :mod:`branch_status` re-exports them for backwards compatibility.
+module under the file-size limit. This module is also the canonical home of
+``CIStatus``, ``WaitContext`` and ``GITHUB_TOKEN_HINT``, which the rendering
+logic keys off of; :mod:`branch_status` imports them from here for its own
+use.
 """
 
 from __future__ import annotations
@@ -245,19 +246,28 @@ def _review_gate_header(
 ) -> Optional[str]:
     """Build the three-state ``Review Gate: ...`` header line.
 
-    Pure function of ``report.ci_status``, ``report.pr_feedback_blocks_merge``,
-    and the flag. No token lookup — an undeterminable CI status
-    (``UNAVAILABLE`` for a missing token, ``UNKNOWN`` for a collection
-    failure) yields the UNKNOWN verdict and takes precedence over the
-    blocked/clean states.
+    Pure function of ``report.ci_status``,
+    ``report.pr_feedback_blocks_merge``, ``report.pr_feedback_undeterminable``,
+    and the flag. No token lookup — an undeterminable review state yields the
+    UNKNOWN verdict and takes precedence over the blocked/clean states. This
+    happens when the CI status is undeterminable (``UNAVAILABLE`` for a
+    missing token, ``UNKNOWN`` for a collection failure) or when a
+    blocking-relevant PR-feedback section was unavailable.
+
+    The parenthetical is truthful about the cause: ``(no token)`` only for the
+    genuine missing-token case (``ci_status == UNAVAILABLE``); every other
+    UNKNOWN cause renders ``(undeterminable)`` since a token may well be
+    present.
 
     Returns:
-        One of the three fixed header strings, or None when the gate is off.
+        One of the fixed header strings, or None when the gate is off.
     """
     if not fail_on_reviews:
         return None
-    if report.ci_status in (CIStatus.UNAVAILABLE, CIStatus.UNKNOWN):
+    if report.ci_status == CIStatus.UNAVAILABLE:
         return "Review Gate: UNKNOWN (no token)"
+    if report.ci_status == CIStatus.UNKNOWN or report.pr_feedback_undeterminable:
+        return "Review Gate: UNKNOWN (undeterminable)"
     if report.pr_feedback_blocks_merge:
         return "Review Gate: BLOCKED (reviews)"
     return "Review Gate: clean"

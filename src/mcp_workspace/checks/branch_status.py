@@ -80,6 +80,7 @@ class BranchStatusReport:
     pr_mergeable_state: Optional[str] = None
     pr_feedback_text: Optional[str] = None
     pr_feedback_blocks_merge: bool = False
+    pr_feedback_undeterminable: bool = False
 
     def format_for_human(
         self,
@@ -551,11 +552,14 @@ def collect_branch_status(
 
         # 10. Collect PR feedback
         if pr_manager and pr_found and pr_number is not None:
-            pr_feedback_text, pr_feedback_blocks_merge = collect_pr_feedback(
-                pr_manager, pr_number
-            )
+            (
+                pr_feedback_text,
+                pr_feedback_blocks_merge,
+                pr_feedback_undeterminable,
+            ) = collect_pr_feedback(pr_manager, pr_number)
         else:
             pr_feedback_text, pr_feedback_blocks_merge = None, False
+            pr_feedback_undeterminable = False
 
         # 11. Generate recommendations
         report_data: Dict[str, Any] = {
@@ -591,6 +595,7 @@ def collect_branch_status(
             pr_mergeable_state=pr_mergeable_state,
             pr_feedback_text=pr_feedback_text,
             pr_feedback_blocks_merge=pr_feedback_blocks_merge,
+            pr_feedback_undeterminable=pr_feedback_undeterminable,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error collecting branch status: {e}")

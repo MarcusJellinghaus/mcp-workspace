@@ -104,11 +104,13 @@ class TestUnavailableCIStatus:
 def _make_gate_report(
     ci_status: CIStatus,
     pr_feedback_blocks_merge: bool,
+    pr_feedback_undeterminable: bool = False,
 ) -> BranchStatusReport:
     """Build a report for review-gate rendering tests."""
     return replace(
         _make_report(ci_status),
         pr_feedback_blocks_merge=pr_feedback_blocks_merge,
+        pr_feedback_undeterminable=pr_feedback_undeterminable,
     )
 
 
@@ -158,12 +160,70 @@ class TestReviewGateHeader:
         report = _make_gate_report(CIStatus.PASSED, pr_feedback_blocks_merge=True)
         assert _review_gate_header(report, False) is None
 
+    def test_ci_unknown_token_present_renders_undeterminable(self) -> None:
+        """CI UNKNOWN (collection failure, token may be present) → undeterminable."""
+        report = _make_gate_report(CIStatus.UNKNOWN, pr_feedback_blocks_merge=False)
+        for output in (
+            report.format_for_human(fail_on_reviews=True),
+            report.format_for_llm(fail_on_reviews=True),
+        ):
+            assert "Review Gate: UNKNOWN (undeterminable)" in output
+            assert "Review Gate: UNKNOWN (no token)" not in output
+            assert "Review Gate: clean" not in output
+
+    def test_pr_feedback_undeterminable_threads_renders_unknown(self) -> None:
+        """Token present + CI PASSED + blocking review data unavailable → UNKNOWN.
+
+        Simulates the partial-degradation fail-open: blocks_merge is False
+        because the threads section was unavailable, not because it was clean.
+        """
+        report = _make_gate_report(
+            CIStatus.PASSED,
+            pr_feedback_blocks_merge=False,
+            pr_feedback_undeterminable=True,
+        )
+        for output in (
+            report.format_for_human(fail_on_reviews=True),
+            report.format_for_llm(fail_on_reviews=True),
+        ):
+            assert "Review Gate: UNKNOWN (undeterminable)" in output
+            assert "Review Gate: UNKNOWN (no token)" not in output
+            assert "Review Gate: clean" not in output
+
+    def test_pr_feedback_undeterminable_wins_over_clean(self) -> None:
+        """The helper is a pure function; undeterminable overrides clean."""
+        report = _make_gate_report(
+            CIStatus.PASSED,
+            pr_feedback_blocks_merge=False,
+            pr_feedback_undeterminable=True,
+        )
+        assert (
+            _review_gate_header(report, True) == "Review Gate: UNKNOWN (undeterminable)"
+        )
+
+    def test_pr_feedback_undeterminable_off_is_pure_additive(self) -> None:
+        """fail_on_reviews OFF: output byte-for-byte unchanged by the new field."""
+        determinable = _make_gate_report(
+            CIStatus.PASSED,
+            pr_feedback_blocks_merge=False,
+            pr_feedback_undeterminable=False,
+        )
+        undeterminable = _make_gate_report(
+            CIStatus.PASSED,
+            pr_feedback_blocks_merge=False,
+            pr_feedback_undeterminable=True,
+        )
+        assert determinable.format_for_human() == undeterminable.format_for_human()
+        assert determinable.format_for_llm() == undeterminable.format_for_llm()
+        assert "Review Gate:" not in undeterminable.format_for_human()
+
     def test_review_gate_collection_failure_is_unknown_not_clean(self) -> None:
         """A status-collection failure must not fail open to 'clean'.
 
         The catch-all handler in collect_branch_status returns an empty report
         on any exception; with the gate on it must render UNKNOWN, since the
-        review state was never determined.
+        review state was never determined. A token may be present, so the
+        cause reads ``(undeterminable)`` rather than ``(no token)``.
         """
         with patch(
             "mcp_workspace.checks.branch_status.get_current_branch_name",
@@ -176,7 +236,7 @@ class TestReviewGateHeader:
             report.format_for_human(fail_on_reviews=True),
             report.format_for_llm(fail_on_reviews=True),
         ):
-            assert "Review Gate: UNKNOWN (no token)" in output
+            assert "Review Gate: UNKNOWN (undeterminable)" in output
             assert "Review Gate: clean" not in output
             assert "Review Gate: BLOCKED" not in output
 
@@ -210,8 +270,10 @@ class TestReviewGateHeader:
             human = report.format_for_human(fail_on_reviews=True)
             llm = report.format_for_llm(fail_on_reviews=True)
             for output in (human, llm):
-                # Review-gate verdict is still UNKNOWN (undeterminable).
-                assert "Review Gate: UNKNOWN (no token)" in output
+                # Review-gate verdict is still UNKNOWN (undeterminable) — a
+                # token is present, so the cause must not read "(no token)".
+                assert "Review Gate: UNKNOWN (undeterminable)" in output
+                assert "Review Gate: UNKNOWN (no token)" not in output
                 assert "Review Gate: clean" not in output
                 assert "Review Gate: BLOCKED" not in output
                 # ...but the CI cause must not blame a token that is present.

@@ -18,6 +18,12 @@ logger = logging.getLogger(__name__)
 _MAX_FEEDBACK_ITEMS = 20
 _MAX_LINES_PER_COMMENT = 10
 
+# Feedback sections whose unavailability makes the merge/review verdict
+# undeterminable: "threads" (unresolved threads + changes_requested) and
+# "alerts" (code-scanning) both feed blocks_merge. A "comments"-only failure
+# never blocks and is not counted here.
+_BLOCKING_RELEVANT_SECTIONS = frozenset({"threads", "alerts"})
+
 
 def _truncate_body(body: str) -> str:
     """Truncate a comment body at `_MAX_LINES_PER_COMMENT` lines.
@@ -103,12 +109,16 @@ def format_pr_feedback(feedback: PRFeedback) -> str:
 
 def collect_pr_feedback(
     pr_manager: PullRequestManager, pr_number: int
-) -> Tuple[Optional[str], bool]:
+) -> Tuple[Optional[str], bool, bool]:
     """Fetch PR feedback for a pull request.
 
     Returns:
-        Tuple of (formatted_text, blocks_merge), or (None, False) on
-        total failure (logged at debug level).
+        Tuple of (formatted_text, blocks_merge, undeterminable).
+        ``undeterminable`` is True when a blocking-relevant feedback section
+        (``threads`` or ``alerts``) was unavailable, so a False
+        ``blocks_merge`` cannot be trusted as a clean verdict and callers must
+        surface UNKNOWN rather than fail open. On total failure returns
+        (None, False, True) (logged at debug level).
     """
     try:
         feedback = pr_manager.get_pr_feedback(pr_number)
@@ -118,7 +128,10 @@ def collect_pr_feedback(
             or feedback["changes_requested"]
             or feedback["alerts"]
         )
-        return (text, blocks_merge)
+        undeterminable = bool(
+            feedback["unavailable"].keys() & _BLOCKING_RELEVANT_SECTIONS
+        )
+        return (text, blocks_merge, undeterminable)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.debug("PR feedback collection failed", exc_info=True)
-        return (None, False)
+        return (None, False, True)
