@@ -21,6 +21,25 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Rewrite the 7 docstring summary lines
+
+Detail: [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: rewrite the first docstring line of `read_file`, `save_file`, `delete_directory`, `move_file`, `edit_file`, `git` (`server.py`) and `read_reference_file` (`server_reference_tools.py`); grep tests confirm no old summary strings are pinned
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Sync the stale README feature summaries
+
+Detail: [step_2.md](./steps/step_2.md)
+
+> Shares a single commit with Step 1 (README bullets must be byte-identical to the Step 1 docstring first lines).
+
+- [ ] Implementation: update the `read_file`, `save_file`, `edit_file`, and `read_reference_file` feature bullets in `README.md` to match the Step 1 summaries
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] Address PR review feedback
+- [ ] Write PR summary
