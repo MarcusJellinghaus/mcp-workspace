@@ -58,11 +58,20 @@ if report.pr_feedback_blocks_merge:            # pr_feedback only, never mergeab
 return "Review Gate: clean"
 ```
 
-Insertion (both formatters):
+Insertion — near the top of each formatter (not at the end):
 ```
+# format_for_human: immediately after the "Branch Status Report" header block
+#   (the lines.extend(["", "Branch Status Report", ""]) call), before the PR section
 header = _review_gate_header(self, fail_on_reviews)
 if header is not None:
-    lines.append(header)   # placed near the top, above truncatable body
+    lines.append(header)   # at this point in the code this lands near the top
+
+# format_for_llm: insert directly after the status_summary line so it sits at the
+#   top, above the truncatable body — e.g. build the initial lines list as
+#   [branch_line, status_summary], then:
+header = _review_gate_header(self, fail_on_reviews)
+if header is not None:
+    lines.append(header)   # directly below status_summary, before wait/label/body
 ```
 
 ## DATA

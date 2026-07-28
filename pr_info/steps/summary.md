@@ -75,6 +75,7 @@ Rendered only when the effective flag is true; absent otherwise (additive).
 | `src/mcp_workspace/server.py` | **Modified** — Step 3: `_fail_on_reviews` global, `set_fail_on_reviews`, `fail_on_reviews` param on `check_branch_status`, `run_server` param |
 | `src/mcp_workspace/main.py` | **Modified** — Step 3: `--fail-on-reviews` argparse flag, pass to `run_server` |
 | `tests/checks/test_branch_status.py` | **Modified** — Steps 1 & 2: UNAVAILABLE + review-gate tests |
+| `tests/checks/test_branch_status_ci.py` | **Modified** — Step 1: patch `get_github_token` to a non-`None` token in the existing `_collect_ci_status` tests so the new token gate does not short-circuit them to `UNAVAILABLE` |
 | `tests/checks/test_branch_status_polling.py` | **Modified** — Step 3: threading test |
 | `tests/test_server_file_size.py` *(or new `tests/test_server_fail_on_reviews.py`)* | **Modified/New** — Step 3: setter + `run_server` wiring test |
 | `tests/test_reference_projects.py` | **Modified** — Step 3: `--fail-on-reviews` arg parsing test (alongside existing `main`/arg tests) |

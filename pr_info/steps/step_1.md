@@ -35,6 +35,18 @@ the token-present path stays byte-for-byte identical.
 
 ## HOW (integration points)
 
+- **Update existing `_collect_ci_status` tests.** The new token gate short-circuits
+  to `(CIStatus.UNAVAILABLE, None, [])` whenever `get_github_token()` is `None`. The
+  existing tests in `tests/checks/test_branch_status_ci.py`
+  (`test_passed`, `test_failed`, `test_pending`, `test_not_configured`,
+  `test_failed_with_details_exception`, `test_pending_via_status_fallback`,
+  `test_exception_returns_not_configured`, and the remaining `_collect_ci_status`
+  cases) patch only `CIResultsManager`/`build_ci_error_details` and never configure
+  a token, so in a token-absent unit-test environment they would now hit the gate
+  and fail. Add a patch of
+  `mcp_workspace.checks.branch_status.get_github_token` returning a non-`None`
+  token (e.g. `"tok"`) to each of these tests so the CI-manager path is still
+  exercised and their assertions stay green.
 - Add import at top of `branch_status.py`:
   ```python
   from mcp_workspace.config import get_github_token
