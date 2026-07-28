@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, patch
 
 from mcp_workspace.checks.branch_status import (
     BranchStatusReport,
-    CIStatus,
     _collect_github_label,
     _collect_pr_info,
     _collect_rebase_status,
@@ -14,6 +13,7 @@ from mcp_workspace.checks.branch_status import (
     create_empty_report,
     get_failed_jobs_summary,
 )
+from mcp_workspace.checks.branch_status_rendering import CIStatus
 from mcp_workspace.github_operations.issues import IssueData
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
@@ -143,6 +143,20 @@ class TestCreateEmptyReport:
         assert report.current_github_label == "unknown"
         assert report.rebase_reason == "Unknown"
         assert report.tasks_reason == "Unknown"
+
+
+class TestCollectBranchStatusBranchUndeterminable:
+    """Review-gate guarantee when the current branch cannot be determined."""
+
+    @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    def test_branch_none_returns_unavailable(self, mock_branch: MagicMock) -> None:
+        """No branch → UNAVAILABLE so the review gate never renders 'clean'."""
+        mock_branch.return_value = None
+        report = collect_branch_status(Path("/tmp"))
+        assert report.ci_status == CIStatus.UNAVAILABLE
+        output = report.format_for_llm(fail_on_reviews=True)
+        assert "Review Gate: UNKNOWN (no token)" in output
+        assert "Review Gate: clean" not in output
 
 
 class TestGetFailedJobsSummary:

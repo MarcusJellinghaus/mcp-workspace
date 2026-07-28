@@ -5,13 +5,15 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from mcp_workspace.checks.branch_status import (
-    GITHUB_TOKEN_HINT,
     BranchStatusReport,
-    CIStatus,
     _collect_ci_status,
     _generate_recommendations,
 )
-from mcp_workspace.checks.branch_status_rendering import _review_gate_header
+from mcp_workspace.checks.branch_status_rendering import (
+    GITHUB_TOKEN_HINT,
+    CIStatus,
+    _review_gate_header,
+)
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
 

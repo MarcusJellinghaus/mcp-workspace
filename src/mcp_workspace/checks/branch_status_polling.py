@@ -12,10 +12,8 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Optional
 
-from mcp_workspace.checks.branch_status import (
-    WaitContext,
-    collect_branch_status,
-)
+from mcp_workspace.checks.branch_status import collect_branch_status
+from mcp_workspace.checks.branch_status_rendering import WaitContext
 from mcp_workspace.git_operations.branch_queries import (
     get_current_branch_name,
     remote_branch_exists,

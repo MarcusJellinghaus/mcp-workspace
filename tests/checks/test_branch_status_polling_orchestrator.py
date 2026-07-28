@@ -10,7 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from mcp_workspace.checks.branch_status import BranchStatusReport, WaitContext
+from mcp_workspace.checks.branch_status import BranchStatusReport
+from mcp_workspace.checks.branch_status_rendering import WaitContext
 
 
 @pytest.fixture
@@ -24,7 +25,7 @@ class TestAsyncPollBranchStatus:
 
     @staticmethod
     def _make_report() -> BranchStatusReport:
-        from mcp_workspace.checks.branch_status import CIStatus
+        from mcp_workspace.checks.branch_status_rendering import CIStatus
         from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
         return BranchStatusReport(

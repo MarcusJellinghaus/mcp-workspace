@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mcp_workspace.checks.branch_status import CIStatus, _collect_ci_status
+from mcp_workspace.checks.branch_status import _collect_ci_status
+from mcp_workspace.checks.branch_status_rendering import CIStatus
 
 
 class TestCollectCIStatus:

@@ -44,12 +44,7 @@ from mcp_workspace.workflows.task_tracker import (
 
 logger = logging.getLogger(__name__)
 
-# Re-exported from branch_status_rendering for backwards compatibility. Listed
-# in __all__ so type checkers treat them as explicit exports of this module.
 __all__ = [
-    "GITHUB_TOKEN_HINT",
-    "CIStatus",
-    "WaitContext",
     "BranchStatusReport",
     "collect_branch_status",
     "create_empty_report",
@@ -125,8 +120,15 @@ class BranchStatusReport:
         return format_report_for_llm(self, max_lines, wait_context, fail_on_reviews)
 
 
-def create_empty_report() -> BranchStatusReport:
+def create_empty_report(
+    ci_status: CIStatus = CIStatus.NOT_CONFIGURED,
+) -> BranchStatusReport:
     """Create an empty/default report for error cases.
+
+    Args:
+        ci_status: CI status for the placeholder report. The
+            branch-undeterminable path passes ``UNAVAILABLE`` so the review
+            gate renders ``UNKNOWN`` instead of a misleading ``clean``.
 
     Returns:
         A BranchStatusReport with placeholder/unknown values.
@@ -134,7 +136,7 @@ def create_empty_report() -> BranchStatusReport:
     return BranchStatusReport(
         branch_name="unknown",
         base_branch="unknown",
-        ci_status=CIStatus.NOT_CONFIGURED,
+        ci_status=ci_status,
         ci_details=None,
         rebase_needed=False,
         rebase_reason="Unknown",
@@ -486,7 +488,7 @@ def collect_branch_status(
         branch_name = get_current_branch_name(project_dir)
         if branch_name is None:
             logger.error("Could not determine current branch name")
-            return create_empty_report()
+            return create_empty_report(ci_status=CIStatus.UNAVAILABLE)
 
         # 2. Fetch issue data once for sharing
         issue_data: Optional[IssueData] = None
