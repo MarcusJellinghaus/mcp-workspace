@@ -2,11 +2,8 @@
 
 from typing import Optional
 
-from mcp_workspace.checks.branch_status import (
-    BranchStatusReport,
-    CIStatus,
-    WaitContext,
-)
+from mcp_workspace.checks.branch_status import BranchStatusReport
+from mcp_workspace.checks.branch_status_rendering import CIStatus, WaitContext
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
 

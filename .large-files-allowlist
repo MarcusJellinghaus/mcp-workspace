@@ -20,3 +20,6 @@ tests/github_operations/test_verification.py
 
 # Git operations test file - comprehensive integration coverage for all read-only git operations
 tests/git_operations/test_read_operations.py
+
+# Branch-status test file - comprehensive coverage for CI/review-gate states and undeterminable paths
+tests/checks/test_branch_status.py

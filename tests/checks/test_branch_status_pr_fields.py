@@ -1,6 +1,7 @@
 """Tests for BranchStatusReport PR-related fields."""
 
-from mcp_workspace.checks.branch_status import BranchStatusReport, CIStatus
+from mcp_workspace.checks.branch_status import BranchStatusReport
+from mcp_workspace.checks.branch_status_rendering import CIStatus
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
 

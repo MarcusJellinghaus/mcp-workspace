@@ -162,3 +162,7 @@ _._reset_globals
 # Autouse fixtures for network diagnostics (referenced by pytest collection only)
 _.reset_network_diagnostics_guard
 _._default_network_ok
+# Autouse fixtures for issue #236 review-gate tests (referenced by pytest collection only)
+_._github_token
+_._reset_global
+_._setup

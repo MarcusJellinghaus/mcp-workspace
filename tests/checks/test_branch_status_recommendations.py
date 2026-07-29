@@ -1,10 +1,10 @@
 """Tests for branch_status recommendation and PR merge override logic."""
 
 from mcp_workspace.checks.branch_status import (
-    CIStatus,
     _apply_pr_merge_override,
     _generate_recommendations,
 )
+from mcp_workspace.checks.branch_status_rendering import CIStatus
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
 

@@ -695,6 +695,7 @@ class TestCheckBranchStatusTool:
             max_log_lines=300,
             ci_timeout=300,
             pr_timeout=0,
+            fail_on_reviews=False,
         )
 
     @pytest.mark.asyncio
@@ -720,6 +721,7 @@ class TestCheckBranchStatusTool:
             max_log_lines=100,
             ci_timeout=180,
             pr_timeout=120,
+            fail_on_reviews=False,
         )
 
     @pytest.mark.asyncio

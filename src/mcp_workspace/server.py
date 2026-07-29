@@ -49,6 +49,9 @@ _project_dir: Optional[Path] = None
 # Per-project default line limit for check_file_size (set via --file-size-limit)
 _file_size_limit: Optional[int] = None
 
+# Per-server default for check_branch_status' review gate (set via --fail-on-reviews)
+_fail_on_reviews: bool = False
+
 # Per-file locks for concurrent edit safety
 _file_locks: dict[str, asyncio.Lock] = {}
 
@@ -99,6 +102,18 @@ def set_file_size_limit(limit: Optional[int]) -> None:
     global _file_size_limit  # pylint: disable=global-statement
     _file_size_limit = limit
     logger.info("File size limit set to: %s", limit)
+
+
+@log_function_call
+def set_fail_on_reviews(value: bool) -> None:
+    """Set the per-server default for check_branch_status' review gate.
+
+    Args:
+        value: Default review-gate flag; the tool parameter overrides per call.
+    """
+    global _fail_on_reviews  # pylint: disable=global-statement
+    _fail_on_reviews = value
+    logger.info("Fail on reviews set to: %s", value)
 
 
 @mcp.tool()
@@ -870,6 +885,7 @@ async def check_branch_status(
     max_log_lines: int = 300,
     ci_timeout: int = 300,
     pr_timeout: int = 0,
+    fail_on_reviews: Optional[bool] = None,
 ) -> str:
     """Check comprehensive branch status: git state, CI, PR, tasks.
 
@@ -877,6 +893,8 @@ async def check_branch_status(
         max_log_lines: Maximum CI log lines to include (default 300).
         ci_timeout: Seconds to poll for CI completion. 0 disables polling.
         pr_timeout: Seconds to poll for PR existence. 0 disables polling.
+        fail_on_reviews: Enable the review-gate header. When omitted, uses the
+            server's --fail-on-reviews default (off unless set).
 
     Returns:
         Formatted branch status report for LLM consumption.
@@ -889,11 +907,13 @@ async def check_branch_status(
 
     if _project_dir is None:
         raise ValueError("Project directory has not been set")
+    effective = fail_on_reviews if fail_on_reviews is not None else _fail_on_reviews
     return await async_poll_branch_status(
         _project_dir,
         max_log_lines=max_log_lines,
         ci_timeout=ci_timeout,
         pr_timeout=pr_timeout,
+        fail_on_reviews=effective,
     )
 
 
@@ -902,6 +922,7 @@ def run_server(
     project_dir: Path,
     reference_projects: Optional[Dict[str, ReferenceProject]] = None,
     file_size_limit: Optional[int] = None,
+    fail_on_reviews: bool = False,
 ) -> None:
     """Run the MCP server with the given project directory and optional reference projects.
 
@@ -909,6 +930,7 @@ def run_server(
         project_dir: Path to the project directory
         reference_projects: Optional dictionary mapping project names to directory paths
         file_size_limit: Optional per-project default line limit for check_file_size
+        fail_on_reviews: Per-server default for check_branch_status' review gate
     """
     logger.debug("Entering run_server function")
 
@@ -917,6 +939,9 @@ def run_server(
 
     # Set the per-project default file size limit
     set_file_size_limit(file_size_limit)
+
+    # Set the per-server review-gate default
+    set_fail_on_reviews(fail_on_reviews)
 
     # Set reference projects if provided
     if reference_projects:

@@ -1,10 +1,11 @@
 """Tests for the `format_pr_feedback` pure formatter."""
 
 from typing import Any
+from unittest.mock import MagicMock
 
 from github.GithubException import GithubException
 
-from mcp_workspace.checks.pr_feedback import format_pr_feedback
+from mcp_workspace.checks.pr_feedback import collect_pr_feedback, format_pr_feedback
 from mcp_workspace.github_operations.pr_manager import PRFeedback
 
 
@@ -293,6 +294,68 @@ class TestMixedFullExample:
         assert any("[changes_requested]" in line for line in lines)
         assert any("[alert]" in line for line in lines)
         assert lines[-1] == "12 resolved threads"
+
+
+class TestCollectPrFeedbackUndeterminable:
+    """`collect_pr_feedback` surfaces the blocking-relevant undeterminable signal."""
+
+    @staticmethod
+    def _manager(feedback: PRFeedback) -> MagicMock:
+        manager = MagicMock()
+        manager.get_pr_feedback.return_value = feedback
+        return manager
+
+    def test_clean_feedback_is_determinable(self) -> None:
+        text, blocks_merge, undeterminable = collect_pr_feedback(
+            self._manager(_empty_feedback()), 1
+        )
+        assert text is not None
+        assert blocks_merge is False
+        assert undeterminable is False
+
+    def test_threads_unavailable_is_undeterminable(self) -> None:
+        feedback = _empty_feedback()
+        feedback["unavailable"] = {"threads": ConnectionError("boom")}
+        _text, blocks_merge, undeterminable = collect_pr_feedback(
+            self._manager(feedback), 1
+        )
+        assert blocks_merge is False
+        assert undeterminable is True
+
+    def test_alerts_unavailable_is_undeterminable(self) -> None:
+        feedback = _empty_feedback()
+        feedback["unavailable"] = {"alerts": ConnectionError("boom")}
+        _text, _blocks_merge, undeterminable = collect_pr_feedback(
+            self._manager(feedback), 1
+        )
+        assert undeterminable is True
+
+    def test_comments_only_unavailable_is_determinable(self) -> None:
+        """A comments-only failure never blocks and stays clean-eligible."""
+        feedback = _empty_feedback()
+        feedback["unavailable"] = {"comments": ConnectionError("boom")}
+        _text, blocks_merge, undeterminable = collect_pr_feedback(
+            self._manager(feedback), 1
+        )
+        assert blocks_merge is False
+        assert undeterminable is False
+
+    def test_blocking_feedback_reports_blocks_merge(self) -> None:
+        feedback = _empty_feedback()
+        feedback["unresolved_threads"] = [_thread()]
+        _text, blocks_merge, undeterminable = collect_pr_feedback(
+            self._manager(feedback), 1
+        )
+        assert blocks_merge is True
+        assert undeterminable is False
+
+    def test_total_failure_is_undeterminable(self) -> None:
+        manager = MagicMock()
+        manager.get_pr_feedback.side_effect = RuntimeError("boom")
+        text, blocks_merge, undeterminable = collect_pr_feedback(manager, 1)
+        assert text is None
+        assert blocks_merge is False
+        assert undeterminable is True
 
 
 class TestCapOrdering:
