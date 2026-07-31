@@ -22,16 +22,16 @@ By connecting your AI assistant to your filesystem, you can transform your workf
 ## Features
 
 - `list_directory`: List all files and directories in the project directory
-- `read_file`: Read the contents of a file
-- `save_file`: Write content to a file atomically
+- `read_file`: Read a file, or a line slice via start_line/end_line.
+- `save_file`: Write a file, creating parent directories as needed.
 - `append_file`: Append content to the end of a file
 - `delete_this_file`: Delete a single specified file from the filesystem
 - `delete_directory`: Delete a directory (empty by default, whole tree with `recursive=True`)
-- `edit_file`: Make selective edits using exact string matching
+- `edit_file`: Edit a file by exact string match; replace_all for multiple matches.
 - `move_file`: Move or rename files and directories (git-aware: uses git mv for tracked files, else filesystem move)
 - `get_reference_projects`: Discover available reference projects
 - `list_reference_directory`: List files in reference projects
-- `read_reference_file`: Read files from reference projects
+- `read_reference_file`: Read a reference-project file, or a line slice via start_line/end_line.
 - `Structured Logging`: Comprehensive logging system with both human-readable and JSON formats
 
 ## Installation

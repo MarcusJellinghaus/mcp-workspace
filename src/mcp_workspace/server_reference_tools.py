@@ -104,7 +104,7 @@ async def read_reference_file(
     end_line: Optional[int] = None,
     with_line_numbers: Optional[bool] = None,
 ) -> str:
-    """Read the contents of a file from a reference project.
+    """Read a reference-project file, or a line slice via start_line/end_line.
 
     Args:
         reference_name: Name of the reference project

@@ -215,7 +215,7 @@ def read_file(
     end_line: Optional[int] = None,
     with_line_numbers: Optional[bool] = None,
 ) -> str:
-    """Read the contents of a file.
+    """Read a file, or a line slice via start_line/end_line.
 
     Args:
         file_path: Path to the file to read (relative to project directory)
@@ -258,7 +258,7 @@ def read_file(
 @mcp.tool()
 @log_function_call
 def save_file(file_path: str, content: str) -> bool:
-    """Write content to a file.
+    """Write a file, creating parent directories as needed.
 
     Auto-creates parent directories if they do not exist.
 
@@ -381,7 +381,7 @@ def delete_this_file(file_path: str) -> bool:
 @mcp.tool()
 @log_function_call
 def delete_directory(dir_path: str, recursive: bool = False) -> list[str]:
-    """Delete a directory from the filesystem.
+    """Delete a directory (empty by default; recursive=True for non-empty).
 
     Handles directories only — for files use delete_this_file. Deletes an empty
     directory by default; pass recursive=True to delete a non-empty tree. Missing
@@ -425,7 +425,7 @@ def delete_directory(dir_path: str, recursive: bool = False) -> list[str]:
 @mcp.tool()
 @log_function_call
 def move_file(source_path: str, destination_path: str) -> bool:
-    """Move or rename a file or directory within the project.
+    """Move or rename a file or directory (git-aware, preserves history).
 
     Git-aware: uses `git mv` for tracked files (preserving rename/history);
     falls back to a plain filesystem move for untracked files or non-git repos.
@@ -491,7 +491,7 @@ async def edit_file(
     new_string: str,
     replace_all: bool = False,
 ) -> str:
-    """Make a selective edit to a file using exact string matching.
+    """Edit a file by exact string match; replace_all for multiple matches.
 
     Finds old_string in the file and replaces it with new_string.
     Empty old_string inserts new_string at the beginning of the file.
@@ -540,7 +540,7 @@ async def git(
     compact: bool = True,
     reference_name: Optional[str] = None,
 ) -> str:
-    """Run a read-only git command.
+    """Run a read-only git command on the workspace or a reference project.
 
     Args:
         command: Git subcommand (log, diff, status, merge_base, fetch,
