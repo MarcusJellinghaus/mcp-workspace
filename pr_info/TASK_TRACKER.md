@@ -41,9 +41,22 @@ See [step_2.md](./steps/step_2.md).
 
 See [step_3.md](./steps/step_3.md).
 
-- [ ] Implementation: import and add `MergeResult` + `PullRequestData` to `__all__` in `github_operations/__init__.py`; add importability test
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: import and add `MergeResult` + `PullRequestData` to `__all__` in `github_operations/__init__.py`; add importability test
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared (the `pr_info/.commit_message.txt` scratch file is gitignored and cannot be written via MCP `save_file`; message below)
+
+  ```
+  Export MergeResult and PullRequestData from github_operations
+
+  Import MergeResult and PullRequestData from .pr_manager and add both to
+  the package's __all__ in github_operations/__init__.py, so consumers can
+  import them directly from mcp_workspace.github_operations. PullRequestData
+  was a prior omission; its siblings (CIStatusData, LabelData, CheckResult)
+  were already exported.
+
+  Add tests/github_operations/test_package_exports.py with a pure import
+  test asserting both names import from the package and appear in __all__.
+  ```
 
 ## Pull Request
 

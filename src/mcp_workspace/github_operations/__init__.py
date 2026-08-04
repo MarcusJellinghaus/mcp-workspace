@@ -9,7 +9,7 @@ from mcp_workspace.utils.repo_identifier import RepoIdentifier
 from .base_manager import BaseGitHubManager, get_authenticated_username
 from .ci_results_manager import CIResultsManager, CIStatusData
 from .labels_manager import LabelData, LabelsManager
-from .pr_manager import PullRequestManager
+from .pr_manager import MergeResult, PullRequestData, PullRequestManager
 from .verification import CheckResult, verify_github
 
 # Issue-related imports REMOVED per Decision #1
@@ -23,6 +23,8 @@ __all__ = [
     "CIStatusData",
     "LabelData",
     "LabelsManager",
+    "MergeResult",
+    "PullRequestData",
     "PullRequestManager",
     "RepoIdentifier",
     "get_authenticated_username",
