@@ -531,7 +531,9 @@ class PullRequestManager(BaseGitHubManager):
                 # HTTP-layer retry may have merged already; re-fetch once.
                 try:
                     pr = repo.get_pull(pr_number)
-                except GithubException:
+                except Exception:  # pylint: disable=broad-exception-caught
+                    # Any re-fetch failure (GithubException, network/socket
+                    # timeout, ...) is a refusal per spec, not an error.
                     return {
                         "merged": False,
                         "outcome": "refused",
