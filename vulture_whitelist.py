@@ -147,6 +147,8 @@ _.issues
 
 # PRFeedback TypedDict fields - accessed via subscript, vulture can't see usage
 _.resolved_thread_count
+# MergeResult TypedDict field - accessed via subscript
+_.outcome
 # CommitResult TypedDict field - accessed via subscript
 _.error_category
 # CacheData TypedDict field - accessed via subscript
