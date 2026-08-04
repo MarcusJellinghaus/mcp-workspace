@@ -485,6 +485,9 @@ class PullRequestManager(BaseGitHubManager):
 
         Raises:
             ValueError: If merge_method is not one of "squash", "merge", "rebase"
+            GithubException: If GitHub returns 401/403 (authentication or
+                permission error); re-raised to the caller instead of being
+                mapped to a MergeResult.
         """
         if merge_method not in {"squash", "merge", "rebase"}:
             raise ValueError(

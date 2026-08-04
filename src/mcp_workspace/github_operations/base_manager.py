@@ -73,9 +73,7 @@ def _handle_github_errors(
                 # Log and return default for other GitHub errors
                 logger.error(f"GitHub API error in {func.__name__}: {e}")
                 resolved = (
-                    default_return()
-                    if callable(default_return)
-                    else default_return
+                    default_return() if callable(default_return) else default_return
                 )
                 return cast(T, resolved)
             except (
@@ -84,9 +82,7 @@ def _handle_github_errors(
                 # Log and return default for unexpected errors
                 logger.error(f"Unexpected error in {func.__name__}: {e}")
                 resolved = (
-                    default_return()
-                    if callable(default_return)
-                    else default_return
+                    default_return() if callable(default_return) else default_return
                 )
                 return cast(T, resolved)
 

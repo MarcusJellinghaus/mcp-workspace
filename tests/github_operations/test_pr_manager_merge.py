@@ -36,12 +36,15 @@ class TestMergePullRequest:
         mock_github_client = MagicMock()
         mock_github_client.get_repo.return_value = mock_repo
 
-        with patch(
-            "mcp_workspace.github_operations._client.Github",
-            return_value=mock_github_client,
-        ), patch(
-            "mcp_workspace.github_operations.base_manager.get_github_token",
-            return_value="dummy-token",
+        with (
+            patch(
+                "mcp_workspace.github_operations._client.Github",
+                return_value=mock_github_client,
+            ),
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="dummy-token",
+            ),
         ):
             manager = PullRequestManager(git_dir)
             yield manager, mock_repo
@@ -148,9 +151,7 @@ class TestMergePullRequest:
         """500 -> outcome='error' (NOT refused)."""
         manager, mock_repo = merge_env
         mock_pr = create_mock_pr()
-        mock_pr.merge.side_effect = GithubException(
-            500, {"message": "boom"}, None
-        )
+        mock_pr.merge.side_effect = GithubException(500, {"message": "boom"}, None)
         mock_repo.get_pull.return_value = mock_pr
 
         result = manager.merge_pull_request(123)
@@ -188,9 +189,7 @@ class TestMergePullRequest:
         """401 -> GithubException bubbles up (config error, not an outcome)."""
         manager, mock_repo = merge_env
         mock_pr = create_mock_pr()
-        mock_pr.merge.side_effect = GithubException(
-            401, {"message": "bad creds"}, None
-        )
+        mock_pr.merge.side_effect = GithubException(401, {"message": "bad creds"}, None)
         mock_repo.get_pull.return_value = mock_pr
 
         with pytest.raises(GithubException):
@@ -202,9 +201,7 @@ class TestMergePullRequest:
         """403 -> GithubException bubbles up (config error, not an outcome)."""
         manager, mock_repo = merge_env
         mock_pr = create_mock_pr()
-        mock_pr.merge.side_effect = GithubException(
-            403, {"message": "forbidden"}, None
-        )
+        mock_pr.merge.side_effect = GithubException(403, {"message": "forbidden"}, None)
         mock_repo.get_pull.return_value = mock_pr
 
         with pytest.raises(GithubException):
