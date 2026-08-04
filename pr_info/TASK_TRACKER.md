@@ -27,7 +27,7 @@ See [step_1.md](./steps/step_1.md).
 
 - [x] Implementation: add `callable(default_return)` guard at both return sites in `_handle_github_errors` (`base_manager.py`); add the three tests to `TestHandleGitHubErrorsDecorator` (`test_base_manager.py`); update decorator docstring
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Commit message prepared
 
 ### Step 2: Add `MergeResult`, `_failed_merge_result()`, `merge_pull_request()`
 
