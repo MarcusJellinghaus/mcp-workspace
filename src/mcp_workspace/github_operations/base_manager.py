@@ -40,7 +40,10 @@ def _handle_github_errors(
     - Other exceptions: Logged and return default_return
 
     Args:
-        default_return: Value to return when handling non-auth errors
+        default_return: Value to return when handling non-auth errors. If a
+            zero-arg callable is provided, it is called (as a factory) to
+            produce a fresh return value per failure; otherwise the value is
+            returned as-is.
 
     Returns:
         Decorator function that wraps the original function with error handling
@@ -69,13 +72,23 @@ def _handle_github_errors(
                     raise
                 # Log and return default for other GitHub errors
                 logger.error(f"GitHub API error in {func.__name__}: {e}")
-                return cast(T, default_return)
+                resolved = (
+                    default_return()
+                    if callable(default_return)
+                    else default_return
+                )
+                return cast(T, resolved)
             except (
                 Exception
             ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
                 # Log and return default for unexpected errors
                 logger.error(f"Unexpected error in {func.__name__}: {e}")
-                return cast(T, default_return)
+                resolved = (
+                    default_return()
+                    if callable(default_return)
+                    else default_return
+                )
+                return cast(T, resolved)
 
         return wrapper
 

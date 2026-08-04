@@ -216,6 +216,42 @@ class TestHandleGitHubErrorsDecorator:
         assert function_with_various_errors(500) == {"status": "error"}
         assert function_with_various_errors(502) == {"status": "error"}
 
+    def test_decorator_callable_default_is_invoked(self) -> None:
+        """Test that a callable default_return is called to produce the value."""
+
+        @_handle_github_errors(default_return=lambda: {"outcome": "error"})
+        def function_with_github_error() -> dict[str, str]:
+            raise GithubException(500, {"message": "Internal error"}, None)
+
+        result = function_with_github_error()
+
+        assert callable(result) is False
+        assert result == {"outcome": "error"}
+
+    def test_decorator_callable_default_fresh_instance_each_call(self) -> None:
+        """Test that a callable default_return yields a fresh value per failure."""
+
+        @_handle_github_errors(default_return=list)
+        def function_returning_list() -> list[str]:
+            raise GithubException(500, {"message": "Internal error"}, None)
+
+        result_a = function_returning_list()
+        result_b = function_returning_list()
+
+        assert result_a == result_b
+        assert result_a is not result_b
+
+    def test_decorator_noncallable_default_unchanged(self) -> None:
+        """Test that a non-callable default_return is returned as-is."""
+
+        @_handle_github_errors(default_return={})
+        def function_with_github_error() -> dict[str, str]:
+            raise GithubException(500, {"message": "Internal error"}, None)
+
+        result = function_with_github_error()
+
+        assert result == {}
+
 
 class TestBaseGitHubManagerWithProjectDir:
     """Test suite for BaseGitHubManager initialization with project_dir.

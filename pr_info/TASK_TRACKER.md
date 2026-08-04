@@ -25,8 +25,8 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 See [step_1.md](./steps/step_1.md).
 
-- [ ] Implementation: add `callable(default_return)` guard at both return sites in `_handle_github_errors` (`base_manager.py`); add the three tests to `TestHandleGitHubErrorsDecorator` (`test_base_manager.py`); update decorator docstring
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Implementation: add `callable(default_return)` guard at both return sites in `_handle_github_errors` (`base_manager.py`); add the three tests to `TestHandleGitHubErrorsDecorator` (`test_base_manager.py`); update decorator docstring
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 
 ### Step 2: Add `MergeResult`, `_failed_merge_result()`, `merge_pull_request()`
