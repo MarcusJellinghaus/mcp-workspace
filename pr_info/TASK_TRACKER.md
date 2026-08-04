@@ -21,6 +21,31 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Make `_handle_github_errors` call callable defaults
+
+See [step_1.md](./steps/step_1.md).
+
+- [ ] Implementation: add `callable(default_return)` guard at both return sites in `_handle_github_errors` (`base_manager.py`); add the three tests to `TestHandleGitHubErrorsDecorator` (`test_base_manager.py`); update decorator docstring
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Add `MergeResult`, `_failed_merge_result()`, `merge_pull_request()`
+
+See [step_2.md](./steps/step_2.md).
+
+- [ ] Implementation: add `MergeResult`, `_failed_merge_result()`, and `merge_pull_request()` to `pr_manager.py`; create `test_pr_manager_merge.py` covering every acceptance case
+- [ ] Quality checks: pylint, pytest (fast-unit + git_integration marker), mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: Export `MergeResult` and `PullRequestData`
+
+See [step_3.md](./steps/step_3.md).
+
+- [ ] Implementation: import and add `MergeResult` + `PullRequestData` to `__all__` in `github_operations/__init__.py`; add importability test
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: verify all steps complete, checks pass, and changes match the summary
+- [ ] PR summary prepared
