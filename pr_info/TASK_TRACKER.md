@@ -35,7 +35,7 @@ See [step_2.md](./steps/step_2.md).
 
 - [x] Implementation: add `MergeResult`, `_failed_merge_result()`, and `merge_pull_request()` to `pr_manager.py`; create `test_pr_manager_merge.py` covering every acceptance case
 - [x] Quality checks: pylint, pytest (fast-unit + git_integration marker), mypy — fix all issues
-- [ ] Commit message prepared (BLOCKED: see note below)
+- [x] Commit message prepared (message is on commit 25d44ad; the `pr_info/.commit_message.txt` scratch file is gitignored and cannot be written via MCP `save_file`)
 
 ### Step 3: Export `MergeResult` and `PullRequestData`
 
