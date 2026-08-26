@@ -42,6 +42,8 @@
 | View GitHub PR | `mcp__mcp-workspace__github_pr_view` |
 | Search GitHub | `mcp__mcp-workspace__github_search` |
 
+Sibling repos are readable in full via the reference tools and `git` with `reference_name` (`get_reference_projects` lists them). Check there before asking about another repo.
+
 ## Code quality checks
 
 After making code changes, run:
@@ -80,7 +82,7 @@ mcp-coder gh-tool set-status <label>
 
 **Bash discipline:** no `cd` prefix. Don't chain approved with unapproved commands. Run them separately.
 
-**Commit messages:** standard format, clear and descriptive. No attribution footers.
+**Commit messages:** standard format. See Writing style for length. No attribution footers.
 
 ## Shared Libraries
 
@@ -96,7 +98,11 @@ This project uses **mcp-coder-utils** (`mcp-coder-utils` reference project) for 
 
 ## Writing style
 
-Be concise. If one line works, don't use three.
+Be concise. Shorter is better — chat, commits, PRs, docs, comments alike.
+
+Say it once. Never restate what the reader can already see: the diff, the code, the issue, or my own earlier message. Cut it; don't rephrase it.
+
+If a sentence isn't load-bearing, delete it.
 
 ## Asking questions
 
