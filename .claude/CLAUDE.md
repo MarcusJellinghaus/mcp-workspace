@@ -133,6 +133,22 @@ Readable beats short. Cut what I don't need; don't compress what stays — compl
 
 Never use the AskUserQuestion tool. Ask questions as plain text in the chat.
 
+## Obsidian knowledge base
+
+Shared knowledge base across my repos (`obsidian-dev-wiki`), via the `obsidian-wiki` MCP server.
+
+**Read at the start of non-trivial work:** `Home.md` (index), the `Repos/<current repo>.md` note, and any `Processes/` note matching the task. If a process note covers the task, follow it rather than improvising.
+
+**Write only what passes all three tests:**
+
+- *durable* — still true in 6 months (not status, versions, or task state)
+- *general* — applies beyond the one issue that produced it
+- *homeless* — no better place already exists
+
+Existing homes, check before writing: code and docstrings; the repo's `docs/`; CLAUDE.md for how-I-work rules; the GitHub issue for a single defect's root cause; git history for what changed when.
+
+**Always write to `Field Notes/`**, for Marcus to promote. Only edit `Repos/`, `Processes/`, or `Plans/` when Marcus explicitly asks for it. If an existing note already covers the topic, name it in the Field Note (`Promote into [[Note Name]]`) instead of editing that note. Follow `Conventions.md` for frontmatter and naming.
+
 ## MCP server issues
 
 Alert immediately if MCP tools are not accessible — this blocks all work.

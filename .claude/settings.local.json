@@ -50,17 +50,18 @@
       "Skill(issue_requirements)",
       "Skill(rebase)",
       "mcp__mcp-workspace__search_files",
-      "mcp__obsidian-wiki__add-tags",
-      "mcp__obsidian-wiki__create-directory",
-      "mcp__obsidian-wiki__create-note",
-      "mcp__obsidian-wiki__delete-note",
-      "mcp__obsidian-wiki__edit-note",
-      "mcp__obsidian-wiki__list-available-vaults",
-      "mcp__obsidian-wiki__move-note",
-      "mcp__obsidian-wiki__read-note",
-      "mcp__obsidian-wiki__remove-tags",
-      "mcp__obsidian-wiki__rename-tag",
-      "mcp__obsidian-wiki__search-vault",
+      "mcp__obsidian-wiki__obsidian_add_tags",
+      "mcp__obsidian-wiki__obsidian_create_directory",
+      "mcp__obsidian-wiki__obsidian_create_note",
+      "mcp__obsidian-wiki__obsidian_delete_note",
+      "mcp__obsidian-wiki__obsidian_edit_note",
+      "mcp__obsidian-wiki__obsidian_list_vaults",
+      "mcp__obsidian-wiki__obsidian_manage_tags",
+      "mcp__obsidian-wiki__obsidian_move_note",
+      "mcp__obsidian-wiki__obsidian_read_note",
+      "mcp__obsidian-wiki__obsidian_remove_tags",
+      "mcp__obsidian-wiki__obsidian_rename_tag",
+      "mcp__obsidian-wiki__obsidian_search_vault",
       "Bash(git checkout:*)",
       "Bash(git pull:*)",
       "mcp__mcp-workspace__git",
@@ -78,6 +79,7 @@
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "mcp-tools-py",
-    "mcp-workspace"
+    "mcp-workspace",
+    "obsidian-wiki"
   ]
 }
