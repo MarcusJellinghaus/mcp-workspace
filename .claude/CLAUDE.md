@@ -89,10 +89,13 @@ Never use `python -c` via Bash. If you reason instead of running, label the conc
 
 **Compact diff:** `mcp__mcp-workspace__git` with command `"diff"` includes compact diff by default — detects moved code, collapses unchanged blocks. Use `compact=False` for raw output.
 
-**Bash commands** for git operations that have no MCP equivalent:
+**Allowed commands via Bash tool.** These have no MCP equivalent — use Bash directly. Skills that instruct bash commands (e.g. `git commit`) must also use Bash.
 
 ```
-git commit / git add
+git add / commit / push / checkout -b / branch
+git rebase / stash / restore / rm / remote get-url / checkout --ours|--theirs / push --force-with-lease
+gh issue create / edit / comment (labels only via set-status)
+gh issue view (cross-repo only — otherwise use the MCP tool)
 gh run view
 mcp-coder gh-tool set-status <label>
 ```
