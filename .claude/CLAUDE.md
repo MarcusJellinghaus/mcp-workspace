@@ -74,6 +74,8 @@ mcp-coder gh-tool set-status <label>
 
 **Status labels:** use `mcp-coder gh-tool set-status` to change issue workflow status — never use raw `gh issue edit` with label flags.
 
+**Slash-prefixed `gh` arguments:** prefix with `MSYS_NO_PATHCONV=1` — Git Bash rewrites a leading `/` into a Windows path.
+
 **Before every commit:** run `mcp__mcp-tools-py__run_format_code`, then stage and commit.
 
 **Bash discipline:** no `cd` prefix. Don't chain approved with unapproved commands. Run them separately.
