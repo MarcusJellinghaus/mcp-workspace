@@ -1,6 +1,5 @@
 ---
 description: Update implementation plan files based on discussion
-disable-model-invocation: true
 allowed-tools:
   - mcp__mcp-workspace__read_file
   - mcp__mcp-workspace__save_file

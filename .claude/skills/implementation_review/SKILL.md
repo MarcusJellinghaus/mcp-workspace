@@ -1,6 +1,5 @@
 ---
 description: Code review of implementation with compact diff analysis
-disable-model-invocation: true
 allowed-tools:
   - mcp__mcp-workspace__git
   - mcp__mcp-workspace__check_branch_status

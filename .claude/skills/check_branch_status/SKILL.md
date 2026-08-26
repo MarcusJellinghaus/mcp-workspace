@@ -1,6 +1,5 @@
 ---
 description: Check branch readiness including CI, rebase needs, tasks, and labels
-disable-model-invocation: true
 allowed-tools:
   - mcp__mcp-workspace__check_branch_status
 ---

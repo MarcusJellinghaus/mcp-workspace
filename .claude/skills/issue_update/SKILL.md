@@ -27,17 +27,17 @@ Based on our prior `/issue_analyse` discussion, update the GitHub issue with ref
 
 4. Write the issue body to a temp file (avoids bash escaping issues with markdown):
 ```python
-mcp__mcp-workspace__save_file(file_path="issue_body_temp.md", content=body_content)
+mcp__mcp-workspace__save_file(file_path=".scratch/issue_body_temp.md", content=body_content)
 ```
 
 5. Update the issue using `--body-file`:
 ```bash
-gh issue edit <issue_number> --title "NEW_TITLE" --body-file issue_body_temp.md
+gh issue edit <issue_number> --title "NEW_TITLE" --body-file .scratch/issue_body_temp.md
 ```
 
 6. Clean up the temp file:
 ```python
-mcp__mcp-workspace__delete_this_file(file_path="issue_body_temp.md")
+mcp__mcp-workspace__delete_this_file(file_path=".scratch/issue_body_temp.md")
 ```
 
 **Editing Base Branch:**
