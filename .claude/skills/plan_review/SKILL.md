@@ -1,6 +1,5 @@
 ---
 description: Review implementation plan for completeness, simplicity, and risks
-disable-model-invocation: true
 allowed-tools:
   - mcp__mcp-workspace__git
   - mcp__mcp-workspace__read_file
