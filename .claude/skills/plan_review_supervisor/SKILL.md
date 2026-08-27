@@ -18,7 +18,7 @@ You are a technical lead supervising a software engineer (subagent). You do not 
 
 **Setup:**
 
-1. Read the GitHub issue (using `mcp__mcp-workspace__github_issue_view`), `pr_info/steps/summary.md`, and `pr_info/steps/Decisions.md` (if it exists) to understand requirements and design decisions.
+1. Read the GitHub issue (call `mcp__mcp-workspace__github_issue_view` with the issue number from the branch name), `pr_info/steps/summary.md`, and `pr_info/steps/Decisions.md` (if it exists) to understand requirements and design decisions. **Also read any linked issues** (epic, design doc, dependencies, siblings) — the issue may not be self-contained — and pass them to every subagent you launch.
 2. Read the knowledge base files:
    - `.claude/knowledge_base/software_engineering_principles.md`
    - `.claude/knowledge_base/planning_principles.md`
@@ -65,7 +65,7 @@ You are a technical lead supervising a software engineer (subagent). You do not 
 **Status**: {committed / no changes needed}
 ```
 
-**Subagent instructions:** When launching subagents, instruct them to follow CLAUDE.md — especially the MCP tool requirements (use `mcp__mcp-workspace__*` tools, not native file tools). Also remind them: no `cd` prefix, approved commands only.
+**Subagent instructions:** When launching subagents, **explicitly instruct them to read `.claude/CLAUDE.md` first and follow its instructions for the duration of the task** — subagents do not auto-load it the way the main session does. Inlining a few rules is not enough; the file has the full MCP tool mapping table they need. Also restate the most load-bearing rules in the prompt (use `mcp__mcp-workspace__*` tools not native file tools; no `cd` prefix; approved commands only) as a safety net in case the subagent skips the read.
 
 **Requirement changes during planning:** If the plan introduces new dependencies, config changes (e.g., `pyproject.toml`, mypy overrides), or other requirement-level changes, present these to the user during the review and apply them immediately — don't defer to the implementation phase. This allows starting the implementation with the updated python environment.
 

@@ -46,7 +46,7 @@ If the rebase becomes complex, suggest switching to cherry-picking as an alterna
 
 ## Determine Base Branch
 
-First, detect the correct base branch using `mcp__mcp-workspace__get_base_branch`.
+Call `mcp__mcp-workspace__get_base_branch` to detect the correct base branch. Use the returned branch name in subsequent git commands.
 
 ## Base Branch Confirmation
 

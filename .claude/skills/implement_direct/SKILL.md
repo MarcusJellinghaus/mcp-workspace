@@ -23,8 +23,9 @@ If no issue number is provided:
 ## Steps
 
 1. **Fetch issue details**
-   Use `mcp__mcp-workspace__github_issue_view` to fetch the issue details.
+   Call `mcp__mcp-workspace__github_issue_view` with the issue number.
    Read the issue title, description, and acceptance criteria carefully.
+   **Read linked issues first.** If the issue points to an epic, design doc, dependencies, or sibling issues, read those before implementing — it may not be self-contained, and any "read first" note is mandatory.
 
 2. **Checkout/create issue branch**
    ```bash

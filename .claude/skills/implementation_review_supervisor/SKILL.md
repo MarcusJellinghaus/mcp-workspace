@@ -22,7 +22,7 @@ You are a technical lead supervising a software engineer (subagent). You do not 
 
 **Setup:**
 
-1. Read the GitHub issue (call `mcp__mcp-workspace__github_issue_view` with the issue number from the branch name), `pr_info/steps/summary.md`, and `pr_info/steps/Decisions.md` (if it exists) to understand requirements and design decisions.
+1. Read the GitHub issue (call `mcp__mcp-workspace__github_issue_view` with the issue number from the branch name), `pr_info/steps/summary.md`, and `pr_info/steps/Decisions.md` (if it exists) to understand requirements and design decisions. **Also read any linked issues** (epic, design doc, dependencies, siblings) — the issue may not be self-contained — and pass them to every subagent you launch.
 2. Read the knowledge base files:
    - `.claude/knowledge_base/software_engineering_principles.md`
    - `.claude/knowledge_base/python.md`
@@ -73,6 +73,6 @@ You are a technical lead supervising a software engineer (subagent). You do not 
 **Status**: {committed / no changes needed}
 ```
 
-**Subagent instructions:** When launching subagents, instruct them to follow CLAUDE.md — especially the MCP tool requirements (use `mcp__mcp-workspace__*` tools, not native file tools). Also remind them: no `cd` prefix, approved commands only.
+**Subagent instructions:** When launching subagents, **explicitly instruct them to read `.claude/CLAUDE.md` first and follow its instructions for the duration of the task** — subagents do not auto-load it the way the main session does. Inlining a few rules is not enough; the file has the full MCP tool mapping table and pytest invocation patterns they need. Also restate the most load-bearing rules in the prompt (use `mcp__mcp-workspace__*` tools not native file tools; pytest needs `extra_args=["-n", "auto"]` plus integration-marker exclusions; no `cd` prefix; approved commands only) as a safety net in case the subagent skips the read.
 
 **Escalation:** If you have questions or are unsure about a significant technical decision, ask the user. For borderline Accept/Skip findings, default to better code quality rather than asking — only escalate when the fix has meaningful scope or risk, not for trivial changes in either direction. Import contract or architecture violations (from `run_lint_imports_check`): escalate to the user — fixes may require moving code between layers.
