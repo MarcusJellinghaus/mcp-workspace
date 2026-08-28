@@ -235,5 +235,5 @@ Details: [step_8.md](./steps/step_8.md)
 
 ## Pull Request
 
-- [ ] PR review
+- [x] PR review
 - [ ] PR summary
