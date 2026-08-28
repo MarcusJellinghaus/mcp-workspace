@@ -123,10 +123,20 @@ Keep it to these two attributes. Callers set `title`, `body`, `state`, `labels`,
 - In `test_pr_manager_feedback.py`, inside the `_setup_mocks` helper (line 33):
   add `mock_repo.full_name = "test/repo"` next to `mock_repo.name = "repo"`
   (line 49), and replace `mock_issue = Mock()` (line 64) with
-  `mock_issue = make_mock_issue(1)`, keeping the existing
+  `mock_issue = make_mock_issue(42)`, keeping the existing
   `mock_issue.get_comments = Mock(...)` branches below it untouched. Import via
   `from ._issue_test_helpers import make_mock_issue` — this file sits directly
   in `tests/github_operations/`, so it is the single-dot form.
+
+  **The number must be `42`**, not the helper's default: every test in
+  `TestGetPRFeedback` requests `mock_manager.get_pr_feedback(42)` (lines 183,
+  224, 254, 280, 298, 354, 377, 399, 428), which reaches
+  `fetch_conversation_comments(manager, 42)`. With any other number, step 3's
+  routing of `_pr_feedback_sources.py:134` makes the guard's number check fire,
+  `fetch_conversation_comments` raises, `get_pr_feedback` records an
+  `unavailable` entry instead of the comments, and `test_happy_path`
+  (`len(result["conversation_comments"]) == 2`, `result["unavailable"] == {}`)
+  and `test_clean_state` go red in step 3.
 
 ---
 

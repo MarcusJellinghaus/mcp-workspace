@@ -241,9 +241,13 @@ Import it with
 **Fixture prerequisites for this test, all delivered by step 2:** `_setup_mocks`
 must set `mock_repo.full_name = "test/repo"` (otherwise `full_name` is a bare
 `Mock` and the comparison is meaningless), and its default `mock_issue` must
-come from `make_mock_issue` (otherwise the *other* `TestGetPRFeedback` tests
-fail on the identity parse rather than this one passing). If either is missing,
-go back and finish step 2 — do not weaken the guard.
+come from `make_mock_issue(42)` — number `42`, matching the
+`mock_manager.get_pr_feedback(42)` every other test in the class issues.
+Otherwise the *other* `TestGetPRFeedback` tests fail instead of this one
+passing: a bare `Mock` fails on the identity parse, and a mismatched number
+makes the guard fire, so `get_pr_feedback` reports the comments as
+`unavailable` and `test_happy_path` / `test_clean_state` go red. If either is
+missing, go back and finish step 2 — do not weaken the guard.
 
 Finally, in `tests/github_operations/test_github_read_tools.py`, the rendered
 message. The `Returns:`/`Raises:` docstring edits above and the "no `Error: `
