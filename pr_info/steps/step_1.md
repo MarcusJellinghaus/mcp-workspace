@@ -191,14 +191,14 @@ Then run `./tools/format_all.sh` before committing, per CLAUDE.md.
 
 ## Acceptance Criteria
 
-- [ ] `read_gitignore_rules` returns `Optional[Callable[[str], bool]]`
-- [ ] Explicit `open()/read()` of `.gitignore` deleted; no `gitignore_content` local remains
-- [ ] `Tuple` removed from the `typing` import
-- [ ] Both call sites use plain assignment, not tuple unpacking
-- [ ] All three `return None, None` replaced with `return None`
-- [ ] Docstring `Returns:` describes a single value
-- [ ] No INFO-level logging remains in `read_gitignore_rules`
-- [ ] Pylint, pytest, and mypy all pass
+- [x] `read_gitignore_rules` returns `Optional[Callable[[str], bool]]`
+- [x] Explicit `open()/read()` of `.gitignore` deleted; no `gitignore_content` local remains
+- [x] `Tuple` removed from the `typing` import
+- [x] Both call sites use plain assignment, not tuple unpacking
+- [x] All three `return None, None` replaced with `return None`
+- [x] Docstring `Returns:` describes a single value
+- [x] No INFO-level logging remains in `read_gitignore_rules`
+- [x] Pylint, pytest, and mypy all pass
 
 ## LLM Prompt
 

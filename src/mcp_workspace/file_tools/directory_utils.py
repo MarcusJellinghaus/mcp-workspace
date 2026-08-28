@@ -7,7 +7,7 @@ We use the external igittigitt library for handling .gitignore patterns.
 import logging
 import os
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Union
 
 from igittigitt import IgnoreParser
 
@@ -44,7 +44,7 @@ def is_path_gitignored(path: str, project_dir: Path) -> bool:
         return True
 
     gitignore_path = project_dir / ".gitignore"
-    matcher, _ = read_gitignore_rules(gitignore_path)
+    matcher = read_gitignore_rules(gitignore_path)
     if matcher is None:
         return False
 
@@ -79,40 +79,35 @@ def _discover_files(directory: Path, project_dir: Path) -> List[str]:
 
 def read_gitignore_rules(
     gitignore_path: Path,
-) -> Tuple[Optional[Callable[[str], bool]], Optional[str]]:
+) -> Optional[Callable[[str], bool]]:
     """Read and parse a .gitignore file to create a matcher function.
 
     Args:
         gitignore_path: Path to the .gitignore file
 
     Returns:
-        A tuple containing (matcher_function, gitignore_content), or (None, None) if file doesn't exist
+        A matcher function, or None if the file doesn't exist or cannot be parsed
     """
     if not gitignore_path.is_file():
-        logger.info("No .gitignore file found at %s", gitignore_path)
-        return None, None
+        logger.debug("No .gitignore file found at %s", gitignore_path)
+        return None
 
     try:
-        # Read the gitignore file content for logging
-        with open(gitignore_path, "r") as f:
-            gitignore_content = f.read()
-
-        logger.info("Gitignore content: %s", gitignore_content)
-
-        # Parse the gitignore file to get a matcher function
-        logger.info("Parsing gitignore file at %s", gitignore_path)
         parser = IgnoreParser()
         parser.parse_rule_file(gitignore_path)
+        logger.debug(
+            "Loaded .gitignore at %s (%s rules)", gitignore_path, len(parser.rules)
+        )
 
         # Create a matcher function that mimics the behavior of the old parse_gitignore
         def matcher(path: str) -> bool:
             return bool(parser.match(path))
 
-        return matcher, gitignore_content
+        return matcher
 
     except Exception as e:
         logger.warning("Error reading/parsing gitignore: %s", str(e))
-        return None, None
+        return None
 
 
 def apply_gitignore_filter(
@@ -172,7 +167,7 @@ def filter_with_gitignore(
     gitignore_path = base_dir / ".gitignore"
 
     # Get the matcher function from the gitignore file
-    matcher, _ = read_gitignore_rules(gitignore_path)
+    matcher = read_gitignore_rules(gitignore_path)
 
     if matcher is None:
         return file_paths
