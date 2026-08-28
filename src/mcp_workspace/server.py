@@ -603,7 +603,7 @@ def _issue_manager(reference_name: Optional[str]) -> "IssueManager":
         ValueError: If reference_name is not a configured reference project or
             that project has no URL configured, or if the manager cannot be
             constructed for the resolved repository.
-    """
+    """  # noqa: DOC502 - propagated from get_reference_repo_url()/IssueManager
     # Lazy import: keeps PyGithub off the server startup import path
     from mcp_workspace.github_operations.issues import IssueManager
 
@@ -714,12 +714,12 @@ def github_issue_list(
             since=since_dt,
             max_results=max_results,
         )
+        repo_full_name: Optional[str] = None
         if not issues:
             repo_full_name = _repo_full_name(manager)
             if repo_full_name is None:
                 return _repo_access_error(manager)
-            return f"No issues found in {repo_full_name}."
-        return format_issue_list(issues, max_results)
+        return format_issue_list(issues, max_results, repo_full_name)
     except Exception as e:
         return f"Error: {e}"
 

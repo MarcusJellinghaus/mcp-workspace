@@ -116,9 +116,6 @@ ignore = [
 "src/mcp_workspace/file_tools/file_operations.py" = ["DOC502"]
 "src/mcp_workspace/git_operations/read_operations.py" = ["DOC502"]
 "src/mcp_workspace/main.py" = ["DOC502"]
-# server.py: tool wrappers document ValueError propagated from helpers such as
-# get_reference_repo_url(); ruff cannot see through the call boundary.
-"src/mcp_workspace/server.py" = ["DOC502"]
 "src/mcp_workspace/workflows/task_tracker.py" = ["DOC502"]
 
 [tool.ruff.lint.pydocstyle]

@@ -79,18 +79,22 @@ def format_issue_view(
 def format_issue_list(
     issues: list[IssueData],
     max_results: int = 30,
+    repo_full_name: Optional[str] = None,
 ) -> str:
     """Format issue list as compact summary lines.
 
     Args:
         issues: List of issue data dicts.
         max_results: Maximum number of issues to display.
+        repo_full_name: Repository the issues were listed from, named in the
+            empty-result message when known.
 
     Returns:
         Compact one-line-per-issue text.
     """
     if not issues:
-        return "No issues found."
+        where = f" in {repo_full_name}" if repo_full_name else ""
+        return f"No issues found{where}."
 
     lines: list[str] = []
     for issue in issues[:max_results]:

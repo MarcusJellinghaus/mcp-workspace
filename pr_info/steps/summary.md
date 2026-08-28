@@ -14,7 +14,8 @@ github_pr_view(number, ..., reference_name: Optional[str] = None)
 github_search(query, ..., reference_name: Optional[str] = None)
 ```
 
-When omitted, behaviour is byte-for-byte unchanged. When set, the repository is resolved from
+When omitted, behaviour is unchanged apart from one deliberate message change (see below).
+When set, the repository is resolved from
 the reference-project allowlist that `get_reference_projects()` exposes. Arbitrary
 `owner/repo` strings are **not** supported — an unknown name is an error, exactly as it is for
 `read_reference_file`.
@@ -72,6 +73,20 @@ rejection rule. Instead the two `"Could not access repository"` messages gain th
 base URL, so a GitLab remote surfaces as
 `"Error: Could not access repository (tried https://gitlab.com/api/v3)"`. This also helps
 diagnose genuine GHES misconfiguration.
+
+The same reasoning extends to the two paths that previously reported nothing at all: an
+inaccessible repository surfaced from `github_issue_view` as `"Error: Issue #N not found"` and
+from `github_issue_list` as `"No issues found."`, neither of which names the repository that
+was actually read. Both now resolve `_get_repository()` first and fall back to the API-base-URL
+message when it is unreachable.
+
+**Deliberate message change on the workspace path.** As a consequence, `github_issue_list`
+returns `"No issues found in owner/repo."` rather than `"No issues found."` even when
+`reference_name` is omitted. This is intentional: once a caller can point the tool at another
+repository, an empty result that does not say *which* repository was searched is ambiguous, and
+having the workspace and reference paths report differently would be worse than one changed
+string. `format_issue_list` takes the repository name and remains the only place that produces
+the empty-result message. No code or documentation parses either string.
 
 **GHE/GHES support does not regress:** the configured URL is passed through verbatim to
 `RepoIdentifier.from_repo_url`, which already handles HTTPS and SSH on any hostname. No code on

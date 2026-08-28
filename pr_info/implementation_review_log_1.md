@@ -1,0 +1,13 @@
+# review-implementation review log 1
+
+## Round 1 — 2026-08-28
+**Findings**:
+I'll start by loading the tools I need and gathering context.I'll gather context in parallel: knowledge base files, the issue, plan files, and the branch diff.The issue is detailed. Now reading knowledge base, plan files, and computing the diff.There are real implementation changes. Reading the full diff of source and test files.Checks on the branch: pytest 1577 passed / 1 skipped, mypy clean, pylint clean.
+
+`src/mcp_workspace/server.py:637` — medium — decision 4's diagnostic reaches only `github_pr_view` and `github_search`; a misconfigured reference project (e.g. a GitLab or unreachable URL) surfaces from `github_issue_view` as `"Error: Issue #N not found"` and from `github_issue_list` as an empty list, with no API base URL. This is the likeliest cross-repo misconfiguration and is fixable in `server.py` alone (check `_get_repository()` / include `_repo_identifier.api_base_url` on the empty-issue path) without touching `github_operations/`.
+`src/mcp_workspace/server.py:718` — low — the three-line "could not access repository" block is duplicated verbatim at `server.py:806`; a small module-level helper would keep the two messages from drifting.
+`src/mcp_workspace/server.py:592` — low — `_issue_manager` docstring has no `Raises:` section although its `ValueError` propagation is the load-bearing mechanism of the error-string contract (decision 3); `get_reference_repo_url` documents it, this one does not.
+**Decisions**:
+Verdict(decision='tasks', tasks=["In src/mcp_workspace/server.py, extend the decision-4 misconfiguration diagnostic to the issue tools: in github_issue_view, when the issue is not found, and in github_issue_list, when the result set is empty, include the resolved repository identity (e.g. _repo_identifier.api_base_url from _get_repository()) in the returned message so a GitLab or unreachable reference-project URL is distinguishable from a genuinely absent issue, instead of the bare 'Error: Issue #N not found' / empty list. Keep the change confined to server.py; do not modify github_operations/.", "Extract the three-line 'could not access repository' error block duplicated verbatim at src/mcp_workspace/server.py:718 and src/mcp_workspace/server.py:806 into a single module-level helper in server.py and call it from both sites so the two messages cannot drift.", "Add a 'Raises:' section to the _issue_manager docstring at src/mcp_workspace/server.py:592 documenting the ValueError it propagates, matching how get_reference_repo_url documents the same contract."], escalate_reason=None)
+**Changes**:
+applied
