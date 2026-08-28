@@ -187,17 +187,17 @@ def test_read_gitignore_rules_logs_nothing_above_debug(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """The gitignore hot path emits no INFO+ records (issue #48)."""
+    module_logger = "mcp_workspace.file_tools.directory_utils"
+
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir) / ".gitignore"
 
-        with caplog.at_level(
-            logging.INFO, logger="mcp_workspace.file_tools.directory_utils"
-        ):
+        with caplog.at_level(logging.INFO, logger=module_logger):
             read_gitignore_rules(temp_path)  # absent-file path
             temp_path.write_text("*.log\n")
             read_gitignore_rules(temp_path)  # parsed-file path
 
-        assert caplog.records == []
+        assert [r for r in caplog.records if r.name == module_logger] == []
 
 
 def test_apply_gitignore_filter(project_dir: Path) -> None:

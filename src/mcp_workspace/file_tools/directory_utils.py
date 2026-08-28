@@ -99,7 +99,6 @@ def read_gitignore_rules(
             "Loaded .gitignore at %s (%s rules)", gitignore_path, len(parser.rules)
         )
 
-        # Create a matcher function that mimics the behavior of the old parse_gitignore
         def matcher(path: str) -> bool:
             return bool(parser.match(path))
 
