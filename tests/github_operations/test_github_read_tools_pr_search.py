@@ -1,7 +1,7 @@
 """Tests for the GitHub PR and search read-only MCP tools in server.py."""
 
 from pathlib import Path
-from typing import Generator, Iterator
+from typing import Generator, Iterator, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -175,6 +175,49 @@ def test_github_pr_view_no_repo(mock_manager_cls: MagicMock) -> None:
 # =============================================================================
 
 
+class _FakeSearchResults:
+    """PaginatedList stand-in with lazy iteration and a real totalCount.
+
+    PyGithub fills `totalCount` from the first search page, so reading it after
+    iterating costs no extra request. This double records every read, and yields
+    items one at a time, so tests can assert both how often the property is read
+    and how many items the caller pulled.
+    """
+
+    def __init__(
+        self, items: list[MagicMock], total_count: Optional[int] = None
+    ) -> None:
+        self._items = items
+        self._total_count = len(items) if total_count is None else total_count
+        self.items_pulled = 0
+        self.total_count_reads = 0
+
+    def __iter__(self) -> Iterator[MagicMock]:
+        for item in self._items:
+            self.items_pulled += 1
+            yield item
+
+    @property
+    def totalCount(self) -> int:  # pylint: disable=invalid-name
+        """Mirrors PyGithub's camelCase attribute; counts each read."""
+        self.total_count_reads += 1
+        return self._total_count
+
+
+def _make_search_items(count: int) -> list[MagicMock]:
+    """Create search result mocks numbered 1..count."""
+    items = []
+    for i in range(count):
+        item = MagicMock()
+        item.number = i + 1
+        item.title = f"Item {i + 1}"
+        item.state = "open"
+        item.labels = []
+        item.pull_request = None
+        items.append(item)
+    return items
+
+
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_basic(mock_manager_cls: MagicMock) -> None:
     """Returns compact summary lines with auto-scoped repo."""
@@ -198,7 +241,9 @@ def test_github_search_basic(mock_manager_cls: MagicMock) -> None:
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = [item1, item2]
+    mock_mgr._github_client.search_issues.return_value = _FakeSearchResults(
+        [item1, item2]
+    )
 
     result = github_search(query="fix")
 
@@ -222,7 +267,7 @@ def test_github_search_empty(mock_manager_cls: MagicMock) -> None:
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
+    mock_mgr._github_client.search_issues.return_value = _FakeSearchResults([])
 
     result = github_search(query="nonexistent")
 
@@ -239,7 +284,7 @@ def test_github_search_with_qualifiers(mock_manager_cls: MagicMock) -> None:
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
+    mock_mgr._github_client.search_issues.return_value = _FakeSearchResults([])
 
     github_search(
         query="bug",
@@ -281,7 +326,9 @@ def test_github_search_issue_vs_pr_indicator(mock_manager_cls: MagicMock) -> Non
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = [issue_item, pr_item]
+    mock_mgr._github_client.search_issues.return_value = _FakeSearchResults(
+        [issue_item, pr_item]
+    )
 
     result = github_search(query="test")
 
@@ -298,20 +345,12 @@ def test_github_search_max_results_cap(mock_manager_cls: MagicMock) -> None:
     mock_repo = MagicMock()
     mock_repo.full_name = "owner/repo"
 
-    items = []
-    for i in range(10):
-        item = MagicMock()
-        item.number = i + 1
-        item.title = f"Item {i + 1}"
-        item.state = "open"
-        item.labels = []
-        item.pull_request = None
-        items.append(item)
-
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = items
+    mock_mgr._github_client.search_issues.return_value = _FakeSearchResults(
+        _make_search_items(10)
+    )
 
     result = github_search(query="test", max_results=3)
 
@@ -323,35 +362,29 @@ def test_github_search_max_results_cap(mock_manager_cls: MagicMock) -> None:
     assert len(lines) == 3
 
 
-class _CountingResults:
-    """Iterable PaginatedList stand-in that counts totalCount reads."""
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_search_stops_without_pulling_the_surplus_item(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """islice stops at max_results without pulling item max_results + 1.
 
-    def __init__(self, items: list[MagicMock]) -> None:
-        self._items = items
-        self.total_count_reads = 0
+    GitHub pages search results at 30, so pulling the surplus item would fetch
+    a second page against the 30 requests/minute search rate limit, only to
+    discard it. The `enumerate` guard this replaced pulled it before breaking.
+    """
+    mock_repo = MagicMock()
+    mock_repo.full_name = "owner/repo"
 
-    def __iter__(self) -> Iterator[MagicMock]:
-        return iter(self._items)
+    results = _FakeSearchResults(_make_search_items(10))
 
-    @property
-    def totalCount(self) -> int:  # pylint: disable=invalid-name
-        """Mirrors PyGithub's camelCase attribute; counts each read."""
-        self.total_count_reads += 1
-        return len(self._items)
+    mock_mgr = MagicMock()
+    mock_manager_cls.return_value = mock_mgr
+    mock_mgr._get_repository.return_value = mock_repo
+    mock_mgr._github_client.search_issues.return_value = results
 
+    github_search(query="test", max_results=3)
 
-def _make_search_items(count: int) -> list[MagicMock]:
-    """Create search result mocks numbered 1..count."""
-    items = []
-    for i in range(count):
-        item = MagicMock()
-        item.number = i + 1
-        item.title = f"Item {i + 1}"
-        item.state = "open"
-        item.labels = []
-        item.pull_request = None
-        items.append(item)
-    return items
+    assert results.items_pulled == 3
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
@@ -360,9 +393,7 @@ def test_github_search_notice_states_exact_total(mock_manager_cls: MagicMock) ->
     mock_repo = MagicMock()
     mock_repo.full_name = "owner/repo"
 
-    results = MagicMock()
-    results.__iter__.return_value = iter(_make_search_items(3))
-    results.totalCount = 412
+    results = _FakeSearchResults(_make_search_items(3), total_count=412)
 
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
@@ -386,7 +417,9 @@ def test_github_search_non_positive_max_results(
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = _make_search_items(5)
+    mock_mgr._github_client.search_issues.return_value = _FakeSearchResults(
+        _make_search_items(5)
+    )
 
     result = github_search(query="test", max_results=max_results)
 
@@ -406,7 +439,7 @@ def test_github_search_empty_makes_no_total_count_call(
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
 
-    empty_results = _CountingResults([])
+    empty_results = _FakeSearchResults([])
     mock_mgr._github_client.search_issues.return_value = empty_results
 
     result = github_search(query="test")
@@ -414,7 +447,7 @@ def test_github_search_empty_makes_no_total_count_call(
     assert "No results found." in result
     assert empty_results.total_count_reads == 0
 
-    non_empty_results = _CountingResults(_make_search_items(3))
+    non_empty_results = _FakeSearchResults(_make_search_items(3))
     mock_mgr._github_client.search_issues.return_value = non_empty_results
 
     github_search(query="test", max_results=3)
@@ -477,7 +510,7 @@ def test_github_search_qualifier_injection(
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = [item]
+    mock_mgr._github_client.search_issues.return_value = _FakeSearchResults([item])
 
     result = github_search(query=query)
 

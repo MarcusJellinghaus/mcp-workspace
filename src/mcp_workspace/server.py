@@ -818,10 +818,8 @@ def github_search(
         # was fetched and the property falls back to a separate per_page=1
         # request — the extra call this design exists to avoid. An empty item
         # list returns "No results found." and never uses the total, so None is
-        # correct there. getattr keeps list-based test doubles working.
-        total_count: Optional[int] = (
-            getattr(results, "totalCount", None) if items else None
-        )
+        # correct there.
+        total_count: Optional[int] = results.totalCount if items else None
         result = format_search_results(items, max_results, total_count)
         if not has_qualifier:
             result += "\n(auto-added: is:issue is:pull-request)"

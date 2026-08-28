@@ -85,12 +85,27 @@ def format_issue_list(
 ) -> str:
     """Format issue list as compact summary lines.
 
+    The truncation notice is driven by the caller's over-fetch. Issue listing
+    has no total count, so the only evidence that more results exist is a
+    surplus item: callers must fetch with a limit of `max_results + 1` and pass
+    `max_results` unchanged. This function then displays the first
+    `max_results` issues and renders the "30+" notice when the surplus item is
+    present.
+
+    Passing a list already capped at `max_results` makes the notice condition
+    unreachable, so the list truncates silently. That is the bug this contract
+    exists to prevent.
+
     Args:
-        issues: List of issue data dicts.
-        max_results: Maximum number of issues to display.
+        issues: Issue data dicts, fetched with a limit of `max_results + 1` so
+            the surplus item can prove that more results exist. At most
+            `max_results` of them are displayed.
+        max_results: Maximum number of issues to display. Must be the
+            unincremented cap, not the limit used to fetch `issues`.
 
     Returns:
-        Compact one-line-per-issue text.
+        Compact one-line-per-issue text, with a truncation notice when the
+        surplus item is present.
     """
     if not issues:
         return "No issues found."

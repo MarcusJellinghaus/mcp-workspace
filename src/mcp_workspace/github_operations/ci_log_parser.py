@@ -51,17 +51,24 @@ def truncate_ci_details(
 ) -> str:
     """Truncate CI details with head + tail preservation.
 
-    If the details exceed max_lines, keeps the first head_lines and
-    the last (max_lines - head_lines) lines, inserting a truncation marker.
+    max_lines reaches this function straight from the unvalidated max_log_lines
+    tool parameter, so it is clamped to max(0, max_lines) before anything
+    derives from it. head_lines is then clamped to max_lines // 2, which keeps
+    the tail non-empty for every positive cap. Both clamps are no-ops at the
+    defaults. Details within the clamped cap are returned unchanged; otherwise
+    the first head_lines and the last (max_lines - head_lines) lines are kept
+    around a truncation marker. A clamped cap of 0 yields the marker alone.
 
     Args:
         details: The CI details string to potentially truncate.
-        max_lines: Maximum number of lines to keep (default 300).
-        head_lines: Number of lines to keep from the start (default 10).
+        max_lines: Maximum number of log lines to keep, excluding the marker
+            line itself (default 300). Negative values are treated as 0.
+        head_lines: Number of lines to keep from the start (default 10),
+            reduced to max_lines // 2 when the cap is below twice this value.
 
     Returns:
-        The original string if within limits, or a truncated version
-        with head + tail preservation and a marker showing skipped lines.
+        The original string if within the clamped cap, or a truncated version
+        with head + tail preservation and a marker naming the omitted count.
     """
     if not details:
         return ""
