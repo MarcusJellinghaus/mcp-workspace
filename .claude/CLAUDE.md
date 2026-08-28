@@ -66,6 +66,8 @@ mcp__mcp-tools-py__run_mypy_check
 
 All checks must pass before proceeding.
 
+**Docstrings:** ruff is not in the list above, but CI runs the `D`/`DOC` (pydoclint) rules. When a change adds or edits a docstring, also run `mcp__mcp-tools-py__run_ruff_check` over `src` and `tests` before pushing.
+
 **Pytest:** always use `extra_args: ["-n", "auto"]` for parallel execution.
 
 When debugging test failures, add `"-v", "-s", "--tb=short"` to extra_args.
