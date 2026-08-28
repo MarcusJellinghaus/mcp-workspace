@@ -650,7 +650,8 @@ def github_issue_list(
         capped = max(0, max_results)
         # Over-fetch by one: no total count exists for issue listing, so the
         # surplus item is what proves more results exist. The formatter still
-        # receives the capped value and renders "30+".
+        # receives the capped value; it takes the notice's lower bound from the
+        # over-fetched list, so a default-sized call renders "30 of 31+".
         issues = manager.list_issues(
             state=state,
             labels=labels,
@@ -814,23 +815,21 @@ def github_search(
                 }
             )
         # Read totalCount only after iterating, and only when we collected
-        # something: PyGithub fills it from the first search page we already
-        # fetched, but on an empty result set (or a clamped cap of 0) no page
-        # was fetched and the property falls back to a separate per_page=1
-        # request — the extra call this design exists to avoid.
-        if items:
-            result = format_search_results(items, capped, results.totalCount)
-        elif capped == 0:
-            # No page was fetched, so the true total is unknowable here without
-            # that extra request. Say only what is known: the cap suppressed the
-            # output. "No results found." would claim the search matched
-            # nothing, which this call never established.
-            result = (
-                "... showing 0 of an unknown total — a max_results cap of 0 "
-                "suppressed the output; raise max_results to see results."
-            )
-        else:
-            result = format_search_results(items, capped)
+        # something: PyGithub fills it from the first search page, which the
+        # iteration above already paid for. Neither empty path needs the read,
+        # for a different reason each:
+        #   - clamped cap of 0: islice pulled nothing, so no page was fetched
+        #     and the property would fall back to a separate per_page=1 request
+        #     — the extra call this design exists to avoid.
+        #   - positive cap, no matches: page 1 was fetched and cached
+        #     totalCount == 0, so the read would be free, but the total is
+        #     already known to be 0 and the "No results found." render has no
+        #     use for it.
+        # format_search_results owns both empty renders: it tells the two cases
+        # apart from `capped` alone.
+        result = format_search_results(
+            items, capped, results.totalCount if items else None
+        )
         if not has_qualifier:
             result += "\n(auto-added: is:issue is:pull-request)"
         return result

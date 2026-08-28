@@ -412,9 +412,9 @@ def test_github_search_non_positive_max_results(
 ) -> None:
     """A non-positive cap reports suppression, not an empty result set.
 
-    No page is fetched at a cap of 0, so the true total is unknowable without a
-    separate request. The notice must claim neither a total nor an empty result
-    set, and must still cost no extra API call.
+    A clamped cap of 0 pulls nothing, so no page is fetched and the true total
+    is unknowable without a separate request. The notice must claim neither a
+    total nor an empty result set, and must still cost no extra API call.
     """
     mock_repo = MagicMock()
     mock_repo.full_name = "owner/repo"
@@ -441,7 +441,12 @@ def test_github_search_non_positive_max_results(
 def test_github_search_empty_makes_no_total_count_call(
     mock_manager_cls: MagicMock,
 ) -> None:
-    """A zero-result search never reads totalCount, so it costs no extra request."""
+    """A zero-result search never reads totalCount; a non-empty one reads it once.
+
+    The read is skipped on the empty path not to save a request — page 1 was
+    fetched and cached totalCount == 0 — but because the "No results found."
+    render has no use for a total already known to be 0.
+    """
     mock_repo = MagicMock()
     mock_repo.full_name = "owner/repo"
 

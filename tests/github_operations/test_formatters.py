@@ -371,6 +371,21 @@ class TestFormatSearchResults:
         result = format_search_results([])
         assert result == "No results found."
 
+    @pytest.mark.parametrize("max_results", [0, -1])
+    def test_format_search_results_non_positive_max_results(
+        self, max_results: int
+    ) -> None:
+        """A non-positive cap reports suppression, not an empty result set.
+
+        Such a call collects nothing whatever the search matched, so it never
+        established that there were no results, and has no total to report.
+        """
+        result = format_search_results([], max_results=max_results)
+        assert result == (
+            "... showing 0 of an unknown total — a max_results cap of 0 "
+            "suppressed the output; raise max_results to see results."
+        )
+
     def test_format_search_results_issue_vs_pr(self) -> None:
         """Correct Issue/PR indicator."""
         items = [

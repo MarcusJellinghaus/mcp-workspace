@@ -118,9 +118,12 @@ def format_issue_list(
     """
     max_results = max(0, max_results)
     displayed = issues[:max_results]
-    # Emptiness is judged on the over-fetched list, not the capped one:
-    # "No issues found." must mean the listing was empty, never that the cap
-    # was 0 while the over-fetch proved issues exist.
+    # Emptiness is judged on the over-fetched list, not the capped one, so
+    # "No issues found." never stands for "the cap was 0 while the over-fetch
+    # proved issues exist". It still covers a swallowed API failure:
+    # IssueManager.list_issues is wrapped in @_handle_github_errors with a
+    # default_return of [], which arrives here indistinguishable from a
+    # genuinely empty listing.
     if not issues:
         return "No issues found."
 
@@ -212,12 +215,25 @@ def format_search_results(
         items: List of search result dicts with number, title, state, labels, etc.
         max_results: Maximum number of results to display.
         total_count: Exact total from the search API when known; falls back to
-            len(items).
+            len(items). Callers must pass None whenever `items` is empty, since
+            no page was necessarily fetched to fill it.
 
     Returns:
-        Compact one-line-per-result text with Issue/PR indicator.
+        Compact one-line-per-result text with Issue/PR indicator. An empty
+        `items` renders "No results found." only under a positive cap; a cap of
+        0 renders the suppression notice instead, because such a call never
+        established that the search matched nothing.
     """
     if not items:
+        # A non-positive cap collects nothing regardless of what the search
+        # matched, so no page is fetched and the true total is unknowable
+        # without an extra request. Say only what is known: the cap suppressed
+        # the output.
+        if max_results <= 0:
+            return (
+                "... showing 0 of an unknown total — a max_results cap of 0 "
+                "suppressed the output; raise max_results to see results."
+            )
         return "No results found."
 
     lines: list[str] = []
