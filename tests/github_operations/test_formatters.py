@@ -74,7 +74,8 @@ class TestTruncateOutput:
         assert "line1" in result
         assert "line2" in result
         assert "line3" not in result
-        assert "... truncated, 10 lines total" in result
+        assert "showing 3 of 10 lines" in result
+        assert "max_lines=10" in result
 
     def test_truncate_output_exact_limit(self) -> None:
         """Text at exact limit not truncated."""
@@ -140,7 +141,8 @@ class TestFormatIssueView:
         """Long output truncated with indicator."""
         issue = _make_issue(body="\n".join(f"line {i}" for i in range(300)))
         result = format_issue_view(issue, comments=[], max_lines=10)
-        assert "truncated" in result
+        assert "showing 10 of 304 lines" in result
+        assert "max_lines=304" in result
 
     def test_format_issue_view_empty_body(self) -> None:
         """'(no description)' placeholder for empty body."""

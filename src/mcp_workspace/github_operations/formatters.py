@@ -40,7 +40,10 @@ def truncate_output(text: str, max_lines: int) -> str:
     if len(lines) <= max_lines:
         return text
     total = len(lines)
-    return "\n".join(lines[:max_lines]) + f"\n\n... truncated, {total} lines total"
+    return "\n".join(lines[:max_lines]) + (
+        f"\n\n... truncated: showing {max_lines} of {total} lines. "
+        f"Pass max_lines={total} for the full output."
+    )
 
 
 def format_issue_view(
