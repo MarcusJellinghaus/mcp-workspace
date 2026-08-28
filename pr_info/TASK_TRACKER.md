@@ -27,7 +27,7 @@ Details: [step_1.md](./steps/step_1.md)
 
 - [x] Implementation: add `IssueIdentityMismatchError` and `BaseGitHubManager._get_issue_checked()` in `github_operations/base_manager.py`, export from `github_operations/__init__.py`; tests first in `tests/github_operations/test_base_manager.py` (`TestGetIssueChecked`, 4 cases) and `test_package_exports.py`. No call sites routed.
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared (blocked: `pr_info/.commit_message.txt` is gitignored and rejected by `save_file`; text is in the run output)
+- [x] Commit message prepared — text applied as commit `2d583ec`. The file `pr_info/.commit_message.txt` could not be written: it is gitignored (`.gitignore:48`) and every MCP write tool (`save_file`, `append_file`, `edit_file`) refuses gitignored paths; no shell tool is available as a fallback. To use the file in later steps, drop line 48 from `.gitignore` or allowlist the path in the workspace MCP server.
 
 ### Step 2: Prepare test fixtures for the guard
 
