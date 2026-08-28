@@ -25,9 +25,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 Details: [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: add `IssueIdentityMismatchError` and `BaseGitHubManager._get_issue_checked()` in `github_operations/base_manager.py`, export from `github_operations/__init__.py`; tests first in `tests/github_operations/test_base_manager.py` (`TestGetIssueChecked`, 4 cases) and `test_package_exports.py`. No call sites routed.
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add `IssueIdentityMismatchError` and `BaseGitHubManager._get_issue_checked()` in `github_operations/base_manager.py`, export from `github_operations/__init__.py`; tests first in `tests/github_operations/test_base_manager.py` (`TestGetIssueChecked`, 4 cases) and `test_package_exports.py`. No call sites routed.
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared (blocked: `pr_info/.commit_message.txt` is gitignored and rejected by `save_file`; text is in the run output)
 
 ### Step 2: Prepare test fixtures for the guard
 

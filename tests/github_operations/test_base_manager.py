@@ -10,6 +10,7 @@ from github.GithubException import GithubException
 
 from mcp_workspace.github_operations.base_manager import (
     BaseGitHubManager,
+    IssueIdentityMismatchError,
     _handle_github_errors,
     get_authenticated_username,
 )
@@ -1490,3 +1491,76 @@ class TestGetAuthenticatedUsernameDebugLogging:
 
         assert raw_token not in caplog.text
         assert "ghp_..._xyz" in caplog.text
+
+
+class TestGetIssueChecked:
+    """Unit tests for BaseGitHubManager._get_issue_checked() identity guard."""
+
+    @staticmethod
+    def _make_manager() -> BaseGitHubManager:
+        """Build a BaseGitHubManager without running __init__."""
+        return BaseGitHubManager.__new__(BaseGitHubManager)
+
+    def test_matching_issue_is_returned(self) -> None:
+        """Test that a same-repo, same-number issue is returned unchanged."""
+        manager = self._make_manager()
+        repo = Mock()
+        repo.full_name = "test/repo"
+        issue = Mock()
+        issue.number = 72
+        issue.repository_url = "https://api.github.com/repos/test/repo"
+        repo.get_issue.return_value = issue
+
+        result = manager._get_issue_checked(repo, 72)
+
+        assert result is issue
+        repo.get_issue.assert_called_once_with(72)
+
+    def test_repository_mismatch_raises(self) -> None:
+        """Test that an issue from another repository raises with the target."""
+        manager = self._make_manager()
+        repo = Mock()
+        repo.full_name = "test/repo"
+        issue = Mock()
+        issue.number = 220
+        issue.repository_url = "https://api.github.com/repos/test/other-repo"
+        issue.html_url = "https://github.com/test/other-repo/issues/220"
+        repo.get_issue.return_value = issue
+
+        with pytest.raises(IssueIdentityMismatchError) as exc_info:
+            manager._get_issue_checked(repo, 72)
+
+        message = str(exc_info.value)
+        assert "was transferred to test/other-repo#220" in message
+        assert "https://github.com/test/other-repo/issues/220" in message
+        assert not message.startswith("Error: ")
+        assert isinstance(exc_info.value, ValueError)
+
+    def test_number_mismatch_raises(self) -> None:
+        """Test that a same-repo issue with a different number raises."""
+        manager = self._make_manager()
+        repo = Mock()
+        repo.full_name = "test/repo"
+        issue = Mock()
+        issue.number = 220
+        issue.repository_url = "https://api.github.com/repos/test/repo"
+        repo.get_issue.return_value = issue
+
+        with pytest.raises(IssueIdentityMismatchError) as exc_info:
+            manager._get_issue_checked(repo, 72)
+
+        assert "Requested issue #72 but GitHub returned #220" in str(exc_info.value)
+
+    def test_case_insensitive_rename_does_not_raise(self) -> None:
+        """Test that a case-only repository name difference is not a mismatch."""
+        manager = self._make_manager()
+        repo = Mock()
+        repo.full_name = "test/NewName"
+        issue = Mock()
+        issue.number = 72
+        issue.repository_url = "https://api.github.com/repos/test/newname"
+        repo.get_issue.return_value = issue
+
+        result = manager._get_issue_checked(repo, 72)
+
+        assert result is issue
