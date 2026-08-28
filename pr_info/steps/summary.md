@@ -62,11 +62,14 @@ Six design decisions are worth recording:
    `format_report_for_llm` → `truncate_ci_details` uses a hard-coded 300 that
    `max_log_lines` cannot lift. Both call sites now pass `max_lines=max_log_lines`. No
    signature changes; both defaults are 300, so default-sized reports are unchanged.
-   Threading it also makes `max_lines <= head_lines` reachable for the first time (the
-   render cap was a hard-coded 300), where `tail_lines` went negative and
-   `lines[-tail_lines:]` duplicated the log under a marker claiming it was cut. So
-   `truncate_ci_details` clamps `head_lines` to `max_lines // 2` and takes the tail only
-   when `tail_lines` is non-zero — a no-op at the default.
+   Threading it also makes small and non-positive caps reachable for the first time (the
+   render cap was a hard-coded 300, and `check_branch_status(max_log_lines=...)` is
+   unvalidated), where `tail_lines` went negative and `lines[-tail_lines:]` duplicated the
+   log under a marker claiming it was cut. So `truncate_ci_details` clamps `max_lines` to
+   `max(0, max_lines)` before the length guard — mirroring step 5's `max(0, max_results)`
+   guard on the other unvalidated tool parameter — then clamps `head_lines` to
+   `max_lines // 2` and takes the tail only when `tail_lines` is non-zero. Both clamps are
+   no-ops at the default.
 
 5. **`github_search` stops before the surplus item (step 5).** The `i >= max_results`
    guard pulls item `max_results` before breaking, which fetches a second search page
@@ -159,7 +162,7 @@ one commit: tests + implementation + all three checks passing.
 |---|---|---|
 | 1 | `formatters.truncate_output` — feeds `github_issue_view` / `github_pr_view` | `test_formatters.py:77` |
 | 2 | `output_filtering.truncate_output` — feeds the `git` tool | `test_output_filtering.py:190, 199` |
-| 3 | `ci_log_parser` — marker helper, both sites, "Other failed jobs" header, `head_lines` clamp, plus `max_log_lines` threaded to the render-stage cap | `test_ci_log_parser.py:42, 49, 351`, new small-cap test, new polling test |
+| 3 | `ci_log_parser` — marker helper, both sites, "Other failed jobs" header, `max_lines` + `head_lines` clamps, plus `max_log_lines` threaded to the render-stage cap | `test_ci_log_parser.py:42, 49, 351`, new small/non-positive-cap test, new polling test |
 | 4 | `github_issue_list` silent truncation | `test_formatters.py:181`, `test_github_read_tools.py:233` |
 | 5 | `github_search` silent truncation | `test_formatters.py:363`, new exact-total and non-positive-cap tests |
 | 6 | `pr_feedback` reorder + messages + conditional footer | `test_branch_status_pr_feedback.py:199, 362` |

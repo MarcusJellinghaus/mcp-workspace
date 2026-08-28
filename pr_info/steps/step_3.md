@@ -43,15 +43,24 @@ marker names the one that governs the cut. Defaults are unchanged: `max_log_line
 byte-identically.
 
 **Threading it also makes `truncate_ci_details` reachable with a small cap, so the
-head/tail split must be made safe first.** `check_branch_status(max_log_lines=...)` is
-unvalidated, and today the render-stage cap is a hard-coded 300 that is always well above
-`head_lines=10`. Once `max_log_lines` governs it, `max_lines <= head_lines` becomes
-reachable: `tail_lines = max_lines - head_lines` (line 52) turns 0 or negative, and
+head/tail split must be made safe first.** `check_branch_status(max_log_lines=...)`
+(`server.py:885`) is **unvalidated** — the value reaches this function directly — and
+today the render-stage cap is a hard-coded 300 that is always well above `head_lines=10`.
+Once `max_log_lines` governs it, `max_lines <= head_lines` becomes reachable:
+`tail_lines = max_lines - head_lines` (line 52) turns 0 or negative, and
 `lines[-tail_lines:]` then evaluates to `lines[0:]` / `lines[N:]` — the log is duplicated
 and not truncated at all, while the marker claims `showing {max_lines} of {total}`. That
-is a false notice, exactly what this issue exists to remove. Clamp `head_lines` so
-`tail_lines` can never go negative (see ALGORITHM); with the default `max_lines=300` the
-clamp is a no-op, so nothing about default-sized output changes.
+is a false notice, exactly what this issue exists to remove.
+
+**Two clamps are needed, not one.** A `head_lines` clamp alone still breaks on a negative
+`max_lines`, which is equally reachable: at `max_log_lines=-1`, `-1 // 2 == -1`, so
+`head_lines` becomes `-1` and `lines[:-1]` emits nearly the whole log under a marker
+reading `showing -1 of {total}`; at `max_log_lines=-5`, `head = lines[:-3]` and
+`tail = lines[2:]` overlap and the log is duplicated. So clamp `max_lines` to
+`max(0, max_lines)` **first**, mirroring step 5's `max(0, max_results)` guard on the other
+unvalidated tool parameter, and only then derive `head_lines` from it (see ALGORITHM).
+With the default `max_lines=300` both clamps are no-ops, so nothing about default-sized
+output changes.
 
 The third caller, `truncate_ci_details` at `branch_status.py:204`, sits in
 `get_failed_jobs_summary`, which is in `__all__` but has no production callers — only
@@ -59,8 +68,8 @@ tests — so naming the parameter is still safe.
 
 ## WHERE
 
-- `src/mcp_workspace/github_operations/ci_log_parser.py` — new private helper; lines 52-57
-  (helper call + `head_lines` clamp), 344-352, 371
+- `src/mcp_workspace/github_operations/ci_log_parser.py` — new private helper; lines 45-57
+  (`max_lines` clamp + helper call + `head_lines` clamp), 344-352, 371
 - `src/mcp_workspace/checks/branch_status_polling.py` — `format_for_llm` call sites,
   lines 124 and 154
 - `tests/github_operations/test_ci_log_parser.py` — `test_truncation_marker_shows_count`
@@ -90,13 +99,23 @@ Do **not** add `_truncation_marker` to `__all__` — it is private.
 
 ## HOW
 
-Call site 1 — `truncate_ci_details`, lines 52-57. Clamp `head_lines` to `max_lines // 2`
-first, so `tail_lines = max_lines - head_lines` is never negative and the tail slice is
-never `lines[0:]`. The clamp keeps `head_lines + tail_lines == max_lines` exactly, so
-`max_lines` is still the correct `kept` argument — pass it directly and **delete the
-now-unused `truncated_count` local** at line 55. Halving rather than truncating the head
-keeps the tail (the failure) when the cap is tiny, and `tail_lines == 0` still needs the
-conditional slice because `lines[-0:]` is the whole list.
+Call site 1 — `truncate_ci_details`, lines 45-57. Two clamps, in this order:
+
+1. `max_lines = max(0, max_lines)`, placed immediately after the `if not details` early
+   return and **before** the `len(lines) <= max_lines` guard, so every downstream
+   computation — the guard, `head_lines`, `tail_lines` and the marker's `kept` — sees a
+   non-negative cap. This mirrors step 5's `max(0, max_results)` guard on the other
+   unvalidated tool parameter.
+2. `head_lines = min(head_lines, max_lines // 2)`, so `tail_lines = max_lines - head_lines`
+   is never negative and the tail slice is never `lines[0:]`.
+
+Together the clamps keep `head_lines + tail_lines == max_lines` exactly and both
+non-negative, so the clamped `max_lines` is still the correct `kept` argument — pass it
+directly and **delete the now-unused `truncated_count` local** at line 55. Halving rather
+than truncating the head keeps the tail (the failure) when the cap is tiny, and
+`tail_lines == 0` still needs the conditional slice because `lines[-0:]` is the whole
+list. At the degenerate `max_lines=0` the function returns the marker alone, which reads
+`showing 0 of {total}` — honest, and no line is emitted twice.
 
 Call site 2 — `build_ci_error_details`, lines 344-350. Here
 `kept == head_count + tail_count`.
@@ -115,7 +134,14 @@ already accept `max_lines`; only the two call sites gain the keyword.
 def _truncation_marker(kept, total):
     return f"[... {total - kept} lines omitted: showing {kept} of {total} — raise max_log_lines for more ...]"
 
-# truncate_ci_details, replacing lines 52-57
+# truncate_ci_details, replacing lines 45-57
+# max_lines arrives straight from the unvalidated check_branch_status
+# parameter, so clamp it before anything derives from it: a negative cap
+# made head_lines negative (-1 // 2 == -1), so lines[:-1] emitted almost
+# the whole log under a marker reading "showing -1 of {total}".
+max_lines = max(0, max_lines)
+if len(lines) <= max_lines:                  # unchanged guard, clamped value
+    return details
 # min() is a no-op at the default (max_lines=300, head_lines=10); it only
 # fires when the caller's max_log_lines is below 2 * head_lines, where the
 # old arithmetic produced a negative tail_lines and duplicated the log.
@@ -192,19 +218,29 @@ In `tests/github_operations/test_ci_log_parser.py`:
    ```python
    assert "## Other failed jobs (logs omitted — raise max_log_lines to include them)" in result
    ```
-6. **Add one parameterized test for a small cap** — the case the render-stage threading
-   newly makes reachable via `check_branch_status(max_log_lines=...)`:
+6. **Add one parameterized test for a small or non-positive cap** — the cases the
+   render-stage threading newly makes reachable via
+   `check_branch_status(max_log_lines=...)`, which is unvalidated:
    ```python
-   @pytest.mark.parametrize("max_lines", [10, 3])
+   @pytest.mark.parametrize("max_lines", [10, 3, 0, -5])
    def test_small_cap_truncates_without_duplicating(self, max_lines: int) -> None:
-       """A cap at or below head_lines still truncates, and the marker counts hold."""
+       """A small, zero or negative cap still truncates, and the marker counts hold."""
    ```
    Call `truncate_ci_details(content, max_lines=max_lines)` on 300 numbered lines with the
-   **default** `head_lines=10`. Assert the result has `max_lines + 1` lines (the kept
-   lines plus the marker), that it contains
-   `f"showing {max_lines} of 300"`, that the omitted count in the marker equals
-   `300 - max_lines`, and that no line appears twice (`len(set(body)) == len(body)` over
-   the non-marker lines) — the pre-clamp arithmetic duplicated the head inside the tail.
+   **default** `head_lines=10`, and compare against the clamped cap
+   `expected = max(0, max_lines)`. Assert:
+
+   - the result has `expected + 1` lines (the kept lines plus the marker) — so at 0 and
+     -5 the result is the marker alone, not the whole log;
+   - it contains `f"showing {expected} of 300"` — never a negative count;
+   - the omitted count in the marker equals `300 - expected` and is `>= 0`;
+   - no line appears twice (`len(set(body)) == len(body)` over the non-marker lines) — the
+     pre-clamp arithmetic duplicated the head inside the tail at `max_lines=-5`, and
+     emitted `lines[:-1]` at `-1`.
+
+   The `10` and `3` cases cover the `head_lines` clamp; the `0` and `-5` cases cover the
+   `max(0, max_lines)` clamp. Without both clamps this test fails on the negative cases
+   with a marker claiming a negative `kept`.
 
 7. **Add one test for the render-stage cap** in
    `tests/checks/test_branch_status_polling_orchestrator.py`, so the parameter the marker
@@ -221,10 +257,11 @@ In `tests/github_operations/test_ci_log_parser.py`:
    The two `assert result == report.format_for_llm()` assertions (lines 79 and 490) keep
    passing untouched: both defaults are 300, so passing it explicitly changes nothing.
 
-   Tests 6 and 7 together cover `check_branch_status(max_log_lines=10)`: test 7 proves the
-   value reaches the render-stage cap, test 6 proves that cap truncates honestly at 10 and
-   below. No end-to-end `check_branch_status` test is added — it would need the full CI /
-   PR mock stack for one arithmetic guard.
+   Tests 6 and 7 together cover `check_branch_status(max_log_lines=10)` and any smaller,
+   zero or negative value: test 7 proves the value reaches the render-stage cap, test 6
+   proves that cap truncates honestly at 10 and below, including non-positive values. No
+   end-to-end `check_branch_status` test is added — it would need the full CI / PR mock
+   stack for two arithmetic guards.
 
 Run pytest, confirm failures, then implement.
 
@@ -253,10 +290,14 @@ One commit: `Unify the CI log truncation marker and honour max_log_lines at the 
 >
 > Then in `src/mcp_workspace/github_operations/ci_log_parser.py`: add the private
 > `_truncation_marker(kept: int, total: int) -> str` helper with the docstring given in
-> the step file, clamp `head_lines` to `max_lines // 2` in `truncate_ci_details` and take
-> the tail only when `tail_lines` is non-zero (see the ALGORITHM section — without this,
-> a `max_log_lines` at or below `head_lines` duplicates the log and makes the marker
-> lie), call the helper from both `truncate_ci_details` (passing `max_lines` directly,
+> the step file, apply **both** clamps in `truncate_ci_details` — first
+> `max_lines = max(0, max_lines)` before the `len(lines) <= max_lines` guard, then
+> `head_lines = min(head_lines, max_lines // 2)` — and take the tail only when
+> `tail_lines` is non-zero (see the ALGORITHM section — without the first clamp a negative
+> `max_log_lines` emits `lines[:-1]` or overlapping head/tail slices under a marker
+> claiming a negative `kept`; without the second, a `max_log_lines` at or below
+> `head_lines` duplicates the log and makes the marker lie), call the helper from both
+> `truncate_ci_details` (passing the clamped `max_lines` directly,
 > and delete the now-unused `truncated_count` local) and `build_ci_error_details`
 > (passing `head_count + tail_count`), and replace the `## Other failed jobs` header at
 > line 371. Do not add the helper to `__all__`. Do not add a pasteable
