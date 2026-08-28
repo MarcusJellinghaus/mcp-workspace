@@ -589,7 +589,16 @@ async def git(
 
 
 def _issue_manager(reference_name: Optional[str]) -> "IssueManager":
-    """Build an IssueManager for the workspace repo or a reference project."""
+    """Build an IssueManager for the workspace repo or a reference project.
+
+    Args:
+        reference_name: Optional reference project name. When None, the
+            workspace repository is used.
+
+    Returns:
+        An IssueManager bound to the workspace repository when reference_name
+        is None, otherwise to the reference project's repository URL.
+    """
     # Lazy import: keeps PyGithub off the server startup import path
     from mcp_workspace.github_operations.issues import IssueManager
 

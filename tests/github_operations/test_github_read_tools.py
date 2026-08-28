@@ -2,14 +2,13 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Generator
+from typing import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from mcp_workspace.github_operations import IssueIdentityMismatchError
-from mcp_workspace.github_operations.issues.types import CommentData, IssueData
-from mcp_workspace.reference_projects import ReferenceProject
+from mcp_workspace.github_operations.issues.types import IssueData
 from mcp_workspace.server import (
     github_issue_list,
     github_issue_view,
@@ -17,7 +16,8 @@ from mcp_workspace.server import (
     github_search,
     set_project_dir,
 )
-from mcp_workspace.server_reference_tools import set_reference_projects
+
+from ._github_read_tools_helpers import make_comment, make_issue, mock_pull
 
 
 @pytest.fixture(autouse=True)
@@ -25,46 +25,6 @@ def setup_server(project_dir: Path) -> Generator[None, None, None]:
     """Setup the server with the project directory."""
     set_project_dir(project_dir)
     yield
-
-
-def _make_issue(
-    number: int = 42,
-    title: str = "Test issue",
-    body: str = "Issue body text",
-    state: str = "open",
-    labels: list[str] | None = None,
-    assignees: list[str] | None = None,
-) -> IssueData:
-    """Create an IssueData for testing."""
-    return IssueData(
-        number=number,
-        title=title,
-        body=body,
-        state=state,
-        labels=labels or ["bug"],
-        assignees=assignees or ["alice"],
-        user="alice",
-        created_at="2024-01-01T00:00:00",
-        updated_at="2024-01-02T00:00:00",
-        url="https://github.com/test/repo/issues/42",
-        locked=False,
-    )
-
-
-def _make_comment(
-    comment_id: int = 1,
-    body: str = "A comment",
-    user: str = "bob",
-) -> CommentData:
-    """Create a CommentData for testing."""
-    return CommentData(
-        id=comment_id,
-        body=body,
-        user=user,
-        created_at="2024-01-03T00:00:00",
-        updated_at=None,
-        url="https://github.com/test/repo/issues/42#issuecomment-1",
-    )
 
 
 # =============================================================================
@@ -75,7 +35,7 @@ def _make_comment(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_basic(mock_manager_cls: MagicMock) -> None:
     """Returns formatted text with title, state, body."""
-    issue = _make_issue()
+    issue = make_issue()
     mock_mgr = MagicMock()
     mock_mgr.get_issue.return_value = issue
     mock_mgr.get_comments.return_value = []
@@ -93,8 +53,8 @@ def test_github_issue_view_basic(mock_manager_cls: MagicMock) -> None:
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_with_comments(mock_manager_cls: MagicMock) -> None:
     """Comments included when include_comments=True."""
-    issue = _make_issue()
-    comments = [_make_comment(body="Great work!")]
+    issue = make_issue()
+    comments = [make_comment(body="Great work!")]
     mock_mgr = MagicMock()
     mock_mgr.get_issue.return_value = issue
     mock_mgr.get_comments.return_value = comments
@@ -110,7 +70,7 @@ def test_github_issue_view_with_comments(mock_manager_cls: MagicMock) -> None:
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_without_comments(mock_manager_cls: MagicMock) -> None:
     """No comments when include_comments=False."""
-    issue = _make_issue()
+    issue = make_issue()
     mock_mgr = MagicMock()
     mock_mgr.get_issue.return_value = issue
     mock_manager_cls.return_value = mock_mgr
@@ -185,8 +145,8 @@ def test_github_issue_view_error(mock_manager_cls: MagicMock) -> None:
 def test_github_issue_list_basic(mock_manager_cls: MagicMock) -> None:
     """Returns compact summary lines."""
     issues = [
-        _make_issue(number=1, title="First"),
-        _make_issue(number=2, title="Second"),
+        make_issue(number=1, title="First"),
+        make_issue(number=2, title="Second"),
     ]
     mock_mgr = MagicMock()
     mock_mgr.list_issues.return_value = issues
@@ -251,36 +211,11 @@ def test_github_issue_list_error(mock_manager_cls: MagicMock) -> None:
 # =============================================================================
 
 
-def _mock_pull(
-    number: int = 10,
-    title: str = "Fix bug",
-    body: str = "PR body text",
-    state: str = "open",
-    draft: bool = False,
-    merged: bool = False,
-    head_branch: str = "feature",
-    base_branch: str = "main",
-) -> MagicMock:
-    """Create a mock PR object resembling PyGithub PullRequest."""
-    pr = MagicMock()
-    pr.number = number
-    pr.title = title
-    pr.body = body
-    pr.state = state
-    pr.draft = draft
-    pr.merged = merged
-    pr.head.ref = head_branch
-    pr.base.ref = base_branch
-    pr.get_reviews.return_value = []
-    pr.get_review_comments.return_value = []
-    return pr
-
-
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_pr_view_basic(mock_manager_cls: MagicMock) -> None:
     """Returns formatted text with title, state, branches."""
     mock_repo = MagicMock()
-    mock_pr = _mock_pull()
+    mock_pr = mock_pull()
     mock_repo.get_pull.return_value = mock_pr
 
     mock_mgr = MagicMock()
@@ -301,7 +236,7 @@ def test_github_pr_view_basic(mock_manager_cls: MagicMock) -> None:
 def test_github_pr_view_with_comments(mock_manager_cls: MagicMock) -> None:
     """Reviews + conversation + inline comments rendered."""
     mock_repo = MagicMock()
-    mock_pr = _mock_pull()
+    mock_pr = mock_pull()
 
     review = MagicMock()
     review.user.login = "reviewer1"
@@ -342,7 +277,7 @@ def test_github_pr_view_with_comments(mock_manager_cls: MagicMock) -> None:
 def test_github_pr_view_without_comments(mock_manager_cls: MagicMock) -> None:
     """No comment sections when include_comments=False."""
     mock_repo = MagicMock()
-    mock_pr = _mock_pull()
+    mock_pr = mock_pull()
     mock_repo.get_pull.return_value = mock_pr
 
     mock_mgr = MagicMock()
@@ -625,148 +560,3 @@ def test_github_search_qualifier_injection(
     else:
         assert "is:issue is:pull-request" not in sent_query
         assert "(auto-added: is:issue is:pull-request)" not in result
-
-
-# =============================================================================
-# reference_name tests
-# =============================================================================
-
-
-@pytest.fixture
-def reference_projects() -> Generator[None, None, None]:
-    """Configure two reference projects with paths that do not exist.
-
-    The paths are deliberately non-existent: a GitHub read must resolve through
-    the configured URL and never touch (or clone) a working tree.
-    """
-    set_reference_projects(
-        {
-            "sibling": ReferenceProject(
-                name="sibling",
-                path=Path("/does/not/exist"),
-                url="https://github.com/owner/sibling",
-            ),
-            "nourl": ReferenceProject(
-                name="nourl", path=Path("/does/not/exist/2"), url=None
-            ),
-        }
-    )
-    yield
-    set_reference_projects({})
-
-
-def _configure_manager(mock_mgr: MagicMock) -> None:
-    """Set up a mock IssueManager that satisfies all four read tools."""
-    # pylint: disable=protected-access
-    mock_mgr.get_issue.return_value = _make_issue()
-    mock_mgr.get_comments.return_value = []
-    mock_mgr.list_issues.return_value = []
-    mock_repo = MagicMock()
-    mock_repo.full_name = "owner/sibling"
-    mock_repo.get_pull.return_value = _mock_pull()
-    mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
-
-
-_TOOL_CASES: list[tuple[Callable[..., str], dict[str, Any]]] = [
-    (github_issue_view, {"number": 42}),
-    (github_issue_list, {}),
-    (github_pr_view, {"number": 10}),
-    (github_search, {"query": "x"}),
-]
-_TOOL_IDS = ["issue_view", "issue_list", "pr_view", "search"]
-
-
-@pytest.mark.parametrize(("tool", "kwargs"), _TOOL_CASES, ids=_TOOL_IDS)
-@patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_reference_name_uses_repo_url(
-    mock_manager_cls: MagicMock,
-    tool: Callable[..., str],
-    kwargs: dict[str, Any],
-    reference_projects: None,  # pylint: disable=unused-argument
-) -> None:
-    """All four tools construct IssueManager with the reference project's URL."""
-    mock_mgr = MagicMock()
-    _configure_manager(mock_mgr)
-    mock_manager_cls.return_value = mock_mgr
-
-    tool(**kwargs, reference_name="sibling")
-
-    assert mock_manager_cls.call_args.kwargs == {
-        "repo_url": "https://github.com/owner/sibling"
-    }
-
-
-@patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_no_reference_name_uses_project_dir(
-    mock_manager_cls: MagicMock, project_dir: Path
-) -> None:
-    """Without reference_name the workspace project_dir is used, unchanged."""
-    mock_mgr = MagicMock()
-    _configure_manager(mock_mgr)
-    mock_manager_cls.return_value = mock_mgr
-
-    github_issue_view(number=42)
-
-    assert mock_manager_cls.call_args.kwargs == {"project_dir": project_dir}
-
-
-@pytest.mark.parametrize(("tool", "kwargs"), _TOOL_CASES, ids=_TOOL_IDS)
-@patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_unknown_reference_name_returns_error(
-    mock_manager_cls: MagicMock,
-    tool: Callable[..., str],
-    kwargs: dict[str, Any],
-    reference_projects: None,  # pylint: disable=unused-argument
-) -> None:
-    """An unknown reference name is returned as an error string, not raised."""
-    result = tool(**kwargs, reference_name="nope")
-
-    assert result == "Error: Reference project 'nope' not found"
-    mock_manager_cls.assert_not_called()
-
-
-@patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_reference_project_without_url_returns_error(
-    mock_manager_cls: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
-) -> None:
-    """A reference project with no configured URL yields an error string."""
-    result = github_issue_view(number=42, reference_name="nourl")
-
-    assert result == "Error: Reference project 'nourl' has no URL configured"
-    mock_manager_cls.assert_not_called()
-
-
-@patch("mcp_workspace.server_reference_tools.ensure_available")
-@patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_reference_read_does_not_clone(
-    mock_manager_cls: MagicMock,
-    mock_ensure_available: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
-) -> None:
-    """Reading from a reference project never clones its working tree."""
-    mock_mgr = MagicMock()
-    _configure_manager(mock_mgr)
-    mock_manager_cls.return_value = mock_mgr
-
-    github_issue_view(number=42, reference_name="sibling")
-
-    mock_ensure_available.assert_not_called()
-
-
-@patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_reference_name_scopes_search_query(
-    mock_manager_cls: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
-) -> None:
-    """github_search scopes to the reference repository in repo_url mode."""
-    mock_mgr = MagicMock()
-    _configure_manager(mock_mgr)
-    mock_manager_cls.return_value = mock_mgr
-
-    github_search(query="x", reference_name="sibling")
-
-    # pylint: disable=protected-access
-    sent_query = mock_mgr._github_client.search_issues.call_args.kwargs["query"]
-    assert sent_query.startswith("repo:owner/sibling")
