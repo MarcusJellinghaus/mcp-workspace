@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import (
     IssueBranchManager,
 )
@@ -318,6 +319,35 @@ class TestCreateLinkedBranch:
 
         # Verify result - should return default error result due to decorator
         assert result["success"] is False
+
+    def test_transferred_issue_blocks_branch_creation(
+        self, mock_manager: IssueBranchManager
+    ) -> None:
+        """The routed fetch raises before the createLinkedBranch mutation runs."""
+        mock_repo = Mock()
+        mock_repo.node_id = "R_kgDOABCDEF"
+        mock_repo.default_branch = "main"
+        mock_repo.owner.login = "test-owner"
+        mock_repo.name = "test-repo"
+        mock_repo.full_name = "test/repo"
+        mock_manager._repository = mock_repo
+
+        mock_repo.get_issue = Mock(
+            return_value=make_mock_issue(220, repo_full_name="test/other-repo")
+        )
+        mock_repo.get_branch = Mock()
+        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+
+        mock_requester = Mock()
+        mock_manager._github_client._Github__requester = mock_requester  # type: ignore[attr-defined]
+
+        with pytest.raises(
+            IssueIdentityMismatchError, match="was transferred to test/other-repo#220"
+        ):
+            mock_manager.create_remote_branch_for_issue(72)
+
+        mock_requester.graphql_named_mutation.assert_not_called()
+        mock_repo.get_branch.assert_not_called()
 
     def test_permission_error(self, mock_manager: IssueBranchManager) -> None:
         """Test creating branch when user lacks permissions.

@@ -141,7 +141,7 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             >>> issue = manager.get_issue(123)
             >>> print(f"Issue: {issue['title']}")
             >>> print(f"Assignees: {issue['assignees']}")
-        """
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate issue number
         validate_issue_number(issue_number)
 
@@ -317,7 +317,7 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
         Example:
             >>> closed_issue = manager.close_issue(123)
             >>> print(f"Issue state: {closed_issue['state']}")
-        """
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate issue number
         validate_issue_number(issue_number)
 
@@ -372,7 +372,7 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
         Example:
             >>> reopened_issue = manager.reopen_issue(123)
             >>> print(f"Issue state: {reopened_issue['state']}")
-        """
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate issue number
         validate_issue_number(issue_number)
 

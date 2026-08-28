@@ -60,7 +60,7 @@ class EventsMixin:
             >>> labeled = manager.get_issue_events(123, IssueEventType.LABELED)
             >>> for event in labeled:
             ...     print(f"Label '{event['label']}' added at {event['created_at']}")
-        """
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate issue number
         validate_issue_number(issue_number)
 

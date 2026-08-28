@@ -8,6 +8,7 @@ import git
 import pytest
 from github.GithubException import GithubException
 
+from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import IssueEventType, IssueManager
 from mcp_workspace.github_operations.issues.base import (
     validate_comment_id,
@@ -118,3 +119,17 @@ class TestIssueManagerEvents:
         result = mock_issue_manager.get_issue_events(issue_number)
 
         assert len(result) == 0
+
+    def test_get_issue_events_transferred_issue_raises(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """The routed events fetch raises before reading the other repository."""
+        transferred = make_mock_issue(220, repo_full_name="test/other-repo")
+        mock_issue_manager._repository.get_issue.return_value = transferred
+
+        with pytest.raises(
+            IssueIdentityMismatchError, match="was transferred to test/other-repo#220"
+        ):
+            mock_issue_manager.get_issue_events(72)
+
+        transferred.get_events.assert_not_called()

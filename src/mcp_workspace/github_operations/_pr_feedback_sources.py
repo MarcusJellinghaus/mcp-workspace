@@ -130,7 +130,7 @@ def fetch_conversation_comments(
     Raises:
         IssueIdentityMismatchError: If GitHub returns an issue from another
             repository (the issue was transferred) or with a different number.
-    """
+    """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
     repo = manager._get_repository()  # pylint: disable=protected-access
     if repo is None:
         return []

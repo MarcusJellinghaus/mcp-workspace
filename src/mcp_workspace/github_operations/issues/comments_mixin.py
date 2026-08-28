@@ -58,7 +58,7 @@ class CommentsMixin:
         Example:
             >>> comment = manager.add_comment(123, "This is a test comment")
             >>> print(f"Created comment {comment['id']}")
-        """
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate issue number
         validate_issue_number(issue_number)
 
@@ -121,7 +121,7 @@ class CommentsMixin:
             >>> comments = manager.get_comments(123)
             >>> for comment in comments:
             ...     print(f"{comment['user']}: {comment['body']}")
-        """
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate issue number
         validate_issue_number(issue_number)
 
@@ -188,7 +188,7 @@ class CommentsMixin:
         Example:
             >>> comment = manager.edit_comment(123, 456789, "Updated comment text")
             >>> print(f"Updated comment {comment['id']}")
-        """
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate issue number
         validate_issue_number(issue_number)
 
@@ -263,7 +263,7 @@ class CommentsMixin:
         Example:
             >>> success = manager.delete_comment(123, 456789)
             >>> print(f"Deletion {'successful' if success else 'failed'}")
-        """
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate issue number
         validate_issue_number(issue_number)
 

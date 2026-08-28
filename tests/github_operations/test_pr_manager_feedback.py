@@ -450,6 +450,36 @@ class TestGetPRFeedback:
         with pytest.raises(IssueIdentityMismatchError):
             fetch_conversation_comments(mock_manager, 72)
 
+    def test_conversation_comments_transferred_reported_unavailable(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Through get_pr_feedback the guard surfaces as unavailable['comments']."""
+        graphql_response: dict[str, Any] = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {"nodes": []},
+                        "reviews": {"nodes": []},
+                    }
+                }
+            }
+        }
+        mock_repo = self._setup_mocks(
+            mock_manager,
+            graphql_response=graphql_response,
+            alerts_response=[],
+        )
+        transferred = make_mock_issue(220, repo_full_name="test/other-repo")
+        mock_repo.get_issue = Mock(return_value=transferred)
+
+        result = mock_manager.get_pr_feedback(72)
+
+        assert result["conversation_comments"] == []
+        reason = result["unavailable"]["comments"]
+        assert isinstance(reason, IssueIdentityMismatchError)
+        assert "was transferred to test/other-repo#220" in str(reason)
+        transferred.get_comments.assert_not_called()
+
     def test_invalid_pr_number(self, mock_manager: PullRequestManager) -> None:
         """pr_number=0 → empty PRFeedback."""
         result = mock_manager.get_pr_feedback(0)

@@ -87,7 +87,7 @@ class LabelsMixin:
         Example:
             >>> updated_issue = manager.add_labels(123, "bug", "high-priority")
             >>> print(f"Labels: {updated_issue['labels']}")
-        """
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate issue number
         validate_issue_number(issue_number)
 
@@ -150,7 +150,7 @@ class LabelsMixin:
         Example:
             >>> updated_issue = manager.remove_labels(123, "bug", "high-priority")
             >>> print(f"Labels: {updated_issue['labels']}")
-        """
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate issue number
         validate_issue_number(issue_number)
 
@@ -215,7 +215,7 @@ class LabelsMixin:
             >>> # Remove all labels
             >>> updated_issue = manager.set_labels(123)
             >>> print(f"Labels: {updated_issue['labels']}")  # Empty list
-        """
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate issue number
         validate_issue_number(issue_number)
 
@@ -280,7 +280,7 @@ class LabelsMixin:
                 repository (the issue was transferred) or with a different
                 number. Propagates from :meth:`get_issue` / :meth:`set_labels`,
                 so the ``bool`` contract does not hold on that path.
-        """
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate issue number (decorator re-raises ValueError).
         validate_issue_number(issue_number)
 

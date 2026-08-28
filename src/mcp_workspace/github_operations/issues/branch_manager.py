@@ -276,7 +276,7 @@ class IssueBranchManager(BaseGitHubManager):
             ...     print(f"Created branch: {result['branch_name']}")
             ... else:
             ...     print(f"Error: {result['error']}")
-        """
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate issue number
         if not self._validate_issue_number(issue_number):
             return BranchCreationResult(

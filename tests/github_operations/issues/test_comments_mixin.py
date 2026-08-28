@@ -1,13 +1,16 @@
 """Unit tests for IssueManager comment operations with mocked dependencies."""
 
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import git
 import pytest
 from github.GithubException import GithubException
 
+from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import IssueManager
 from mcp_workspace.github_operations.issues.base import (
     validate_comment_id,
@@ -198,3 +201,30 @@ class TestIssueManagerComments:
 
         with pytest.raises(GithubException):
             mock_issue_manager.delete_comment(1, 123)
+
+    @pytest.mark.parametrize(
+        ("operation", "blocked_call"),
+        [
+            (lambda m: m.add_comment(72, "Test comment"), "create_comment"),
+            (lambda m: m.get_comments(72), "get_comments"),
+            (lambda m: m.edit_comment(72, 123, "Updated"), "get_comment"),
+            (lambda m: m.delete_comment(72, 123), "get_comment"),
+        ],
+        ids=["add_comment", "get_comments", "edit_comment", "delete_comment"],
+    )
+    def test_transferred_issue_blocks_comment_operation(
+        self,
+        mock_issue_manager: IssueManager,
+        operation: Callable[[IssueManager], Any],
+        blocked_call: str,
+    ) -> None:
+        """Every routed comment site raises before touching the other repository."""
+        transferred = make_mock_issue(220, repo_full_name="test/other-repo")
+        mock_issue_manager._repository.get_issue.return_value = transferred
+
+        with pytest.raises(
+            IssueIdentityMismatchError, match="was transferred to test/other-repo#220"
+        ):
+            operation(mock_issue_manager)
+
+        getattr(transferred, blocked_call).assert_not_called()
