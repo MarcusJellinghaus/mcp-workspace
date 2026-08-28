@@ -10,6 +10,8 @@ from github.GithubException import GithubException
 
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
 
+from ._issue_test_helpers import make_mock_issue
+
 
 @pytest.mark.git_integration
 class TestGetPRFeedback:
@@ -47,6 +49,7 @@ class TestGetPRFeedback:
         mock_repo = Mock()
         mock_repo.owner.login = "test"
         mock_repo.name = "repo"
+        mock_repo.full_name = "test/repo"
         manager._repository = mock_repo
 
         mock_requester = Mock()
@@ -61,7 +64,7 @@ class TestGetPRFeedback:
             )
 
         # REST conversation comments via repo.get_issue(...).get_comments()
-        mock_issue = Mock()
+        mock_issue = make_mock_issue(42)
         if comments_raises is not None:
             mock_issue.get_comments = Mock(side_effect=comments_raises)
         else:

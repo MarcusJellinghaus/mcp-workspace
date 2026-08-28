@@ -14,6 +14,8 @@ from mcp_workspace.github_operations.issues.base import (
     validate_issue_number,
 )
 
+from .._issue_test_helpers import make_mock_issue
+
 
 @pytest.mark.git_integration
 class TestIssueManagerComments:
@@ -23,7 +25,7 @@ class TestIssueManagerComments:
         """Test successful comment addition."""
         issue_number = 1
         comment_body = "Test comment"
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
         mock_comment = MagicMock()
         mock_comment.id = 123
         mock_comment.body = comment_body
@@ -63,7 +65,7 @@ class TestIssueManagerComments:
     def test_get_comments_success(self, mock_issue_manager: IssueManager) -> None:
         """Test successful comment retrieval."""
         issue_number = 1
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
         mock_comment1 = MagicMock()
         mock_comment1.id = 123
         mock_comment1.body = "Comment 1"
@@ -83,7 +85,7 @@ class TestIssueManagerComments:
     def test_get_comments_empty_list(self, mock_issue_manager: IssueManager) -> None:
         """Test getting comments from issue with no comments."""
         issue_number = 1
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
         mock_issue.get_comments.return_value = []
@@ -115,7 +117,7 @@ class TestIssueManagerComments:
         issue_number = 1
         comment_id = 123
         new_body = "Updated comment"
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
         mock_comment = MagicMock()
         mock_comment.id = comment_id
         mock_comment.body = new_body
@@ -161,7 +163,7 @@ class TestIssueManagerComments:
         """Test successful comment deletion."""
         issue_number = 1
         comment_id = 123
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
         mock_comment = MagicMock()
         mock_comment.id = comment_id
 

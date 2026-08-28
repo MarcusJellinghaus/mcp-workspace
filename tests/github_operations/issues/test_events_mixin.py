@@ -14,6 +14,8 @@ from mcp_workspace.github_operations.issues.base import (
     validate_issue_number,
 )
 
+from .._issue_test_helpers import make_mock_issue
+
 
 @pytest.mark.git_integration
 class TestIssueManagerEvents:
@@ -22,7 +24,7 @@ class TestIssueManagerEvents:
     def test_get_issue_events_success(self, mock_issue_manager: IssueManager) -> None:
         """Test successful issue events retrieval."""
         issue_number = 1
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
         mock_event1 = MagicMock()
         mock_event1.event = "labeled"
         mock_event1.created_at = datetime(2023, 1, 1)
@@ -51,7 +53,7 @@ class TestIssueManagerEvents:
     ) -> None:
         """Test filtering for labeled events only."""
         issue_number = 1
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
         mock_labeled_event = MagicMock()
         mock_labeled_event.event = "labeled"
         mock_labeled_event.label = MagicMock()
@@ -85,7 +87,7 @@ class TestIssueManagerEvents:
     ) -> None:
         """Test filtering for unlabeled events."""
         issue_number = 1
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
         mock_unlabeled_event = MagicMock()
         mock_unlabeled_event.event = "unlabeled"
         mock_unlabeled_event.label = MagicMock()
@@ -108,7 +110,7 @@ class TestIssueManagerEvents:
     ) -> None:
         """Test getting events from issue with no events."""
         issue_number = 1
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
         mock_issue.get_events.return_value = []

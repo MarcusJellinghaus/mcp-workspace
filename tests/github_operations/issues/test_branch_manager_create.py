@@ -9,6 +9,8 @@ from mcp_workspace.github_operations.issues import (
     IssueBranchManager,
 )
 
+from .._issue_test_helpers import make_mock_issue
+
 
 class TestCreateLinkedBranch:
     """Test suite for IssueBranchManager.create_remote_branch_for_issue() method."""
@@ -41,10 +43,11 @@ class TestCreateLinkedBranch:
         mock_repo.default_branch = "main"
         mock_repo.owner.login = "test-owner"
         mock_repo.name = "test-repo"
+        mock_repo.full_name = "test/repo"
         mock_manager._repository = mock_repo
 
         # Mock issue
-        mock_issue = Mock()
+        mock_issue = make_mock_issue(123)
         mock_issue.node_id = "I_kwDOABCDEF123"
         mock_issue.title = "Add New Feature"
         mock_repo.get_issue = Mock(return_value=mock_issue)
@@ -97,10 +100,11 @@ class TestCreateLinkedBranch:
         mock_repo.default_branch = "main"
         mock_repo.owner.login = "test-owner"
         mock_repo.name = "test-repo"
+        mock_repo.full_name = "test/repo"
         mock_manager._repository = mock_repo
 
         # Mock issue
-        mock_issue = Mock()
+        mock_issue = make_mock_issue(123)
         mock_issue.node_id = "I_kwDOABCDEF123"
         mock_issue.title = "Add New Feature"
         mock_repo.get_issue = Mock(return_value=mock_issue)
@@ -149,10 +153,11 @@ class TestCreateLinkedBranch:
         mock_repo.default_branch = "main"
         mock_repo.owner.login = "test-owner"
         mock_repo.name = "test-repo"
+        mock_repo.full_name = "test/repo"
         mock_manager._repository = mock_repo
 
         # Mock issue
-        mock_issue = Mock()
+        mock_issue = make_mock_issue(123)
         mock_issue.node_id = "I_kwDOABCDEF123"
         mock_issue.title = "Add New Feature"
         mock_repo.get_issue = Mock(return_value=mock_issue)
@@ -201,6 +206,7 @@ class TestCreateLinkedBranch:
         mock_repo = Mock()
         mock_repo.owner.login = "test-owner"
         mock_repo.name = "test-repo"
+        mock_repo.full_name = "test/repo"
         mock_manager._repository = mock_repo
 
         # Mock get_linked_branches to return existing branches
@@ -229,10 +235,11 @@ class TestCreateLinkedBranch:
         mock_repo.default_branch = "main"
         mock_repo.owner.login = "test-owner"
         mock_repo.name = "test-repo"
+        mock_repo.full_name = "test/repo"
         mock_manager._repository = mock_repo
 
         # Mock issue
-        mock_issue = Mock()
+        mock_issue = make_mock_issue(123)
         mock_issue.node_id = "I_kwDOABCDEF123"
         mock_issue.title = "Add New Feature"
         mock_repo.get_issue = Mock(return_value=mock_issue)
@@ -293,6 +300,7 @@ class TestCreateLinkedBranch:
         mock_repo = Mock()
         mock_repo.owner.login = "test-owner"
         mock_repo.name = "test-repo"
+        mock_repo.full_name = "test/repo"
         mock_manager._repository = mock_repo
 
         # Mock get_linked_branches to return empty
@@ -323,10 +331,11 @@ class TestCreateLinkedBranch:
         mock_repo.default_branch = "main"
         mock_repo.owner.login = "test-owner"
         mock_repo.name = "test-repo"
+        mock_repo.full_name = "test/repo"
         mock_manager._repository = mock_repo
 
         # Mock issue
-        mock_issue = Mock()
+        mock_issue = make_mock_issue(123)
         mock_issue.node_id = "I_kwDOABCDEF123"
         mock_issue.title = "Add New Feature"
         mock_repo.get_issue = Mock(return_value=mock_issue)
@@ -361,10 +370,11 @@ class TestCreateLinkedBranch:
         mock_repo.node_id = "R_kgDOABCDEF"
         mock_repo.owner.login = "test-owner"
         mock_repo.name = "test-repo"
+        mock_repo.full_name = "test/repo"
         mock_manager._repository = mock_repo
 
         # Mock issue
-        mock_issue = Mock()
+        mock_issue = make_mock_issue(123)
         mock_issue.node_id = "I_kwDOABCDEF123"
         mock_issue.title = "Add New Feature"
         mock_repo.get_issue = Mock(return_value=mock_issue)
@@ -410,10 +420,11 @@ class TestCreateLinkedBranch:
         mock_repo.default_branch = "main"
         mock_repo.owner.login = "test-owner"
         mock_repo.name = "test-repo"
+        mock_repo.full_name = "test/repo"
         mock_manager._repository = mock_repo
 
         # Mock issue
-        mock_issue = Mock()
+        mock_issue = make_mock_issue(123)
         mock_issue.node_id = "I_kwDOABCDEF123"
         mock_issue.title = "Add New Feature"
         mock_repo.get_issue = Mock(return_value=mock_issue)
@@ -455,10 +466,11 @@ class TestCreateLinkedBranch:
         mock_repo.default_branch = "main"
         mock_repo.owner.login = "test-owner"
         mock_repo.name = "test-repo"
+        mock_repo.full_name = "test/repo"
         mock_manager._repository = mock_repo
 
         # Mock issue
-        mock_issue = Mock()
+        mock_issue = make_mock_issue(110)
         mock_issue.node_id = "I_kwDOPpBE287Px0Dx"
         mock_issue.title = "Validate and Reset GitHub Issue Labels"
         mock_repo.get_issue = Mock(return_value=mock_issue)
@@ -504,9 +516,10 @@ class TestCreateLinkedBranch:
         mock_repo.default_branch = "main"
         mock_repo.owner.login = "test-owner"
         mock_repo.name = "test-repo"
+        mock_repo.full_name = "test/repo"
         mock_manager._repository = mock_repo
 
-        mock_issue = Mock()
+        mock_issue = make_mock_issue(123)
         mock_issue.node_id = "I_kwDOABCDEF123"
         mock_issue.title = "Add New Feature"
         mock_repo.get_issue = Mock(return_value=mock_issue)

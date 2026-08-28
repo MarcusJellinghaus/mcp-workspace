@@ -151,6 +151,7 @@ def mock_issue_manager(tmp_path: Path) -> Generator[IssueManager, None, None]:
             "mcp_workspace.github_operations.base_manager.Github"
         ) as mock_github:
             mock_repo_obj = Mock()
+            mock_repo_obj.full_name = "test/repo"
             mock_github_client = Mock()
             mock_github_client.get_repo.return_value = mock_repo_obj
             mock_github.return_value = mock_github_client

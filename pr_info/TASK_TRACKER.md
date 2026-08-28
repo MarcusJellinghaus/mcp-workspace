@@ -33,9 +33,9 @@ Details: [step_1.md](./steps/step_1.md)
 
 Details: [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation (tests only, no `src/` changes): create `tests/github_operations/_issue_test_helpers.py` with `make_mock_issue()`; set `full_name` on mocked repos in `conftest.py`, the 11 local `mock_repo`s in `test_branch_manager_create.py` and `_setup_mocks` in `test_pr_manager_feedback.py` (with `make_mock_issue(42)`); convert mock-issue sites in `test_manager.py`, `test_labels_mixin.py`, `test_comments_mixin.py`, `test_events_mixin.py`, `test_branch_manager_create.py`.
-- [ ] Quality checks: pylint, pytest (fast exclusions **and** `markers=["git_integration"]`), mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests only, no `src/` changes): create `tests/github_operations/_issue_test_helpers.py` with `make_mock_issue()`; set `full_name` on mocked repos in `conftest.py`, the 11 local `mock_repo`s in `test_branch_manager_create.py` and `_setup_mocks` in `test_pr_manager_feedback.py` (with `make_mock_issue(42)`); convert mock-issue sites in `test_manager.py`, `test_labels_mixin.py`, `test_comments_mixin.py`, `test_events_mixin.py`, `test_branch_manager_create.py`.
+- [x] Quality checks: pylint, pytest (fast exclusions **and** `markers=["git_integration"]`), mypy — fix all issues
+- [x] Commit message prepared — same blocker as step 1: `pr_info/.commit_message.txt` is gitignored (`.gitignore:48`) and the workspace MCP write tools refuse gitignored paths. The message text is in the run output; drop line 48 from `.gitignore` or allowlist the path to store it in the file.
 
 ### Step 3: Route all 18 call sites through `_get_issue_checked`
 

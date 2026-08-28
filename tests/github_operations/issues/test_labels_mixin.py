@@ -15,6 +15,8 @@ from mcp_workspace.github_operations.issues.base import (
     validate_issue_number,
 )
 
+from .._issue_test_helpers import make_mock_issue
+
 
 @pytest.mark.git_integration
 class TestIssueManagerLabels:
@@ -24,8 +26,7 @@ class TestIssueManagerLabels:
         """Test successful label addition."""
         issue_number = 1
         labels = ["bug", "enhancement"]
-        mock_issue = MagicMock()
-        mock_issue.number = issue_number
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
@@ -37,7 +38,7 @@ class TestIssueManagerLabels:
         """Test adding a single label."""
         issue_number = 1
         labels = ["bug"]
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
@@ -74,8 +75,7 @@ class TestIssueManagerLabels:
         """Test successful label removal."""
         issue_number = 1
         labels = ["bug", "enhancement"]
-        mock_issue = MagicMock()
-        mock_issue.number = issue_number
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
@@ -87,7 +87,7 @@ class TestIssueManagerLabels:
         """Test removing a single label."""
         issue_number = 1
         labels = ["bug"]
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
@@ -124,8 +124,7 @@ class TestIssueManagerLabels:
         """Test successful label setting."""
         issue_number = 1
         labels = ["bug", "priority-high"]
-        mock_issue = MagicMock()
-        mock_issue.number = issue_number
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
@@ -138,7 +137,7 @@ class TestIssueManagerLabels:
     ) -> None:
         """Test setting empty labels to clear all labels."""
         issue_number = 1
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
@@ -150,7 +149,7 @@ class TestIssueManagerLabels:
         """Test setting a single label."""
         issue_number = 1
         labels = ["bug"]
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
