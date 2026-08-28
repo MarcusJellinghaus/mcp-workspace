@@ -179,9 +179,13 @@ def _truncate(lines: List[str], limit: int = _COLLAPSE_THRESHOLD) -> List[str]:
     remaining_dirs = sum(1 for line in remaining if line.endswith("/") or "/ (" in line)
     remaining_files = len(remaining) - remaining_dirs
     total = len(lines)
+    # The 250-line cap is deliberate: list_directory has no lift parameter and
+    # is not getting one. Callers narrow instead - path=<subdir>, dirs_only=True,
+    # or search_files for targeted lookups.
     summary = (
         f"... and {len(remaining)} more entries "
-        f"({remaining_dirs} dirs, {remaining_files} files) \u2014 {total} total"
+        f"({remaining_dirs} dirs, {remaining_files} files) \u2014 {total} total. "
+        f"Narrow with path=<subdir> or dirs_only=True."
     )
     return kept + [summary]
 

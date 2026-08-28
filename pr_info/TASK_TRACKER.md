@@ -169,9 +169,30 @@ Details: [step_6.md](./steps/step_6.md)
 
 Details: [step_7.md](./steps/step_7.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared (recorded below; `pr_info/.commit_message.txt`
+      could not be written because it is gitignored and the MCP workspace
+      server refuses gitignored paths, as in steps 3, 4, 5 and 6)
+
+  ```
+  Name the narrowing options in the tree listing truncation summary
+
+  _truncate reported both numbers honestly — "... and 50 more entries
+  (0 dirs, 50 files) — 300 total" — but named no way forward. list_directory
+  has no max_lines-style lift parameter and is not getting one, so the summary
+  now names the parameters that narrow the listing instead:
+  "Narrow with path=<subdir> or dirs_only=True."
+
+  A comment above the summary records that the 250-line cap is deliberate and
+  names the alternatives, including search_files for targeted lookups.
+
+  Message only: the signature, the length guard and the dir/file counting are
+  untouched, and the file's — escape convention for the em dash is kept.
+  This truncation is rare in practice — _collapse greedily collapses
+  directories until the listing is under 250 lines, so _truncate only fires on
+  a very wide, flat repo.
+  ```
 
 ### Step 8: `file_tools` internal caps — state the cap in `search.py`, document both
 
