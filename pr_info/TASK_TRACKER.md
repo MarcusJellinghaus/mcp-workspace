@@ -53,9 +53,29 @@ Details: [step_3.md](./steps/step_3.md)
 
 Details: [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared (recorded below; `pr_info/.commit_message.txt`
+      could not be written because it is gitignored and the MCP workspace
+      server refuses gitignored paths, as in step 3)
+
+  ```
+  Emit a truncation notice from github_issue_list by over-fetching one result
+
+  format_issue_list guarded its notice with len(issues) > max_results, but its
+  only production caller capped the list at max_results first, so the condition
+  was never true and the tool truncated silently.
+
+  github_issue_list now clamps max_results with max(0, max_results) and asks
+  the manager for capped + 1 issues; the surplus item is what proves more
+  results exist, since issue listing has no total count. The formatter still
+  receives the capped value and renders "30+". Without the clamp a negative
+  max_results rendered "... showing -1 of -1+ results" over an empty list.
+
+  The notice follows the house style: it states the applied cap and names the
+  parameters that lift or narrow it, without naming a query parameter that this
+  tool does not accept.
+  ```
 
 ### Step 5: `github_search` — emit a notice with the exact total from `totalCount`
 

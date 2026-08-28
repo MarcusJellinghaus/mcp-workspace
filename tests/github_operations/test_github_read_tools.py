@@ -230,8 +230,42 @@ def test_github_issue_list_with_filters(mock_manager_cls: MagicMock) -> None:
         labels=["bug", "urgent"],
         assignee="alice",
         since=datetime.fromisoformat("2024-06-01T00:00:00"),
-        max_results=10,
+        max_results=11,
     )
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_list_notice_when_more_exist(mock_manager_cls: MagicMock) -> None:
+    """The surplus over-fetched item triggers the truncation notice."""
+    issues = [_make_issue(number=i, title=f"Issue {i}") for i in range(4)]
+    mock_mgr = MagicMock()
+    mock_mgr.list_issues.return_value = issues
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_list(max_results=3)
+
+    assert "showing 3 of 3+ results" in result
+    issue_lines = [line for line in result.splitlines() if line.startswith("#")]
+    assert len(issue_lines) == 3
+
+
+@pytest.mark.parametrize("max_results", [0, -1])
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_list_non_positive_max_results(
+    mock_manager_cls: MagicMock, max_results: int
+) -> None:
+    """A zero or negative cap lists nothing and never reports a negative count."""
+    mock_mgr = MagicMock()
+    mock_mgr.list_issues.return_value = [_make_issue(number=1, title="First")]
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_list(max_results=max_results)
+
+    assert mock_mgr.list_issues.call_args.kwargs["max_results"] == 1
+    assert "showing 0 of 0+ results" in result
+    assert "-1" not in result
+    assert not any(line.startswith("#") for line in result.splitlines())
+    assert not result.startswith("Error:")
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")

@@ -180,8 +180,10 @@ class TestFormatIssueList:
         assert "#1" in result
         assert "#2" in result
         assert "#3" not in result
-        assert "5 total results" in result
-        assert "Showing first 3" in result
+        assert "showing 3 of 3+ results" in result
+        assert "raise max_results" in result
+        assert "state/labels/assignee/since" in result
+        assert "query" not in result  # this tool has no query parameter
 
     def test_format_issue_list_labels(self) -> None:
         """Labels rendered in summary line."""

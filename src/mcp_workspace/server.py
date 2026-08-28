@@ -643,14 +643,21 @@ def github_issue_list(
     try:
         manager = IssueManager(project_dir=_project_dir)
         since_dt = datetime.fromisoformat(since) if since else None
+        # max_results is an unvalidated tool parameter; clamp before deriving
+        # anything from it so a negative value cannot reach the notice as a
+        # negative "shown" count.
+        capped = max(0, max_results)
+        # Over-fetch by one: no total count exists for issue listing, so the
+        # surplus item is what proves more results exist. The formatter still
+        # receives the capped value and renders "30+".
         issues = manager.list_issues(
             state=state,
             labels=labels,
             assignee=assignee,
             since=since_dt,
-            max_results=max_results,
+            max_results=capped + 1,
         )
-        return format_issue_list(issues, max_results)
+        return format_issue_list(issues, capped)
     except Exception as e:
         return f"Error: {e}"
 

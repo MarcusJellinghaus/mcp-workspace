@@ -105,9 +105,8 @@ def format_issue_list(
 
     if len(issues) > max_results:
         lines.append(
-            f"\n... {len(issues)} total results. "
-            f"Showing first {max_results}. "
-            f"Refine your query for more specific results."
+            f"\n... showing {max_results} of {max_results}+ results "
+            f"— raise max_results or narrow with state/labels/assignee/since."
         )
 
     return "\n".join(lines)
