@@ -15,6 +15,16 @@ would cost search a real extra API call — GitHub pages search at 30 and `max_r
 defaults to 30, so item 31 always falls on the next page, one extra request per
 default-sized search against a 30 requests/minute search rate limit.
 
+**The current loop already pays that request.** `for i, item in enumerate(results): if i
+>= max_results: break` (`server.py:792-794`) pulls item index `max_results` *before* the
+guard runs, and pulling item 31 out of a `PaginatedList` fetches page 2. So the extra
+call this design exists to avoid is being made today, on every default-sized search, for
+an item that is immediately discarded. Since the loop is being touched anyway, stop
+before the surplus item: `itertools.islice(results, max_results)` yields at most
+`max_results` items and never calls `next()` again, so page 2 is not fetched. Behaviour
+is otherwise identical, including `max_results=0` (`islice` yields nothing, as the
+current guard does).
+
 The notice tail says "refine your query" here, which is good advice: `github_search`
 exposes `query` (with inline GitHub qualifiers) alongside `state`, `labels`, `assignee`,
 `sort` and `order`, and with `sort`/`order` set the capped results are the *top* N by the
@@ -45,11 +55,14 @@ def format_search_results(
 
 ## HOW
 
-In `server.py`, read `totalCount` **after** the collection loop, not before. PyGithub
-populates `total_count` from the already-fetched first search page, so reading it after
-iteration is free; reading it before any page is fetched triggers a separate
-`per_page=1` request — exactly the extra call this design exists to avoid. Put that
-reasoning in a comment.
+In `server.py`, replace `enumerate(results)` + the `i >= max_results` guard with
+`islice(results, max_results)` (`from itertools import islice` at module level — stdlib,
+so no lazy-import concern). The loop body is unchanged apart from losing the guard.
+
+Read `totalCount` **after** the collection loop, not before. PyGithub populates
+`total_count` from the already-fetched first search page, so reading it after iteration is
+free; reading it before any page is fetched triggers a separate `per_page=1` request —
+exactly the extra call this design exists to avoid. Put that reasoning in a comment.
 
 Use `getattr(results, "totalCount", None)` rather than a direct attribute access. The
 existing tests mock `search_issues` with a plain `list`, which has no `totalCount`, and
@@ -58,7 +71,12 @@ the `None` fallback keeps them working without rewriting each mock.
 ## ALGORITHM
 
 ```
-# server.py github_search, after the existing `for i, item in enumerate(results)` loop
+# server.py github_search
+# islice stops at max_results without pulling the next item, so a
+# default-sized search never fetches page 2 just to discard item 31.
+for item in islice(results, max_results):
+    ...                                                   # body unchanged
+
 # Read totalCount only after iterating: PyGithub fills it from the first
 # search page we already fetched. Reading it earlier costs an extra request.
 total_count: Optional[int] = getattr(results, "totalCount", None)
@@ -136,10 +154,13 @@ The existing `(auto-added: is:issue is:pull-request)` suffix appended at
    `"showing 3 of 412 results"` is in the output.
 
 4. **`test_github_search_max_results_cap` (line 523) needs no change.** It returns a plain
-   list of 10 items with `max_results=3`; `getattr` yields `None`, `total` falls back to
-   10, and its assertions only count `#`-prefixed lines, of which there are still 3.
-   `test_github_search_basic`, `_empty`, `_with_qualifiers` and
-   `_issue_vs_pr_indicator` are likewise unaffected.
+   list of 10 items with `max_results=3`; `islice` still yields 3, `getattr` yields
+   `None`, and `total` falls back to `len(items)` — which is 3, not 10, because the
+   formatter only ever receives the capped list. So no notice renders and its assertion
+   that exactly 3 `#`-prefixed lines appear still holds. (This is why the notice on the
+   production path depends on `totalCount`: with `total_count=None` the server-side call
+   can never report more than it shows.) `test_github_search_basic`, `_empty`,
+   `_with_qualifiers` and `_issue_vs_pr_indicator` are likewise unaffected.
 
 Run pytest, confirm failures, then implement.
 
@@ -167,7 +188,10 @@ One commit: `Emit a truncation notice from github_search using the exact search 
 > `total_count: Optional[int] = None` parameter to `format_search_results`, document it,
 > and replace the notice guard with the single `total > shown` comparison and the exact
 > message in the DATA section; (b) in `src/mcp_workspace/server.py`, in `github_search`,
-> read `total_count: Optional[int] = getattr(results, "totalCount", None)` **after** the
+> replace `enumerate(results)` and its `i >= max_results` guard with
+> `islice(results, max_results)` (comment: stopping before the surplus item keeps a
+> default-sized search on one page), then read
+> `total_count: Optional[int] = getattr(results, "totalCount", None)` **after** the
 > collection loop with a comment explaining the ordering, and pass it to
 > `format_search_results`.
 >

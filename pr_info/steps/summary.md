@@ -27,7 +27,7 @@ code comment recording that the cap is deliberate, but **no new parameter**.
 
 The change is deliberately architecture-neutral. Nothing moves between layers, no module
 is created, and `docs/ARCHITECTURE.md`, `.importlinter` and `tach.toml` are untouched.
-Four design decisions are worth recording:
+Six design decisions are worth recording:
 
 1. **The two `truncate_output` functions stay separate.**
    `github_operations/formatters.py` and `git_operations/output_filtering.py` each own a
@@ -55,7 +55,20 @@ Four design decisions are worth recording:
    rendering `30+`. The formatter signature for `format_issue_list` is unchanged; only
    its caller changes.
 
-4. **`_truncate_body` stays pure.** The `pr_feedback` footer condition is computed by
+4. **`max_log_lines` is threaded to the render-stage CI cap (step 3).** The marker names
+   `max_log_lines`, so that parameter must be the one that governs the cut. It governs
+   the *build* stage today, but `async_poll_branch_status` calls `format_for_llm()`
+   without `max_lines` (`branch_status_polling.py:124, 154`), so the second cut in
+   `format_report_for_llm` → `truncate_ci_details` uses a hard-coded 300 that
+   `max_log_lines` cannot lift. Both call sites now pass `max_lines=max_log_lines`. No
+   signature changes; both defaults are 300, so default-sized reports are unchanged.
+
+5. **`github_search` stops before the surplus item (step 5).** The `i >= max_results`
+   guard pulls item `max_results` before breaking, which fetches a second search page
+   only to discard it. `islice(results, max_results)` stops without that pull, so
+   `totalCount` really does cost nothing extra.
+
+6. **`_truncate_body` stays pure.** The `pr_feedback` footer condition is computed by
    `format_pr_feedback` itself, by comparing `_truncate_body`'s output against its input
    (`_truncate_body` returns the input unchanged when it does not cut). No tuple return,
    no marker-substring sniffing, no threshold duplicated.
@@ -103,7 +116,8 @@ spelled out at both sites because it defaults to `False` on `github_pr_view`
 | `src/mcp_workspace/github_operations/formatters.py` | `truncate_output` message (step 1); `format_issue_list` notice (step 4); `format_search_results` notice + `total_count` param (step 5) |
 | `src/mcp_workspace/git_operations/output_filtering.py` | `truncate_output` message (step 2) |
 | `src/mcp_workspace/github_operations/ci_log_parser.py` | New `_truncation_marker` helper, both call sites, `## Other failed jobs` header (step 3) |
-| `src/mcp_workspace/server.py` | `github_issue_list` over-fetch (step 4); `github_search` reads `totalCount` (step 5) |
+| `src/mcp_workspace/checks/branch_status_polling.py` | Pass `max_lines=max_log_lines` to `format_for_llm` at both call sites (step 3) |
+| `src/mcp_workspace/server.py` | `github_issue_list` over-fetch (step 4); `github_search` uses `islice` + reads `totalCount` (step 5) |
 | `src/mcp_workspace/checks/pr_feedback.py` | Render order, body/cap messages, conditional footer (step 6) |
 | `src/mcp_workspace/file_tools/tree_listing.py` | `_truncate` summary message + comment (step 7) |
 | `src/mcp_workspace/file_tools/search.py` | Line-truncation message + comment (step 8) |
@@ -116,6 +130,7 @@ spelled out at both sites because it defaults to `False` on `github_pr_view`
 | `tests/github_operations/test_formatters.py` | Steps 1, 4, 5 |
 | `tests/git_operations/test_output_filtering.py` | Step 2 |
 | `tests/github_operations/test_ci_log_parser.py` | Step 3 |
+| `tests/checks/test_branch_status_polling_orchestrator.py` | Step 3 |
 | `tests/github_operations/test_github_read_tools.py` | Steps 4, 5 |
 | `tests/checks/test_branch_status_pr_feedback.py` | Step 6 |
 | `tests/file_tools/test_tree_listing.py` | Step 7 |
@@ -137,7 +152,7 @@ one commit: tests + implementation + all three checks passing.
 |---|---|---|
 | 1 | `formatters.truncate_output` — feeds `github_issue_view` / `github_pr_view` | `test_formatters.py:77` |
 | 2 | `output_filtering.truncate_output` — feeds the `git` tool | `test_output_filtering.py:190, 199` |
-| 3 | `ci_log_parser` — marker helper, both sites, "Other failed jobs" header | `test_ci_log_parser.py:49` |
+| 3 | `ci_log_parser` — marker helper, both sites, "Other failed jobs" header, plus `max_log_lines` threaded to the render-stage cap | `test_ci_log_parser.py:42, 49, 351`, new polling test |
 | 4 | `github_issue_list` silent truncation | `test_formatters.py:181`, `test_github_read_tools.py:233` |
 | 5 | `github_search` silent truncation | `test_formatters.py:363` |
 | 6 | `pr_feedback` reorder + messages + conditional footer | `test_branch_status_pr_feedback.py:199, 362` |
@@ -170,4 +185,4 @@ one commit: tests + implementation + all three checks passing.
 | `pr_feedback` renders alerts and changes-requested ahead of conversation comments | 6 |
 | `pr_feedback` footer appears only when a body was truncated or the cap fired | 6 |
 | Tests assert both numbers + `max_lines`; list/search notices; alerts survive comment overflow | 1, 4, 5, 6 |
-| Each internal-cap site carries a comment naming the alternative | 7, 8, 9 |
+| Each internal-cap site carries a comment naming the alternative | 6, 7, 8, 9 |

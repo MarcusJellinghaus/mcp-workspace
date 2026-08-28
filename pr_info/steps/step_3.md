@@ -23,20 +23,39 @@ across up to three failed jobs (lines 331-352), so `max_log_lines={total}` would
 return that job's full log when several jobs failed. Name the parameter only. Do not
 "fix" this back to the house style.
 
-`max_log_lines` is a real parameter on every path that reaches these sites:
-`check_branch_status(max_log_lines=...)` (`server.py:885`) →
-`collect_branch_status` (`branch_status.py:479`) → `build_ci_error_details`
-(`branch_status.py:248, 259`) and `truncate_ci_details`
-(`branch_status_rendering.py:228`). The third caller, `truncate_ci_details` at
-`branch_status.py:204`, sits in `get_failed_jobs_summary`, which is in `__all__` but has
-no production callers — only tests — so naming the parameter is still safe.
+`max_log_lines` is a real parameter on the **build** path that reaches both marker sites:
+`check_branch_status(max_log_lines=...)` (`server.py:885`) → `async_poll_branch_status`
+(`branch_status_polling.py:100`) → `collect_branch_status` (`branch_status.py:479`) →
+`build_ci_error_details` (`branch_status.py:248, 259`).
+
+**The render path does not thread it today — this step fixes that.**
+`async_poll_branch_status` calls `report.format_for_llm(...)`
+(`branch_status_polling.py:124, 154`) *without* `max_lines`, so `format_report_for_llm`
+falls back to its hard-coded default of 300 and the `truncate_ci_details` call at
+`branch_status_rendering.py:228` applies a cap `max_log_lines` cannot lift. With
+`max_log_lines=1000` the build stage keeps ~1000 lines and the render stage cuts them
+back to 300 while the marker tells the reader to raise `max_log_lines` — exactly the
+misdirection this issue exists to remove, and a breach of the acceptance criterion
+"No notice names a parameter its caller does not accept". Passing
+`max_lines=max_log_lines` at both `format_for_llm` call sites makes the parameter the
+marker names the one that governs the cut. Defaults are unchanged: `max_log_lines` and
+`format_report_for_llm`'s `max_lines` are both 300, so default-sized calls render
+byte-identically.
+
+The third caller, `truncate_ci_details` at `branch_status.py:204`, sits in
+`get_failed_jobs_summary`, which is in `__all__` but has no production callers — only
+tests — so naming the parameter is still safe.
 
 ## WHERE
 
 - `src/mcp_workspace/github_operations/ci_log_parser.py` — new private helper; lines 55-57,
   344-352, 371
+- `src/mcp_workspace/checks/branch_status_polling.py` — `format_for_llm` call sites,
+  lines 124 and 154
 - `tests/github_operations/test_ci_log_parser.py` — `test_truncation_marker_shows_count`
   (line 44)
+- `tests/checks/test_branch_status_polling_orchestrator.py` — new test (models on the
+  existing `format_for_llm.call_args.kwargs` assertions at lines 340-341, 425)
 
 ## WHAT
 
@@ -69,6 +88,11 @@ Call site 2 — `build_ci_error_details`, lines 344-350. Here
 
 Site 3 — line 371, a plain string literal replacement, no helper involved.
 
+Site 4 — `branch_status_polling.py:124` and `:154`: pass `max_lines=max_log_lines` to
+`report.format_for_llm(...)`. No signature changes anywhere — `format_for_llm`
+(`branch_status.py:106`) and `format_report_for_llm` (`branch_status_rendering.py:166`)
+already accept `max_lines`; only the two call sites gain the keyword.
+
 ## ALGORITHM
 
 ```
@@ -84,6 +108,13 @@ truncated_log = (
     log_lines[:head_count]
     + [_truncation_marker(head_count + tail_count, len(log_lines))]
     + log_lines[-tail_count:]
+)
+
+# branch_status_polling.py:124 and :154 — the render-stage cap now honours
+# the parameter the marker names.
+return report.format_for_llm(max_lines=max_log_lines, fail_on_reviews=fail_on_reviews)
+return report.format_for_llm(
+    max_lines=max_log_lines, wait_context=wait_ctx, fail_on_reviews=fail_on_reviews
 )
 ```
 
@@ -134,9 +165,25 @@ In `tests/github_operations/test_ci_log_parser.py`:
    ```
    Assert that the output of each contains `"lines omitted: showing "` and
    `"raise max_log_lines for more"`.
-5. **`test_per_job_line_budget_truncation` (line 373+)** exercises the line-371 path.
-   Check whether it asserts on the old header text and update it to
-   `"logs omitted"` / `"raise max_log_lines"` if so.
+5. **`test_per_job_line_budget_truncation` (line 373+)** exercises the line-371 path. No
+   test asserts the `## Other failed jobs` header today, so add that assertion here:
+   ```python
+   assert "## Other failed jobs (logs omitted — raise max_log_lines to include them)" in result
+   ```
+6. **Add one test for the render-stage cap** in
+   `tests/checks/test_branch_status_polling_orchestrator.py`, so the parameter the marker
+   names really governs the cut:
+   ```python
+   async def test_max_log_lines_reaches_the_render_cap(self) -> None:
+       """`max_log_lines` is forwarded to `format_for_llm`, not just to collection."""
+   ```
+   Model it on the existing `format_for_llm.call_args.kwargs` tests (lines 338-341, 421-425):
+   patch `collect_branch_status` to return a `MagicMock(spec=BranchStatusReport)`, call
+   `await async_poll_branch_status(project_dir, max_log_lines=500)`, and assert
+   `mock_report.format_for_llm.call_args.kwargs["max_lines"] == 500`.
+
+   The two `assert result == report.format_for_llm()` assertions (lines 79 and 490) keep
+   passing untouched: both defaults are 300, so passing it explicitly changes nothing.
 
 Run pytest, confirm failures, then implement.
 
@@ -147,7 +194,7 @@ deleted `truncated_count` local.
 
 ## COMMIT
 
-One commit: `Unify the CI log truncation marker and name max_log_lines`
+One commit: `Unify the CI log truncation marker and honour max_log_lines at the render cap`
 
 ## LLM PROMPT
 
@@ -156,9 +203,11 @@ One commit: `Unify the CI log truncation marker and name max_log_lines`
 > Implement step 3 only. Following TDD, first update
 > `tests/github_operations/test_ci_log_parser.py` as described in the step file — the
 > marker assertion at line 49, the two `"truncated" in result` assertions at lines 42 and
-> 351, the marker-lookup predicate at lines 51-58, the line-371 header assertion in
-> `test_per_job_line_budget_truncation` if present, plus one new test that both marker
-> sites emit the same shape. Confirm they fail.
+> 351, the marker-lookup predicate at lines 51-58, the new `## Other failed jobs` header
+> assertion in `test_per_job_line_budget_truncation`, plus one new test that both marker
+> sites emit the same shape. Then add
+> `test_max_log_lines_reaches_the_render_cap` to
+> `tests/checks/test_branch_status_polling_orchestrator.py` as described. Confirm they fail.
 >
 > Then in `src/mcp_workspace/github_operations/ci_log_parser.py`: add the private
 > `_truncation_marker(kept: int, total: int) -> str` helper with the docstring given in
@@ -167,6 +216,11 @@ One commit: `Unify the CI log truncation marker and name max_log_lines`
 > (passing `head_count + tail_count`), and replace the `## Other failed jobs` header at
 > line 371. Do not add the helper to `__all__`. Do not add a pasteable
 > `max_log_lines={total}` value at any of these three sites — the step file explains why.
+>
+> Then in `src/mcp_workspace/checks/branch_status_polling.py`, pass
+> `max_lines=max_log_lines` to `report.format_for_llm(...)` at lines 124 and 154, so the
+> render-stage `truncate_ci_details` cap is the one the marker tells the reader to raise.
+> Do not change any signature — `format_for_llm` already accepts `max_lines`.
 >
 > Use MCP tools per `CLAUDE.md`, run all three checks until they pass, run
 > `./tools/format_all.sh`, and make exactly one commit.

@@ -56,6 +56,20 @@ _FULL_TEXT_HINT = "Full comment text: github_pr_view(include_comments=True)"
 (`server.py:662`), unlike `github_issue_view`. Without it the reader lands on an empty
 result.
 
+**Internal-cap comment (acceptance criterion).** `pr_feedback.py:37` and `:95` are two of
+the internal-cap sites the issue lists, so both constants get the code comment the
+criterion requires — deliberate cap, no lift parameter, alternative named:
+
+```python
+# Deliberate internal caps with no lift parameter: this block is a compact
+# summary embedded in the branch-status report, not a full feedback dump.
+# Readers who need the full list or the full text of a cut body use
+# github_pr_view(include_comments=True) — which _FULL_TEXT_HINT names in the
+# output whenever either cap actually fires.
+_MAX_FEEDBACK_ITEMS = 20
+_MAX_LINES_PER_COMMENT = 10
+```
+
 ## HOW
 
 **Footer condition, without changing `_truncate_body`.** `_truncate_body` returns its
@@ -115,6 +129,10 @@ Return value stays `str`. Three strings change:
 ```
 
 e.g. `... (truncated: showing 10 of 20 lines)`
+
+`_truncate_body`'s docstring (`pr_feedback.py:32`) names the old marker verbatim —
+`The body, truncated with a "... (truncated)" marker if too long.` — so update its
+`Returns:` line to name the new marker in the same shape.
 
 **Item cap** (replacing `f"... and {total - _MAX_FEEDBACK_ITEMS} more"`):
 
@@ -200,9 +218,13 @@ One commit: `Reorder PR feedback sections and make the truncation footer conditi
 > `test_footer_absent_when_nothing_was_cut`). Confirm the new tests fail.
 >
 > Then in `src/mcp_workspace/checks/pr_feedback.py`:
-> - add the `_FULL_TEXT_HINT` module constant;
-> - change `_truncate_body`'s marker to the exact string in the DATA section, keeping its
->   signature and purity;
+> - add the `_FULL_TEXT_HINT` module constant, plus the code comment above
+>   `_MAX_FEEDBACK_ITEMS` / `_MAX_LINES_PER_COMMENT` recording that both are deliberate
+>   internal caps with no lift parameter and naming
+>   `github_pr_view(include_comments=True)` as the alternative;
+> - change `_truncate_body`'s marker to the exact string in the DATA section, and update
+>   its docstring `Returns:` line, which still names the old `"... (truncated)"` marker,
+>   keeping the signature and purity;
 > - in `format_pr_feedback`, move the conversation-comments loop to run **after** the
 >   alerts loop, track a `body_cut` flag at the three `_truncate_body` call sites by
 >   comparing output against input, replace the item-cap message, and append
