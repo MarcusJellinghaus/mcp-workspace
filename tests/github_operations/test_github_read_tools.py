@@ -393,11 +393,13 @@ def test_github_pr_view_no_repo(mock_manager_cls: MagicMock) -> None:
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = None
+    mock_mgr._repo_identifier.api_base_url = "https://gitlab.com/api/v3"
 
     result = github_pr_view(number=10)
 
     assert "Error" in result
     assert "repository" in result.lower()
+    assert "https://gitlab.com/api/v3" in result
 
 
 # =============================================================================
@@ -569,11 +571,13 @@ def test_github_search_no_repo(mock_manager_cls: MagicMock) -> None:
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = None
+    mock_mgr._repo_identifier.api_base_url = "https://gitlab.com/api/v3"
 
     result = github_search(query="test")
 
     assert "Error" in result
     assert "repository" in result.lower()
+    assert "https://gitlab.com/api/v3" in result
 
 
 @pytest.mark.parametrize(

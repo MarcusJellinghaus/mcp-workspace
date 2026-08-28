@@ -706,7 +706,9 @@ def github_pr_view(
         manager = _issue_manager(reference_name)
         repo = manager._get_repository()  # pylint: disable=protected-access
         if not repo:
-            return "Error: Could not access repository"
+            # pylint: disable-next=protected-access
+            api_base_url = manager._repo_identifier.api_base_url
+            return f"Error: Could not access repository (tried {api_base_url})"
         pr = repo.get_pull(number)
         pr_dict = {
             "number": pr.number,
@@ -792,7 +794,9 @@ def github_search(
         manager = _issue_manager(reference_name)
         repo = manager._get_repository()  # pylint: disable=protected-access
         if not repo:
-            return "Error: Could not access repository"
+            # pylint: disable-next=protected-access
+            api_base_url = manager._repo_identifier.api_base_url
+            return f"Error: Could not access repository (tried {api_base_url})"
         has_qualifier = re.search(
             r"(?:^|\s)is:(issue|pull-request)", query, re.IGNORECASE
         )
