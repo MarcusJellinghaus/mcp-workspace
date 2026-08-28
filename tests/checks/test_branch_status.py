@@ -1,7 +1,10 @@
 """Tests for branch_status check module."""
 
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from mcp_workspace.checks.branch_status import (
     BranchStatusReport,
@@ -14,6 +17,7 @@ from mcp_workspace.checks.branch_status import (
     get_failed_jobs_summary,
 )
 from mcp_workspace.checks.branch_status_rendering import CIStatus
+from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import IssueData
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
@@ -610,6 +614,54 @@ class TestCollectBranchStatus:
         assert "squash-merge safe" in report.rebase_reason
         assert report.pr_mergeable is True
         assert any("squash-merge safe" in r for r in report.recommendations)
+
+    @patch("mcp_workspace.checks.branch_status._collect_pr_info")
+    @patch("mcp_workspace.checks.branch_status._collect_github_label")
+    @patch("mcp_workspace.checks.branch_status._collect_task_status")
+    @patch("mcp_workspace.checks.branch_status._collect_rebase_status")
+    @patch("mcp_workspace.checks.branch_status._collect_ci_status")
+    @patch("mcp_workspace.checks.branch_status.detect_base_branch")
+    @patch("mcp_workspace.checks.branch_status.PullRequestManager")
+    @patch("mcp_workspace.checks.branch_status.IssueManager")
+    @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
+    @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    def test_transferred_issue_logs_warning(
+        self,
+        mock_branch: MagicMock,
+        mock_extract: MagicMock,
+        mock_issue_mgr_cls: MagicMock,
+        mock_pr_mgr_cls: MagicMock,
+        mock_detect: MagicMock,
+        mock_ci: MagicMock,
+        mock_rebase: MagicMock,
+        mock_tasks: MagicMock,
+        mock_label: MagicMock,
+        mock_pr_info: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """A transferred issue is reported at WARNING and the report survives."""
+        mock_branch.return_value = "72-feature"
+        mock_extract.return_value = 72
+        mock_issue_mgr = MagicMock()
+        mock_issue_mgr.get_issue.side_effect = IssueIdentityMismatchError(
+            "Issue #72 was transferred to test/other-repo#220 — https://example/220"
+        )
+        mock_issue_mgr_cls.return_value = mock_issue_mgr
+        mock_pr_mgr_cls.return_value = MagicMock()
+        mock_detect.return_value = "main"
+        mock_ci.return_value = (CIStatus.PASSED, None, [])
+        mock_rebase.return_value = (False, "up-to-date")
+        mock_tasks.return_value = (TaskTrackerStatus.N_A, "N/A", False)
+        mock_label.return_value = "unknown"
+        mock_pr_info.return_value = (None, None, False, None, None)
+
+        with caplog.at_level(logging.WARNING):
+            report = collect_branch_status(Path("/tmp"))
+
+        assert "was transferred to test/other-repo#220" in caplog.text
+        # Inner catch handled it: the report is still built for the real branch,
+        # not the placeholder returned by the outer except.
+        assert report.branch_name == "72-feature"
 
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
     def test_unexpected_exception_returns_empty_report(

@@ -49,9 +49,9 @@ Details: [step_3.md](./steps/step_3.md)
 
 Details: [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: write `test_transferred_issue_logs_warning` in `tests/checks/test_branch_status.py` first, then import `IssueIdentityMismatchError` in `checks/branch_status.py` and add the `except IssueIdentityMismatchError as e: logger.warning("%s", e)` clause before the existing broad catch (~line 510). Do not touch `git_operations/base_branch.py` or `issues/cache.py`.
-- [ ] Quality checks: pylint, pytest, mypy, lint-imports — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: write `test_transferred_issue_logs_warning` in `tests/checks/test_branch_status.py` first, then import `IssueIdentityMismatchError` in `checks/branch_status.py` and add the `except IssueIdentityMismatchError as e: logger.warning("%s", e)` clause before the existing broad catch (~line 510). Do not touch `git_operations/base_branch.py` or `issues/cache.py`.
+- [x] Quality checks: pylint, pytest, mypy, lint-imports — fix all issues
+- [x] Commit message prepared — same blocker as steps 1–3: `pr_info/.commit_message.txt` is gitignored (`.gitignore:48`) and the workspace MCP write tools refuse gitignored paths. The message text is in the run output; drop line 48 from `.gitignore` or allowlist the path to store it in the file.
 
 ## Pull Request
 
