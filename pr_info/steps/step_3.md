@@ -24,8 +24,14 @@ them.
 | `src/mcp_workspace/github_operations/issues/branch_manager.py` | 313 | `create_remote_branch_for_issue` |
 | `src/mcp_workspace/github_operations/_pr_feedback_sources.py` | 134 | module-level function |
 
-Tests: `tests/github_operations/issues/test_manager.py` and
-`tests/github_operations/issues/test_labels_mixin.py` (two new cases).
+Tests: `tests/github_operations/issues/test_manager.py`,
+`tests/github_operations/issues/test_labels_mixin.py` and
+`tests/github_operations/test_pr_manager_feedback.py` (three new cases — one
+read path, one write path, one inherited path).
+
+Docstrings: the same six production files. Every routed public method gains a
+`Raises:` entry, and any "or empty … on error" wording in its `Returns:` is
+corrected — see "DOCSTRINGS" below.
 
 ### Explicitly NOT routed
 
@@ -116,9 +122,64 @@ Downstream contracts that shift as a consequence, all intended:
 
 ---
 
+## DOCSTRINGS
+
+Routing changes the documented contract of every routed public method, so the
+docstrings move in the same commit — a docstring that still promises a safe
+empty return is the same silent-wrong-answer failure mode this issue is about.
+
+The clearest case is `manager.py:126` `get_issue`, which today has no `Raises:`
+section at all and says:
+
+```
+Returns:
+    IssueData with issue information, or empty IssueData on error
+```
+
+That is now false for one error class. It becomes:
+
+```
+Returns:
+    IssueData with issue information, or empty IssueData when the
+    repository is unavailable
+
+Raises:
+    IssueIdentityMismatchError: If GitHub returns an issue from another
+        repository (the issue was transferred) or with a different number.
+```
+
+Apply the same two edits — drop or narrow any blanket "on error" wording in
+`Returns:`, add a `Raises:` entry — to each routed public method:
+
+| File | Methods |
+|---|---|
+| `issues/manager.py` | `get_issue`, `close_issue`, `reopen_issue` |
+| `issues/comments_mixin.py` | `add_comment`, `get_comments`, `edit_comment`, `delete_comment` |
+| `issues/labels_mixin.py` | `add_labels`, `remove_labels`, `set_labels` |
+| `issues/events_mixin.py` | `get_issue_events` |
+| `issues/branch_manager.py` | `create_remote_branch_for_issue` |
+| `_pr_feedback_sources.py` | `fetch_conversation_comments` |
+
+Two notes:
+
+- `transition_issue_label` (`labels_mixin.py:245`) is not routed directly, but
+  it calls `self.get_issue`, so its `-> bool` contract no longer holds on this
+  path. Document the raise there too; per the summary it gets **no logic
+  change** — the docstring is the only edit it takes.
+- Some of these already document `Raises: ValueError` for input validation.
+  Add the specific class anyway — `IssueIdentityMismatchError` is a `ValueError`
+  subclass, but a caller cannot tell a transfer from a bad issue number without
+  it being named.
+
+Docstrings only. No behaviour, no signatures, no examples (per the project
+docstring convention).
+
+---
+
 ## TESTS (write first)
 
-Two new cases proving the routing is live — one read path, one write path.
+Three new cases proving the routing is live — one read path, one write path,
+one inherited (non-mixin) path.
 
 In `tests/github_operations/issues/test_manager.py`, in the existing class
 (keep the `git_integration` marker it inherits):
@@ -149,9 +210,43 @@ def test_set_labels_transferred_does_not_write(self, mock_issue_manager: IssueMa
 `assert_not_called()` is the assertion that matters — it proves the fetch guard
 runs before the write, which is the whole point of the issue.
 
-Import `make_mock_issue` from step 2 (`from .._issue_test_helpers import
-make_mock_issue`) and `IssueIdentityMismatchError` from
-`mcp_workspace.github_operations`.
+In `tests/github_operations/test_pr_manager_feedback.py`, in the existing
+`TestGetPRFeedback` class (it already carries the `git_integration` marker) —
+this is the only routed site outside `issues/`, and the only one that reaches
+`_get_issue_checked` by **inheritance** (`PullRequestManager` →
+`BaseGitHubManager`) rather than through a mixin, so nothing else covers it:
+
+```python
+def test_conversation_comments_transferred_raises(
+    self, mock_manager: PullRequestManager
+) -> None:
+    """The inherited guard fires on the PR-feedback REST fetch too."""
+    mock_repo = self._setup_mocks(mock_manager)
+    mock_repo.get_issue = Mock(
+        return_value=make_mock_issue(220, repo_full_name="test/other-repo")
+    )
+    with pytest.raises(IssueIdentityMismatchError):
+        fetch_conversation_comments(mock_manager, 72)
+```
+
+Call `fetch_conversation_comments` **directly** rather than going through
+`manager.get_pr_feedback()`: that method already tolerates a failing comment
+fetch and degrades to an `[unavailable]` marker (see the existing
+`test_conversation_comments_failure`), which would hide whether the guard ran.
+Import it with
+`from mcp_workspace.github_operations._pr_feedback_sources import fetch_conversation_comments`.
+
+**Fixture prerequisites for this test, all delivered by step 2:** `_setup_mocks`
+must set `mock_repo.full_name = "test/repo"` (otherwise `full_name` is a bare
+`Mock` and the comparison is meaningless), and its default `mock_issue` must
+come from `make_mock_issue` (otherwise the *other* `TestGetPRFeedback` tests
+fail on the identity parse rather than this one passing). If either is missing,
+go back and finish step 2 — do not weaken the guard.
+
+Import `make_mock_issue` from step 2 — `from .._issue_test_helpers import
+make_mock_issue` in the `issues/` test files, `from ._issue_test_helpers import
+make_mock_issue` in `test_pr_manager_feedback.py` — and
+`IssueIdentityMismatchError` from `mcp_workspace.github_operations`.
 
 ---
 
@@ -186,8 +281,15 @@ site step 2 missed; fix it in the fixture, never by weakening the guard.
 > remove the `labels_mixin` re-fetches at 106/166/222 — the latter are
 > load-bearing. Route them all.
 >
-> Follow TDD: add the two new tests described in the step file first, watch them
-> fail, then route the call sites.
+> Follow TDD: add the three new tests described in the step file first (read
+> path in `test_manager.py`, write path in `test_labels_mixin.py`, inherited
+> path in `test_pr_manager_feedback.py`), watch them fail, then route the call
+> sites.
+>
+> Also update the docstrings of the routed public methods as described in the
+> "DOCSTRINGS" section — in particular `manager.py` `get_issue`, whose
+> `Returns:` still claims "or empty IssueData on error". Docstrings only, in
+> this same commit.
 >
 > When done, verify that `repo.get_issue(` matches exactly one line in `src/`
 > (`server.py:717`).

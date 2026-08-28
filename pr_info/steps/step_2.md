@@ -31,11 +31,24 @@ the routing diff. Separating them keeps step 3 readable.
 | `tests/github_operations/issues/test_comments_mixin.py` | Convert mock-issue sites |
 | `tests/github_operations/issues/test_events_mixin.py` | Convert mock-issue sites |
 | `tests/github_operations/issues/test_branch_manager_create.py` | Convert sites + `full_name` on local `mock_repo`s |
+| `tests/github_operations/test_pr_manager_feedback.py` | `full_name` on the local `mock_repo` + convert the local `mock_issue` |
 
-`test_branch_manager_linked.py`, `test_branch_manager_pr_fallback_a.py` and the
-`test_cache_*.py` files need **no change** — they only stub `_get_repository` to
-return `None`, or mock `IssueManager` wholesale, and never reach
-`repo.get_issue`.
+The last row is easy to miss: it is the only prepared file outside the `issues/`
+test package, and it exists because step 3 routes
+`_pr_feedback_sources.py:134`, which `TestGetPRFeedback` exercises through
+`PullRequestManager`. In `_setup_mocks` (line 33), `mock_repo = Mock()` at
+line 47 carries `owner.login` and `name` but **no `full_name`**, and
+`mock_issue = Mock()` at line 64 carries neither `number` nor `repository_url`.
+Both are plain `Mock`s, so once the guard reads them the identity parse fails
+and the whole `TestGetPRFeedback` class goes red. Prepare it here, in step 2,
+or step 3 does not stay green.
+
+`test_branch_manager_linked.py`, `test_branch_manager_pr_fallback_a.py`,
+`test_branch_manager_pr_fallback_b.py`, `test_pr_manager_closing_issues.py` and
+the `test_cache_*.py` files need **no change** — they only stub
+`_get_repository` to return `None`, or mock `IssueManager` wholesale, and never
+reach `repo.get_issue`. Verified by grep: `get_issue` does not appear in any of
+them.
 
 ---
 
@@ -82,10 +95,23 @@ Keep it to these two attributes. Callers set `title`, `body`, `state`, `labels`,
   `"test/repo"` matches the fixture's git remote,
   `https://github.com/test/repo.git` (line 143). Keep the two consistent.
 
-- In `test_branch_manager_create.py`, the ~5 locally-built `mock_repo = Mock()`
-  objects (e.g. line 39) are **not** the conftest fixture — add
+- In `test_branch_manager_create.py`, the locally-built `mock_repo = Mock()`
+  objects are **not** the conftest fixture — add
   `mock_repo.full_name = "test/repo"` to each alongside the existing
-  `mock_repo.name = "test-repo"` line.
+  `mock_repo.name = "test-repo"` line. There are **11** of them, at lines 39,
+  95, 147, 201, 227, 293, 321, 360, 408, 453 and 502; **10** feed
+  `repo.get_issue` (the exception is line 201, whose test never fetches). Set
+  `full_name` on all 11 anyway — uniform fixtures are cheaper to check than a
+  per-site judgement call. The matching `mock_repo.get_issue = Mock(...)` lines
+  are 50, 106, 158, 238, 304, 332, 370, 419, 464 and 512.
+
+- In `test_pr_manager_feedback.py`, inside the `_setup_mocks` helper (line 33):
+  add `mock_repo.full_name = "test/repo"` next to `mock_repo.name = "repo"`
+  (line 49), and replace `mock_issue = Mock()` (line 64) with
+  `mock_issue = make_mock_issue(1)`, keeping the existing
+  `mock_issue.get_comments = Mock(...)` branches below it untouched. Import via
+  `from ._issue_test_helpers import make_mock_issue` — this file sits directly
+  in `tests/github_operations/`, so it is the single-dot form.
 
 ---
 
@@ -138,8 +164,22 @@ mcp__tools-py__run_pytest_check(extra_args=["-n", "auto"], markers=["git_integra
 mcp__tools-py__run_mypy_check
 ```
 
-Every test must still pass. If any test *changes* behaviour in this step,
-something was converted that should not have been — revert that site.
+Every test must still pass.
+
+If a test *changes* behaviour in this step, the correct response depends on
+which kind of site it is:
+
+- **`create_issue` sites** (`test_manager.py` lines 71, 91 — they feed
+  `_repository.create_issue`, not `get_issue`): these are converted only for
+  idiom consistency and nothing in step 3 depends on them. If converting one
+  moves an assertion, **revert that site** and leave it as a bare `MagicMock()`.
+- **Fetch sites** (everything that feeds `repo.get_issue`): these must **keep**
+  the `number` and `repository_url` attributes — they are exactly what the
+  step-3 guard reads. Reverting one does not fix anything; it relocates the
+  failure into step 3, where it lands mixed in with the routing diff, which is
+  the situation this step exists to avoid. Fix the assertion instead: a mock
+  issue whose `number` is now a real `int` rather than an auto-`MagicMock` is
+  the intended end state, so update the expectation to match.
 
 ---
 
@@ -150,7 +190,9 @@ something was converted that should not have been — revert that site.
 > Implement step 2 only: create
 > `tests/github_operations/_issue_test_helpers.py` with `make_mock_issue()`, set
 > `full_name` on the mocked repos, and convert the mock-issue construction sites
-> in the five listed test files to use the helper.
+> in the six listed test files to use the helper. Do not skip
+> `test_pr_manager_feedback.py` — it is the one outside the `issues/` test
+> package and step 3 goes red without it.
 >
 > This step touches **test files only**. Do not modify anything under `src/`.
 > Do not route any `repo.get_issue(` call site — that is step 3.

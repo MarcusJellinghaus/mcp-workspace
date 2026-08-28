@@ -82,8 +82,15 @@ The exception propagates through the existing decorator stack untouched:
 - Existing readers already degrade safely: `checks/branch_status.py:510`,
   `git_operations/base_branch.py:73` and `issues/cache.py:334` all catch
   `Exception` and fall back to "no issue data".
-- No new tracebacks reach users: `workflow_utils/label_transitions.py:159`
-  already catches `Exception`, and `execute_set_status` has its own handler.
+- No new tracebacks reach users **from in-repo callers**: the readers listed
+  above all catch and degrade. `transition_issue_label`
+  (`labels_mixin.py:245`) has **no caller inside this repository** — grep finds
+  none — so its now-propagating exception can only surface in `mcp_coder`,
+  which per the issue already contains both handlers
+  (`mcp_coder/workflow_utils/label_transitions.py:159` catches `Exception` and
+  logs; `execute_set_status` has its own try/except returning `1`). Those two
+  paths are **cross-repo and unverified here**; the follow-up issue below is
+  what turns the second one into a clean message and exit code.
 
 ### 4. Message ownership: the exception carries facts, callers own framing
 
@@ -154,9 +161,17 @@ failure class as the bug it fixes.
 | `github_operations/_pr_feedback_sources.py` | Route line 134 |
 | `checks/branch_status.py` | Import exception; add `logger.warning` catch before line 510 |
 
+Each "Route lines …" row also carries the docstring update for the public
+methods in that file: routing adds a raise to their contract, so every routed
+public method gains a `Raises: IssueIdentityMismatchError` entry and any blanket
+"or empty … on error" wording in `Returns:` is corrected. `manager.py`
+`get_issue` is the clearest case — it currently has no `Raises:` section at all.
+`transition_issue_label` (`labels_mixin.py:245`) takes the docstring edit but no
+logic change. See step 3, "DOCSTRINGS".
+
 **Not modified, deliberately:** `server.py` (both the `:610` liveness check and
 the `:717` bare fetch), `git_operations/base_branch.py`, `issues/cache.py`,
-`issues/types.py`, `workflow_utils/label_transitions.py`.
+`issues/types.py`.
 
 ### Modified — tests (`tests/`)
 
@@ -170,6 +185,7 @@ the `:717` bare fetch), `git_operations/base_branch.py`, `issues/cache.py`,
 | `github_operations/issues/test_comments_mixin.py` | Convert mock-issue sites |
 | `github_operations/issues/test_events_mixin.py` | Convert mock-issue sites |
 | `github_operations/issues/test_branch_manager_create.py` | Convert sites + `full_name` on local `mock_repo`s |
+| `github_operations/test_pr_manager_feedback.py` | `full_name` + `mock_issue` identity in `_setup_mocks`; routing test for `_pr_feedback_sources` |
 | `checks/test_branch_status.py` | Warning-emitted test |
 
 ### Folders
@@ -185,7 +201,7 @@ would leave the tree red. Each step is independently green.
 |---|---|---|
 | 1 | `IssueIdentityMismatchError` + `_get_issue_checked` + export, with tests | Production + tests; helper not yet used |
 | 2 | Test-fixture preparation (`make_mock_issue`, `full_name`, ~30 site conversions) | Tests only; no production change |
-| 3 | Route all 18 call sites, with routing tests | Production + tests |
+| 3 | Route all 18 call sites + `Raises:` docstring updates, with routing tests | Production + tests |
 | 4 | `check_branch_status` visible warning, with test | Production + tests |
 
 ## Out of scope
