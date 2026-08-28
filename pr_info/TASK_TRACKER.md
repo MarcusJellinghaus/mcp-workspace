@@ -35,7 +35,7 @@ Details: [step_2.md](./steps/step_2.md)
 
 - [x] Implementation: extend `test_github_pr_view_no_repo` and `test_github_search_no_repo`; include the resolved `api_base_url` in the two error strings in `github_pr_view` and `github_search`
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared (blocked: `pr_info/.commit_message.txt` is gitignored and the MCP workspace tools refuse to write it)
+- [x] Commit message prepared — used by commit `115e6e1`; the transient `pr_info/.commit_message.txt` could not be written (gitignored, and the MCP workspace tools reject gitignored paths)
 
 ### Step 3: Documentation surfaces
 
