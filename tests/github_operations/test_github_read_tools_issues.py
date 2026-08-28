@@ -256,10 +256,9 @@ def test_github_issue_list_non_positive_max_results(
     result = github_issue_list(max_results=max_results)
 
     assert mock_mgr.list_issues.call_args.kwargs["max_results"] == 1
-    assert "showing 0 of 0+ results" in result
-    assert "-1" not in result
-    assert not any(line.startswith("#") for line in result.splitlines())
-    assert not result.startswith("Error:")
+    # A cap of 0 displays nothing, so there is no result set for a truncation
+    # notice to annotate.
+    assert result == "No issues found."
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")

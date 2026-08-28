@@ -201,5 +201,15 @@ class TestTruncateOutput:
         assert "showing 2 of 5 lines" in result
         assert "max_lines=5" in result
 
+    def test_negative_max_lines_keeps_nothing(self) -> None:
+        """A negative cap keeps nothing and never reports a negative count."""
+        text = "line1\nline2\nline3\nline4\nline5"
+        result = truncate_output(text, max_lines=-1)
+        assert "line1" not in result
+        assert "line5" not in result
+        assert "showing 0 of 5 lines" in result
+        assert "max_lines=5" in result
+        assert "-1" not in result
+
     def test_empty_string(self) -> None:
         assert truncate_output("", max_lines=10) == ""

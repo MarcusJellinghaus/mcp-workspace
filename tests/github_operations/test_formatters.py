@@ -2,6 +2,8 @@
 
 from typing import Any, Dict
 
+import pytest
+
 from mcp_workspace.github_operations.formatters import (
     InlineCommentData,
     ReviewData,
@@ -76,6 +78,16 @@ class TestTruncateOutput:
         assert "line3" not in result
         assert "showing 3 of 10 lines" in result
         assert "max_lines=10" in result
+
+    def test_truncate_output_negative_max_lines(self) -> None:
+        """A negative cap keeps nothing and never reports a negative count."""
+        text = "\n".join(f"line{i}" for i in range(10))
+        result = truncate_output(text, max_lines=-1)
+        assert "line0" not in result
+        assert "line9" not in result
+        assert "showing 0 of 10 lines" in result
+        assert "max_lines=10" in result
+        assert "-1" not in result
 
     def test_truncate_output_exact_limit(self) -> None:
         """Text at exact limit not truncated."""
@@ -184,6 +196,13 @@ class TestFormatIssueList:
         assert "raise max_results" in result
         assert "state/labels/assignee/since" in result
         assert "query" not in result  # this tool has no query parameter
+
+    @pytest.mark.parametrize("max_results", [0, -1])
+    def test_format_issue_list_non_positive_max_results(self, max_results: int) -> None:
+        """A non-positive cap returns the empty message, not a bare notice."""
+        issues = [_make_issue(number=i, title=f"Issue {i}") for i in range(3)]
+        result = format_issue_list(issues, max_results=max_results)
+        assert result == "No issues found."
 
     def test_format_issue_list_labels(self) -> None:
         """Labels rendered in summary line."""

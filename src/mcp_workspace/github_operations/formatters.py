@@ -31,11 +31,17 @@ def truncate_output(text: str, max_lines: int) -> str:
 
     Args:
         text: The text to potentially truncate.
-        max_lines: Maximum number of lines to keep.
+        max_lines: Maximum number of lines to keep. Negative values are
+            treated as 0.
 
     Returns:
         Original text if within limit, otherwise truncated with indicator.
     """
+    # max_lines arrives straight from the unvalidated github_issue_view /
+    # github_pr_view parameter, so clamp it before anything derives from it:
+    # a negative cap made lines[:max_lines] keep all but the last line under a
+    # notice reading "showing -1 of {total}".
+    max_lines = max(0, max_lines)
     lines = text.splitlines()
     if len(lines) <= max_lines:
         return text
@@ -101,17 +107,23 @@ def format_issue_list(
             the surplus item can prove that more results exist. At most
             `max_results` of them are displayed.
         max_results: Maximum number of issues to display. Must be the
-            unincremented cap, not the limit used to fetch `issues`.
+            unincremented cap, not the limit used to fetch `issues`. Negative
+            values are treated as 0.
 
     Returns:
         Compact one-line-per-issue text, with a truncation notice when the
         surplus item is present.
     """
-    if not issues:
+    # Emptiness is judged on the capped set, not the over-fetched list: with a
+    # cap of 0 the surplus item alone would otherwise skip this return and
+    # leave a bare notice with no results above it.
+    max_results = max(0, max_results)
+    displayed = issues[:max_results]
+    if not displayed:
         return "No issues found."
 
     lines: list[str] = []
-    for issue in issues[:max_results]:
+    for issue in displayed:
         labels_str = ", ".join(issue["labels"]) if issue["labels"] else ""
         label_part = f"  {labels_str}" if labels_str else ""
         lines.append(
