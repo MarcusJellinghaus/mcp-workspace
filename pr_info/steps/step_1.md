@@ -86,7 +86,7 @@ def read_gitignore_rules(gitignore_path: Path) -> Optional[Callable[[str], bool]
 
         return matcher
 
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception as e:
         logger.warning("Error reading/parsing gitignore: %s", str(e))
         return None
 ```
@@ -159,13 +159,13 @@ def test_read_gitignore_rules_logs_nothing_above_debug(
         assert caplog.records == []
 ```
 
-Requires `import logging` and `import pytest` in the test module — verify whether
-they are already present before adding.
+Requires `import logging` in the test module (add it; `pytest` is already
+imported at `tests/file_tools/test_directory_utils.py:8`).
 
-> This test is **beyond the issue's literal list**, which names only the two
-> assertion updates. It is 10 lines and encodes the issue's actual goal rather
-> than its mechanics. Drop it if the reviewer prefers a strictly minimal diff;
-> the rest of the step stands without it.
+This test is **mandatory**. It goes beyond the issue's literal list, which names
+only the two assertion updates, but it is 10 lines and it is the only automated
+check behind the Definition of Done item "No INFO-or-above log records are
+emitted by `read_gitignore_rules`".
 
 **Expected failures before implementation:** (a) `matcher` is `(None, None)`, so
 `assert matcher is None` fails. (b) `matcher` is a tuple, so `assert
