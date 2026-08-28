@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Generator
+from typing import Generator, Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -583,6 +583,105 @@ def test_github_search_max_results_cap(mock_manager_cls: MagicMock) -> None:
     # (only 3 items are passed to the formatter)
     lines = [line for line in result.strip().split("\n") if line.startswith("#")]
     assert len(lines) == 3
+
+
+class _CountingResults:
+    """Iterable PaginatedList stand-in that counts totalCount reads."""
+
+    def __init__(self, items: list[MagicMock]) -> None:
+        self._items = items
+        self.total_count_reads = 0
+
+    def __iter__(self) -> Iterator[MagicMock]:
+        return iter(self._items)
+
+    @property
+    def totalCount(self) -> int:  # pylint: disable=invalid-name
+        """Mirrors PyGithub's camelCase attribute; counts each read."""
+        self.total_count_reads += 1
+        return len(self._items)
+
+
+def _make_search_items(count: int) -> list[MagicMock]:
+    """Create search result mocks numbered 1..count."""
+    items = []
+    for i in range(count):
+        item = MagicMock()
+        item.number = i + 1
+        item.title = f"Item {i + 1}"
+        item.state = "open"
+        item.labels = []
+        item.pull_request = None
+        items.append(item)
+    return items
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_search_notice_states_exact_total(mock_manager_cls: MagicMock) -> None:
+    """The notice reports PaginatedList.totalCount, not the item count."""
+    mock_repo = MagicMock()
+    mock_repo.full_name = "owner/repo"
+
+    results = MagicMock()
+    results.__iter__.return_value = iter(_make_search_items(3))
+    results.totalCount = 412
+
+    mock_mgr = MagicMock()
+    mock_manager_cls.return_value = mock_mgr
+    mock_mgr._get_repository.return_value = mock_repo
+    mock_mgr._github_client.search_issues.return_value = results
+
+    result = github_search(query="test", max_results=3)
+
+    assert "showing 3 of 412 results" in result
+
+
+@pytest.mark.parametrize("max_results", [0, -1])
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_search_non_positive_max_results(
+    mock_manager_cls: MagicMock, max_results: int
+) -> None:
+    """A zero or negative cap collects nothing instead of erroring."""
+    mock_repo = MagicMock()
+    mock_repo.full_name = "owner/repo"
+
+    mock_mgr = MagicMock()
+    mock_manager_cls.return_value = mock_mgr
+    mock_mgr._get_repository.return_value = mock_repo
+    mock_mgr._github_client.search_issues.return_value = _make_search_items(5)
+
+    result = github_search(query="test", max_results=max_results)
+
+    assert "No results found." in result
+    assert not result.startswith("Error:")
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_search_empty_makes_no_total_count_call(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A zero-result search never reads totalCount, so it costs no extra request."""
+    mock_repo = MagicMock()
+    mock_repo.full_name = "owner/repo"
+
+    mock_mgr = MagicMock()
+    mock_manager_cls.return_value = mock_mgr
+    mock_mgr._get_repository.return_value = mock_repo
+
+    empty_results = _CountingResults([])
+    mock_mgr._github_client.search_issues.return_value = empty_results
+
+    result = github_search(query="test")
+
+    assert "No results found." in result
+    assert empty_results.total_count_reads == 0
+
+    non_empty_results = _CountingResults(_make_search_items(3))
+    mock_mgr._github_client.search_issues.return_value = non_empty_results
+
+    github_search(query="test", max_results=3)
+
+    assert non_empty_results.total_count_reads == 1
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")

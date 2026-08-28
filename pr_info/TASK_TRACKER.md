@@ -81,9 +81,39 @@ Details: [step_4.md](./steps/step_4.md)
 
 Details: [step_5.md](./steps/step_5.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared (recorded below; `pr_info/.commit_message.txt`
+      could not be written because it is gitignored and the MCP workspace
+      server refuses gitignored paths, as in steps 3 and 4)
+
+  ```
+  Emit a truncation notice from github_search using the exact search totalCount
+
+  format_search_results guarded its notice with len(items) > max_results, but
+  github_search capped the collected list at max_results first, so the
+  condition was never true and the tool truncated silently.
+
+  Unlike issue listing, search can state an exact total: GitHub returns
+  total_count in the first search page and PyGithub exposes it as
+  PaginatedList.totalCount. The notice now renders "showing 30 of 412 results
+  — raise max_results or refine your query", comparing the exact total against
+  the number of lines actually built rather than against the capped input.
+
+  The collection loop switches from enumerate plus an i >= max_results guard
+  to islice(results, max(0, max_results)). The old guard pulled item
+  max_results before breaking, which fetched a second search page only to
+  discard it — at a default cap of 30 against a 30-per-page endpoint, that was
+  an extra request on every default-sized search. islice stops without that
+  pull, so totalCount really does cost nothing extra. The max(0, ...) clamp
+  preserves the old behaviour for a negative max_results, which enumerate
+  silently treated as "collect nothing" but islice rejects with ValueError.
+
+  totalCount is read after the loop and only when items were collected: the
+  property falls back to a separate per_page=1 request when no page was
+  cached, which is exactly the zero-result and clamped-to-zero cases, where
+  the "No results found." early return discards the value anyway.
+  ```
 
 ### Step 6: `pr_feedback` — reorder sections, restyle notices, add a conditional footer
 

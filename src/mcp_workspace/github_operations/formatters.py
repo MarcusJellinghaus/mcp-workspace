@@ -166,12 +166,15 @@ def format_pr_view(
 def format_search_results(
     items: list[dict[str, Any]],
     max_results: int = 30,
+    total_count: Optional[int] = None,
 ) -> str:
     """Format search results as compact summary lines.
 
     Args:
         items: List of search result dicts with number, title, state, labels, etc.
         max_results: Maximum number of results to display.
+        total_count: Exact total from the search API when known; falls back to
+            len(items).
 
     Returns:
         Compact one-line-per-result text with Issue/PR indicator.
@@ -188,11 +191,14 @@ def format_search_results(
             f"#{item['number']} [{kind}] [{item['state']}] {item['title']}{label_part}"
         )
 
-    if len(items) > max_results:
+    # lines was built from items[:max_results], so its length is exactly the
+    # number of results actually shown.
+    shown = len(lines)
+    total = total_count if total_count is not None else len(items)
+    if total > shown:
         lines.append(
-            f"\n... {len(items)} total results. "
-            f"Showing first {max_results}. "
-            f"Refine your query for more specific results."
+            f"\n... showing {shown} of {total} results "
+            f"— raise max_results or refine your query."
         )
 
     return "\n".join(lines)

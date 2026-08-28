@@ -4,6 +4,7 @@ import asyncio
 import logging
 import re
 from datetime import datetime
+from itertools import islice
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -796,9 +797,11 @@ def github_search(
         # pylint: disable=protected-access
         results = manager._github_client.search_issues(**qualifiers)
         items = []
-        for i, item in enumerate(results):
-            if i >= max_results:
-                break
+        # islice stops at max_results without pulling the next item, so a
+        # default-sized search never fetches page 2 just to discard item 31.
+        # max(0, ...) because islice rejects a negative stop, where the old
+        # enumerate guard simply collected nothing.
+        for item in islice(results, max(0, max_results)):
             item_labels = [label.name for label in item.labels] if item.labels else []
             items.append(
                 {
@@ -809,7 +812,17 @@ def github_search(
                     "pull_request": item.pull_request is not None,
                 }
             )
-        result = format_search_results(items, max_results)
+        # Read totalCount only after iterating, and only when we collected
+        # something: PyGithub fills it from the first search page we already
+        # fetched, but on an empty result set (or a clamped cap of 0) no page
+        # was fetched and the property falls back to a separate per_page=1
+        # request — the extra call this design exists to avoid. An empty item
+        # list returns "No results found." and never uses the total, so None is
+        # correct there. getattr keeps list-based test doubles working.
+        total_count: Optional[int] = (
+            getattr(results, "totalCount", None) if items else None
+        )
+        result = format_search_results(items, max_results, total_count)
         if not has_qualifier:
             result += "\n(auto-added: is:issue is:pull-request)"
         return result

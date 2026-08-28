@@ -364,5 +364,15 @@ class TestFormatSearchResults:
         assert "#1" in result
         assert "#2" in result
         assert "#3" not in result
-        assert "5 total results" in result
-        assert "Showing first 3" in result
+        assert "showing 3 of 5 results" in result
+        assert "raise max_results" in result
+        assert "refine your query" in result
+
+    def test_format_search_results_uses_total_count(self) -> None:
+        """An explicit total_count is rendered instead of len(items)."""
+        items = [
+            {"number": i, "title": f"Result {i}", "state": "open", "labels": []}
+            for i in range(3)
+        ]
+        result = format_search_results(items, max_results=3, total_count=412)
+        assert "showing 3 of 412 results" in result
