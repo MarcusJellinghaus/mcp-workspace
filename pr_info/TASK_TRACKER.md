@@ -21,6 +21,31 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: `reference_name` on the four GitHub read tools
+
+Details: [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: fixture, `_configure_manager` helper and six tests in `tests/github_operations/test_github_read_tools.py`; `get_reference_repo_url()` in `server_reference_tools.py`; `_issue_manager()` plus `reference_name` on `github_issue_view`, `github_issue_list`, `github_pr_view`, `github_search` in `server.py`, including the `github_search` scope wording
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Name the API base URL in "Could not access repository"
+
+Details: [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: extend `test_github_pr_view_no_repo` and `test_github_search_no_repo`; include the resolved `api_base_url` in the two error strings in `github_pr_view` and `github_search`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: Documentation surfaces
+
+Details: [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation: `usage` string and docstring of `get_reference_projects()` plus the two exact-match assertions in `tests/test_reference_projects_mcp_tools.py`; update `README.md`, `.claude/CLAUDE.md`, `.claude/skills/issue_approve/SKILL.md` and `tests/LLM_Test.md`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review
+- [ ] PR summary
