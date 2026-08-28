@@ -8,6 +8,7 @@ import git
 import pytest
 from github.GithubException import GithubException
 
+from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import IssueManager
 
 from .._issue_test_helpers import make_mock_issue
@@ -64,6 +65,17 @@ class TestIssueManagerCore:
         assert result is not None
         assert result["number"] == issue_number
         mock_issue_manager._repository.get_issue.assert_called_once_with(issue_number)
+
+    def test_get_issue_transferred_raises(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """A transferred issue raises instead of returning the wrong issue."""
+        mock_issue_manager._repository.get_issue.return_value = make_mock_issue(
+            220, repo_full_name="test/other-repo"
+        )
+
+        with pytest.raises(IssueIdentityMismatchError, match="was transferred to"):
+            mock_issue_manager.get_issue(72)
 
     def test_create_issue_success(self, mock_issue_manager: IssueManager) -> None:
         """Test successful issue creation."""

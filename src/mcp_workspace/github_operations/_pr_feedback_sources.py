@@ -126,12 +126,17 @@ def fetch_conversation_comments(
     Returns:
         List of dicts with ``author`` and ``body`` keys; empty list when the
         repository is unavailable.
+
+    Raises:
+        IssueIdentityMismatchError: If GitHub returns an issue from another
+            repository (the issue was transferred) or with a different number.
     """
     repo = manager._get_repository()  # pylint: disable=protected-access
     if repo is None:
         return []
 
-    issue = repo.get_issue(pr_number)
+    # pylint: disable-next=protected-access
+    issue = manager._get_issue_checked(repo, pr_number)
     comments = issue.get_comments()
     return [
         {

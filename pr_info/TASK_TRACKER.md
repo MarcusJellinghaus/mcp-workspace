@@ -41,9 +41,9 @@ Details: [step_2.md](./steps/step_2.md)
 
 Details: [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: write the 4 new tests first (read path in `test_manager.py`, write path in `test_labels_mixin.py`, inherited path in `test_pr_manager_feedback.py`, rendered message in `test_github_read_tools.py`), then route the 18 sites in `issues/manager.py`, `issues/comments_mixin.py`, `issues/labels_mixin.py`, `issues/events_mixin.py`, `issues/branch_manager.py`, `_pr_feedback_sources.py`; update `Raises:`/`Returns:` docstrings on the routed public methods plus `transition_issue_label`. Leave `server.py:717` unrouted; verify `repo.get_issue(` matches exactly one line in `src/`.
-- [ ] Quality checks: pylint, pytest (fast exclusions **and** `markers=["git_integration"]`), mypy, lint-imports — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: write the 4 new tests first (read path in `test_manager.py`, write path in `test_labels_mixin.py`, inherited path in `test_pr_manager_feedback.py`, rendered message in `test_github_read_tools.py`), then route the 18 sites in `issues/manager.py`, `issues/comments_mixin.py`, `issues/labels_mixin.py`, `issues/events_mixin.py`, `issues/branch_manager.py`, `_pr_feedback_sources.py`; update `Raises:`/`Returns:` docstrings on the routed public methods plus `transition_issue_label`. Leave `server.py:717` unrouted; verify `repo.get_issue(` matches exactly one line in `src/`.
+- [x] Quality checks: pylint, pytest (fast exclusions **and** `markers=["git_integration"]`), mypy, lint-imports — fix all issues
+- [x] Commit message prepared — same blocker as steps 1 and 2: `pr_info/.commit_message.txt` is gitignored (`.gitignore:48`) and the workspace MCP write tools refuse gitignored paths. The message text is in the run output; drop line 48 from `.gitignore` or allowlist the path to store it in the file.
 
 ### Step 4: Visible warning in `check_branch_status`
 

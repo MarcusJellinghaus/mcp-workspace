@@ -130,7 +130,12 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             issue_number: Issue number to retrieve
 
         Returns:
-            IssueData with issue information, or empty IssueData on error
+            IssueData with issue information, or empty IssueData when the
+            repository is unavailable
+
+        Raises:
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different number.
 
         Example:
             >>> issue = manager.get_issue(123)
@@ -147,7 +152,7 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             return create_empty_issue_data()
 
         # Get issue
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
 
         # Parse base_branch from body
         body = github_issue.body or ""
@@ -302,7 +307,12 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             issue_number: Issue number to close
 
         Returns:
-            IssueData with updated issue information, or empty IssueData on error
+            IssueData with updated issue information, or empty IssueData when
+            the repository is unavailable
+
+        Raises:
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different number.
 
         Example:
             >>> closed_issue = manager.close_issue(123)
@@ -318,11 +328,11 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             return create_empty_issue_data()
 
         # Get and close issue
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
         github_issue.edit(state="closed")
 
         # Get fresh issue data after closing
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
 
         # Convert to IssueData
         return IssueData(
@@ -352,7 +362,12 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             issue_number: Issue number to reopen
 
         Returns:
-            IssueData with updated issue information, or empty IssueData on error
+            IssueData with updated issue information, or empty IssueData when
+            the repository is unavailable
+
+        Raises:
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different number.
 
         Example:
             >>> reopened_issue = manager.reopen_issue(123)
@@ -368,11 +383,11 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             return create_empty_issue_data()
 
         # Get and reopen issue
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
         github_issue.edit(state="open")
 
         # Get fresh issue data after reopening
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
 
         # Convert to IssueData
         return IssueData(

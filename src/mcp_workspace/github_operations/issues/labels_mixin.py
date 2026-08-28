@@ -76,10 +76,13 @@ class LabelsMixin:
             *labels: Variable number of label names to add
 
         Returns:
-            IssueData with updated issue information, or empty IssueData on error
+            IssueData with updated issue information, or empty IssueData when
+            the repository is unavailable
 
         Raises:
             ValueError: If issue number is invalid or no labels provided
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different number.
 
         Example:
             >>> updated_issue = manager.add_labels(123, "bug", "high-priority")
@@ -99,11 +102,11 @@ class LabelsMixin:
             return create_empty_issue_data()
 
         # Get issue and add labels
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
         github_issue.add_to_labels(*labels)
 
         # Get fresh issue data after adding labels
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
 
         # Convert to IssueData
         return IssueData(
@@ -136,10 +139,13 @@ class LabelsMixin:
             *labels: Variable number of label names to remove
 
         Returns:
-            IssueData with updated issue information, or empty IssueData on error
+            IssueData with updated issue information, or empty IssueData when
+            the repository is unavailable
 
         Raises:
             ValueError: If issue number is invalid or no labels provided
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different number.
 
         Example:
             >>> updated_issue = manager.remove_labels(123, "bug", "high-priority")
@@ -159,11 +165,11 @@ class LabelsMixin:
             return create_empty_issue_data()
 
         # Get issue and remove labels
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
         github_issue.remove_from_labels(*labels)
 
         # Get fresh issue data after removing labels
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
 
         # Convert to IssueData
         return IssueData(
@@ -196,7 +202,12 @@ class LabelsMixin:
             *labels: Variable number of label names to set (can be empty to remove all)
 
         Returns:
-            IssueData with updated issue information, or empty IssueData on error
+            IssueData with updated issue information, or empty IssueData when
+            the repository is unavailable
+
+        Raises:
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different number.
 
         Example:
             >>> updated_issue = manager.set_labels(123, "bug", "high-priority")
@@ -215,11 +226,11 @@ class LabelsMixin:
             return create_empty_issue_data()
 
         # Get issue and set labels (replaces all existing labels)
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
         github_issue.set_labels(*labels)
 
         # Get fresh issue data after setting labels
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
 
         # Convert to IssueData
         return IssueData(
@@ -263,6 +274,12 @@ class LabelsMixin:
         Returns:
             ``True`` on success (including idempotent no-op), ``False`` on
             swallowed error or failed ``set_labels``.
+
+        Raises:
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different
+                number. Propagates from :meth:`get_issue` / :meth:`set_labels`,
+                so the ``bool`` contract does not hold on that path.
         """
         # Validate issue number (decorator re-raises ValueError).
         validate_issue_number(issue_number)

@@ -47,10 +47,13 @@ class CommentsMixin:
             body: Comment text (required, cannot be empty)
 
         Returns:
-            CommentData with created comment information, or empty dict on error
+            CommentData with created comment information, or empty dict when
+            the repository is unavailable
 
         Raises:
             ValueError: If issue number is invalid or body is empty
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different number.
 
         Example:
             >>> comment = manager.add_comment(123, "This is a test comment")
@@ -77,7 +80,7 @@ class CommentsMixin:
             )
 
         # Get issue and create comment
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
         github_comment = github_issue.create_comment(body.strip())
 
         # Convert to CommentData
@@ -107,7 +110,12 @@ class CommentsMixin:
             issue_number: Issue number to get comments from
 
         Returns:
-            List of CommentData dictionaries with comment information, or empty list on error
+            List of CommentData dictionaries with comment information, or empty
+            list when the repository is unavailable
+
+        Raises:
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different number.
 
         Example:
             >>> comments = manager.get_comments(123)
@@ -124,7 +132,7 @@ class CommentsMixin:
             return []
 
         # Get issue and comments
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
         github_comments = github_issue.get_comments()
 
         # Convert to CommentData list
@@ -169,10 +177,13 @@ class CommentsMixin:
             body: New comment text (required, cannot be empty)
 
         Returns:
-            CommentData with updated comment information, or empty dict on error
+            CommentData with updated comment information, or empty dict when
+            the repository is unavailable
 
         Raises:
             ValueError: If issue number is invalid, comment ID is invalid, or body is empty
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different number.
 
         Example:
             >>> comment = manager.edit_comment(123, 456789, "Updated comment text")
@@ -202,7 +213,7 @@ class CommentsMixin:
             )
 
         # Get issue to verify it exists
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
 
         # Get the comment directly from repository
         github_comment = github_issue.get_comment(comment_id)
@@ -245,6 +256,10 @@ class CommentsMixin:
         Returns:
             True if deletion was successful, False otherwise
 
+        Raises:
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different number.
+
         Example:
             >>> success = manager.delete_comment(123, 456789)
             >>> print(f"Deletion {'successful' if success else 'failed'}")
@@ -262,7 +277,7 @@ class CommentsMixin:
             return False
 
         # Get issue to verify it exists
-        github_issue = repo.get_issue(issue_number)
+        github_issue = self._get_issue_checked(repo, issue_number)
 
         # Get the comment directly from repository
         github_comment = github_issue.get_comment(comment_id)

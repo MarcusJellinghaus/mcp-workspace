@@ -9,6 +9,7 @@ import git
 import pytest
 from github.GithubException import GithubException
 
+from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import IssueManager
 from mcp_workspace.github_operations.issues.base import (
     validate_comment_id,
@@ -45,6 +46,18 @@ class TestIssueManagerLabels:
         mock_issue_manager.add_labels(issue_number, *labels)
 
         mock_issue.add_to_labels.assert_called_once_with(*labels)
+
+    def test_set_labels_transferred_does_not_write(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """The guard fires before any label write reaches the other repository."""
+        mock_issue = make_mock_issue(220, repo_full_name="test/other-repo")
+        mock_issue_manager._repository.get_issue.return_value = mock_issue
+
+        with pytest.raises(IssueIdentityMismatchError):
+            mock_issue_manager.set_labels(72, "bug")
+
+        mock_issue.set_labels.assert_not_called()
 
     def test_add_labels_invalid_issue_number(
         self, mock_issue_manager: IssueManager

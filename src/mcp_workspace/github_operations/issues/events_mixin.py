@@ -45,6 +45,8 @@ class EventsMixin:
 
         Raises:
             GithubException: For authentication, permission, or API errors
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different number.
 
         Note:
             Returns ALL event types by default. Currently, the validation workflow
@@ -70,7 +72,7 @@ class EventsMixin:
 
         # Get issue
         try:
-            github_issue = repo.get_issue(issue_number)
+            github_issue = self._get_issue_checked(repo, issue_number)
         except GithubException as e:
             logger.error(f"Failed to get issue #{issue_number}: {e}")
             raise
