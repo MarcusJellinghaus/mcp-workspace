@@ -8,11 +8,14 @@ import git
 import pytest
 from github.GithubException import GithubException
 
+from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import IssueEventType, IssueManager
 from mcp_workspace.github_operations.issues.base import (
     validate_comment_id,
     validate_issue_number,
 )
+
+from .._issue_test_helpers import make_mock_issue
 
 
 @pytest.mark.git_integration
@@ -22,7 +25,7 @@ class TestIssueManagerEvents:
     def test_get_issue_events_success(self, mock_issue_manager: IssueManager) -> None:
         """Test successful issue events retrieval."""
         issue_number = 1
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
         mock_event1 = MagicMock()
         mock_event1.event = "labeled"
         mock_event1.created_at = datetime(2023, 1, 1)
@@ -51,7 +54,7 @@ class TestIssueManagerEvents:
     ) -> None:
         """Test filtering for labeled events only."""
         issue_number = 1
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
         mock_labeled_event = MagicMock()
         mock_labeled_event.event = "labeled"
         mock_labeled_event.label = MagicMock()
@@ -85,7 +88,7 @@ class TestIssueManagerEvents:
     ) -> None:
         """Test filtering for unlabeled events."""
         issue_number = 1
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
         mock_unlabeled_event = MagicMock()
         mock_unlabeled_event.event = "unlabeled"
         mock_unlabeled_event.label = MagicMock()
@@ -108,7 +111,7 @@ class TestIssueManagerEvents:
     ) -> None:
         """Test getting events from issue with no events."""
         issue_number = 1
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
         mock_issue.get_events.return_value = []
@@ -116,3 +119,17 @@ class TestIssueManagerEvents:
         result = mock_issue_manager.get_issue_events(issue_number)
 
         assert len(result) == 0
+
+    def test_get_issue_events_transferred_issue_raises(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """The routed events fetch raises before reading the other repository."""
+        transferred = make_mock_issue(220, repo_full_name="test/other-repo")
+        mock_issue_manager._repository.get_issue.return_value = transferred
+
+        with pytest.raises(
+            IssueIdentityMismatchError, match="was transferred to test/other-repo#220"
+        ):
+            mock_issue_manager.get_issue_events(72)
+
+        transferred.get_events.assert_not_called()

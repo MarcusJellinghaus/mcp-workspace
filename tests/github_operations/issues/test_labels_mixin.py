@@ -9,11 +9,14 @@ import git
 import pytest
 from github.GithubException import GithubException
 
+from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import IssueManager
 from mcp_workspace.github_operations.issues.base import (
     validate_comment_id,
     validate_issue_number,
 )
+
+from .._issue_test_helpers import make_mock_issue
 
 
 @pytest.mark.git_integration
@@ -24,8 +27,7 @@ class TestIssueManagerLabels:
         """Test successful label addition."""
         issue_number = 1
         labels = ["bug", "enhancement"]
-        mock_issue = MagicMock()
-        mock_issue.number = issue_number
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
@@ -37,13 +39,25 @@ class TestIssueManagerLabels:
         """Test adding a single label."""
         issue_number = 1
         labels = ["bug"]
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
         mock_issue_manager.add_labels(issue_number, *labels)
 
         mock_issue.add_to_labels.assert_called_once_with(*labels)
+
+    def test_set_labels_transferred_does_not_write(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """The guard fires before any label write reaches the other repository."""
+        mock_issue = make_mock_issue(220, repo_full_name="test/other-repo")
+        mock_issue_manager._repository.get_issue.return_value = mock_issue
+
+        with pytest.raises(IssueIdentityMismatchError):
+            mock_issue_manager.set_labels(72, "bug")
+
+        mock_issue.set_labels.assert_not_called()
 
     def test_add_labels_invalid_issue_number(
         self, mock_issue_manager: IssueManager
@@ -74,8 +88,7 @@ class TestIssueManagerLabels:
         """Test successful label removal."""
         issue_number = 1
         labels = ["bug", "enhancement"]
-        mock_issue = MagicMock()
-        mock_issue.number = issue_number
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
@@ -87,7 +100,7 @@ class TestIssueManagerLabels:
         """Test removing a single label."""
         issue_number = 1
         labels = ["bug"]
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
@@ -124,8 +137,7 @@ class TestIssueManagerLabels:
         """Test successful label setting."""
         issue_number = 1
         labels = ["bug", "priority-high"]
-        mock_issue = MagicMock()
-        mock_issue.number = issue_number
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
@@ -138,7 +150,7 @@ class TestIssueManagerLabels:
     ) -> None:
         """Test setting empty labels to clear all labels."""
         issue_number = 1
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
@@ -150,7 +162,7 @@ class TestIssueManagerLabels:
         """Test setting a single label."""
         issue_number = 1
         labels = ["bug"]
-        mock_issue = MagicMock()
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 

@@ -265,6 +265,10 @@ class IssueBranchManager(BaseGitHubManager):
         Returns:
             BranchCreationResult with success status, branch name, error, and existing branches
 
+        Raises:
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different number.
+
         Example:
             >>> manager = IssueBranchManager(Path.cwd())
             >>> result = manager.create_remote_branch_for_issue(123)
@@ -272,7 +276,7 @@ class IssueBranchManager(BaseGitHubManager):
             ...     print(f"Created branch: {result['branch_name']}")
             ... else:
             ...     print(f"Error: {result['error']}")
-        """
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate issue number
         if not self._validate_issue_number(issue_number):
             return BranchCreationResult(
@@ -310,7 +314,7 @@ class IssueBranchManager(BaseGitHubManager):
                 )
 
         # Step 2: Get issue to access node_id and title
-        issue = repo.get_issue(issue_number)
+        issue = self._get_issue_checked(repo, issue_number)
 
         # Step 3: Generate branch name if not provided
         if branch_name is None:

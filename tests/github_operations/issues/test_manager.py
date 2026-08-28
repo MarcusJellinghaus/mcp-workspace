@@ -8,7 +8,10 @@ import git
 import pytest
 from github.GithubException import GithubException
 
+from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import IssueManager
+
+from .._issue_test_helpers import make_mock_issue
 
 
 @pytest.mark.git_integration
@@ -47,8 +50,7 @@ class TestIssueManagerCore:
     def test_get_issue_success(self, mock_issue_manager: IssueManager) -> None:
         """Test successful issue retrieval."""
         issue_number = 1
-        mock_issue = MagicMock()
-        mock_issue.number = issue_number
+        mock_issue = make_mock_issue(issue_number)
         mock_issue.title = "Test Issue"
         mock_issue.body = "Test body"
         mock_issue.state = "open"
@@ -64,12 +66,22 @@ class TestIssueManagerCore:
         assert result["number"] == issue_number
         mock_issue_manager._repository.get_issue.assert_called_once_with(issue_number)
 
+    def test_get_issue_transferred_raises(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """A transferred issue raises instead of returning the wrong issue."""
+        mock_issue_manager._repository.get_issue.return_value = make_mock_issue(
+            220, repo_full_name="test/other-repo"
+        )
+
+        with pytest.raises(IssueIdentityMismatchError, match="was transferred to"):
+            mock_issue_manager.get_issue(72)
+
     def test_create_issue_success(self, mock_issue_manager: IssueManager) -> None:
         """Test successful issue creation."""
         title = "Test Issue"
         body = "Test body"
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
         mock_issue.title = title
         mock_issue.body = body
 
@@ -88,8 +100,7 @@ class TestIssueManagerCore:
         title = "Test Issue"
         body = "Test body"
         labels = ["bug", "enhancement"]
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
 
         mock_issue_manager._repository.create_issue.return_value = mock_issue
 
@@ -108,8 +119,7 @@ class TestIssueManagerCore:
     def test_close_issue_success(self, mock_issue_manager: IssueManager) -> None:
         """Test successful issue closing."""
         issue_number = 1
-        mock_issue = MagicMock()
-        mock_issue.number = issue_number
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
@@ -125,8 +135,7 @@ class TestIssueManagerCore:
     def test_reopen_issue_success(self, mock_issue_manager: IssueManager) -> None:
         """Test successful issue reopening."""
         issue_number = 1
-        mock_issue = MagicMock()
-        mock_issue.number = issue_number
+        mock_issue = make_mock_issue(issue_number)
 
         mock_issue_manager._repository.get_issue.return_value = mock_issue
 
@@ -209,12 +218,10 @@ class TestIssueManagerCore:
         self, mock_issue_manager: IssueManager
     ) -> None:
         """Test listing issues with default parameters."""
-        mock_issue1 = MagicMock()
-        mock_issue1.number = 1
+        mock_issue1 = make_mock_issue(1)
         mock_issue1.pull_request = None
         mock_issue1.body = ""
-        mock_issue2 = MagicMock()
-        mock_issue2.number = 2
+        mock_issue2 = make_mock_issue(2)
         mock_issue2.pull_request = None
         mock_issue2.body = ""
 
@@ -230,8 +237,7 @@ class TestIssueManagerCore:
 
     def test_list_issues_open_only(self, mock_issue_manager: IssueManager) -> None:
         """Test listing only open issues."""
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
         mock_issue.pull_request = None
         mock_issue.body = ""
 
@@ -246,8 +252,7 @@ class TestIssueManagerCore:
         self, mock_issue_manager: IssueManager
     ) -> None:
         """Test that pull requests are filtered out by default."""
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
         mock_issue.pull_request = None
         mock_issue.body = ""
         mock_pr = MagicMock()
@@ -305,8 +310,7 @@ class TestIssueManagerCore:
     ) -> None:
         """Test listing issues with since parameter."""
         since_date = datetime(2023, 1, 1)
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
         mock_issue.pull_request = None
         mock_issue.body = ""
 
@@ -324,8 +328,7 @@ class TestIssueManagerCore:
     ) -> None:
         """Test that PRs are filtered when using since parameter."""
         since_date = datetime(2023, 1, 1)
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
         mock_issue.pull_request = None
         mock_issue.body = ""
         mock_pr = MagicMock()
@@ -344,8 +347,7 @@ class TestIssueManagerCore:
         self, mock_issue_manager: IssueManager
     ) -> None:
         """Test that behavior without since parameter is unchanged."""
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
         mock_issue.pull_request = None
         mock_issue.body = ""
 
@@ -375,8 +377,7 @@ class TestIssueManagerCore:
 
     def test_get_issue_with_base_branch(self, mock_issue_manager: IssueManager) -> None:
         """Test getting issue with base_branch in body."""
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
         mock_issue.title = "Test"
         mock_issue.body = "Some text\n**Base Branch:** `main`\nMore text"
 
@@ -390,8 +391,7 @@ class TestIssueManagerCore:
         self, mock_issue_manager: IssueManager
     ) -> None:
         """Test getting issue without base_branch in body."""
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
         mock_issue.title = "Test"
         mock_issue.body = "Some text without base branch"
 
@@ -405,8 +405,7 @@ class TestIssueManagerCore:
         self, mock_issue_manager: IssueManager, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Test that malformed base branch logs warning."""
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
         mock_issue.title = "Test"
         mock_issue.body = "**Base Branch:** malformed\nMore text"
 
@@ -420,8 +419,7 @@ class TestIssueManagerCore:
         self, mock_issue_manager: IssueManager
     ) -> None:
         """Test that listed issues include base_branch data."""
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
         mock_issue.body = "**Base Branch:** `main`"
         mock_issue.pull_request = None
 
@@ -435,8 +433,7 @@ class TestIssueManagerCore:
         self, mock_issue_manager: IssueManager, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Test that malformed base branch in list logs warning."""
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
         mock_issue.body = "**Base Branch:** malformed"
         mock_issue.pull_request = None
 
@@ -497,8 +494,7 @@ class TestListIssuesExtendedParams:
 
     def test_list_issues_with_labels(self, mock_issue_manager: IssueManager) -> None:
         """Verify labels param is forwarded to repo.get_issues()."""
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
         mock_issue.pull_request = None
         mock_issue.body = ""
 
@@ -513,8 +509,7 @@ class TestListIssuesExtendedParams:
 
     def test_list_issues_with_assignee(self, mock_issue_manager: IssueManager) -> None:
         """Verify assignee param is forwarded to repo.get_issues()."""
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
         mock_issue.pull_request = None
         mock_issue.body = ""
 
@@ -573,8 +568,7 @@ class TestListIssuesExtendedParams:
         self, mock_issue_manager: IssueManager
     ) -> None:
         """Verify all new params work together."""
-        mock_issue = MagicMock()
-        mock_issue.number = 1
+        mock_issue = make_mock_issue(1)
         mock_issue.pull_request = None
         mock_issue.body = ""
 

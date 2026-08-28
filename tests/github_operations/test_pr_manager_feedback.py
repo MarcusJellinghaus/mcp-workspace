@@ -8,7 +8,13 @@ import git
 import pytest
 from github.GithubException import GithubException
 
+from mcp_workspace.github_operations import IssueIdentityMismatchError
+from mcp_workspace.github_operations._pr_feedback_sources import (
+    fetch_conversation_comments,
+)
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
+
+from ._issue_test_helpers import make_mock_issue
 
 
 @pytest.mark.git_integration
@@ -47,6 +53,7 @@ class TestGetPRFeedback:
         mock_repo = Mock()
         mock_repo.owner.login = "test"
         mock_repo.name = "repo"
+        mock_repo.full_name = "test/repo"
         manager._repository = mock_repo
 
         mock_requester = Mock()
@@ -61,7 +68,7 @@ class TestGetPRFeedback:
             )
 
         # REST conversation comments via repo.get_issue(...).get_comments()
-        mock_issue = Mock()
+        mock_issue = make_mock_issue(42)
         if comments_raises is not None:
             mock_issue.get_comments = Mock(side_effect=comments_raises)
         else:
@@ -430,6 +437,48 @@ class TestGetPRFeedback:
         assert result["conversation_comments"] == []
         assert "comments" in result["unavailable"]
         assert isinstance(result["unavailable"]["comments"], GithubException)
+
+    def test_conversation_comments_transferred_raises(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """The inherited guard fires on the PR-feedback REST fetch too."""
+        mock_repo = self._setup_mocks(mock_manager)
+        mock_repo.get_issue = Mock(
+            return_value=make_mock_issue(220, repo_full_name="test/other-repo")
+        )
+
+        with pytest.raises(IssueIdentityMismatchError):
+            fetch_conversation_comments(mock_manager, 72)
+
+    def test_conversation_comments_transferred_reported_unavailable(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Through get_pr_feedback the guard surfaces as unavailable['comments']."""
+        graphql_response: dict[str, Any] = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {"nodes": []},
+                        "reviews": {"nodes": []},
+                    }
+                }
+            }
+        }
+        mock_repo = self._setup_mocks(
+            mock_manager,
+            graphql_response=graphql_response,
+            alerts_response=[],
+        )
+        transferred = make_mock_issue(220, repo_full_name="test/other-repo")
+        mock_repo.get_issue = Mock(return_value=transferred)
+
+        result = mock_manager.get_pr_feedback(72)
+
+        assert result["conversation_comments"] == []
+        reason = result["unavailable"]["comments"]
+        assert isinstance(reason, IssueIdentityMismatchError)
+        assert "was transferred to test/other-repo#220" in str(reason)
+        transferred.get_comments.assert_not_called()
 
     def test_invalid_pr_number(self, mock_manager: PullRequestManager) -> None:
         """pr_number=0 → empty PRFeedback."""

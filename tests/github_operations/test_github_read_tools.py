@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues.types import CommentData, IssueData
 from mcp_workspace.server import (
     github_issue_list,
@@ -142,6 +143,25 @@ def test_github_issue_view_not_found(mock_manager_cls: MagicMock) -> None:
 
     assert "Error" in result
     assert "#999" in result
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_view_transferred(mock_manager_cls: MagicMock) -> None:
+    """A transferred issue renders the transfer target with one Error: prefix."""
+    mock_mgr = MagicMock()
+    mock_mgr.get_issue.side_effect = IssueIdentityMismatchError(
+        "Issue #72 was transferred to MarcusJellinghaus/mcp-workspace#220 "
+        "— https://github.com/MarcusJellinghaus/mcp-workspace/issues/220"
+    )
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_view(number=72)
+
+    assert result == (
+        "Error: Issue #72 was transferred to "
+        "MarcusJellinghaus/mcp-workspace#220 "
+        "— https://github.com/MarcusJellinghaus/mcp-workspace/issues/220"
+    )
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")

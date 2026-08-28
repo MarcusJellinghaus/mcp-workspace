@@ -25,6 +25,7 @@ from mcp_workspace.git_operations.branch_queries import (
     get_current_branch_name,
 )
 from mcp_workspace.git_operations.workflows import needs_rebase
+from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.ci_log_parser import (
     _extract_failed_step_log,
     _find_log_content,
@@ -507,6 +508,9 @@ def collect_branch_status(
                     fetched = issue_manager.get_issue(issue_number)
                     if fetched and fetched.get("number", 0) > 0:
                         issue_data = fetched
+                except IssueIdentityMismatchError as e:
+                    # Must precede the broad catch: this is a ValueError subclass.
+                    logger.warning("%s", e)
                 except Exception:  # pylint: disable=broad-exception-caught
                     logger.debug("Failed to fetch issue data", exc_info=True)
         except Exception:  # pylint: disable=broad-exception-caught

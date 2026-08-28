@@ -11,6 +11,7 @@ from typing import Any, Callable, Optional, TypeVar, cast
 
 from github import Github
 from github.GithubException import GithubException
+from github.Issue import Issue
 from github.Repository import Repository
 from mcp_coder_utils.log_utils import log_function_call
 from mcp_coder_utils.user_app_data import get_user_app_data_dir
@@ -26,6 +27,10 @@ from mcp_workspace.utils.token_fingerprint import format_token_fingerprint
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+
+class IssueIdentityMismatchError(ValueError):
+    """Raised when a fetched issue is not the issue that was requested."""
 
 
 def _handle_github_errors(
@@ -326,3 +331,36 @@ class BaseGitHubManager:
                 e,
             )
             return None
+
+    def _get_issue_checked(self, repo: Repository, issue_number: int) -> Issue:
+        """Fetch an issue and verify it is the one that was requested.
+
+        GitHub answers the old URL of a transferred issue with a 301 that
+        PyGithub follows silently, so the response can be an issue from a
+        different repository. Validates identity against the request.
+
+        Args:
+            repo: Repository the issue is requested from
+            issue_number: Issue number that was requested
+
+        Returns:
+            The fetched Issue object
+
+        Raises:
+            IssueIdentityMismatchError: If the returned issue belongs to another
+                repository, or its number differs from ``issue_number``.
+        """
+        issue = repo.get_issue(issue_number)
+
+        actual = "/".join(issue.repository_url.rstrip("/").split("/")[-2:])
+        if actual.lower() != repo.full_name.lower():
+            raise IssueIdentityMismatchError(
+                f"Issue #{issue_number} was transferred to "
+                f"{actual}#{issue.number} — {issue.html_url}"
+            )
+        if issue.number != issue_number:
+            raise IssueIdentityMismatchError(
+                f"Requested issue #{issue_number} but GitHub returned "
+                f"#{issue.number} from {actual}"
+            )
+        return issue
