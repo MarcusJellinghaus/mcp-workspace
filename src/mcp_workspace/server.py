@@ -5,7 +5,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from mcp.server.fastmcp import FastMCP
 from mcp_coder_utils.log_utils import log_function_call
@@ -30,11 +30,16 @@ from mcp_workspace.file_tools.directory_utils import is_path_gitignored
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server_reference_tools import (
     get_reference_project_path,
+    get_reference_repo_url,
 )
 from mcp_workspace.server_reference_tools import register as register_reference_tools
 from mcp_workspace.server_reference_tools import (
     set_reference_projects,
 )
+
+if TYPE_CHECKING:
+    # Type-only: does not execute, so PyGithub stays off the startup import path
+    from mcp_workspace.github_operations.issues import IssueManager
 
 # Initialize loggers
 logger = logging.getLogger(__name__)
@@ -583,12 +588,23 @@ async def git(
     )
 
 
+def _issue_manager(reference_name: Optional[str]) -> "IssueManager":
+    """Build an IssueManager for the workspace repo or a reference project."""
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.issues import IssueManager
+
+    if reference_name is None:
+        return IssueManager(project_dir=_project_dir)
+    return IssueManager(repo_url=get_reference_repo_url(reference_name))
+
+
 @mcp.tool()
 @log_function_call
 def github_issue_view(
     number: int,
     include_comments: bool = True,
     max_lines: int = 200,
+    reference_name: Optional[str] = None,
 ) -> str:
     """View a GitHub issue with full detail.
 
@@ -596,16 +612,17 @@ def github_issue_view(
         number: Issue number to view
         include_comments: Include issue comments (default: True)
         max_lines: Maximum output lines (default: 200)
+        reference_name: Optional reference project name. When set, reads from
+            that project's GitHub repository instead of the workspace repository.
 
     Returns:
         Formatted issue detail text, or error message string.
     """
     # Lazy import: keeps PyGithub off the server startup import path
     from mcp_workspace.github_operations.formatters import format_issue_view
-    from mcp_workspace.github_operations.issues import IssueManager
 
     try:
-        manager = IssueManager(project_dir=_project_dir)
+        manager = _issue_manager(reference_name)
         issue = manager.get_issue(number)
         if not issue["number"]:
             return f"Error: Issue #{number} not found"
@@ -623,6 +640,7 @@ def github_issue_list(
     assignee: Optional[str] = None,
     since: Optional[str] = None,
     max_results: int = 30,
+    reference_name: Optional[str] = None,
 ) -> str:
     """List GitHub issues with optional filters.
 
@@ -632,16 +650,17 @@ def github_issue_list(
         assignee: Filter by assignee username, "none", or "*"
         since: Only issues updated after this ISO datetime string
         max_results: Maximum results to return (default: 30)
+        reference_name: Optional reference project name. When set, reads from
+            that project's GitHub repository instead of the workspace repository.
 
     Returns:
         Compact summary lines, or error message string.
     """
     # Lazy import: keeps PyGithub off the server startup import path
     from mcp_workspace.github_operations.formatters import format_issue_list
-    from mcp_workspace.github_operations.issues import IssueManager
 
     try:
-        manager = IssueManager(project_dir=_project_dir)
+        manager = _issue_manager(reference_name)
         since_dt = datetime.fromisoformat(since) if since else None
         issues = manager.list_issues(
             state=state,
@@ -661,6 +680,7 @@ def github_pr_view(
     number: int,
     include_comments: bool = False,
     max_lines: int = 200,
+    reference_name: Optional[str] = None,
 ) -> str:
     """View a GitHub pull request with full detail.
 
@@ -668,6 +688,8 @@ def github_pr_view(
         number: PR number to view
         include_comments: Include reviews, conversation and inline comments (default: False)
         max_lines: Maximum output lines (default: 200)
+        reference_name: Optional reference project name. When set, reads from
+            that project's GitHub repository instead of the workspace repository.
 
     Returns:
         Formatted PR detail text, or error message string.
@@ -678,11 +700,10 @@ def github_pr_view(
         ReviewData,
         format_pr_view,
     )
-    from mcp_workspace.github_operations.issues import IssueManager
     from mcp_workspace.github_operations.issues.types import CommentData
 
     try:
-        manager = IssueManager(project_dir=_project_dir)
+        manager = _issue_manager(reference_name)
         repo = manager._get_repository()  # pylint: disable=protected-access
         if not repo:
             return "Error: Could not access repository"
@@ -742,11 +763,13 @@ def github_search(
     sort: Optional[str] = None,
     order: Optional[str] = None,
     max_results: int = 30,
+    reference_name: Optional[str] = None,
 ) -> str:
-    """Search GitHub issues and pull requests in this repository.
+    """Search GitHub issues and pull requests in a single repository.
 
-    Automatically scoped to current repository. Additional qualifiers
-    can be included inline in the query string (e.g., "fix login author:marcus").
+    Scoped to the workspace repository, or to the reference project named by
+    reference_name. Additional qualifiers can be included inline in the query
+    string (e.g., "fix login author:marcus").
 
     Args:
         query: Search query text
@@ -756,16 +779,17 @@ def github_search(
         sort: Sort by "comments", "created", or "updated"
         order: Sort order - "asc" or "desc"
         max_results: Maximum results to return (default: 30)
+        reference_name: Optional reference project name. When set, reads from
+            that project's GitHub repository instead of the workspace repository.
 
     Returns:
         Compact summary lines, or error message string.
     """
     # Lazy import: keeps PyGithub off the server startup import path
     from mcp_workspace.github_operations.formatters import format_search_results
-    from mcp_workspace.github_operations.issues import IssueManager
 
     try:
-        manager = IssueManager(project_dir=_project_dir)
+        manager = _issue_manager(reference_name)
         repo = manager._get_repository()  # pylint: disable=protected-access
         if not repo:
             return "Error: Could not access repository"

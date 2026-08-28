@@ -96,6 +96,27 @@ async def get_reference_project_path(name: str) -> Path:
     return project.path
 
 
+def get_reference_repo_url(name: str) -> str:
+    """Resolve a reference project name to its configured repository URL.
+
+    Synchronous and side-effect free — unlike get_reference_project_path(),
+    this never calls ensure_available(), so it never clones.
+
+    Returns:
+        The configured repository URL.
+
+    Raises:
+        ValueError: If no reference project with the given name exists, or
+            the project has no URL configured.
+    """
+    if name not in _reference_projects:
+        raise ValueError(f"Reference project '{name}' not found")
+    url = _reference_projects[name].url
+    if url is None:
+        raise ValueError(f"Reference project '{name}' has no URL configured")
+    return url
+
+
 @log_function_call
 async def read_reference_file(
     reference_name: str,
