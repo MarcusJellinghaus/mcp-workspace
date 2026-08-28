@@ -188,15 +188,18 @@ class TestTruncateOutput:
         assert "line3" in result
         assert "line4" not in result
         assert "[truncated" in result
+        assert "showing 3 of 5 lines" in result
+        assert "max_lines=5" in result
 
     def test_exact_limit_unchanged(self) -> None:
         text = "line1\nline2\nline3"
         assert truncate_output(text, max_lines=3) == text
 
-    def test_notice_shows_remaining_count(self) -> None:
+    def test_notice_shows_cap_and_total(self) -> None:
         text = "line1\nline2\nline3\nline4\nline5"
         result = truncate_output(text, max_lines=2)
-        assert "3 more lines" in result
+        assert "showing 2 of 5 lines" in result
+        assert "max_lines=5" in result
 
     def test_empty_string(self) -> None:
         assert truncate_output("", max_lines=10) == ""

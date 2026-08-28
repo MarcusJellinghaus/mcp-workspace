@@ -173,7 +173,8 @@ def truncate_output(text: str, max_lines: int) -> str:
 
     Returns:
         Original text if within limit, otherwise truncated text with
-        a notice showing how many lines were omitted.
+        a notice stating the applied cap, the total line count and the
+        max_lines value that returns the full output.
     """
     if not text:
         return text
@@ -183,6 +184,9 @@ def truncate_output(text: str, max_lines: int) -> str:
         return text
 
     kept = lines[:max_lines]
-    remaining = len(lines) - max_lines
-    kept.append(f"[truncated — {remaining} more lines]")
+    total = len(lines)
+    kept.append(
+        f"[truncated: showing {max_lines} of {total} lines "
+        f"— pass max_lines={total} for the full output]"
+    )
     return "\n".join(kept)
