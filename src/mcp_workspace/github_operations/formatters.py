@@ -95,8 +95,9 @@ def format_issue_list(
     has no total count, so the only evidence that more results exist is a
     surplus item: callers must fetch with a limit of `max_results + 1` and pass
     `max_results` unchanged. This function then displays the first
-    `max_results` issues and renders the "30+" notice when the surplus item is
-    present.
+    `max_results` issues and renders the "31+" notice when the surplus item is
+    present — `len(issues)` is the largest total this function can prove, so it
+    is the lower bound the notice reports.
 
     Passing a list already capped at `max_results` makes the notice condition
     unreachable, so the list truncates silently. That is the bug this contract
@@ -122,10 +123,6 @@ def format_issue_list(
     # was 0 while the over-fetch proved issues exist.
     if not issues:
         return "No issues found."
-    if not displayed:
-        # A cap of 0 displays nothing, so the notice is the whole render —
-        # returned bare rather than under a blank line and an empty list.
-        return "... showing 0 of 0+ results — raise max_results to see them."
 
     lines: list[str] = []
     for issue in displayed:
@@ -135,11 +132,20 @@ def format_issue_list(
             f"#{issue['number']} [{issue['state']}] {issue['title']}{label_part}"
         )
 
-    if len(issues) > max_results:
-        lines.append(
-            f"\n... showing {max_results} of {max_results}+ results "
+    if len(issues) > len(displayed):
+        # One spelling of the notice for every cap, including 0, so the two
+        # paths cannot drift apart. The count is len(issues) in both cases: the
+        # over-fetched list is a proven lower bound on the true total, hence the
+        # trailing "+". Reporting max_results instead would state less than the
+        # caller already handed us — at a cap of 0 it read "0 of 0+ results",
+        # which scans as "there are none".
+        notice = (
+            f"... showing {len(displayed)} of {len(issues)}+ results "
             f"— raise max_results or narrow with state/labels/assignee/since."
         )
+        # A cap of 0 displays nothing, so the notice is the whole render —
+        # emitted bare rather than under a blank line and an empty list.
+        lines.append(f"\n{notice}" if lines else notice)
 
     return "\n".join(lines)
 

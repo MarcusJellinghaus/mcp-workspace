@@ -410,21 +410,31 @@ def test_github_search_notice_states_exact_total(mock_manager_cls: MagicMock) ->
 def test_github_search_non_positive_max_results(
     mock_manager_cls: MagicMock, max_results: int
 ) -> None:
-    """A zero or negative cap collects nothing instead of erroring."""
+    """A non-positive cap reports suppression, not an empty result set.
+
+    No page is fetched at a cap of 0, so the true total is unknowable without a
+    separate request. The notice must claim neither a total nor an empty result
+    set, and must still cost no extra API call.
+    """
     mock_repo = MagicMock()
     mock_repo.full_name = "owner/repo"
+
+    results = _FakeSearchResults(_make_search_items(5))
 
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = _FakeSearchResults(
-        _make_search_items(5)
-    )
+    mock_mgr._github_client.search_issues.return_value = results
 
     result = github_search(query="test", max_results=max_results)
 
-    assert "No results found." in result
     assert not result.startswith("Error:")
+    assert "No results found." not in result
+    assert result.startswith(
+        "... showing 0 of an unknown total — a max_results cap of 0 "
+        "suppressed the output; raise max_results to see results."
+    )
+    assert results.total_count_reads == 0
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")

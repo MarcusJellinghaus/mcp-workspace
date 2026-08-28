@@ -192,7 +192,8 @@ class TestFormatIssueList:
         assert "#1" in result
         assert "#2" in result
         assert "#3" not in result
-        assert "showing 3 of 3+ results" in result
+        # The lower bound is the length of the list handed in, not the cap.
+        assert "showing 3 of 5+ results" in result
         assert "raise max_results" in result
         assert "state/labels/assignee/since" in result
         assert "query" not in result  # this tool has no query parameter
@@ -202,8 +203,10 @@ class TestFormatIssueList:
         """A non-positive cap renders the notice alone, with no negative count."""
         issues = [_make_issue(number=i, title=f"Issue {i}") for i in range(3)]
         result = format_issue_list(issues, max_results=max_results)
+        # One spelling of the notice, and a lower bound the caller proved.
         assert result == (
-            "... showing 0 of 0+ results — raise max_results to see them."
+            "... showing 0 of 3+ results "
+            "— raise max_results or narrow with state/labels/assignee/since."
         )
 
     def test_format_issue_list_empty_distinguished_from_zero_cap(self) -> None:

@@ -238,7 +238,7 @@ def test_github_issue_list_notice_when_more_exist(mock_manager_cls: MagicMock) -
 
     result = github_issue_list(max_results=3)
 
-    assert "showing 3 of 3+ results" in result
+    assert "showing 3 of 4+ results" in result
     issue_lines = [line for line in result.splitlines() if line.startswith("#")]
     assert len(issue_lines) == 3
 
@@ -258,7 +258,10 @@ def test_github_issue_list_non_positive_max_results(
     assert mock_mgr.list_issues.call_args.kwargs["max_results"] == 1
     # The over-fetch found an issue, so the notice must not claim none exist.
     assert "No issues found." not in result
-    assert result == "... showing 0 of 0+ results — raise max_results to see them."
+    assert result == (
+        "... showing 0 of 1+ results "
+        "— raise max_results or narrow with state/labels/assignee/since."
+    )
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")

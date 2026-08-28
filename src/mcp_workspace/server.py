@@ -797,11 +797,12 @@ def github_search(
         # pylint: disable=protected-access
         results = manager._github_client.search_issues(**qualifiers)
         items = []
-        # islice stops at max_results without pulling the next item, so a
-        # default-sized search never fetches page 2 just to discard item 31.
         # max(0, ...) because islice rejects a negative stop, where the old
         # enumerate guard simply collected nothing.
-        for item in islice(results, max(0, max_results)):
+        capped = max(0, max_results)
+        # islice stops at max_results without pulling the next item, so a
+        # default-sized search never fetches page 2 just to discard item 31.
+        for item in islice(results, capped):
             item_labels = [label.name for label in item.labels] if item.labels else []
             items.append(
                 {
@@ -816,11 +817,20 @@ def github_search(
         # something: PyGithub fills it from the first search page we already
         # fetched, but on an empty result set (or a clamped cap of 0) no page
         # was fetched and the property falls back to a separate per_page=1
-        # request — the extra call this design exists to avoid. An empty item
-        # list returns "No results found." and never uses the total, so None is
-        # correct there.
-        total_count: Optional[int] = results.totalCount if items else None
-        result = format_search_results(items, max_results, total_count)
+        # request — the extra call this design exists to avoid.
+        if items:
+            result = format_search_results(items, capped, results.totalCount)
+        elif capped == 0:
+            # No page was fetched, so the true total is unknowable here without
+            # that extra request. Say only what is known: the cap suppressed the
+            # output. "No results found." would claim the search matched
+            # nothing, which this call never established.
+            result = (
+                "... showing 0 of an unknown total — a max_results cap of 0 "
+                "suppressed the output; raise max_results to see results."
+            )
+        else:
+            result = format_search_results(items, capped)
         if not has_qualifier:
             result += "\n(auto-added: is:issue is:pull-request)"
         return result
