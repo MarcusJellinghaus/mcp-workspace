@@ -1,0 +1,199 @@
+# Step 3 — Route all 18 call sites through `_get_issue_checked`
+
+**Context:** see [summary.md](./summary.md), section "A new validated-fetch
+chokepoint on the base manager".
+
+**Goal:** replace every direct `repo.get_issue(` in the issue modules with
+`self._get_issue_checked(repo, ...)`. This is the step that actually fixes the
+bug. Depends on steps 1 and 2.
+
+---
+
+## WHERE
+
+18 sites across 6 production files. Line numbers are from the pre-change tree —
+verify by content, not by number, since earlier edits in the same file shift
+them.
+
+| Path | Lines | Note |
+|---|---|---|
+| `src/mcp_workspace/github_operations/issues/manager.py` | 150, 321, 325, 371, 375 | `get_issue`, `close_issue` ×2, `reopen_issue` ×2 |
+| `src/mcp_workspace/github_operations/issues/comments_mixin.py` | 80, 127, 205, 265 | `add_comment`, `get_comments`, `edit_comment`, `delete_comment` |
+| `src/mcp_workspace/github_operations/issues/labels_mixin.py` | 102, 106, 162, 166, 218, 222 | `add_labels`, `remove_labels`, `set_labels` — 2 each |
+| `src/mcp_workspace/github_operations/issues/events_mixin.py` | 73 | inside a `try/except GithubException` |
+| `src/mcp_workspace/github_operations/issues/branch_manager.py` | 313 | `create_remote_branch_for_issue` |
+| `src/mcp_workspace/github_operations/_pr_feedback_sources.py` | 134 | module-level function |
+
+Tests: `tests/github_operations/issues/test_manager.py` and
+`tests/github_operations/issues/test_labels_mixin.py` (two new cases).
+
+### Explicitly NOT routed
+
+`src/mcp_workspace/server.py:717` stays a bare `repo.get_issue(number)`. It runs
+only after `get_pull(number)` already succeeded, so it resolves in the same
+repository by construction. This accepts that "grep for `repo.get_issue(`
+returns nothing" is not an available invariant; the invariant is "no bare
+`repo.get_issue(` **in the issue modules**".
+
+---
+
+## WHAT
+
+No new functions. Each site becomes:
+
+```python
+github_issue = self._get_issue_checked(repo, issue_number)
+```
+
+`_pr_feedback_sources.py:134` is a module-level function, not a method:
+
+```python
+issue = manager._get_issue_checked(repo, pr_number)  # pylint: disable=protected-access
+```
+
+matching the existing `# pylint: disable=protected-access` idiom already on
+line 130 of that file.
+
+---
+
+## HOW
+
+- **No new imports in the mixins.** `LabelsMixin`, `CommentsMixin` and
+  `EventsMixin` already annotate `self: "BaseGitHubManager"` and already import
+  `BaseGitHubManager` from `..base_manager`, so `self._get_issue_checked(...)`
+  type-checks as-is.
+- **No new imports in `manager.py` or `branch_manager.py`** — both are
+  `BaseGitHubManager` subclasses.
+- **No new import in `_pr_feedback_sources.py`** — `PullRequestManager` inherits
+  the method.
+- **`events_mixin.py:73`** is wrapped in `try/except GithubException`. Leave that
+  wrapper alone: `IssueIdentityMismatchError` is a `ValueError`, so it passes
+  straight through.
+- **Do not remove the redundant re-fetches** at `manager.py` 325/375 — separate
+  issue. And do **not** remove `labels_mixin` 106/166/222: they are
+  load-bearing, because `set_labels` / `add_to_labels` / `remove_from_labels`
+  only POST/PUT/DELETE to `…/labels` and never refresh the issue object.
+
+---
+
+## ALGORITHM
+
+Per site:
+
+```
+locate    github_issue = repo.get_issue(issue_number)
+confirm   a local named `repo` from self._get_repository() is in scope
+replace   github_issue = self._get_issue_checked(repo, issue_number)
+keep      the surrounding None-check, try/except and comments untouched
+verify    grep the issue modules: zero bare `repo.get_issue(` remain
+```
+
+Final verification: `repo.get_issue(` should match exactly **one** line in
+`src/` — `server.py:717`.
+
+---
+
+## DATA
+
+Return types and data structures are unchanged everywhere.
+`_get_issue_checked` returns the same PyGithub `Issue` that `repo.get_issue`
+returned, so every downstream `IssueData` / `CommentData` / `EventData`
+construction is untouched.
+
+The only behavioural change: on a transferred issue these methods now raise
+`IssueIdentityMismatchError` instead of returning data for the wrong issue.
+Callers that previously received wrong-but-plausible data now see an error —
+that is the fix.
+
+Downstream contracts that shift as a consequence, all intended:
+
+- `transition_issue_label` is `@_handle_github_errors(default_return=False)`;
+  the decorator re-raises `ValueError`, so the exception propagates and the
+  `bool` contract is not preserved. **No code change there.**
+- `github_issue_view` renders
+  `Error: Issue #72 was transferred to …` via its existing
+  `except Exception as e: return f"Error: {e}"`.
+
+---
+
+## TESTS (write first)
+
+Two new cases proving the routing is live — one read path, one write path.
+
+In `tests/github_operations/issues/test_manager.py`, in the existing class
+(keep the `git_integration` marker it inherits):
+
+```python
+def test_get_issue_transferred_raises(self, mock_issue_manager: IssueManager) -> None:
+    """A transferred issue raises instead of returning the wrong issue."""
+    mock_issue_manager._repository.get_issue.return_value = make_mock_issue(
+        220, repo_full_name="test/other-repo"
+    )
+    with pytest.raises(IssueIdentityMismatchError, match="was transferred to"):
+        mock_issue_manager.get_issue(72)
+```
+
+In `tests/github_operations/issues/test_labels_mixin.py` — the important one,
+because writes are the dangerous half:
+
+```python
+def test_set_labels_transferred_does_not_write(self, mock_issue_manager: IssueManager) -> None:
+    """The guard fires before any label write reaches the other repository."""
+    mock_issue = make_mock_issue(220, repo_full_name="test/other-repo")
+    mock_issue_manager._repository.get_issue.return_value = mock_issue
+    with pytest.raises(IssueIdentityMismatchError):
+        mock_issue_manager.set_labels(72, "bug")
+    mock_issue.set_labels.assert_not_called()
+```
+
+`assert_not_called()` is the assertion that matters — it proves the fetch guard
+runs before the write, which is the whole point of the issue.
+
+Import `make_mock_issue` from step 2 (`from .._issue_test_helpers import
+make_mock_issue`) and `IssueIdentityMismatchError` from
+`mcp_workspace.github_operations`.
+
+---
+
+## CHECKS
+
+```
+mcp__tools-py__run_pylint_check
+mcp__tools-py__run_pytest_check(extra_args=["-n", "auto", "-m", "not git_integration and not claude_cli_integration and not claude_api_integration and not formatter_integration and not github_integration and not langchain_integration"])
+mcp__tools-py__run_pytest_check(extra_args=["-n", "auto"], markers=["git_integration"])
+mcp__tools-py__run_mypy_check
+mcp__tools-py__run_lint_imports_check
+```
+
+The `git_integration` run is **not optional** — the mixin and manager test
+classes are marked, so the fast command skips exactly the tests this step
+affects. `run_lint_imports_check` confirms no new layer violation.
+
+If any pre-existing test fails here, the cause is almost certainly a mock-issue
+site step 2 missed; fix it in the fixture, never by weakening the guard.
+
+---
+
+## LLM PROMPT
+
+> Read `pr_info/steps/summary.md` and `pr_info/steps/step_3.md`.
+>
+> Implement step 3: route all 18 `repo.get_issue(` call sites listed in the step
+> file through `self._get_issue_checked(repo, ...)`. Leave `server.py:717` as a
+> bare `repo.get_issue(` — it is deliberately excluded.
+>
+> Do not remove the redundant re-fetches at `manager.py` 325/375, and do not
+> remove the `labels_mixin` re-fetches at 106/166/222 — the latter are
+> load-bearing. Route them all.
+>
+> Follow TDD: add the two new tests described in the step file first, watch them
+> fail, then route the call sites.
+>
+> When done, verify that `repo.get_issue(` matches exactly one line in `src/`
+> (`server.py:717`).
+>
+> Use MCP tools for all file operations. Run `mcp__tools-py__run_pylint_check`,
+> `mcp__tools-py__run_pytest_check` **twice** (fast exclusions, then
+> `markers=["git_integration"]`), `mcp__tools-py__run_mypy_check` and
+> `mcp__tools-py__run_lint_imports_check`. Fix everything before finishing.
+> Then run `./tools/format_all.sh` and make exactly one commit.
