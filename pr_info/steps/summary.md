@@ -16,9 +16,10 @@ Every notice states **`showing X of Y`**, then names the parameter that lifts th
 with a **pasteable value**.
 
 Three documented exceptions, all in CI-log territory, where a pasteable value would be
-dishonest because one budget is shared across up to three failed jobs: the two
-`ci_log_parser` markers and the `## Other failed jobs` header name `max_log_lines`
-**without** a value.
+dishonest because `build_ci_error_details` shares one line budget across **every** failed
+job (the `failed_run_ids[:3]` cap at `ci_log_parser.py:253` limits run_id log *fetches*,
+not the number of jobs sharing the budget): the two `ci_log_parser` markers and the
+`## Other failed jobs` header name `max_log_lines` **without** a value.
 
 Internal caps (`tree_listing`, `search`, `file_operations`) get an improved message and a
 code comment recording that the cap is deliberate, but **no new parameter**.

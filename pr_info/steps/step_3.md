@@ -18,9 +18,12 @@ Separately, line 371 heads the list of jobs whose logs were dropped **entirely**
 (`remaining_budget <= 10`, line 335). "Truncated to save space" undersells that — those
 jobs get no log lines at all.
 
-**Constraint — no pasteable value here.** `build_ci_error_details` shares one budget
-across up to three failed jobs (lines 331-352), so `max_log_lines={total}` would not
-return that job's full log when several jobs failed. Name the parameter only. Do not
+**Constraint — no pasteable value here.** `build_ci_error_details` shares one line budget
+across **every** failed job (lines 331-352 draw `remaining_budget` from the same
+`max_lines`; `test_per_job_line_budget_truncation` drives 20 of them), so
+`max_log_lines={total}` would not return that job's full log when several jobs failed.
+The `failed_run_ids[:3]` cap at line 253 is unrelated — it limits how many *run_ids* are
+fetched for logs, not how many jobs share the budget. Name the parameter only. Do not
 "fix" this back to the house style.
 
 `max_log_lines` is a real parameter on the **build** path that reaches both marker sites:
@@ -87,7 +90,7 @@ def _truncation_marker(kept: int, total: int) -> str:
 
     Shared by `truncate_ci_details` and `build_ci_error_details` so the marker
     has a single spelling. Names `max_log_lines` without a pasteable value:
-    `build_ci_error_details` shares one budget across up to three failed jobs,
+    `build_ci_error_details` shares one line budget across every failed job,
     so `max_log_lines={total}` would not return this job's full log.
     """
 ```
