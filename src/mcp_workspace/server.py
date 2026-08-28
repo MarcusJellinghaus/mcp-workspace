@@ -598,6 +598,11 @@ def _issue_manager(reference_name: Optional[str]) -> "IssueManager":
     Returns:
         An IssueManager bound to the workspace repository when reference_name
         is None, otherwise to the reference project's repository URL.
+
+    Raises:
+        ValueError: If reference_name is not a configured reference project or
+            that project has no URL configured, or if the manager cannot be
+            constructed for the resolved repository.
     """
     # Lazy import: keeps PyGithub off the server startup import path
     from mcp_workspace.github_operations.issues import IssueManager
@@ -605,6 +610,34 @@ def _issue_manager(reference_name: Optional[str]) -> "IssueManager":
     if reference_name is None:
         return IssueManager(project_dir=_project_dir)
     return IssueManager(repo_url=get_reference_repo_url(reference_name))
+
+
+def _repo_access_error(manager: "IssueManager") -> str:
+    """Build the error text for a repository that could not be accessed.
+
+    Args:
+        manager: Manager whose repository lookup came back empty.
+
+    Returns:
+        Error text naming the API base URL that was tried, so a non-GitHub or
+        unreachable host is distinguishable from a missing repository.
+    """
+    # pylint: disable-next=protected-access
+    api_base_url = manager._repo_identifier.api_base_url
+    return f"Error: Could not access repository (tried {api_base_url})"
+
+
+def _repo_full_name(manager: "IssueManager") -> Optional[str]:
+    """Resolve the repository a manager reads from, for diagnostics.
+
+    Args:
+        manager: Manager to resolve the repository for.
+
+    Returns:
+        The "owner/repo" name, or None when the repository is not accessible.
+    """
+    repo = manager._get_repository()  # pylint: disable=protected-access
+    return str(repo.full_name) if repo else None
 
 
 @mcp.tool()
@@ -634,7 +667,10 @@ def github_issue_view(
         manager = _issue_manager(reference_name)
         issue = manager.get_issue(number)
         if not issue["number"]:
-            return f"Error: Issue #{number} not found"
+            repo_full_name = _repo_full_name(manager)
+            if repo_full_name is None:
+                return _repo_access_error(manager)
+            return f"Error: Issue #{number} not found in {repo_full_name}"
         comments = manager.get_comments(number) if include_comments else []
         return format_issue_view(issue, comments, max_lines)
     except Exception as e:
@@ -678,6 +714,11 @@ def github_issue_list(
             since=since_dt,
             max_results=max_results,
         )
+        if not issues:
+            repo_full_name = _repo_full_name(manager)
+            if repo_full_name is None:
+                return _repo_access_error(manager)
+            return f"No issues found in {repo_full_name}."
         return format_issue_list(issues, max_results)
     except Exception as e:
         return f"Error: {e}"
@@ -715,9 +756,7 @@ def github_pr_view(
         manager = _issue_manager(reference_name)
         repo = manager._get_repository()  # pylint: disable=protected-access
         if not repo:
-            # pylint: disable-next=protected-access
-            api_base_url = manager._repo_identifier.api_base_url
-            return f"Error: Could not access repository (tried {api_base_url})"
+            return _repo_access_error(manager)
         pr = repo.get_pull(number)
         pr_dict = {
             "number": pr.number,
@@ -803,9 +842,7 @@ def github_search(
         manager = _issue_manager(reference_name)
         repo = manager._get_repository()  # pylint: disable=protected-access
         if not repo:
-            # pylint: disable-next=protected-access
-            api_base_url = manager._repo_identifier.api_base_url
-            return f"Error: Could not access repository (tried {api_base_url})"
+            return _repo_access_error(manager)
         has_qualifier = re.search(
             r"(?:^|\s)is:(issue|pull-request)", query, re.IGNORECASE
         )

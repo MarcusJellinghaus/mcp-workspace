@@ -99,12 +99,42 @@ def test_github_issue_view_not_found(mock_manager_cls: MagicMock) -> None:
     )
     mock_mgr = MagicMock()
     mock_mgr.get_issue.return_value = empty_issue
+    mock_mgr._get_repository.return_value.full_name = "owner/repo"
     mock_manager_cls.return_value = mock_mgr
 
     result = github_issue_view(number=999)
 
-    assert "Error" in result
-    assert "#999" in result
+    assert result == "Error: Issue #999 not found in owner/repo"
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_view_not_found_repo_unreachable(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """An inaccessible repository names the API base URL, not a missing issue."""
+    mock_mgr = MagicMock()
+    mock_mgr.get_issue.return_value = IssueData(
+        number=0,
+        title="",
+        body="",
+        state="",
+        labels=[],
+        assignees=[],
+        user=None,
+        created_at=None,
+        updated_at=None,
+        url="",
+        locked=False,
+    )
+    mock_mgr._get_repository.return_value = None
+    mock_mgr._repo_identifier.api_base_url = "https://gitlab.com/api/v3"
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_view(number=999)
+
+    assert (
+        result == "Error: Could not access repository (tried https://gitlab.com/api/v3)"
+    )
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
@@ -162,14 +192,31 @@ def test_github_issue_list_basic(mock_manager_cls: MagicMock) -> None:
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_list_empty(mock_manager_cls: MagicMock) -> None:
-    """Returns 'No issues found.' for empty list."""
+    """An empty result names the repository that was searched."""
     mock_mgr = MagicMock()
     mock_mgr.list_issues.return_value = []
+    mock_mgr._get_repository.return_value.full_name = "owner/repo"
     mock_manager_cls.return_value = mock_mgr
 
     result = github_issue_list()
 
-    assert result == "No issues found."
+    assert result == "No issues found in owner/repo."
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_list_empty_repo_unreachable(mock_manager_cls: MagicMock) -> None:
+    """An inaccessible repository names the API base URL, not an empty result."""
+    mock_mgr = MagicMock()
+    mock_mgr.list_issues.return_value = []
+    mock_mgr._get_repository.return_value = None
+    mock_mgr._repo_identifier.api_base_url = "https://gitlab.com/api/v3"
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_list()
+
+    assert (
+        result == "Error: Could not access repository (tried https://gitlab.com/api/v3)"
+    )
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
