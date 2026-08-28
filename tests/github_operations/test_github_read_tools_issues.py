@@ -256,9 +256,9 @@ def test_github_issue_list_non_positive_max_results(
     result = github_issue_list(max_results=max_results)
 
     assert mock_mgr.list_issues.call_args.kwargs["max_results"] == 1
-    # A cap of 0 displays nothing, so there is no result set for a truncation
-    # notice to annotate.
-    assert result == "No issues found."
+    # The over-fetch found an issue, so the notice must not claim none exist.
+    assert "No issues found." not in result
+    assert result == "... showing 0 of 0+ results — raise max_results to see them."
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")

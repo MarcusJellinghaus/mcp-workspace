@@ -112,15 +112,20 @@ def format_issue_list(
 
     Returns:
         Compact one-line-per-issue text, with a truncation notice when the
-        surplus item is present.
+        surplus item is present. A cap of 0 renders the notice alone; only a
+        genuinely empty `issues` renders "No issues found."
     """
-    # Emptiness is judged on the capped set, not the over-fetched list: with a
-    # cap of 0 the surplus item alone would otherwise skip this return and
-    # leave a bare notice with no results above it.
     max_results = max(0, max_results)
     displayed = issues[:max_results]
-    if not displayed:
+    # Emptiness is judged on the over-fetched list, not the capped one:
+    # "No issues found." must mean the listing was empty, never that the cap
+    # was 0 while the over-fetch proved issues exist.
+    if not issues:
         return "No issues found."
+    if not displayed:
+        # A cap of 0 displays nothing, so the notice is the whole render —
+        # returned bare rather than under a blank line and an empty list.
+        return "... showing 0 of 0+ results — raise max_results to see them."
 
     lines: list[str] = []
     for issue in displayed:

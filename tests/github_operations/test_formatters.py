@@ -199,10 +199,22 @@ class TestFormatIssueList:
 
     @pytest.mark.parametrize("max_results", [0, -1])
     def test_format_issue_list_non_positive_max_results(self, max_results: int) -> None:
-        """A non-positive cap returns the empty message, not a bare notice."""
+        """A non-positive cap renders the notice alone, with no negative count."""
         issues = [_make_issue(number=i, title=f"Issue {i}") for i in range(3)]
         result = format_issue_list(issues, max_results=max_results)
-        assert result == "No issues found."
+        assert result == (
+            "... showing 0 of 0+ results — raise max_results to see them."
+        )
+
+    def test_format_issue_list_empty_distinguished_from_zero_cap(self) -> None:
+        """The empty message means empty, never that the cap was 0."""
+        issues = [_make_issue(number=i, title=f"Issue {i}") for i in range(3)]
+
+        assert format_issue_list([], max_results=0) == "No issues found."
+
+        capped = format_issue_list(issues, max_results=0)
+        assert "No issues found." not in capped
+        assert "raise max_results" in capped
 
     def test_format_issue_list_labels(self) -> None:
         """Labels rendered in summary line."""
