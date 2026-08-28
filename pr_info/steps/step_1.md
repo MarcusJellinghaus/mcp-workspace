@@ -73,10 +73,23 @@ In `tests/github_operations/test_formatters.py`:
 2. **Leave `test_truncate_output_no_truncation` and `test_truncate_output_exact_limit`
    alone.** The latter asserts `"truncated" not in result`; the new wording keeps the
    word only on the cut path, so it still passes.
-3. **Leave `test_format_issue_view_truncation` (line 139-143) and
-   `test_format_pr_view_truncation` (line 296-300) alone.** Both assert
-   `"truncated" in result`, which the new wording preserves. They are the regression
-   guard that both callers still inherit the notice.
+3. **Strengthen `test_format_issue_view_truncation` (line 139-143).** The acceptance
+   criterion names *the `_view` notice*, so at least one test must assert it at the
+   tool-output level rather than only against `truncate_output` directly. Today line 143
+   asserts only `"truncated" in result`. The test builds a 300-line body and calls
+   `format_issue_view(issue, comments=[], max_lines=10)`; `format_issue_view` joins
+   `["# #N: title", "State: ...", body]` with `"\n\n"`, so the rendered text is
+   **304** lines — 300 body lines plus the header line, the state line and the two blank
+   separator lines. Replace line 143 with:
+   ```python
+   assert "showing 10 of 304 lines" in result
+   assert "max_lines=304" in result
+   ```
+   This is the guard that the notice reaching `github_issue_view` really carries both
+   numbers and the parameter name.
+4. **Leave `test_format_pr_view_truncation` (line 296-300) alone.** It asserts
+   `"truncated" in result`, which the new wording preserves. It stays the regression
+   guard that the second caller also still inherits the notice.
 
 Run pytest and confirm the updated assertions fail, then implement.
 
@@ -96,7 +109,11 @@ One commit: `Name the applied cap and max_lines in the issue/PR view truncation 
 > Implement step 1 only. Following TDD, first update
 > `tests/github_operations/test_formatters.py::TestTruncateOutput::test_truncate_output_truncation`
 > to assert the notice contains both `showing 3 of 10 lines` and `max_lines=10`, and
-> confirm it fails. Then change the notice returned by `truncate_output` in
+> strengthen `TestFormatIssueView::test_format_issue_view_truncation` (line 143) to assert
+> `showing 10 of 304 lines` and `max_lines=304` instead of only `"truncated" in result`,
+> so the acceptance criterion is verified on the `_view` output and not just on
+> `truncate_output`. Confirm both fail. Then change the notice returned by
+> `truncate_output` in
 > `src/mcp_workspace/github_operations/formatters.py` to the exact string given in the
 > DATA section of the step file. Do not change the function signature, the
 > `len(lines) <= max_lines` guard, or either caller.

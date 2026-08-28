@@ -76,9 +76,22 @@ Read `totalCount` **after** the collection loop, not before. PyGithub populates
 free; reading it before any page is fetched triggers a separate `per_page=1` request —
 exactly the extra call this design exists to avoid. Put that reasoning in a comment.
 
-Use `getattr(results, "totalCount", None)` rather than a direct attribute access. The
-existing tests mock `search_issues` with a plain `list`, which has no `totalCount`, and
-the `None` fallback keeps them working without rewriting each mock.
+**Guard the read with `if items:`.** "After the loop" is not sufficient on its own:
+`PaginatedList.totalCount` is a property whose fallback fires whenever the cached count
+is falsy, and there are two reachable cases where the loop fetched nothing to cache it
+from — a query with **zero results**, and `max_results` clamped to `0` — so an unguarded
+read pays the `per_page=1` request in exactly the situations where the answer is
+worthless. When `items` is empty `format_search_results` returns `"No results found."`
+from its early return and never looks at `total_count`, so the value is discarded anyway.
+Leave `total_count` as `None` in that case:
+
+```python
+total_count: Optional[int] = getattr(results, "totalCount", None) if items else None
+```
+
+Note that the read uses `getattr` rather than a direct attribute access: the existing
+tests mock `search_issues` with a plain `list`, which has no `totalCount`, and the `None`
+fallback keeps them working without rewriting each mock.
 
 ## ALGORITHM
 
@@ -91,9 +104,13 @@ the `None` fallback keeps them working without rewriting each mock.
 for item in islice(results, max(0, max_results)):
     ...                                                   # body unchanged
 
-# Read totalCount only after iterating: PyGithub fills it from the first
-# search page we already fetched. Reading it earlier costs an extra request.
-total_count: Optional[int] = getattr(results, "totalCount", None)
+# Read totalCount only after iterating, and only when we collected
+# something: PyGithub fills it from the first search page we already
+# fetched, but on an empty result set (or a clamped cap of 0) no page was
+# fetched and the property falls back to a separate per_page=1 request —
+# the extra call this design exists to avoid. An empty item list returns
+# "No results found." and never uses the total, so None is correct there.
+total_count: Optional[int] = getattr(results, "totalCount", None) if items else None
 result = format_search_results(items, max_results, total_count)
 
 # formatters.format_search_results, replacing the guard at lines 189-194
@@ -180,7 +197,45 @@ The existing `(auto-added: is:issue is:pull-request)` suffix appended at
    Return a plain list of items from `search_issues` and assert the result contains
    `"No results found."` and does **not** start with `"Error:"`.
 
-5. **`test_github_search_max_results_cap` (line 523) needs no change.** It returns a plain
+5. **Add a test that an empty result set makes no extra search call.** This is the guard
+   on the `if items:` condition, and a `MagicMock` cannot express it — attribute access on
+   a mock is silently satisfied, so the test needs a stand-in that records reads. Define a
+   small helper class next to the search tests:
+   ```python
+   class _CountingResults:
+       """Iterable PaginatedList stand-in that counts totalCount reads."""
+
+       def __init__(self, items: list[MagicMock]) -> None:
+           self._items = items
+           self.total_count_reads = 0
+
+       def __iter__(self) -> Iterator[MagicMock]:
+           return iter(self._items)
+
+       @property
+       def totalCount(self) -> int:  # pylint: disable=invalid-name
+           """Mirrors PyGithub's camelCase attribute; counts each read."""
+           self.total_count_reads += 1
+           return len(self._items)
+   ```
+   Then:
+   ```python
+   @patch("mcp_workspace.github_operations.issues.IssueManager")
+   def test_github_search_empty_makes_no_total_count_call(
+       mock_manager_cls: MagicMock,
+   ) -> None:
+       """A zero-result search never reads totalCount, so it costs no extra request."""
+   ```
+   Set `search_issues.return_value = _CountingResults([])`, call
+   `github_search(query="test")`, and assert `"No results found." in result` and
+   `results.total_count_reads == 0`. Add the mirror assertion on the non-empty path —
+   `_CountingResults` with 3 items and `max_results=3` reads it exactly once
+   (`total_count_reads == 1`) — so the test pins both halves of the condition. Without
+   the `if items:` guard the empty case reads it once and fails.
+
+   `Iterator` comes from `typing`; check whether the test module already imports it.
+
+6. **`test_github_search_max_results_cap` (line 523) needs no change.** It returns a plain
    list of 10 items with `max_results=3`; `islice` still yields 3, `getattr` yields
    `None`, and `total` falls back to `len(items)` — which is 3, not 10, because the
    formatter only ever receives the capped list. So no notice renders and its assertion
@@ -207,10 +262,11 @@ One commit: `Emit a truncation notice from github_search using the exact search 
 > Implement step 5 only. Following TDD, first update
 > `tests/github_operations/test_formatters.py::test_format_search_results_max_results_cap`,
 > add `test_format_search_results_uses_total_count`, and add
-> `test_github_search_notice_states_exact_total` and
-> `test_github_search_non_positive_max_results` to
-> `tests/github_operations/test_github_read_tools.py`, all as described in the step file.
-> Confirm they fail.
+> `test_github_search_notice_states_exact_total`,
+> `test_github_search_non_positive_max_results` and
+> `test_github_search_empty_makes_no_total_count_call` (with the `_CountingResults`
+> helper) to `tests/github_operations/test_github_read_tools.py`, all as described in the
+> step file. Confirm they fail.
 >
 > Then: (a) in `src/mcp_workspace/github_operations/formatters.py`, add the
 > `total_count: Optional[int] = None` parameter to `format_search_results`, document it,
@@ -220,9 +276,11 @@ One commit: `Emit a truncation notice from github_search using the exact search 
 > `islice(results, max(0, max_results))` (comments: stopping before the surplus item keeps
 > a default-sized search on one page, and `max(0, ...)` because `islice` raises on a
 > negative stop where the old guard collected nothing), then read
-> `total_count: Optional[int] = getattr(results, "totalCount", None)` **after** the
-> collection loop with a comment explaining the ordering, and pass it to
-> `format_search_results`.
+> `total_count: Optional[int] = getattr(results, "totalCount", None) if items else None`
+> **after** the collection loop, with a comment explaining both the ordering and the
+> `if items:` guard (an empty result set or a clamped cap of 0 fetched no page, so the
+> property would fall back to a `per_page=1` request for a value the
+> `"No results found."` early return discards), and pass it to `format_search_results`.
 >
 > Do not over-fetch by one here — the step file explains why search uses `totalCount`
 > instead. Do not touch `format_issue_list` or `github_issue_list`; that is step 4.

@@ -50,10 +50,18 @@ Six design decisions are worth recording:
    nothing.** The two tools learn "more exist" by different routes because only one of
    them can know the real total. GitHub's search endpoint returns `total_count` in the
    first page payload and PyGithub exposes it as `PaginatedList.totalCount` with no extra
-   request — so search states an **exact** total. Issue listing has no equivalent count,
-   so it over-fetches `max_results + 1` and uses the surplus item to prove more exist,
-   rendering `30+`. The formatter signature for `format_issue_list` is unchanged; only
-   its caller changes.
+   request **provided a page was actually fetched** — so the read is guarded by
+   `if items:`, since on a zero-result search the property falls back to a separate
+   `per_page=1` request for a value the `"No results found."` early return discards.
+   Search then states an **exact** total. Issue listing has no equivalent count, so it
+   over-fetches `max_results + 1` and uses the surplus item to prove more exist, rendering
+   `30+`. The formatter signature for `format_issue_list` is unchanged; only its caller
+   changes.
+
+   Both tools clamp their unvalidated `max_results` with `max(0, max_results)` before
+   deriving anything from it, matching the `max(0, max_lines)` clamp in design note 4.
+   Without it `github_issue_list(max_results=-1)` renders `showing -1 of -1+ results`
+   over an empty list.
 
 4. **`max_log_lines` is threaded to the render-stage CI cap (step 3).** The marker names
    `max_log_lines`, so that parameter must be the one that governs the cut. It governs
@@ -115,7 +123,7 @@ spelled out at both sites because it defaults to `False` on `github_pr_view`
 | Path | Purpose |
 |---|---|
 | `pr_info/steps/summary.md` | This document |
-| `pr_info/steps/step_1.md` … `step_9.md` | One self-contained step each |
+| `pr_info/steps/step_1.md` … `step_8.md` | One self-contained step each |
 
 ## Files modified
 
@@ -131,7 +139,7 @@ spelled out at both sites because it defaults to `False` on `github_pr_view`
 | `src/mcp_workspace/checks/pr_feedback.py` | Render order, body/cap messages, conditional footer (step 6) |
 | `src/mcp_workspace/file_tools/tree_listing.py` | `_truncate` summary message + comment (step 7) |
 | `src/mcp_workspace/file_tools/search.py` | Line-truncation message + comment (step 8) |
-| `src/mcp_workspace/file_tools/file_operations.py` | Code comment only, message unchanged (step 9) |
+| `src/mcp_workspace/file_tools/file_operations.py` | Code comment only, message unchanged (step 8) |
 
 ### Tests
 
@@ -155,20 +163,24 @@ modules or boundaries. `tests/git_operations/test_read_operations.py` — its fo
 
 ## Step index
 
-All nine steps are **mutually independent** and may be implemented in any order. Each is
+All eight steps are **mutually independent** and may be implemented in any order. Each is
 one commit: tests + implementation + all three checks passing.
 
 | Step | Scope | Test churn |
 |---|---|---|
-| 1 | `formatters.truncate_output` — feeds `github_issue_view` / `github_pr_view` | `test_formatters.py:77` |
+| 1 | `formatters.truncate_output` — feeds `github_issue_view` / `github_pr_view` | `test_formatters.py:77, 143` |
 | 2 | `output_filtering.truncate_output` — feeds the `git` tool | `test_output_filtering.py:190, 199` |
 | 3 | `ci_log_parser` — marker helper, both sites, "Other failed jobs" header, `max_lines` + `head_lines` clamps, plus `max_log_lines` threaded to the render-stage cap | `test_ci_log_parser.py:42, 49, 351`, new small/non-positive-cap test, new polling test |
-| 4 | `github_issue_list` silent truncation | `test_formatters.py:181`, `test_github_read_tools.py:233` |
-| 5 | `github_search` silent truncation | `test_formatters.py:363`, new exact-total and non-positive-cap tests |
+| 4 | `github_issue_list` silent truncation + `max(0, max_results)` clamp | `test_formatters.py:181`, `test_github_read_tools.py:233`, new notice and non-positive-cap tests |
+| 5 | `github_search` silent truncation | `test_formatters.py:363`, new exact-total, non-positive-cap and no-extra-call tests |
 | 6 | `pr_feedback` reorder + messages + conditional footer | `test_branch_status_pr_feedback.py:199, 362` |
 | 7 | `tree_listing` summary message | `test_tree_listing.py:331` |
-| 8 | `search.py` line-truncation message | `test_search.py:280, 303` |
-| 9 | `file_operations` code comment only | none |
+| 8 | `search.py` line-truncation message, plus the `file_operations` comment | `test_search.py:280, 303` |
+
+Step 8 absorbs what was a separate comment-only `file_operations` step: it carried no
+test and no behavioural change, so per `planning_principles.md` ("merge tiny or
+intertwined steps") it does not warrant its own commit, and it sits in the same
+`file_tools` package as the `search.py` cap comment.
 
 ## Conventions
 
@@ -195,4 +207,4 @@ one commit: tests + implementation + all three checks passing.
 | `pr_feedback` renders alerts and changes-requested ahead of conversation comments | 6 |
 | `pr_feedback` footer appears only when a body was truncated or the cap fired | 6 |
 | Tests assert both numbers + `max_lines`; list/search notices; alerts survive comment overflow | 1, 4, 5, 6 |
-| Each internal-cap site carries a comment naming the alternative | 6, 7, 8, 9 |
+| Each internal-cap site carries a comment naming the alternative | 6, 7, 8 |
