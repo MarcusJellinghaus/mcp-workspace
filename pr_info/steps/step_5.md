@@ -21,9 +21,18 @@ guard runs, and pulling item 31 out of a `PaginatedList` fetches page 2. So the 
 call this design exists to avoid is being made today, on every default-sized search, for
 an item that is immediately discarded. Since the loop is being touched anyway, stop
 before the surplus item: `itertools.islice(results, max_results)` yields at most
-`max_results` items and never calls `next()` again, so page 2 is not fetched. Behaviour
-is otherwise identical, including `max_results=0` (`islice` yields nothing, as the
-current guard does).
+`max_results` items and never calls `next()` again, so page 2 is not fetched.
+
+**One behavioural difference has to be closed: negative `max_results`.** `max_results` is
+an unvalidated tool parameter. The current `enumerate` guard breaks on the first
+iteration for any negative value and returns `No results found.`, but `islice` rejects a
+negative stop with `ValueError: Stop argument for islice() must be None or an integer:
+0 <= x <= sys.maxsize`, which the tool's `except Exception` would turn into
+`Error: Stop argument for islice()...`. Clamp with `max(0, max_results)` at the `islice`
+call so the swap is behaviour-preserving. `max_results=0` needs no clamp and is already
+identical (`islice` yields nothing, as the current guard does); with the clamp, a
+negative value likewise collects no items and `format_search_results` returns
+`No results found.` from its empty-list early return, exactly as today.
 
 The notice tail says "refine your query" here, which is good advice: `github_search`
 exposes `query` (with inline GitHub qualifiers) alongside `state`, `labels`, `assignee`,
@@ -56,8 +65,11 @@ def format_search_results(
 ## HOW
 
 In `server.py`, replace `enumerate(results)` + the `i >= max_results` guard with
-`islice(results, max_results)` (`from itertools import islice` at module level — stdlib,
-so no lazy-import concern). The loop body is unchanged apart from losing the guard.
+`islice(results, max(0, max_results))` (`from itertools import islice` at module level —
+stdlib, so no lazy-import concern). The loop body is unchanged apart from losing the
+guard. The `max(0, ...)` keeps a negative `max_results` returning `No results found.`
+instead of raising inside `islice`; leave the value passed to `format_search_results`
+unclamped so the formatter's signature and defaults are untouched.
 
 Read `totalCount` **after** the collection loop, not before. PyGithub populates
 `total_count` from the already-fetched first search page, so reading it after iteration is
@@ -74,7 +86,9 @@ the `None` fallback keeps them working without rewriting each mock.
 # server.py github_search
 # islice stops at max_results without pulling the next item, so a
 # default-sized search never fetches page 2 just to discard item 31.
-for item in islice(results, max_results):
+# max(0, ...) because islice rejects a negative stop, where the old
+# enumerate guard simply collected nothing.
+for item in islice(results, max(0, max_results)):
     ...                                                   # body unchanged
 
 # Read totalCount only after iterating: PyGithub fills it from the first
@@ -153,7 +167,20 @@ The existing `(auto-added: is:issue is:pull-request)` suffix appended at
    Call `github_search(query="test", max_results=3)` and assert
    `"showing 3 of 412 results"` is in the output.
 
-4. **`test_github_search_max_results_cap` (line 523) needs no change.** It returns a plain
+4. **Add a guard test for a non-positive cap**, since `islice` would otherwise raise
+   where the old loop did not:
+   ```python
+   @pytest.mark.parametrize("max_results", [0, -1])
+   @patch("mcp_workspace.github_operations.issues.IssueManager")
+   def test_github_search_non_positive_max_results(
+       mock_manager_cls: MagicMock, max_results: int
+   ) -> None:
+       """A zero or negative cap collects nothing instead of erroring."""
+   ```
+   Return a plain list of items from `search_issues` and assert the result contains
+   `"No results found."` and does **not** start with `"Error:"`.
+
+5. **`test_github_search_max_results_cap` (line 523) needs no change.** It returns a plain
    list of 10 items with `max_results=3`; `islice` still yields 3, `getattr` yields
    `None`, and `total` falls back to `len(items)` — which is 3, not 10, because the
    formatter only ever receives the capped list. So no notice renders and its assertion
@@ -180,7 +207,8 @@ One commit: `Emit a truncation notice from github_search using the exact search 
 > Implement step 5 only. Following TDD, first update
 > `tests/github_operations/test_formatters.py::test_format_search_results_max_results_cap`,
 > add `test_format_search_results_uses_total_count`, and add
-> `test_github_search_notice_states_exact_total` to
+> `test_github_search_notice_states_exact_total` and
+> `test_github_search_non_positive_max_results` to
 > `tests/github_operations/test_github_read_tools.py`, all as described in the step file.
 > Confirm they fail.
 >
@@ -189,8 +217,9 @@ One commit: `Emit a truncation notice from github_search using the exact search 
 > and replace the notice guard with the single `total > shown` comparison and the exact
 > message in the DATA section; (b) in `src/mcp_workspace/server.py`, in `github_search`,
 > replace `enumerate(results)` and its `i >= max_results` guard with
-> `islice(results, max_results)` (comment: stopping before the surplus item keeps a
-> default-sized search on one page), then read
+> `islice(results, max(0, max_results))` (comments: stopping before the surplus item keeps
+> a default-sized search on one page, and `max(0, ...)` because `islice` raises on a
+> negative stop where the old guard collected nothing), then read
 > `total_count: Optional[int] = getattr(results, "totalCount", None)` **after** the
 > collection loop with a comment explaining the ordering, and pass it to
 > `format_search_results`.
