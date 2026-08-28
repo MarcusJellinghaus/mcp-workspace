@@ -79,9 +79,24 @@ The exception propagates through the existing decorator stack untouched:
 - `transition_issue_label` needs **no code change** — it is decorated
   `@_handle_github_errors(default_return=False)` and that decorator re-raises
   `ValueError`. Its `bool` contract is not preserved, by design.
-- Existing readers already degrade safely: `checks/branch_status.py:510`,
-  `git_operations/base_branch.py:73` and `issues/cache.py:334` all catch
-  `Exception` and fall back to "no issue data".
+- Existing readers already degrade safely: `checks/branch_status.py:510` and
+  `git_operations/base_branch.py:73` catch `Exception` and fall back to "no
+  issue data". `issues/cache.py:334` also catches `Exception`, but it does
+  **not** fall back to "no issue data": `_fetch_additional_issues`
+  (`cache.py:337-341`) falls back to the previously **cached** `IssueData` for
+  that number and logs a `warning`, returning the stale entry to the caller.
+
+  **Accepted residual gap.** A cache entry written by the pre-fix path holds
+  another repository's issue under the requested number. After this fix the
+  fetch raises, the `except` at `cache.py:334` takes the cached branch, and
+  that wrong-repository data is served again — surfaced only as
+  `Failed to fetch issue #N: Issue #N was transferred to … , using cached
+  version` at `warning` level. The plan **accepts** this rather than
+  addressing it: purging or validating cache entries is a cache-schema
+  question (the cached `IssueData` has no repository field to validate
+  against — see "Out of scope"), the warning names the transfer target, and
+  the entry is replaced as soon as any refresh succeeds. `cache.py` is
+  unchanged here.
 - No new tracebacks reach users **from in-repo callers**: the readers listed
   above all catch and degrade. `transition_issue_label`
   (`labels_mixin.py:245`) has **no caller inside this repository** — grep finds
@@ -186,6 +201,7 @@ the `:717` bare fetch), `git_operations/base_branch.py`, `issues/cache.py`,
 | `github_operations/issues/test_events_mixin.py` | Convert mock-issue sites |
 | `github_operations/issues/test_branch_manager_create.py` | Convert sites + `full_name` on local `mock_repo`s |
 | `github_operations/test_pr_manager_feedback.py` | `full_name` + `mock_issue` identity in `_setup_mocks`; routing test for `_pr_feedback_sources` |
+| `github_operations/test_github_read_tools.py` | `github_issue_view` rendered-message test — asserts the exact `Error: Issue #72 was transferred to …` string, i.e. one `Error: ` prefix |
 | `checks/test_branch_status.py` | Warning-emitted test |
 
 ### Folders

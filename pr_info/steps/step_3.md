@@ -25,9 +25,10 @@ them.
 | `src/mcp_workspace/github_operations/_pr_feedback_sources.py` | 134 | module-level function |
 
 Tests: `tests/github_operations/issues/test_manager.py`,
-`tests/github_operations/issues/test_labels_mixin.py` and
-`tests/github_operations/test_pr_manager_feedback.py` (three new cases — one
-read path, one write path, one inherited path).
+`tests/github_operations/issues/test_labels_mixin.py`,
+`tests/github_operations/test_pr_manager_feedback.py` and
+`tests/github_operations/test_github_read_tools.py` (four new cases — one read
+path, one write path, one inherited path, one rendered-message path).
 
 Docstrings: the same six production files. Every routed public method gains a
 `Raises:` entry, and any "or empty … on error" wording in its `Returns:` is
@@ -178,8 +179,9 @@ docstring convention).
 
 ## TESTS (write first)
 
-Three new cases proving the routing is live — one read path, one write path,
-one inherited (non-mixin) path.
+Four new cases proving the routing is live — one read path, one write path,
+one inherited (non-mixin) path, and one covering the rendered message the issue
+actually reports.
 
 In `tests/github_operations/issues/test_manager.py`, in the existing class
 (keep the `git_integration` marker it inherits):
@@ -243,10 +245,48 @@ come from `make_mock_issue` (otherwise the *other* `TestGetPRFeedback` tests
 fail on the identity parse rather than this one passing). If either is missing,
 go back and finish step 2 — do not weaken the guard.
 
+Finally, in `tests/github_operations/test_github_read_tools.py`, the rendered
+message. The `Returns:`/`Raises:` docstring edits above and the "no `Error: `
+prefix" decision are only *claims* until something asserts the string a user
+actually sees — this is the symptom the issue reports. The file's existing
+`github_issue_view` tests (lines 72-144) already patch `IssueManager`
+wholesale, so this needs no fixture work from step 2; it is a plain
+`side_effect` on the same mock, in the module's function style (no class, no
+marker):
+
+```python
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_view_transferred(mock_manager_cls: MagicMock) -> None:
+    """A transferred issue renders the transfer target with one Error: prefix."""
+    mock_mgr = MagicMock()
+    mock_mgr.get_issue.side_effect = IssueIdentityMismatchError(
+        "Issue #72 was transferred to MarcusJellinghaus/mcp-workspace#220 "
+        "— https://github.com/MarcusJellinghaus/mcp-workspace/issues/220"
+    )
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_view(number=72)
+
+    assert result == (
+        "Error: Issue #72 was transferred to "
+        "MarcusJellinghaus/mcp-workspace#220 "
+        "— https://github.com/MarcusJellinghaus/mcp-workspace/issues/220"
+    )
+```
+
+Assert **equality**, not `in`: the point is that the output carries exactly one
+`Error: ` prefix (added by `server.py:614`, not by the exception) and that the
+transfer target survives to the user. A substring assertion would pass on
+`Error: Error: …` and on the degraded `Error: Issue #72 not found` that the
+`server.py:610` liveness check would produce if the exception were ever
+swallowed into an empty `IssueData`. Both are exactly the regressions this case
+exists to catch.
+
 Import `make_mock_issue` from step 2 — `from .._issue_test_helpers import
 make_mock_issue` in the `issues/` test files, `from ._issue_test_helpers import
 make_mock_issue` in `test_pr_manager_feedback.py` — and
-`IssueIdentityMismatchError` from `mcp_workspace.github_operations`.
+`IssueIdentityMismatchError` from `mcp_workspace.github_operations` in all four
+test files.
 
 ---
 
@@ -281,10 +321,10 @@ site step 2 missed; fix it in the fixture, never by weakening the guard.
 > remove the `labels_mixin` re-fetches at 106/166/222 — the latter are
 > load-bearing. Route them all.
 >
-> Follow TDD: add the three new tests described in the step file first (read
+> Follow TDD: add the four new tests described in the step file first (read
 > path in `test_manager.py`, write path in `test_labels_mixin.py`, inherited
-> path in `test_pr_manager_feedback.py`), watch them fail, then route the call
-> sites.
+> path in `test_pr_manager_feedback.py`, rendered message in
+> `test_github_read_tools.py`), watch them fail, then route the call sites.
 >
 > Also update the docstrings of the routed public methods as described in the
 > "DOCSTRINGS" section — in particular `manager.py` `get_issue`, whose

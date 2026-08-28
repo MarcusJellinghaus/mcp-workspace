@@ -13,10 +13,25 @@ stamping extra attributes on a `Mock` is inert until the guard reads them.
 `conftest.mock_issue_manager` sets `manager._repository = Mock()`, so
 `repo.full_name` is a `Mock`; `repository_url` is set on no mock issue anywhere,
 and `number` only at some sites. Once step 3 lands, the helper parses
-`issue.repository_url` — a plain `Mock` does not support the `[-2:]` slice, so
-the parse raises `TypeError`, `_handle_github_errors` swallows it, and the call
-returns empty `IssueData`. Roughly 30 tests would fail at once, mixed in with
-the routing diff. Separating them keeps step 3 readable.
+`issue.repository_url`, and an unprepared mock fails in one of **two** ways
+depending on its class. An implementer debugging a red step 3 needs to know
+which symptom to look for:
+
+- **Bare `Mock()` issues** (e.g. `test_pr_manager_feedback.py:64`) — `Mock` has
+  no `__getitem__`, so the `[-2:]` slice raises
+  `TypeError: 'Mock' object is not subscriptable`. `_handle_github_errors`
+  swallows it and the call returns empty `IssueData`, so the test fails on an
+  assertion about the returned data, not with the guard's message.
+- **`MagicMock()` issues** (the majority — `test_manager.py`,
+  `test_labels_mixin.py`, `test_comments_mixin.py`, `test_events_mixin.py`) —
+  `MagicMock` *is* subscriptable and iterable, so the parse silently yields
+  `""`. `"" != repo.full_name.lower()`, the guard fires, and
+  `IssueIdentityMismatchError` **propagates**: it is a `ValueError`, which
+  `_handle_github_errors` re-raises rather than swallowing. These tests fail
+  with the raised guard, not with empty `IssueData`.
+
+Either way roughly 30 tests fail at once, mixed in with the routing diff.
+Separating them keeps step 3 readable.
 
 ---
 

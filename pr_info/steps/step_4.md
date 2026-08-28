@@ -122,11 +122,22 @@ def test_transferred_issue_logs_warning(
         report = collect_branch_status(Path("/tmp"))
 
     assert "was transferred to test/other-repo#220" in caplog.text
-    assert report is not None          # degrades, does not raise
+    assert report.branch_name == "72-feature"   # inner catch, not outer
 ```
 
-Two assertions, both load-bearing: the message is **visible at WARNING**, and
-the report is still produced rather than the exception escaping.
+Two assertions, both load-bearing:
+
+- The message is **visible at WARNING**. Without the new clause the broad catch
+  at `branch_status.py:510` logs only `"Failed to fetch issue data"` at DEBUG,
+  so `caplog.text` never contains the transfer target and this fails.
+- The **inner** catch handled it, not the outer one.
+  `collect_branch_status` wraps its whole body in `except Exception`
+  (`branch_status.py:604`), which returns `create_empty_report(...)` with
+  `branch_name == "unknown"`. So `assert report is not None` would be vacuous —
+  it holds on every path, including the one where the exception escapes the
+  inner catch entirely. Asserting `branch_name == "72-feature"` is what
+  distinguishes "caught at 510, report continues to be built" from "escaped to
+  604, placeholder report returned".
 
 Match the exact decorator/parameter ordering and typing style of the
 neighbouring tests in that file (they annotate params as `MagicMock`).
