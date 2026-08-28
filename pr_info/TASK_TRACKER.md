@@ -119,9 +119,51 @@ Details: [step_5.md](./steps/step_5.md)
 
 Details: [step_6.md](./steps/step_6.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared (recorded below; `pr_info/.commit_message.txt`
+      could not be written because it is gitignored and the MCP workspace
+      server refuses gitignored paths, as in steps 3, 4 and 5)
+
+  ```
+  Reorder PR feedback sections and make the truncation footer conditional
+
+  Conversation comments rendered second, ahead of changes-requested and alerts,
+  but they never drain: nothing removes them as a PR progresses. Under the
+  single 20-item cap a PR with 25 comments filled the budget with threads plus
+  comments and alerts never rendered at all. The comments loop now runs last,
+  behind the two sections that carry the merge verdict.
+
+  This changes rendered text only. blocks_merge is computed from the feedback
+  data, not from the rendered block, so a truncated display never turned a
+  blocked PR into a clean one — what was lost was the detail of why.
+
+  No per-section budgets: the shared cap stays, so more than 20 unresolved
+  threads still starves alerts. That case is accepted; the fix targets the
+  non-draining section, which is the one that occurs in practice.
+
+  Both truncation notices adopt the house "showing X of Y" style. The per-body
+  marker becomes "... (truncated: showing 10 of 20 lines)" and the item cap
+  becomes "... and 10 more of 30 items — full list via
+  github_pr_view(include_comments=True)". A new _FULL_TEXT_HINT footer renders
+  as the last line, but only when a body was actually cut or the cap fired.
+
+  Both mentions of github_pr_view are deliberate: the cap line offers the full
+  list of items, the footer offers the full text of a body that was cut.
+  include_comments=True is spelled out because it defaults to False on
+  github_pr_view, unlike github_issue_view, so without it the reader lands on
+  an empty result.
+
+  _truncate_body keeps its signature and stays pure. The footer condition is
+  computed by the caller, which compares the helper's output against its input
+  at each of the three call sites — the helper returns its input unchanged when
+  it does not cut. No tuple return, no marker sniffing, no threshold
+  duplicated.
+
+  Both constants gain the comment recording that they are deliberate internal
+  caps with no lift parameter, naming github_pr_view(include_comments=True) as
+  the alternative.
+  ```
 
 ### Step 7: `tree_listing` — name the narrowing options in the truncation summary
 
