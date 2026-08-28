@@ -41,9 +41,11 @@ Details: [step_2.md](./steps/step_2.md)
 
 Details: [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared (blocked: `pr_info/.commit_message.txt` is
+      gitignored and the MCP workspace server refuses gitignored paths; message
+      text is in the run output)
 
 ### Step 4: `github_issue_list` — make the silent truncation notice reachable
 
