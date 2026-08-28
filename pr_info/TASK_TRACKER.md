@@ -198,9 +198,40 @@ Details: [step_7.md](./steps/step_7.md)
 
 Details: [step_8.md](./steps/step_8.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared (recorded below; `pr_info/.commit_message.txt`
+      could not be written because it is gitignored and the MCP workspace
+      server refuses gitignored paths, as in steps 3, 4, 5, 6 and 7)
+
+  ```
+  State the 500-char cap in the search_files marker and document both file_tools caps
+
+  search_files capped each result line at _MAX_LINE_CHARS = 500 and reported
+  "... [truncated, line has 1000 chars]" — the total in the slot where the cap
+  belongs, so the reader learned how much was lost but not how much was kept.
+  The marker now reads "... [line truncated: showing 500 of 1000 chars]",
+  stating both numbers in the house "showing X of Y" order.
+
+  Message only: the truncation condition, the slice, the surrounding character
+  budget and the search_files result shape (mode, details, total_matches,
+  truncated, matched_files) are all untouched. The existing multi-line string
+  concatenation keeps its shape; only the f-string changes, and it now
+  interpolates _MAX_LINE_CHARS rather than repeating 500 as a literal.
+
+  Both remaining file_tools internal caps gain a comment recording that they
+  are deliberate. _MAX_LINE_CHARS has no lift parameter and is not getting
+  one: a single pathological line must not crowd out the rest of the results,
+  and a caller who needs the whole line reads the file at the reported line
+  number.
+
+  _format_deleted_paths is left exactly as it stands, message included. That
+  site is unlike every other truncation here — the deletion has already
+  happened, so there is nothing for the reader to re-request, no cap to lift
+  and no alternative to name, and the summary line already carries the true
+  file and directory totals. Its comment exists so the next audit of
+  truncation notices does not "fix" a correct message into the house style.
+  ```
 
 ## Pull Request
 

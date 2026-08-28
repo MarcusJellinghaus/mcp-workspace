@@ -10,6 +10,9 @@ from pathspec import PathSpec
 from mcp_workspace.file_tools.directory_utils import list_files
 from mcp_workspace.file_tools.path_utils import normalize_path
 
+# Deliberate internal cap with no lift parameter: search_files returns many
+# lines and a single pathological line must not crowd out the rest. Callers
+# who need a full line read the file at the reported line number.
 _MAX_LINE_CHARS = 500
 
 
@@ -61,7 +64,8 @@ def _search_content(
                 if len(stripped) > _MAX_LINE_CHARS:
                     stripped = (
                         stripped[:_MAX_LINE_CHARS]
-                        + f" ... [truncated, line has {len(stripped)} chars]"
+                        + f" ... [line truncated: showing {_MAX_LINE_CHARS}"
+                        f" of {len(stripped)} chars]"
                     )
                 capped.append(stripped)
             context = "\n".join(capped)

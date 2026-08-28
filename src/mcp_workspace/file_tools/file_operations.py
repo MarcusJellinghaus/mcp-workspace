@@ -381,6 +381,9 @@ def _format_deleted_paths(paths: list[str], n_files: int, n_dirs: int) -> list[s
         The original path list unchanged when it holds 20 or fewer entries;
         otherwise the first 20 paths plus a summary line as entry #21.
     """
+    # The 20-path cap is deliberate and has no lift parameter - unlike the read
+    # tools, the deletion has already happened, so there is nothing to
+    # re-request. The summary line carries the true file and directory totals.
     if len(paths) <= 20:
         return paths
     return paths[:20] + [
