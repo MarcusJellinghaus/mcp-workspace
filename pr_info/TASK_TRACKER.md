@@ -41,9 +41,9 @@ Details: [step_2.md](./steps/step_2.md)
 
 Details: [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: `usage` string and docstring of `get_reference_projects()` plus the two exact-match assertions in `tests/test_reference_projects_mcp_tools.py`; update `README.md`, `.claude/CLAUDE.md`, `.claude/skills/issue_approve/SKILL.md` and `tests/LLM_Test.md`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `usage` string and docstring of `get_reference_projects()` plus the two exact-match assertions in `tests/test_reference_projects_mcp_tools.py`; update `README.md`, `.claude/CLAUDE.md`, `.claude/skills/issue_approve/SKILL.md` and `tests/LLM_Test.md`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared — same blocker as step 2: `pr_info/.commit_message.txt` is gitignored and the MCP workspace tools reject gitignored paths, so the message was handed back in the run output instead
 
 ## Pull Request
 

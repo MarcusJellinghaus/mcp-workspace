@@ -32,6 +32,7 @@ By connecting your AI assistant to your filesystem, you can transform your workf
 - `get_reference_projects`: Discover available reference projects
 - `list_reference_directory`: List files in reference projects
 - `read_reference_file`: Read a reference-project file, or a line slice via start_line/end_line.
+- Cross-repo GitHub reads: `github_issue_view`, `github_issue_list`, `github_pr_view` and `github_search` accept `reference_name`
 - `Structured Logging`: Comprehensive logging system with both human-readable and JSON formats
 
 ## Installation
@@ -222,6 +223,7 @@ The server exposes the following MCP tools:
 | `get_reference_projects` | Lists available reference projects | "What reference projects are available?" |
 | `list_reference_directory` | Lists files in a reference project | "List files in the docs reference project" |
 | `read_reference_file` | Reads files from reference projects | "Show me the README from the examples project" |
+| GitHub read tools with `reference_name` | Read issues, PRs and search results from a reference project | "Show me issue 12 in the mcp-config project" |
 
 ### Tool Details
 
@@ -366,7 +368,7 @@ Discovery tool for LLMs to find available reference projects.
 
 **Returns:** Dictionary containing:
 - `count`: Number of available projects
-- `projects`: List of project names
+- `projects`: List of `{"name": ..., "url": ...}` objects. `url` is the configured repository URL, and tells a caller whether the project supports the GitHub read tools — a project with `url: null` cannot be used with `reference_name`.
 - `usage`: Instructions for next steps
 
 **Example:**
@@ -374,8 +376,8 @@ Discovery tool for LLMs to find available reference projects.
 get_reference_projects()
 # Returns: {
 #   "count": 3,
-#   "projects": ["docs", "examples", "utils"],
-#   "usage": "Use these 3 projects with list_reference_directory() and read_reference_file()"
+#   "projects": [{"name": "docs", "url": "https://github.com/org/docs"}, ...],
+#   "usage": "Use these 3 projects with list_reference_directory(), read_reference_file(), search_reference_files(), git(), github_issue_view(), github_issue_list(), github_pr_view(), and github_search()"
 # }
 ```
 
@@ -445,6 +447,18 @@ read_reference_file("config", "settings/production.yml")
 - "File not found" - when file doesn't exist in reference project
 - "Invalid path" - for security violations or path traversal attempts
 - "Permission denied" - for access issues
+
+#### Cross-Repo GitHub Reads
+`github_issue_view`, `github_issue_list`, `github_pr_view` and `github_search` take an optional `reference_name`. Without it they read the workspace repository; with it they read the named reference project instead.
+
+**Features:**
+- The repository is resolved from the reference project's configured URL — no clone is performed, so a URL-only reference project works
+- Only names listed by `get_reference_projects()` are accepted; arbitrary `owner/repo` strings are not
+- Reads only — there are no GitHub write tools
+
+**Error Handling:** returned as `"Error: ..."` strings rather than raised:
+- `"Error: Reference project '<name>' not found"` - when the name is not a reference project
+- `"Error: Reference project '<name>' has no URL configured"` - when the reference project has no repository URL
 
 ## Security Features
 
