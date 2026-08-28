@@ -43,9 +43,11 @@ Details: [step_3.md](./steps/step_3.md)
 
 - [x] Implementation (tests + production code)
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared (blocked: `pr_info/.commit_message.txt` is
-      gitignored and the MCP workspace server refuses gitignored paths; message
-      text is in the run output)
+- [x] Commit message prepared (message used directly in commit `e3620de`
+      "fix(ci_log_parser): unify truncation marker and clamp caps";
+      `pr_info/.commit_message.txt` could not be written because it is gitignored
+      and the MCP workspace server refuses gitignored paths, and the step is
+      already committed so the transient file is moot)
 
 ### Step 4: `github_issue_list` — make the silent truncation notice reachable
 
