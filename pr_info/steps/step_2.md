@@ -41,6 +41,17 @@ Use the local variable rather than inlining the attribute chain in the f-string 
 line inside black's width and keeps the `pylint: disable` comment attached to the access, in
 the same inline style the file already uses for `_get_repository()` and `_github_client`.
 
+**Known limitation — the diagnostic covers two of the four tools.** These are the only two
+`_get_repository()` call sites, so only `github_pr_view` and `github_search` gain the API base
+URL. `github_issue_view` and `github_issue_list` go through `get_issue()` / `list_issues()`,
+which are wrapped by `_handle_github_errors(default_return=create_empty_issue_data())`; a
+misconfigured or non-GitHub host therefore still surfaces as the generic
+`"Error: Issue #N not found"` (or an empty list), with no hint that the host is wrong.
+Closing that gap would mean changing the error handling under `github_operations/`, which the
+issue excludes ("No manager-layer changes"), so it stays out of scope here. Decision 4 is
+satisfied for the two messages it names; the other two tools remain as diagnosable as they are
+today on the workspace path.
+
 ## HOW / ALGORITHM
 
 No new control flow. The access sits inside each tool's existing `try:`, so if

@@ -54,12 +54,20 @@ cases). Update both to match exactly. The line-27 assertion
 
 Four touch points, all short:
 
-- **Example `usage` string** (line 378, inside the `#### Get Reference Projects` subsection):
-  the hardcoded example is already stale and gets staler with this change —
-  > `#   "usage": "Use these 3 projects with list_reference_directory() and read_reference_file()"`
+- **`#### Get Reference Projects` subsection** (lines 367–379): three stale spots, all in the
+  same block —
+  - line 378, the hardcoded example `usage` string:
+    > `#   "usage": "Use these 3 projects with list_reference_directory() and read_reference_file()"`
 
-  Replace the quoted value with the new `usage` string from §1, so the documented example
-  matches what the tool actually returns.
+    Replace the quoted value with the new `usage` string from §1, so the documented example
+    matches what the tool actually returns.
+  - line 369, the `Returns:` bullet describing `projects` as "List of project names" — the tool returns
+    `{"name": ..., "url": ...}` dicts (`server_reference_tools.py:63`). Say so, and note that
+    `url` is what tells a caller whether a project supports the GitHub read tools (a project
+    with `url: null` cannot be used with `reference_name`).
+  - line 377, the example value `#   "projects": ["docs", "examples", "utils"],` — replace
+    with the dict shape actually returned, e.g.
+    > `#   "projects": [{"name": "docs", "url": "https://github.com/org/docs"}, ...],`
 - **Features list** (around lines 32–34): after the `read_reference_file` bullet, add
   > `- Cross-repo GitHub reads: github_issue_view, github_issue_list, github_pr_view and github_search accept reference_name`
 - **Available Tools table** (around lines 222–224): add a row
@@ -161,6 +169,7 @@ Then run mcp__mcp-tools-py__run_format_code and make exactly one commit.
   docstring, and its two tests pass.
 - All four documentation surfaces from the issue are updated, plus
   `.claude/skills/issue_approve/SKILL.md`.
-- No file still states that the GitHub read tools reach only the current repository:
-  `grep -r "only reaches the current repository"` returns nothing.
+- No shipped file still states that the GitHub read tools reach only the current repository:
+  `grep -r "only reaches the current repository" src/ README.md .claude/ tests/` returns
+  nothing. (Do not grep `pr_info/` — the plan files quote the old wording on purpose.)
 - pylint, pytest and mypy are green.

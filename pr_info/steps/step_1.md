@@ -7,7 +7,7 @@ Read [summary.md](./summary.md) first, in particular design decisions 1–3.
 
 | File | Change |
 |---|---|
-| `tests/github_operations/test_github_read_tools.py` | New fixture + 5 tests (write first) |
+| `tests/github_operations/test_github_read_tools.py` | New fixture + 6 tests (write first) |
 | `src/mcp_workspace/server_reference_tools.py` | New `get_reference_repo_url()` |
 | `src/mcp_workspace/server.py` | New `_issue_manager()`; `reference_name` on four tools |
 
@@ -184,6 +184,12 @@ Tests:
    `mcp_workspace.server_reference_tools.ensure_available`, call one tool with
    `reference_name="sibling"`, assert it was not called. This is the regression guard for
    design decision 1 and the reason a plain path lookup was rejected.
+6. `test_reference_name_scopes_search_query` — the one behavioural assertion, not a
+   construction one: call `github_search(query="x", reference_name="sibling")` and assert the
+   query passed to `manager._github_client.search_issues` starts with `repo:owner/sibling`
+   (`mock_mgr._github_client.search_issues.call_args.kwargs["query"]`). `_configure_manager`
+   already sets `_get_repository() -> MagicMock(full_name="owner/sibling")`, so this covers
+   the claim that `github_search` needs no special handling in `repo_url` mode.
 
 Imports the test file needs on top of what it already has: `set_reference_projects` from
 `mcp_workspace.server_reference_tools`, `ReferenceProject` from
@@ -201,7 +207,7 @@ Read pr_info/steps/summary.md (especially design decisions 1-3) and pr_info/step
 in full before starting.
 
 Work test-first:
-1. Add the fixture, the _configure_manager helper and the five tests described under TESTS to
+1. Add the fixture, the _configure_manager helper and the six tests described under TESTS to
    tests/github_operations/test_github_read_tools.py. Run pytest and confirm they fail.
 2. Add get_reference_repo_url() to src/mcp_workspace/server_reference_tools.py.
 3. Add _issue_manager() to src/mcp_workspace/server.py, add reference_name as the last
@@ -218,7 +224,7 @@ Then run mcp__mcp-tools-py__run_format_code and make exactly one commit.
 
 ## DONE WHEN
 
-- All five new tests pass; every pre-existing test in the file still passes unchanged.
+- All six new tests pass; every pre-existing test in the file still passes unchanged.
 - No tool docstring still claims the GitHub read tools are limited to the current repository —
   in particular `github_search`'s summary line and its scoping note.
 - pylint, pytest and mypy are green.
