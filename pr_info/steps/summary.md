@@ -106,7 +106,7 @@ updating a sibling issue still requires `gh`. This closes the read half only.
 |---|---|---|
 | [step_1.md](./step_1.md) | Accessor + `_issue_manager()` helper + `reference_name` on the four tools | `server_reference_tools.py`, `server.py`, `test_github_read_tools.py` |
 | [step_2.md](./step_2.md) | API base URL in the two `"Could not access repository"` messages | `server.py`, `test_github_read_tools.py` |
-| [step_3.md](./step_3.md) | The four documentation surfaces | `server_reference_tools.py`, `test_reference_projects_mcp_tools.py`, `README.md`, `.claude/CLAUDE.md`, `tests/LLM_Test.md` |
+| [step_3.md](./step_3.md) | The four documentation surfaces plus the `issue_approve` skill | `server_reference_tools.py`, `test_reference_projects_mcp_tools.py`, `README.md`, `.claude/CLAUDE.md`, `.claude/skills/issue_approve/SKILL.md`, `tests/LLM_Test.md` |
 
 Each step is one commit: tests plus implementation plus passing checks. Steps 1 and 2 are
 independent of each other; step 3 depends on step 1 only for accurate wording.
@@ -119,24 +119,18 @@ independent of each other; step 3 depends on step 1 only for accurate wording.
 
 | Path | Step | Change |
 |---|---|---|
-| `src/mcp_workspace/server_reference_tools.py` | 1, 3 | New `get_reference_repo_url()`; `usage` string in `get_reference_projects()` |
-| `src/mcp_workspace/server.py` | 1, 2 | New `_issue_manager()`; `reference_name` on four tools; two error messages |
+| `src/mcp_workspace/server_reference_tools.py` | 1, 3 | New `get_reference_repo_url()`; `usage` string **and** docstring of `get_reference_projects()` |
+| `src/mcp_workspace/server.py` | 1, 2 | New `_issue_manager()`; `reference_name` on four tools; `github_search` scope wording; two error messages |
 | `tests/github_operations/test_github_read_tools.py` | 1, 2 | Reference-project fixture and tests; two error-message assertions |
 | `tests/test_reference_projects_mcp_tools.py` | 3 | Two exact-match `usage` string assertions |
-| `README.md` | 3 | Reference-project tool surface |
+| `README.md` | 3 | Reference-project tool surface; example `usage` string at line 378 |
 | `.claude/CLAUDE.md` | 3 | Sibling-repo line (currently an undercount) |
+| `.claude/skills/issue_approve/SKILL.md` | 3 | Cross-repo section: drop the `gh issue view` read fallback |
 | `tests/LLM_Test.md` | 3 | Manual smoke-test script |
 
 **Untouched deliberately:** `github_operations/` (all of it), `reference_projects.py`,
 `tach.toml`, `.importlinter`, `vulture_whitelist.py`, `pr_info/TASK_TRACKER.md` (populated by
 `prepare_task_tracker`).
-
-## Open question
-
-`.claude/skills/issue_approve/SKILL.md:29` states that `github_issue_view` "only reaches the
-current repository" and routes cross-repo reads to `gh issue view`. That becomes inaccurate
-after step 1, but it is outside the four documentation surfaces the issue names. Left alone;
-flag if it should be folded into step 3.
 
 ## Verification
 

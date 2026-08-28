@@ -85,6 +85,21 @@ each `manager = IssueManager(project_dir=_project_dir)` with
 
   > `reference_name: Optional reference project name. When set, reads from that project's GitHub repository instead of the workspace repository.`
 
+- **`github_search` prose must change too, not just its `Args:` block.** Two lines currently
+  assert the tool is workspace-only and would contradict the new parameter:
+
+  - the summary line (`server.py:746`): `"""Search GitHub issues and pull requests in this repository.`
+  - the body note (`server.py:748`): `Automatically scoped to current repository. Additional qualifiers ...`
+
+  Rewrite both so the description states the scope is a single repository — the workspace repo
+  by default, or the reference project named by `reference_name`. Suggested wording:
+
+  > `"""Search GitHub issues and pull requests in a single repository.`
+  >
+  > `Scoped to the workspace repository, or to the reference project named by reference_name. Additional qualifiers can be included inline in the query string (e.g., "fix login author:marcus").`
+
+  The other three tools' summary lines make no repository claim and need only the `Args:` entry.
+
 ## ALGORITHM
 
 ```
@@ -193,7 +208,8 @@ Work test-first:
    parameter of github_issue_view, github_issue_list, github_pr_view and github_search,
    swap the four IssueManager constructions to _issue_manager(reference_name), delete the
    four now-redundant lazy IssueManager imports, and document reference_name in each
-   Args: block.
+   Args: block. Also rewrite github_search's summary line and its "Automatically scoped
+   to current repository" note, which currently contradict the new parameter.
 4. Run pytest, pylint and mypy until all pass. Do not change any behaviour when
    reference_name is omitted, and do not touch anything under github_operations/.
 
@@ -203,5 +219,7 @@ Then run mcp__mcp-tools-py__run_format_code and make exactly one commit.
 ## DONE WHEN
 
 - All five new tests pass; every pre-existing test in the file still passes unchanged.
+- No tool docstring still claims the GitHub read tools are limited to the current repository —
+  in particular `github_search`'s summary line and its scoping note.
 - pylint, pytest and mypy are green.
 - `git diff` shows no changes under `src/mcp_workspace/github_operations/`.
