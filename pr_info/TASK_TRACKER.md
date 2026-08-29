@@ -135,3 +135,12 @@ Details: [step_9.md](./steps/step_9.md)
 
 - [ ] PR review — address review feedback
 - [ ] PR summary prepared (include the manual read-only-token result for the `perm_write` probe, per summary.md)
+- [ ] **BLOCKING, still open:** run `_probe_write` once against a deliberately
+      read-only token (`BaseGitHubManager(github_token=…)` accepts one
+      explicitly) and record the observed `repo.permissions.push` value in the
+      PR description. If it reports `push: true` for a token with no write
+      grant, that is a false green — drop the `perm_write` probe rather than
+      ship it, per the acceptance criterion in issue #232 and summary.md.
+      Not doable from the review environment: it needs a second, deliberately
+      read-only GitHub token that is not available here, and the result cannot
+      be inferred from the code — it is a property of GitHub's API.

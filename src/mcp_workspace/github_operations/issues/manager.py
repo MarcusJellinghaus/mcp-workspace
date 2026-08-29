@@ -141,23 +141,7 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
         github_issue = repo.create_issue(**kwargs)
 
         # Convert to IssueData
-        return IssueData(
-            number=github_issue.number,
-            title=github_issue.title,
-            body=github_issue.body or "",
-            state=github_issue.state,
-            labels=[label.name for label in github_issue.labels],
-            assignees=[assignee.login for assignee in github_issue.assignees],
-            user=github_issue.user.login if github_issue.user else None,
-            created_at=(
-                github_issue.created_at.isoformat() if github_issue.created_at else None
-            ),
-            updated_at=(
-                github_issue.updated_at.isoformat() if github_issue.updated_at else None
-            ),
-            url=github_issue.html_url,
-            locked=github_issue.locked,
-        )
+        return _issue_to_data(github_issue)
 
     @log_function_call
     @_handle_github_errors(default_return=create_empty_issue_data())
@@ -370,26 +354,7 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
         github_issue.edit(state="closed")
 
         # Get fresh issue data after closing
-        github_issue = self._get_issue_checked(repo, issue_number)
-
-        # Convert to IssueData
-        return IssueData(
-            number=github_issue.number,
-            title=github_issue.title,
-            body=github_issue.body or "",
-            state=github_issue.state,
-            labels=[label.name for label in github_issue.labels],
-            assignees=[assignee.login for assignee in github_issue.assignees],
-            user=github_issue.user.login if github_issue.user else None,
-            created_at=(
-                github_issue.created_at.isoformat() if github_issue.created_at else None
-            ),
-            updated_at=(
-                github_issue.updated_at.isoformat() if github_issue.updated_at else None
-            ),
-            url=github_issue.html_url,
-            locked=github_issue.locked,
-        )
+        return _issue_to_data(self._get_issue_checked(repo, issue_number))
 
     @log_function_call
     @_handle_github_errors(default_return=create_empty_issue_data())
@@ -425,26 +390,7 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
         github_issue.edit(state="open")
 
         # Get fresh issue data after reopening
-        github_issue = self._get_issue_checked(repo, issue_number)
-
-        # Convert to IssueData
-        return IssueData(
-            number=github_issue.number,
-            title=github_issue.title,
-            body=github_issue.body or "",
-            state=github_issue.state,
-            labels=[label.name for label in github_issue.labels],
-            assignees=[assignee.login for assignee in github_issue.assignees],
-            user=github_issue.user.login if github_issue.user else None,
-            created_at=(
-                github_issue.created_at.isoformat() if github_issue.created_at else None
-            ),
-            updated_at=(
-                github_issue.updated_at.isoformat() if github_issue.updated_at else None
-            ),
-            url=github_issue.html_url,
-            locked=github_issue.locked,
-        )
+        return _issue_to_data(self._get_issue_checked(repo, issue_number))
 
     @log_function_call
     @_handle_github_errors(default_return=create_empty_issue_data)

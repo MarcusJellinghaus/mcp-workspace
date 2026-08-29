@@ -68,6 +68,11 @@ _login_cache: Dict[str, str] = {}
 def _check_labels(manager: Any, add: List[str], remove: List[str]) -> Optional[str]:
     """Reject status-* labels on both sides, then unknown add-side names.
 
+    Both checks are case-insensitive, because GitHub label names are: adding
+    "Bug" attaches the existing "bug" rather than creating a second label, so an
+    exact-match comparison would reject a valid name and — worse on the remove
+    side, which has no known-label check — let "Status-04:..." past the guard.
+
     ``manager`` is typed ``Any`` rather than ``IssueManager`` on purpose: a real
     annotation would force a top-level ``github_operations`` import and pull
     PyGithub onto the server startup path.
@@ -85,7 +90,9 @@ def _check_labels(manager: Any, add: List[str], remove: List[str]) -> Optional[s
             caught: a failed lookup must be reported as itself by the calling
             tool, never rendered as "unknown label(s)".
     """  # noqa: DOC502  # Exception propagates from get_available_labels
-    offenders = [n for n in (*add, *remove) if n.startswith(_STATUS_LABEL_PREFIX)]
+    offenders = [
+        n for n in (*add, *remove) if n.casefold().startswith(_STATUS_LABEL_PREFIX)
+    ]
     if offenders:
         return (
             "Error: these tools do not modify status-* labels "
@@ -95,8 +102,8 @@ def _check_labels(manager: Any, add: List[str], remove: List[str]) -> Optional[s
         return None
     # Not cached: the server can run for days, and a label created meanwhile
     # must not be wrongly rejected.
-    known = {label["name"] for label in manager.get_available_labels()}
-    unknown = [n for n in add if n not in known]
+    known = {label["name"].casefold() for label in manager.get_available_labels()}
+    unknown = [n for n in add if n.casefold() not in known]
     if unknown:
         return f"Error: unknown label(s): {', '.join(unknown)}"
     return None
@@ -1044,7 +1051,8 @@ def github_issue_create(
         assignees: GitHub usernames to assign; "@me" means the authenticated user
 
     Returns:
-        "Created issue #<number> — <url>", or error message string.
+        "Created issue #<number> — <url>" followed by the resulting assignees,
+        or error message string.
     """
     # Lazy import: keeps PyGithub off the server startup import path
     from mcp_workspace.github_operations.issues import IssueManager
@@ -1064,7 +1072,12 @@ def github_issue_create(
         # Empty IssueData is the library's swallowed-failure sentinel
         if not issue["number"]:
             return "Error: issue creation failed - no issue was created"
-        return f"Created issue #{issue['number']} — {issue['url']}"
+        # GitHub drops a non-assignable login silently, so the resulting list is
+        # the only way a caller sees that an assignee did not take
+        return (
+            f"Created issue #{issue['number']} — {issue['url']}\n"
+            f"Assignees: {', '.join(issue['assignees']) or '(none)'}"
+        )
     except Exception as e:
         return f"Error: {e}"
 
@@ -1126,6 +1139,7 @@ def github_issue_edit(
         resolved = _resolve_assignees(manager, add_assignees or [])
 
         reason = ""
+        raised = False
         try:
             issue = manager.edit_issue(
                 number,
@@ -1143,17 +1157,25 @@ def github_issue_edit(
             # _handle_github_errors re-raises 401/403 and every ValueError,
             # including the identity check on edit_issue's own closing refetch.
             # Both can happen after part of the write landed.
-            issue, reason = create_empty_issue_data(), str(exc)
+            issue, reason, raised = create_empty_issue_data(), str(exc), True
 
         if reason:
-            # The write sequence started and did not finish cleanly — read the
-            # issue back so the caller learns what actually landed.
+            # The write sequence may have started and did not finish cleanly —
+            # read the issue back so the caller learns what actually landed.
             try:
                 issue = manager.get_issue(number)
             except Exception as exc:
                 return (
                     f"Error: edit of issue #{number} failed ({reason}) and the "
                     f"issue could not be re-read: {exc}"
+                )
+            if not issue["number"] and not raised:
+                # Nothing was raised and the issue cannot be read at all, so the
+                # swallowed error was edit_issue's own opening fetch: no write
+                # was ever attempted.
+                return (
+                    f"Error: issue #{number} not found or not accessible - "
+                    "no changes were made"
                 )
             if not issue["number"]:
                 return (

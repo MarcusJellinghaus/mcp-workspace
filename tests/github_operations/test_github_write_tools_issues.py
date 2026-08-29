@@ -235,6 +235,69 @@ def test_github_issue_create_empty_label_list_still_rejects(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_accepts_differently_cased_label(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """GitHub label names are case-insensitive, so 'Bug' is not a typo."""
+    mock_mgr = _make_manager(
+        issue=_make_issue(labels=["bug"]), available_labels=[_label("bug")]
+    )
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_create(title="Test issue", labels=["Bug"])
+
+    assert result.startswith("Created issue #42")
+    assert mock_mgr.create_issue.call_args.kwargs["labels"] == ["Bug"]
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_rejects_differently_cased_status_label(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """The status guard is case-insensitive too, so 'Status-' cannot slip past."""
+    mock_mgr = _make_manager(available_labels=[_label("Status-01:created")])
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_create(title="Test issue", labels=["Status-01:created"])
+
+    assert result.startswith("Error:")
+    assert "set-status" in result
+    mock_mgr.create_issue.assert_not_called()
+    mock_mgr.get_available_labels.assert_not_called()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_reports_resulting_assignees(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """The resulting assignee list is reported, mirroring github_issue_edit."""
+    mock_manager_cls.return_value = _make_manager(
+        issue=_make_issue(assignees=["alice"])
+    )
+
+    result = github_issue_create(title="Test issue", assignees=["alice"])
+
+    assert result.splitlines() == [
+        "Created issue #42 — https://github.com/test/repo/issues/42",
+        "Assignees: alice",
+    ]
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_shows_silently_dropped_assignee(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """GitHub drops a non-assignable login without error — the caller must see it."""
+    mock_manager_cls.return_value = _make_manager(issue=_make_issue(assignees=[]))
+
+    result = github_issue_create(title="Test issue", assignees=["not-a-member"])
+
+    assert result.startswith("Created issue #42")
+    assert "Assignees: (none)" in result
+    assert "not-a-member" not in result
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_create_resolves_me_assignee(
     mock_manager_cls: MagicMock,
 ) -> None:

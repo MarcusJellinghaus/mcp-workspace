@@ -243,19 +243,44 @@ def test_github_issue_edit_reports_only_requested_arguments(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_edit_total_failure_is_an_error(
+def test_github_issue_edit_unreadable_issue_reports_not_found(
     mock_manager_cls: MagicMock,
 ) -> None:
-    """When the refetch is empty too, nothing can be reported — say so."""
+    """A swallowed error plus an unreadable issue is a 404 on the opening fetch.
+
+    Nothing was raised and the issue cannot be read at all, so no write was ever
+    attempted — saying "edit failed" would imply a partial write that cannot
+    have happened.
+    """
     mock_mgr = _make_manager(issue=create_empty_issue_data())
     mock_mgr.get_issue.return_value = create_empty_issue_data()
     mock_manager_cls.return_value = mock_mgr
 
     result = github_issue_edit(number=42, title="New title")
 
-    assert result.startswith("Error:")
+    assert result == (
+        "Error: issue #42 not found or not accessible - no changes were made"
+    )
     assert "Warning" not in result
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_edit_raised_failure_keeps_partial_write_wording(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A re-raised error can arrive after a write landed, so stay non-committal."""
+    mock_mgr = _make_manager()
+    mock_mgr.edit_issue.side_effect = GithubException(
+        403, {"message": "Resource not accessible by integration"}, None
+    )
+    mock_mgr.get_issue.return_value = create_empty_issue_data()
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, title="New title")
+
+    assert result.startswith("Error:")
     assert "could not be re-read" in result
+    assert "no changes were made" not in result
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
@@ -315,6 +340,37 @@ def test_github_issue_edit_rejects_status_label_on_remove_side(
     assert "status-04:in-progress" in result
     assert "set-status" in result
     mock_mgr.edit_issue.assert_not_called()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_edit_rejects_differently_cased_status_label(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """The remove side has no known-label check, so the guard must ignore case."""
+    mock_mgr = _make_manager()
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, remove_labels=["Status-04:in-progress"])
+
+    assert result.startswith("Error:")
+    assert "set-status" in result
+    mock_mgr.edit_issue.assert_not_called()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_edit_accepts_differently_cased_label(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """GitHub label names are case-insensitive, so 'Bug' is a valid add."""
+    mock_mgr = _make_manager(
+        issue=_make_issue(labels=["bug"]), available_labels=[_label("bug")]
+    )
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, add_labels=["Bug"])
+
+    assert result.startswith("Updated issue #42")
+    assert mock_mgr.edit_issue.call_args.kwargs["add_labels"] == ["Bug"]
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
