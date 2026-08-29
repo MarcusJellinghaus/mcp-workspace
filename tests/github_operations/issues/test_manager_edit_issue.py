@@ -71,6 +71,21 @@ class TestIssueManagerEditIssue:
 
         issue.edit.assert_called_once_with(title="New title")
 
+    def test_edit_issue_blank_title_raises(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """A whitespace-only title is rejected instead of stripped to "".
+
+        title=None stays a valid "leave the title alone" request.
+        """
+        issue = _make_editable_issue()
+        mock_issue_manager._repository.get_issue.return_value = issue
+
+        with pytest.raises(ValueError, match="Issue title cannot be empty"):
+            mock_issue_manager.edit_issue(1, title="   ")
+
+        issue.edit.assert_not_called()
+
     def test_edit_issue_no_arguments_skips_edit(
         self, mock_issue_manager: IssueManager
     ) -> None:

@@ -431,8 +431,8 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             when the repository is unavailable or the API call failed
 
         Raises:
-            ValueError: If the issue number is invalid or state is neither
-                'open' nor 'closed'.
+            ValueError: If the issue number is invalid, a supplied title is
+                empty, or state is neither 'open' nor 'closed'.
             IssueIdentityMismatchError: If GitHub returns an issue from another
                 repository (the issue was transferred) or with a different number.
 
@@ -444,6 +444,10 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
         """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
         # Validate inputs
         validate_issue_number(issue_number)
+        # A title left at None means "don't change it"; only a supplied title
+        # has to be non-blank, since the strip below would send "" to GitHub.
+        if title is not None and not title.strip():
+            raise ValueError("Issue title cannot be empty")
         if state is not None and state not in ("open", "closed"):
             raise ValueError("Issue state must be 'open' or 'closed'")
 

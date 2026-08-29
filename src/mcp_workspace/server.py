@@ -128,13 +128,13 @@ def _resolve_assignees(manager: Any, logins: List[str]) -> List[str]:
 
 
 def _normalize_newlines(text: Optional[str]) -> str:
-    """Return text with CRLF and CR line endings folded to LF.
+    r"""Return text with CRLF and CR line endings folded to LF.
 
     Args:
         text: Text to normalize, or None for an absent body.
 
     Returns:
-        The text with "\\r\\n" and "\\r" replaced by "\\n"; "" when text is None.
+        The text with "\r\n" and "\r" replaced by "\n"; "" when text is None.
     """
     return (text or "").replace("\r\n", "\n").replace("\r", "\n")
 
@@ -1148,7 +1148,9 @@ def github_issue_edit(
 
     Returns:
         "Updated issue #<number> — <url> (state: <state>)" followed by the
-        resulting labels and assignees, or error message string.
+        resulting labels and assignees. When nothing was applied, the same
+        block opens with an error line and reads "Issue #<number> — ..."
+        instead of "Updated issue". Or error message string.
     """
     # Lazy imports: keep PyGithub off the server startup import path
     from github import GithubException
@@ -1175,9 +1177,10 @@ def github_issue_edit(
 
         reason = ""
         # edit_issue appends one entry per write call it issues, before
-        # issuing it. Empty means the failure happened on its opening fetch,
-        # so nothing can have been written — the only case in which claiming
-        # "no changes were made" is honest.
+        # issuing it. Empty therefore means no write was ever issued — the
+        # failure came before the first one, or the request had no write to
+        # make. Either way nothing can have been written, which is the only
+        # case in which claiming "no changes were made" is honest.
         attempted: List[str] = []
         try:
             issue = manager.edit_issue(
@@ -1219,9 +1222,9 @@ def github_issue_edit(
                     f"may or may not have been applied: {', '.join(attempted)}"
                 )
 
-        # Same signal as above: an empty write log means the failure hit
-        # edit_issue's opening fetch, so no write went out. Nothing was
-        # applied, which makes both "partially failed" and "Updated" untrue.
+        # Same signal as above: an empty write log means no write went out, so
+        # nothing was applied — which makes both "partially failed" and
+        # "Updated" untrue.
         failed_before_write = bool(reason) and not attempted
         lines: List[str] = []
         if failed_before_write:
