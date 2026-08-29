@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional
 
+from github.Issue import Issue
 from mcp_coder_utils.log_utils import log_function_call
 
 from ..base_manager import BaseGitHubManager, _handle_github_errors
@@ -21,6 +22,37 @@ from .types import IssueData, create_empty_issue_data
 logger = logging.getLogger(__name__)
 
 __all__ = ["IssueManager"]
+
+
+def _issue_to_data(github_issue: Issue) -> IssueData:
+    """Convert a PyGithub Issue into IssueData.
+
+    Does not populate ``base_branch`` — it matches the conversion used by the
+    write operations (``close_issue``), not the one used by ``get_issue``.
+
+    Args:
+        github_issue: PyGithub Issue to convert
+
+    Returns:
+        IssueData with the issue's current fields
+    """
+    return IssueData(
+        number=github_issue.number,
+        title=github_issue.title,
+        body=github_issue.body or "",
+        state=github_issue.state,
+        labels=[label.name for label in github_issue.labels],
+        assignees=[assignee.login for assignee in github_issue.assignees],
+        user=github_issue.user.login if github_issue.user else None,
+        created_at=(
+            github_issue.created_at.isoformat() if github_issue.created_at else None
+        ),
+        updated_at=(
+            github_issue.updated_at.isoformat() if github_issue.updated_at else None
+        ),
+        url=github_issue.html_url,
+        locked=github_issue.locked,
+    )
 
 
 class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
@@ -413,3 +445,89 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             url=github_issue.html_url,
             locked=github_issue.locked,
         )
+
+    @log_function_call
+    @_handle_github_errors(default_return=create_empty_issue_data)
+    def edit_issue(
+        self,
+        issue_number: int,
+        title: Optional[str] = None,
+        body: Optional[str] = None,
+        add_labels: Optional[List[str]] = None,
+        remove_labels: Optional[List[str]] = None,
+        add_assignees: Optional[List[str]] = None,
+        state: Optional[str] = None,
+    ) -> IssueData:
+        """Apply several edits to an issue in one combined operation.
+
+        Composing close_issue/add_labels/remove_labels would repeat the
+        fetch-edit-refetch cycle per operation; this does one fetch, one
+        ``edit()`` for the scalars, one server-side call per collection, and
+        one refetch.
+
+        Args:
+            issue_number: Issue number to edit
+            title: New issue title (optional)
+            body: New issue description (optional)
+            add_labels: Label names to add (optional)
+            remove_labels: Label names to remove (optional)
+            add_assignees: GitHub usernames to assign (optional)
+            state: New issue state — 'open' or 'closed' (optional)
+
+        Returns:
+            IssueData with the refetched issue information, or empty IssueData
+            when the repository is unavailable or the API call failed
+
+        Raises:
+            ValueError: If the issue number is invalid or state is neither
+                'open' nor 'closed'.
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different number.
+
+        Example:
+            >>> updated = manager.edit_issue(
+            ...     123, title="New title", add_labels=["bug"], state="closed"
+            ... )
+            >>> print(f"Labels: {updated['labels']}")
+        """  # noqa: DOC502  # IssueIdentityMismatchError comes from _get_issue_checked
+        # Validate inputs
+        validate_issue_number(issue_number)
+        if state is not None and state not in ("open", "closed"):
+            raise ValueError("Issue state must be 'open' or 'closed'")
+
+        # Get repository
+        repo = self._get_repository()
+        if repo is None:
+            logger.error("Failed to get repository")
+            return create_empty_issue_data()
+
+        # Fetch once — the response already carries the current labels
+        github_issue = self._get_issue_checked(repo, issue_number)
+        current_labels = {label.name for label in github_issue.labels}
+
+        # Scalars go out together in a single edit() call. Annotated as Any
+        # because PyGithub types each edit() keyword separately, so mypy
+        # cannot check a **kwargs unpacking against them.
+        scalars: dict[str, Any] = {
+            key: value
+            for key, value in (("title", title), ("body", body), ("state", state))
+            if value is not None
+        }
+        if scalars:
+            github_issue.edit(**scalars)
+
+        if add_labels:
+            github_issue.add_to_labels(*add_labels)
+
+        # remove_from_labels takes a single label, unlike the add_* varargs
+        # calls. Removing an absent label 404s, and the swallowed 404 would
+        # report the whole edit as failed after the scalars already landed.
+        for label_name in remove_labels or []:
+            if label_name in current_labels:
+                github_issue.remove_from_labels(label_name)
+
+        if add_assignees:
+            github_issue.add_to_assignees(*add_assignees)
+
+        # Refetch so the returned labels/assignees are the resulting sets
+        return _issue_to_data(self._get_issue_checked(repo, issue_number))

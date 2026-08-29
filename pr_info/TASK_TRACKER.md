@@ -40,9 +40,12 @@ Details: [step_1.md](./steps/step_1.md)
 
 Details: [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared: `Add IssueManager.edit_issue combined edit function`
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared: `Add IssueManager.edit_issue combined edit function`
+      Final text is at `pr_info/commit_message_step2.txt`, following the step-1
+      convention: `pr_info/.commit_message.txt` is gitignored (`.gitignore:48`)
+      and the workspace MCP server refuses gitignored paths for `save_file`.
 
 ### Step 3: `github_issue_create` tool (+ `_check_labels`, `_resolve_assignees`)
 

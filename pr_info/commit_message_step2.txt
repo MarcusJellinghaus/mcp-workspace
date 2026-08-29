@@ -1,0 +1,25 @@
+Add IssueManager.edit_issue combined edit function
+
+Add a single library function that applies title, body, state, label and
+assignee changes to an issue in one pass, plus the module-private
+_issue_to_data helper it returns through.
+
+Composing close_issue/add_labels/remove_labels would repeat the
+fetch-edit-refetch cycle per operation, so one tool call touching state,
+labels and title would fire 8+ requests. edit_issue does one fetch, one
+issue.edit() for the scalars, one server-side call per collection, and one
+refetch.
+
+Two details are load-bearing rather than stylistic:
+
+- remove_from_labels takes a single label (unlike the add_to_labels and
+  add_to_assignees varargs), so removals loop.
+- Removals are filtered against the labels carried by the first fetch.
+  Removing an absent label 404s, and the swallowed 404 would report the
+  whole edit as failed after the scalars had already landed.
+
+default_return is the create_empty_issue_data callable, not an eager call,
+so each swallowed failure gets its own dict instead of sharing one instance.
+
+Covered by a new mocked test module and by an edit_issue section added to
+the existing single-issue integration workflow.
