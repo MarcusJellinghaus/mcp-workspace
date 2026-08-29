@@ -63,9 +63,13 @@ Details: [step_3.md](./steps/step_3.md)
 
 Details: [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy, vulture — fix all issues
-- [ ] Commit message prepared: `Add github_issue_edit MCP tool`
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy, vulture — fix all issues
+- [x] Commit message prepared: `Add github_issue_edit MCP tool`
+      Final text is at `pr_info/commit_message_step4.txt`, following the step-1
+      to step-3 convention: `pr_info/.commit_message.txt` is gitignored
+      (`.gitignore:48`) and the workspace MCP server refuses gitignored paths
+      for `save_file`.
 
 ### Step 5: `github_issue_comment` tool
 

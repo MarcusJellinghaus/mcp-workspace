@@ -120,6 +120,59 @@ def _resolve_assignees(manager: Any, logins: List[str]) -> List[str]:
     return [_login_cache["login"] if name == "@me" else name for name in logins]
 
 
+def _edit_change_lines(
+    issue: Any,
+    title: Optional[str],
+    body: Optional[str],
+    state: Optional[str],
+    add_labels: Optional[List[str]],
+    remove_labels: Optional[List[str]],
+    assignees: List[str],
+) -> List[str]:
+    """Describe which requested changes are visible in the refetched issue.
+
+    Only arguments the caller actually passed are reported: an argument left at
+    None or [] is not a change and appears in neither list.
+
+    Args:
+        issue: Refetched IssueData to compare the request against.
+        title: Requested title, or None when unchanged.
+        body: Requested body, or None when unchanged.
+        state: Requested state, or None when unchanged.
+        add_labels: Label names requested to be added, if any.
+        remove_labels: Label names requested to be removed, if any.
+        assignees: Resolved logins requested to be assigned, if any.
+
+    Returns:
+        The "Applied:" and "Not applied:" lines, using "(none)" when empty.
+    """
+    labels = issue["labels"]
+    checks = (
+        ("title", title is not None, issue["title"] == title),
+        ("body", body is not None, issue["body"] == body),
+        ("state", state is not None, issue["state"] == state),
+        ("add_labels", bool(add_labels), all(n in labels for n in add_labels or [])),
+        (
+            "remove_labels",
+            bool(remove_labels),
+            all(n not in labels for n in remove_labels or []),
+        ),
+        (
+            "add_assignees",
+            bool(assignees),
+            all(a in issue["assignees"] for a in assignees),
+        ),
+    )
+    applied = [name for name, requested, landed in checks if requested and landed]
+    not_applied = [
+        name for name, requested, landed in checks if requested and not landed
+    ]
+    return [
+        f"Applied: {', '.join(applied) or '(none)'}",
+        f"Not applied: {', '.join(not_applied) or '(none)'}",
+    ]
+
+
 def _check_not_gitignored(file_path: str) -> None:
     """Raise ValueError if path is excluded by .gitignore.
 
@@ -1012,6 +1065,119 @@ def github_issue_create(
         if not issue["number"]:
             return "Error: issue creation failed - no issue was created"
         return f"Created issue #{issue['number']} — {issue['url']}"
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+@log_function_call
+def github_issue_edit(
+    number: int,
+    title: Optional[str] = None,
+    body: Optional[str] = None,
+    add_labels: Optional[List[str]] = None,
+    remove_labels: Optional[List[str]] = None,
+    add_assignees: Optional[List[str]] = None,
+    state: Optional[str] = None,
+) -> str:
+    """Modify a real GitHub issue in this repository. This writes to GitHub.
+
+    Only the arguments you pass are changed. Label changes are additive and
+    subtractive, never a replacement of the whole set. Workflow status labels
+    (status-*) are rejected on the add and the remove side — use
+    `mcp-coder gh-tool set-status <label>` for those.
+
+    The edit is not a transaction: if a later part fails, the earlier part
+    stays applied. The result then opens with a warning naming which requested
+    changes landed, followed by the resulting state.
+
+    Args:
+        number: Issue number to edit (must be positive)
+        title: New issue title
+        body: New issue description in Markdown
+        add_labels: Label names to add — each must already exist in the repository
+        remove_labels: Label names to remove; labels already absent are ignored
+        add_assignees: Usernames to assign; "@me" means the authenticated user
+        state: New issue state — only "open" or "closed" are accepted
+
+    Returns:
+        "Updated issue #<number> — <url> (state: <state>)" followed by the
+        resulting labels and assignees, or error message string.
+    """
+    # Lazy imports: keep PyGithub off the server startup import path
+    from github import GithubException
+
+    from mcp_workspace.github_operations.issues import IssueManager
+    from mcp_workspace.github_operations.issues.types import create_empty_issue_data
+
+    try:
+        # Pre-write validation. Nothing has been written yet, so a plain error
+        # is honest — and it keeps the inner except below meaning exactly one
+        # thing: the write sequence started and something after it failed.
+        if number <= 0:
+            return f"Error: invalid issue number: {number}"
+        if state not in (None, "open", "closed"):
+            return f"Error: state must be 'open' or 'closed', got: {state}"
+
+        manager = IssueManager(project_dir=_project_dir)
+        label_error = _check_labels(manager, add_labels or [], remove_labels or [])
+        if label_error:
+            return label_error
+        resolved = _resolve_assignees(manager, add_assignees or [])
+
+        reason = ""
+        try:
+            issue = manager.edit_issue(
+                number,
+                title=title,
+                body=body,
+                add_labels=add_labels,
+                remove_labels=remove_labels,
+                add_assignees=resolved or None,
+                state=state,
+            )
+            # Empty IssueData is the library's swallowed-failure sentinel
+            if not issue["number"]:
+                reason = "swallowed API error"
+        except (GithubException, ValueError) as exc:
+            # _handle_github_errors re-raises 401/403 and every ValueError,
+            # including the identity check on edit_issue's own closing refetch.
+            # Both can happen after part of the write landed.
+            issue, reason = create_empty_issue_data(), str(exc)
+
+        if reason:
+            # The write sequence started and did not finish cleanly — read the
+            # issue back so the caller learns what actually landed.
+            try:
+                issue = manager.get_issue(number)
+            except Exception as exc:
+                return (
+                    f"Error: edit of issue #{number} failed ({reason}) and the "
+                    f"issue could not be re-read: {exc}"
+                )
+            if not issue["number"]:
+                return (
+                    f"Error: edit of issue #{number} failed ({reason}) and the "
+                    "issue could not be re-read"
+                )
+
+        lines: List[str] = []
+        if reason:
+            lines.append(
+                f"Warning: edit partially failed ({reason}) — resulting state below"
+            )
+            lines.extend(
+                _edit_change_lines(
+                    issue, title, body, state, add_labels, remove_labels, resolved
+                )
+            )
+        lines.append(
+            f"Updated issue #{issue['number']} — {issue['url']} "
+            f"(state: {issue['state']})"
+        )
+        lines.append(f"Labels: {', '.join(issue['labels']) or '(none)'}")
+        lines.append(f"Assignees: {', '.join(issue['assignees']) or '(none)'}")
+        return "\n".join(lines)
     except Exception as e:
         return f"Error: {e}"
 
