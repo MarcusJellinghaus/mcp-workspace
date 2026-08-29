@@ -1,9 +1,13 @@
-"""Per-permission read probes for verify_github.
+"""Per-permission probes for verify_github.
 
 Probes six fine-grained PAT permissions (Contents, Administration, Pull
 requests, Issues, Actions, Commit statuses) by issuing a single read against
 each permission's representative endpoint. Failures are classified into
 hint strings naming the permission, HTTP status, and probed URL.
+
+A seventh probe, ``perm_write``, reports repository write access as one coarse
+boolean read from ``repo.permissions.push`` — no extra request and no
+per-permission attribution.
 """
 
 from typing import Callable
@@ -21,6 +25,7 @@ _PROBE_KEYS: tuple[str, ...] = (
     "perm_issues_read",
     "perm_workflows_read",
     "perm_statuses_read",
+    "perm_write",
 )
 
 
@@ -158,15 +163,51 @@ def _probe_administration(
     )
 
 
+def _probe_write(repo: Repository) -> CheckResult:
+    """Report repository write access from repo.permissions.push.
+
+    Returns:
+        CheckResult with ok=True when push access is granted, ok=False with
+        value="no push access" when it is denied, and value="not checked"
+        when the permissions payload does not report a boolean.
+    """
+    try:
+        push: object = repo.permissions.push
+    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        return CheckResult(
+            ok=False,
+            value="not checked",
+            severity="warning",
+            error=f"could not read repository permissions: {e}",
+        )
+    if push is True:
+        return CheckResult(ok=True, value="OK", severity="warning")
+    if push is False:
+        return CheckResult(
+            ok=False,
+            value="no push access",
+            severity="warning",
+            error="token has no push access - GitHub write tools will fail",
+        )
+    return CheckResult(
+        ok=False,
+        value="not checked",
+        severity="warning",
+        error="repository permissions not reported",
+    )
+
+
 def run_permission_probes(
     manager: BaseGitHubManager,
     repo: Repository | None,
 ) -> dict[str, CheckResult]:
-    """Run 6 per-permission read probes; return one CheckResult per probe key.
+    """Run the per-permission probes; return one CheckResult per probe key.
 
-    When ``repo`` is None (repo_accessible.ok=False), returns 6 placeholder
-    rows with value="not checked", error="repository not accessible" and
-    issues NO PyGithub calls.
+    Runs six read probes plus the ``perm_write`` access probe.
+
+    When ``repo`` is None (repo_accessible.ok=False), returns one placeholder
+    row per probe key with value="not checked", error="repository not
+    accessible" and issues NO PyGithub calls.
 
     Returns:
         Mapping from each probe key to its CheckResult.
@@ -216,4 +257,5 @@ def run_permission_probes(
         web_host=web_host,
     )
     out["perm_statuses_read"] = _probe_statuses(repo, default, base, web_host)
+    out["perm_write"] = _probe_write(repo)
     return out

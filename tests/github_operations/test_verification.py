@@ -1090,7 +1090,7 @@ class TestRawTokenNotLogged:
 
 
 class TestPermissionProbeKeyOrdering:
-    """All 6 probe keys appear in order between auto_delete_branches and overall_ok."""
+    """All probe keys appear in order between auto_delete_branches and overall_ok."""
 
     def test_keys_present_in_order(self, tmp_path: Path) -> None:
         result = _patch_all_ok(tmp_path)
@@ -1110,7 +1110,7 @@ class TestPermissionProbeKeyOrdering:
 
 
 class TestPermissionProbeOverallOkUnaffected:
-    """6 failed probes (all warning severity) must NOT flip overall_ok."""
+    """Failed probes (all warning severity) must NOT flip overall_ok."""
 
     def test_overall_ok_true_when_probes_fail(self, tmp_path: Path) -> None:
         # Build a repo where every probe call raises 403 — yet error checks pass
@@ -1167,7 +1167,7 @@ class TestPermissionProbeOverallOkUnaffected:
             mock_mgr_cls.return_value = mock_manager
             result = verify_github(tmp_path)
 
-        # All 6 probes are present and failed
+        # All probes are present and failed
         for k in _PROBE_KEYS:
             check: CheckResult = result[k]  # type: ignore[assignment]
             assert check["severity"] == "warning"
@@ -1177,9 +1177,9 @@ class TestPermissionProbeOverallOkUnaffected:
 
 
 class TestPermissionProbeSkipWhenUnreachable:
-    """When repo_accessible.ok=False, probes return 6 placeholder rows."""
+    """When repo_accessible.ok=False, probes return placeholder rows."""
 
-    def test_six_placeholder_rows_no_pygithub_calls(self, tmp_path: Path) -> None:
+    def test_placeholder_rows_no_pygithub_calls(self, tmp_path: Path) -> None:
         mock_user = Mock()
         mock_user.login = "testuser"
         mock_github_client = Mock()
@@ -1210,7 +1210,7 @@ class TestPermissionProbeSkipWhenUnreachable:
             mock_mgr_cls.return_value = mock_manager
             result = verify_github(tmp_path)
 
-        # All 6 probe keys present in correct order
+        # All probe keys present in correct order
         keys = list(result.keys())
         ordered_probe_keys = [k for k in keys if k in _PROBE_KEYS]
         assert tuple(ordered_probe_keys) == _PROBE_KEYS

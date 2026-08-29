@@ -111,9 +111,13 @@ Details: [step_7.md](./steps/step_7.md)
 
 Details: [step_8.md](./steps/step_8.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared: `Add perm_write probe to verify_github`
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared: `Add perm_write probe to verify_github`
+      Final text is at `pr_info/commit_message_step8.txt`, following the step-1
+      to step-7 convention: `pr_info/.commit_message.txt` is gitignored
+      (`.gitignore:48`) and the workspace MCP server refuses gitignored paths
+      for `save_file`.
 
 ### Step 9: Documentation — `CLAUDE.md`, issue skills, `LLM_Test.md`
 
