@@ -88,6 +88,7 @@ def format_issue_view(
 def format_issue_list(
     issues: list[IssueData],
     max_results: int = 30,
+    repo_full_name: Optional[str] = None,
 ) -> str:
     """Format issue list as compact summary lines.
 
@@ -110,22 +111,25 @@ def format_issue_list(
         max_results: Maximum number of issues to display. Must be the
             unincremented cap, not the limit used to fetch `issues`. Negative
             values are treated as 0.
+        repo_full_name: Repository the issues were listed from, named in the
+            empty-result message when known.
 
     Returns:
         Compact one-line-per-issue text, with a truncation notice when the
         surplus item is present. A cap of 0 renders the notice alone; only a
-        genuinely empty `issues` renders "No issues found."
+        genuinely empty `issues` renders the "No issues found" message.
     """
     max_results = max(0, max_results)
     displayed = issues[:max_results]
     # Emptiness is judged on the over-fetched list, not the capped one, so
-    # "No issues found." never stands for "the cap was 0 while the over-fetch
+    # "No issues found" never stands for "the cap was 0 while the over-fetch
     # proved issues exist". It still covers a swallowed API failure:
     # IssueManager.list_issues is wrapped in @_handle_github_errors with a
     # default_return of [], which arrives here indistinguishable from a
     # genuinely empty listing.
     if not issues:
-        return "No issues found."
+        where = f" in {repo_full_name}" if repo_full_name else ""
+        return f"No issues found{where}."
 
     lines: list[str] = []
     for issue in displayed:

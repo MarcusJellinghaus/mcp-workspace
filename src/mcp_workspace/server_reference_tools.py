@@ -44,7 +44,9 @@ def get_reference_projects() -> Dict[str, Any]:
         - projects: List of project names
         - usage: Instructions for next steps
 
-    Use the returned project names with list_reference_directory() and read_reference_file()
+    Use the returned project names with list_reference_directory(), read_reference_file(),
+    search_reference_files(), git(), github_issue_view(), github_issue_list(),
+    github_pr_view(), and github_search()
     """
     try:
         # Return structured dict instead of simple list because MCP tool responses
@@ -72,7 +74,11 @@ def get_reference_projects() -> Dict[str, Any]:
         return {
             "count": len(projects),
             "projects": projects,
-            "usage": f"Use these {len(projects)} projects with list_reference_directory(), read_reference_file(), search_reference_files(), and git()",
+            "usage": (
+                f"Use these {len(projects)} projects with list_reference_directory(), "
+                f"read_reference_file(), search_reference_files(), git(), "
+                f"github_issue_view(), github_issue_list(), github_pr_view(), and github_search()"
+            ),
         }
 
     except Exception as e:
@@ -94,6 +100,27 @@ async def get_reference_project_path(name: str) -> Path:
     project = _reference_projects[name]
     await ensure_available(project)
     return project.path
+
+
+def get_reference_repo_url(name: str) -> str:
+    """Resolve a reference project name to its configured repository URL.
+
+    Synchronous and side-effect free — unlike get_reference_project_path(),
+    this never calls ensure_available(), so it never clones.
+
+    Returns:
+        The configured repository URL.
+
+    Raises:
+        ValueError: If no reference project with the given name exists, or
+            the project has no URL configured.
+    """
+    if name not in _reference_projects:
+        raise ValueError(f"Reference project '{name}' not found")
+    url = _reference_projects[name].url
+    if url is None:
+        raise ValueError(f"Reference project '{name}' has no URL configured")
+    return url
 
 
 @log_function_call

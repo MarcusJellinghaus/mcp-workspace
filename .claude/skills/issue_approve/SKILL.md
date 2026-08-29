@@ -25,14 +25,15 @@ If no issue number is provided:
 
 ## Cross-Repo Issues
 
-If a `--repo owner/repo` flag was given, append it to every `gh` command below, and fetch the
-issue with `gh issue view <issue_number> --repo owner/repo` via Bash —
-`mcp__mcp-workspace__github_issue_view` only reaches the current repository.
+If a `--repo owner/repo` flag was given, append it to every `gh` command below. Fetch the
+issue with `mcp__mcp-workspace__github_issue_view(<issue_number>, reference_name=<name>)`
+when that repo is a configured reference project (`get_reference_projects` lists them);
+otherwise fall back to `gh issue view <issue_number> --repo owner/repo` via Bash.
 
 ## Instructions
 
 1. Fetch the issue to confirm it exists:
-   Call `mcp__mcp-workspace__github_issue_view` with the issue number (or `gh issue view` for cross-repo).
+   Call `mcp__mcp-workspace__github_issue_view` with the issue number (or with `reference_name` for a cross-repo issue).
 
    Note its current status label — step 5 compares against it.
 

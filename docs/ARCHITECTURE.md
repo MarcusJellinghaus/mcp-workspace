@@ -75,7 +75,8 @@ To keep startup fast, the heavy libraries are imported **lazily, inside the tool
 functions that need them**, rather than at module top level:
 
 - `server.py` imports `github_operations`, `git_operations`, and the
-  branch-status checks inside the relevant `@mcp.tool()` bodies.
+  branch-status checks inside the relevant `@mcp.tool()` bodies and the private
+  helpers they call.
 - `file_tools/file_operations.py` imports the git-move helpers inside `move_file`
   only, so the common read/write/edit/list/search path never loads GitPython.
 - `reference_projects.py` imports `clone_repo` inside `ensure_available`.

@@ -11,6 +11,7 @@ import pytest
 
 from mcp_workspace.server import github_pr_view, github_search
 
+from ._github_read_tools_helpers import mock_pull as _mock_pull
 from .search_helpers import FakeSearchResults, make_search_items
 
 pytestmark = pytest.mark.usefixtures("setup_server")
@@ -19,31 +20,6 @@ pytestmark = pytest.mark.usefixtures("setup_server")
 # =============================================================================
 # github_pr_view tests
 # =============================================================================
-
-
-def _mock_pull(
-    number: int = 10,
-    title: str = "Fix bug",
-    body: str = "PR body text",
-    state: str = "open",
-    draft: bool = False,
-    merged: bool = False,
-    head_branch: str = "feature",
-    base_branch: str = "main",
-) -> MagicMock:
-    """Create a mock PR object resembling PyGithub PullRequest."""
-    pr = MagicMock()
-    pr.number = number
-    pr.title = title
-    pr.body = body
-    pr.state = state
-    pr.draft = draft
-    pr.merged = merged
-    pr.head.ref = head_branch
-    pr.base.ref = base_branch
-    pr.get_reviews.return_value = []
-    pr.get_review_comments.return_value = []
-    return pr
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
@@ -163,11 +139,13 @@ def test_github_pr_view_no_repo(mock_manager_cls: MagicMock) -> None:
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = None
+    mock_mgr._repo_identifier.api_base_url = "https://gitlab.com/api/v3"
 
     result = github_pr_view(number=10)
 
-    assert "Error" in result
-    assert "repository" in result.lower()
+    assert (
+        result == "Error: Could not access repository (tried https://gitlab.com/api/v3)"
+    )
 
 
 # =============================================================================

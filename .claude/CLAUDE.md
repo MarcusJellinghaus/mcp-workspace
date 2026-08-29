@@ -58,7 +58,7 @@ If you can't name the gap, use the MCP tool. Exempt: the approved git/gh command
 | Create GitHub PR | `mcp__mcp-workspace__github_pr_create` |
 | List GitHub labels | `mcp__mcp-workspace__github_label_list` |
 
-Sibling repos are readable in full via the reference tools and `git` with `reference_name` (`get_reference_projects` lists them). Check there before asking about another repo.
+Sibling repos are readable in full via the reference tools, `git` with `reference_name`, and the GitHub read tools (`github_issue_view`, `github_issue_list`, `github_pr_view`, `github_search`) with `reference_name` (`get_reference_projects` lists them). Check there before asking about another repo.
 
 ## Code quality checks
 
