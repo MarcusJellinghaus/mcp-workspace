@@ -63,9 +63,37 @@ Detail: [step_2.md](./steps/step_2.md)
 
 Detail: [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: add the two tie tests, then replace `candidates_passing` with `best: dict[str, int]`, replace the sort-based winner selection with the three selection rules, and finalize the docstring `Returns:` block
-- [ ] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add the two tie tests, then replace `candidates_passing` with `best: dict[str, int]`, replace the sort-based winner selection with the three selection rules, and finalize the docstring `Returns:` block
+- [x] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
+- [x] Commit message prepared (text drafted below; `pr_info/.commit_message.txt` is gitignored and rejected by the MCP workspace tools, so the file itself cannot be written)
+
+  ```
+  Score minimum distance per branch name and return None on a tie
+
+  The winner was chosen by sorting (distance, default-branch-first) and
+  taking the first entry, so ref enumeration order silently decided every
+  tie between equally close branches (issue #265, third defect).
+
+  Replace candidates_passing with best: dict[str, int], accumulating the
+  smallest distance per unprefixed branch name. Keying by name is
+  load-bearing: step 1 deliberately scores a branch's local and remote ref
+  separately, and a tie rule counting raw entries would read the normal
+  "local and remote agree" case as a two-way tie and wrongly fall back.
+
+  Replace the sort with three explicit selection rules: the default branch
+  wins if it is among the minimum-distance names; otherwise a single name
+  wins; otherwise log the ambiguity and return None, letting
+  detect_base_branch fall back to the default branch. Rule 1 preserves the
+  intent of the old sort key, which the shadowing bug made unreachable.
+
+  Extend the docstring Returns: block to list all three meanings of None.
+
+  Add test_returns_none_when_two_branches_tie and
+  test_local_and_remote_ref_of_one_branch_are_not_a_tie to
+  tests/git_operations/test_parent_branch_detection_git.py; the second is a
+  trap guard against implementing the tie rule over entries rather than
+  distinct names.
+  ```
 
 ### Step 4: Remove the `needs_rebase` self-comparison short-circuit
 

@@ -36,9 +36,14 @@ def detect_parent_branch_via_merge_base(
             Defaults to MERGE_BASE_DISTANCE_THRESHOLD (20).
 
     Returns:
-        Branch name (unprefixed) if a parent is found within the threshold,
-        None if no candidate is within the threshold or the current branch is
-        the default branch (which has no parent to detect).
+        Branch name (unprefixed) if a single parent can be determined, None if:
+        - no candidate is within the distance threshold
+        - the current branch is the default branch (nothing to detect)
+        - two or more distinct non-default branches tie at the minimum distance
+          (ambiguous)
+
+        Callers such as detect_base_branch treat every None the same way and
+        fall back to the default branch.
     """
     logger.debug(
         "Detecting parent branch for '%s' via merge-base (threshold=%d)",
@@ -90,7 +95,10 @@ def detect_parent_branch_via_merge_base(
             ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
                 logger.debug("Error collecting remote branches: %s", e)
 
-            candidates_passing: list[tuple[str, int]] = []
+            # Branch name -> smallest distance across that branch's refs. Keying
+            # by NAME collapses the local/remote pair of one branch into a single
+            # entry, so it can never look like a tie.
+            best: dict[str, int] = {}
             for branch_name, ref_name, candidate_commit in candidates:
                 try:
                     merge_base_list = repo.merge_base(current_commit, candidate_commit)
@@ -110,28 +118,38 @@ def detect_parent_branch_via_merge_base(
                         "Candidate '%s': merge-base distance = %d", ref_name, distance
                     )
 
-                    if distance <= distance_threshold:
-                        candidates_passing.append((branch_name, distance))
+                    if distance > distance_threshold:
+                        continue
+                    if branch_name not in best or distance < best[branch_name]:
+                        best[branch_name] = distance
 
                 except GitCommandError as e:
                     logger.debug("Git error checking '%s': %s", ref_name, e)
                     continue
 
-            # Return smallest distance candidate
-            if candidates_passing:
-                candidates_passing.sort(
-                    key=lambda x: (x[1], 0 if x[0] == default_branch else 1)
-                )
-                winner = candidates_passing[0]
-                logger.debug(
-                    "Detected parent branch from merge-base: '%s' (distance=%d)",
-                    winner[0],
-                    winner[1],
-                )
-                return winner[0]
+            if not best:
+                logger.debug("No candidate branches found within threshold")
+                return None
 
-            logger.debug("No candidate branches found within threshold")
-            return None
+            minimum = min(best.values())
+            winners = sorted(name for name, dist in best.items() if dist == minimum)
+
+            if default_branch in winners:
+                winner = default_branch
+            elif len(winners) == 1:
+                winner = winners[0]
+            else:
+                logger.debug(
+                    "Ambiguous parent branch: %s tied at distance %d", winners, minimum
+                )
+                return None
+
+            logger.debug(
+                "Detected parent branch from merge-base: '%s' (distance=%d)",
+                winner,
+                minimum,
+            )
+            return winner
 
     except InvalidGitRepositoryError:
         logger.debug("Invalid git repository: %s", project_dir)

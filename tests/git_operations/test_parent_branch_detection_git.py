@@ -82,3 +82,44 @@ def test_returns_none_on_the_default_branch(
     assert detect_parent_branch_via_merge_base(project_dir, "main") is None
     # The caller's existing fallback supplies the default branch.
     assert detect_base_branch(project_dir, current_branch="main") == "main"
+
+
+def test_returns_none_when_two_branches_tie(
+    git_repo_with_remote: tuple[Repo, Path, Path],
+) -> None:
+    """Two distinct non-default names at the minimum distance: no answer."""
+    repo, project_dir, _bare_remote = git_repo_with_remote
+
+    sha_a = str(repo.head.commit.hexsha)
+    repo.git.push("-u", "origin", "main")  # origin/main = A
+    sha_b = _commit(repo, project_dir, "b.txt")  # local main = B, not pushed
+
+    repo.git.checkout("-b", "x", sha_b)
+    _commit(repo, project_dir, "x1.txt")
+    repo.git.checkout("-b", "y", sha_b)
+    _commit(repo, project_dir, "y1.txt")
+    repo.git.checkout("-b", "feature", sha_b)
+    _commit(repo, project_dir, "f1.txt")
+    repo.git.branch("-f", "main", sha_a)
+
+    # Distances to feature HEAD: x = 1, y = 1, main (local and remote, both A) = 2.
+    assert detect_parent_branch_via_merge_base(project_dir, "feature") is None
+    # Caller falls back to the default branch rather than picking x or y.
+    assert detect_base_branch(project_dir, current_branch="feature") == "main"
+
+
+def test_local_and_remote_ref_of_one_branch_are_not_a_tie(
+    git_repo_with_remote: tuple[Repo, Path, Path],
+) -> None:
+    """A branch scored twice (local + remote) must not trigger the tie fallback."""
+    repo, project_dir, _bare_remote = git_repo_with_remote
+
+    repo.git.push("-u", "origin", "main")
+    repo.git.checkout("-b", "develop")
+    _commit(repo, project_dir, "d1.txt")
+    repo.git.push("-u", "origin", "develop")  # local develop == origin/develop
+    repo.git.checkout("-b", "feature")
+    _commit(repo, project_dir, "f1.txt")
+
+    # 'develop' is scored twice at distance 1; 'main' twice at distance 2.
+    assert detect_parent_branch_via_merge_base(project_dir, "feature") == "develop"
