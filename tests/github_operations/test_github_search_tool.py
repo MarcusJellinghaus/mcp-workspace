@@ -7,6 +7,7 @@ modules stay separate because merged they would exceed the file-size limit.
 
 import re
 from pathlib import Path
+from typing import NoReturn
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -34,6 +35,25 @@ def live_repo_root() -> Path:
     repo_root = Path(__file__).parents[2]
     set_project_dir(repo_root)
     return repo_root
+
+
+def _skip_or_fail_on_empty(repo_root: Path, reason: str) -> NoReturn:
+    """Tell "the repo has no matching items" apart from "the API is unreachable".
+
+    An empty live result is only meaningful once we know the API answers and
+    the token can see the repo; otherwise an environment gap would surface as
+    an assertion failure with no diagnosis.
+    """
+    from mcp_workspace.github_operations.issues import IssueManager
+
+    try:
+        manager = IssueManager(project_dir=repo_root)
+    except ValueError as exc:
+        pytest.skip(f"Checkout is not a git repo with a GitHub origin: {exc}")
+
+    if manager._get_repository() is None:  # pylint: disable=protected-access
+        pytest.fail("GitHub API unreachable or token lacks access to this repo")
+    pytest.skip(reason)
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
@@ -140,9 +160,8 @@ def test_github_search_multiple_labels(mock_manager_cls: MagicMock) -> None:
         call_kwargs["query"]
         == 'repo:owner/repo is:issue bug label:"bug" label:"urgent"'
     )
-    assert 'label:"bug" label:"urgent"' in call_kwargs["query"]
+    # Regression marker for #254: the old comma-joined form must never return.
     assert "labels:bug,urgent" not in call_kwargs["query"]
-    assert "labels:" not in call_kwargs["query"]
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
@@ -545,9 +564,7 @@ def test_github_search_live_label_and_state_filters(live_repo_root: Path) -> Non
     if not issues:
         # list_issues swallows API errors and returns [], so distinguish an
         # empty repository from an auth/permission failure.
-        if manager._get_repository() is None:  # pylint: disable=protected-access
-            pytest.fail("GitHub API unreachable or token lacks access to this repo")
-        pytest.skip("Repository has no open issues")
+        _skip_or_fail_on_empty(repo_root, "Repository has no open issues")
 
     # Anchor on the oldest open issue carrying a non-"status-" label: those
     # labels are promoted by this repo's automation and GitHub's search index
@@ -641,7 +658,10 @@ def test_github_search_live_explicit_type_accepted(
     result = github_search(query=type_token, sort="created", order="desc")
 
     assert not result.startswith("Error:"), result
-    assert result != "No results found."
+    if result == "No results found.":
+        _skip_or_fail_on_empty(
+            live_repo_root, f"Repository has no items matching {type_token}"
+        )
 
     result_lines = [line for line in result.strip().split("\n") if line.startswith("#")]
     assert result_lines, result
@@ -674,7 +694,10 @@ def test_github_search_live_state_spelling_honored(
     )
 
     assert not result.startswith("Error:"), result
-    assert result != "No results found."
+    if result == "No results found.":
+        _skip_or_fail_on_empty(
+            live_repo_root, f"Repository has no issues matching {state_token}"
+        )
 
     result_lines = [line for line in result.strip().split("\n") if line.startswith("#")]
     assert result_lines, result
