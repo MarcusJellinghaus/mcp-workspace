@@ -99,9 +99,13 @@ Details: [step_6.md](./steps/step_6.md)
 
 Details: [step_7.md](./steps/step_7.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy, vulture — fix all issues
-- [ ] Commit message prepared: `Add github_pr_create MCP tool`
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy, vulture — fix all issues
+- [x] Commit message prepared: `Add github_pr_create MCP tool`
+      Final text is at `pr_info/commit_message_step7.txt`, following the step-1
+      to step-6 convention: `pr_info/.commit_message.txt` is gitignored
+      (`.gitignore:48`) and the workspace MCP server refuses gitignored paths
+      for `save_file`.
 
 ### Step 8: `perm_write` permission probe
 

@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from itertools import islice
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from mcp.server.fastmcp import FastMCP
 from mcp_coder_utils.log_utils import log_function_call
@@ -1247,6 +1247,66 @@ def github_label_list(search: Optional[str] = None) -> str:
             f"{label['name']}  #{label['color']}  {label['description']}".rstrip()
             for label in labels
         )
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+@log_function_call
+def github_pr_create(
+    title: str,
+    body: str = "",
+    head: Optional[str] = None,
+    base: Optional[str] = None,
+) -> str:
+    """Open a real pull request on this repository. This writes to GitHub.
+
+    Args:
+        title: Pull request title (required, cannot be empty)
+        body: Pull request description in Markdown (default: empty)
+        head: Source branch (default: the currently checked-out branch)
+        base: Target branch (default: the repository's default branch)
+
+    Returns:
+        "Created PR #<number> — <url>", or error message string.
+    """
+    # Lazy imports: keep PyGithub/GitPython off the server startup import path
+    from mcp_workspace.git_operations import (
+        get_current_branch_name,
+        get_default_branch_name,
+    )
+    from mcp_workspace.github_operations.pr_manager import PullRequestManager
+
+    try:
+        if not title.strip():
+            return "Error: PR title cannot be empty"
+        # Raises ValueError when _project_dir is unset, caught below
+        manager = PullRequestManager(project_dir=_project_dir)
+        # The constructor rejects a missing project_dir, so it is a Path by now
+        project_dir = cast(Path, _project_dir)
+        head = head or get_current_branch_name(project_dir)
+        base = base or get_default_branch_name(project_dir)
+        if not head:
+            return "Error: could not determine the current branch for head"
+        if not base:
+            return "Error: could not determine the repository default branch for base"
+        if head == base:
+            return f"Error: head and base are the same branch ({head})"
+        for name in (head, base):
+            # Reuse the library's branch rules rather than restating them
+            # pylint: disable-next=protected-access
+            if not manager._validate_branch_name(name):
+                return f"Error: invalid branch name: {name}"
+        pr = manager.create_pull_request(
+            title=title,
+            head_branch=head,
+            base_branch=base,
+            body=body,
+        )
+        # create_pull_request's swallowed-failure sentinel is {}, not number == 0
+        if not pr.get("number"):
+            return "Error: PR creation failed - no pull request was created"
+        return f"Created PR #{pr['number']} — {pr['url']}"
     except Exception as e:
         return f"Error: {e}"
 

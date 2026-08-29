@@ -1,0 +1,28 @@
+Add github_pr_create MCP tool
+
+Open pull requests from the MCP server instead of Bash `gh pr create`.
+
+`pr_manager.create_pull_request` is left untouched: it returns `{}` for an empty
+title, a bad branch name and an unresolvable default branch, with the reason
+only logged. Changing that contract would flip ~8 existing tests and widen this
+issue's scope, so the tool pre-validates and reports the reason itself.
+
+Branch-name rules are not restated — the tool calls
+`PullRequestManager._validate_branch_name`, keeping those rules in one place.
+`head` defaults to the current branch and `base` to the repository default,
+both resolved in the tool: `create_pull_request` takes `head_branch` as a
+required positional, and resolving `base` here makes `head != base` always
+checkable and leaves one code path instead of two. Issues carry a
+`### Base Branch` section, so `main` is not always right, and making the caller
+restate two facts the server already holds is where mistakes get introduced.
+
+The failure sentinel differs from the issue tools: `create_pull_request`
+returns `{}`, so the check is `not pr.get("number")`, not `number == 0`.
+`milestone` and `draft` are not exposed — no usage evidence for either.
+
+Adds a TestGithubPrCreate class (14 tests) to
+tests/github_operations/test_github_write_tools_labels_pr.py and a
+vulture_whitelist entry. The tests bind the real `_validate_branch_name` at
+module import time, before any patch is active: the patched manager would
+otherwise return a truthy MagicMock and the branch-name assertions would prove
+nothing.
