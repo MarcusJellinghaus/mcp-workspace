@@ -1184,6 +1184,35 @@ def github_issue_edit(
 
 @mcp.tool()
 @log_function_call
+def github_issue_comment(number: int, body: str) -> str:
+    """Post a real comment on a GitHub issue. This writes to GitHub.
+
+    The comment text is passed inline — no temporary file is needed, and
+    multi-line Markdown is sent through unchanged.
+
+    Args:
+        number: Issue number to comment on (must be positive)
+        body: Comment text in Markdown (required, cannot be empty)
+
+    Returns:
+        "Added comment to issue #<number> — <url>", or error message string.
+    """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.issues import IssueManager
+
+    try:
+        manager = IssueManager(project_dir=_project_dir)
+        comment = manager.add_comment(number, body)
+        # Empty CommentData carries id == 0, not number == 0 as issues do
+        if not comment["id"]:
+            return f"Error: failed to add comment to issue #{number}"
+        return f"Added comment to issue #{number} — {comment['url']}"
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+@log_function_call
 def get_base_branch() -> str:
     """Detect the base branch for the current branch.
 

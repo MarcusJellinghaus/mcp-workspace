@@ -1,7 +1,7 @@
 """Tests for the GitHub issue write MCP tools in server.py.
 
-Covers ``github_issue_create`` and the two shared helpers ``_check_labels``
-and ``_resolve_assignees``.
+Covers ``github_issue_create``, ``github_issue_comment`` and the two shared
+helpers ``_check_labels`` and ``_resolve_assignees``.
 """
 
 from pathlib import Path
@@ -13,10 +13,15 @@ from github import GithubException
 
 from mcp_workspace import server as server_module
 from mcp_workspace.github_operations.issues.types import (
+    CommentData,
     IssueData,
     create_empty_issue_data,
 )
-from mcp_workspace.server import github_issue_create, set_project_dir
+from mcp_workspace.server import (
+    github_issue_comment,
+    github_issue_create,
+    set_project_dir,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -60,6 +65,18 @@ def _make_issue(
 def _label(name: str) -> dict[str, str]:
     """Create a LabelData-shaped dict for testing."""
     return {"name": name, "color": "d73a4a", "description": "", "url": ""}
+
+
+def _make_comment(comment_id: int = 1, body: str = "A comment") -> CommentData:
+    """Create a CommentData for testing."""
+    return CommentData(
+        id=comment_id,
+        body=body,
+        user="alice",
+        created_at="2024-01-01T00:00:00",
+        updated_at="2024-01-01T00:00:00",
+        url="https://github.com/test/repo/issues/42#issuecomment-1",
+    )
 
 
 def _make_manager(
@@ -256,3 +273,81 @@ def test_github_issue_create_explicit_assignee_skips_lookup(
     assert result.startswith("Created issue #42")
     assert mock_mgr.create_issue.call_args.kwargs["assignees"] == ["alice"]
     mock_mgr._github_client.get_user.assert_not_called()
+
+
+# =============================================================================
+# github_issue_comment tests
+# =============================================================================
+
+
+class TestGithubIssueComment:
+    """Tests for the ``github_issue_comment`` MCP tool."""
+
+    @patch("mcp_workspace.github_operations.issues.IssueManager")
+    def test_happy_path(self, mock_manager_cls: MagicMock) -> None:
+        """Reports the comment URL and forwards number and body unchanged."""
+        mock_mgr = MagicMock()
+        mock_mgr.add_comment.return_value = _make_comment()
+        mock_manager_cls.return_value = mock_mgr
+
+        result = github_issue_comment(number=42, body="A comment")
+
+        assert result.splitlines()[0] == (
+            "Added comment to issue #42 — "
+            "https://github.com/test/repo/issues/42#issuecomment-1"
+        )
+        mock_mgr.add_comment.assert_called_once_with(42, "A comment")
+
+    @patch("mcp_workspace.github_operations.issues.IssueManager")
+    def test_empty_sentinel_is_an_error(self, mock_manager_cls: MagicMock) -> None:
+        """The empty-CommentData sentinel (id == 0) must not read as success."""
+        mock_mgr = MagicMock()
+        mock_mgr.add_comment.return_value = _make_comment(comment_id=0, body="")
+        mock_manager_cls.return_value = mock_mgr
+
+        result = github_issue_comment(number=42, body="A comment")
+
+        assert result.startswith("Error:")
+        assert "Added comment" not in result
+
+    @patch("mcp_workspace.github_operations.issues.IssueManager")
+    def test_empty_body_value_error_is_reported(
+        self, mock_manager_cls: MagicMock
+    ) -> None:
+        """The library's own empty-body check surfaces as an error string."""
+        mock_mgr = MagicMock()
+        mock_mgr.add_comment.side_effect = ValueError("Comment body cannot be empty")
+        mock_manager_cls.return_value = mock_mgr
+
+        result = github_issue_comment(number=42, body="   ")
+
+        assert result == "Error: Comment body cannot be empty"
+
+    @patch("mcp_workspace.github_operations.issues.IssueManager")
+    def test_exception_is_reported(self, mock_manager_cls: MagicMock) -> None:
+        """An arbitrary exception from the library is rendered as an error."""
+        mock_mgr = MagicMock()
+        mock_mgr.add_comment.side_effect = GithubException(
+            403, {"message": "Resource not accessible by integration"}, None
+        )
+        mock_manager_cls.return_value = mock_mgr
+
+        result = github_issue_comment(number=42, body="A comment")
+
+        assert result.startswith("Error:")
+        assert "403" in result
+
+    @patch("mcp_workspace.github_operations.issues.IssueManager")
+    def test_multiline_body_passes_through_unchanged(
+        self, mock_manager_cls: MagicMock
+    ) -> None:
+        """Accepting the body inline is the point — no heredoc, no mangling."""
+        body = "## Review\n\n- [x] first\n- [ ] second\n\nDone.\n"
+        mock_mgr = MagicMock()
+        mock_mgr.add_comment.return_value = _make_comment(body=body)
+        mock_manager_cls.return_value = mock_mgr
+
+        result = github_issue_comment(number=42, body=body)
+
+        assert result.startswith("Added comment to issue #42")
+        assert mock_mgr.add_comment.call_args.args == (42, body)

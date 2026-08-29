@@ -49,6 +49,7 @@ _.github_search
 # GitHub write tools registered in server.py
 _.github_issue_create
 _.github_issue_edit
+_.github_issue_comment
 
 # Base branch detection tool
 _.get_base_branch
