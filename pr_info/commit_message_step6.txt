@@ -1,0 +1,25 @@
+Add github_label_list MCP tool
+
+Expose the repository label set as an MCP tool, replacing `gh label list`.
+This is the one read-only tool in the write-tool set; it is here because it is
+what the skills currently reach for `gh` to do.
+
+Backed by `IssueManager.get_available_labels()`, matching the other `github_*`
+tools. The duplication with `LabelsManager.get_labels()` is deliberately left
+alone — that is its own issue, not a detour here.
+
+Filtering lives in the tool layer, since the library function takes no filter:
+a case-insensitive substring match against the label name *or* its description,
+mirroring `gh label list --search`. Output is one line per label built inline,
+`<name>  #<color>  <description>`, `.rstrip()`ed so a label without a
+description carries no trailing whitespace. `url` is not rendered.
+
+After step 1, `get_available_labels` raises instead of returning `[]` on an API
+failure, so `No labels found.` now means only what it says — a failed lookup
+falls to `except Exception` and is reported as `Error: <msg>`. A test pairs the
+empty-repository case against a 500 `GithubException` to keep those two
+distinguishable.
+
+Adds tests/github_operations/test_github_write_tools_labels_pr.py with nine
+tests and its own autouse `setup_server` fixture (the `_login_cache` reset is
+not needed — this tool resolves no `@me`), plus a vulture_whitelist entry.

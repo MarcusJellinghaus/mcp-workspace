@@ -50,6 +50,7 @@ _.github_search
 _.github_issue_create
 _.github_issue_edit
 _.github_issue_comment
+_.github_label_list
 
 # Base branch detection tool
 _.get_base_branch

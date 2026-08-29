@@ -1213,6 +1213,46 @@ def github_issue_comment(number: int, body: str) -> str:
 
 @mcp.tool()
 @log_function_call
+def github_label_list(search: Optional[str] = None) -> str:
+    """List the labels defined in the repository. This only reads from GitHub.
+
+    Args:
+        search: Optional filter — case-insensitive substring matched against
+            the label name or its description, as ``gh label list --search``
+            does. Omit it to list every label.
+
+    Returns:
+        One line per label, ``<name>  #<color>  <description>``, or
+        "No labels found." when nothing matches, or error message string.
+    """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.issues import IssueManager
+
+    try:
+        manager = IssueManager(project_dir=_project_dir)
+        # Raises rather than returning [] on API failure, so an empty list here
+        # means the repository really has no labels
+        labels = manager.get_available_labels()
+        if search:
+            query = search.lower()
+            labels = [
+                label
+                for label in labels
+                if query in label["name"].lower()
+                or query in label["description"].lower()
+            ]
+        if not labels:
+            return "No labels found."
+        return "\n".join(
+            f"{label['name']}  #{label['color']}  {label['description']}".rstrip()
+            for label in labels
+        )
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+@log_function_call
 def get_base_branch() -> str:
     """Detect the base branch for the current branch.
 

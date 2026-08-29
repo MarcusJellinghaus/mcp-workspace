@@ -87,9 +87,13 @@ Details: [step_5.md](./steps/step_5.md)
 
 Details: [step_6.md](./steps/step_6.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy, vulture — fix all issues
-- [ ] Commit message prepared: `Add github_label_list MCP tool`
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy, vulture — fix all issues
+- [x] Commit message prepared: `Add github_label_list MCP tool`
+      Final text is at `pr_info/commit_message_step6.txt`, following the step-1
+      to step-5 convention: `pr_info/.commit_message.txt` is gitignored
+      (`.gitignore:48`) and the workspace MCP server refuses gitignored paths
+      for `save_file`.
 
 ### Step 7: `github_pr_create` tool
 
