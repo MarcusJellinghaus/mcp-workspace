@@ -27,8 +27,9 @@ If no issue number is provided:
 
 If a `--repo owner/repo` flag was given, append it to every `gh` command below. Fetch the
 issue with `mcp__mcp-workspace__github_issue_view(<issue_number>, reference_name=<name>)`
-when that repo is a configured reference project (`get_reference_projects` lists them);
-otherwise fall back to `gh issue view <issue_number> --repo owner/repo` via Bash.
+when that repo is a configured reference project — match `owner/repo` against the `url` of
+each entry `get_reference_projects()` returns, and pass that entry's `name`. Otherwise fall
+back to `gh issue view <issue_number> --repo owner/repo` via Bash.
 
 ## Instructions
 

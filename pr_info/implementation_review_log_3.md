@@ -52,9 +52,46 @@ stays accurate without misclassifying `github_label_list` as a write tool.
 
 **Status**: committed
 
+## Round 2 — 2026-08-29
+
+Confirming round, weighted toward requirements completeness rather than another diff pass:
+issue #255 read in full, plus all four plan files, then each design decision and constraint
+checked against the code.
+
+**Verification**: all six design decisions satisfied, all five "Constraints and gotchas"
+satisfied, nothing specified in the issue or the plan missing. Checks unchanged — pytest 2096
+passed / 2 skipped, mypy clean, pylint clean.
+
+Reconciled differences between the plan and what landed, none of them defects:
+
+- `github_operations/formatters.py` was modified, though `summary.md` "Files and modules" says
+  `github_operations/` is untouched. The plan contradicts itself: §4 requires `format_issue_list`
+  to take the repository name and remain the only producer of the empty-result message. The
+  issue's constraint is "no *manager-layer* changes", and a formatter is not the manager layer.
+- Step 2 landed across four tools, not the two `step_2.md` scopes it to. `summary.md` §4 and
+  run 1's accepted task both require the wider fix; `step_2.md` is the stale copy.
+- The plan's test paths name `test_github_read_tools.py`, which main deleted in the split. All
+  six specified step-1 tests are present under the new file names.
+
+**Findings**:
+
+- `.claude/skills/issue_approve/SKILL.md:28-31` — low — the skill's input is `--repo owner/repo`
+  but the new instruction hands `reference_name=<name>` without saying how to map between them.
+  `get_reference_projects()` returns `{"name", "url"}` pairs, so the match is on `url`.
+
+**Decisions**: accept. The text is one this branch introduced under decision 5, and the gap is
+the same class as the `tests/LLM_Test.md` finding accepted in run 2.
+
+**Changes**: `.claude/skills/issue_approve/SKILL.md` — the parenthetical now names the mapping
+explicitly: match `owner/repo` against each entry's `url` and pass that entry's `name`.
+
+**Status**: committed
+
 ## Final Status
 
-One round, one accepted finding — a documentation line, so no further round was run.
+Two rounds. Round 1 corrected a README statement that main had made false; round 2 verified
+every design decision and constraint against the code and found one documentation gap, also
+corrected. No code defects were found in either round.
 
 | Check | Result |
 |---|---|
