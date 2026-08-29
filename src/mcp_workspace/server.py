@@ -622,9 +622,8 @@ def _repo_access_error(manager: "IssueManager") -> str:
         Error text naming the API base URL that was tried, so a non-GitHub or
         unreachable host is distinguishable from a missing repository.
     """
-    # pylint: disable-next=protected-access
-    api_base_url = manager._repo_identifier.api_base_url
-    return f"Error: Could not access repository (tried {api_base_url})"
+    identifier = manager._repo_identifier  # pylint: disable=protected-access
+    return f"Error: Could not access repository (tried {identifier.api_base_url})"
 
 
 def _repo_full_name(manager: "IssueManager") -> Optional[str]:

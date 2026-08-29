@@ -141,7 +141,7 @@ These hit live APIs. Run only when needed.
 4. `github_issue_view(number=<from step 1>)` — expect formatted issue body
 5. Pick a closed PR number from step 2 (or skip if none).
 6. `github_pr_view(number=<from step 2>)` — expect formatted PR body
-7. Skip steps 8-10 if `get_reference_projects()` returns `count: 0` or the chosen project has a null `url`.
+7. Pick a reference project `<name>` from `get_reference_projects()`. Skip steps 8-10 if it returns `count: 0` or the chosen project has a null `url`.
 8. `github_issue_list(reference_name=<name>, state="open", max_results=3)` — expect lines starting with `#`, from the sibling repo
 9. `github_issue_view(number=<from step 8>, reference_name=<name>)` — expect formatted issue body
 10. `github_issue_list(reference_name="does_not_exist")` — expect exactly `"Error: Reference project 'does_not_exist' not found"`

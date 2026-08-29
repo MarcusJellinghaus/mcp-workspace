@@ -223,7 +223,10 @@ The server exposes the following MCP tools:
 | `get_reference_projects` | Lists available reference projects | "What reference projects are available?" |
 | `list_reference_directory` | Lists files in a reference project | "List files in the docs reference project" |
 | `read_reference_file` | Reads files from reference projects | "Show me the README from the examples project" |
-| GitHub read tools with `reference_name` | Read issues, PRs and search results from a reference project | "Show me issue 12 in the mcp-config project" |
+| `github_issue_view` | Shows a GitHub issue with its comments | "Show me issue 12 in the mcp-config project" |
+| `github_issue_list` | Lists GitHub issues with optional filters | "List the open issues assigned to me" |
+| `github_pr_view` | Shows a GitHub pull request with its reviews and comments | "Show me pull request 42" |
+| `github_search` | Searches issues and pull requests in one repository | "Find issues mentioning the reference cache" |
 
 ### Tool Details
 
