@@ -15,7 +15,8 @@ Independent of steps 3–6.
 
 - `src/mcp_workspace/server.py` — after `github_label_list`
 - `vulture_whitelist.py` — `_.github_pr_create`
-- `tests/github_operations/test_github_write_tools.py` — new test class
+- `tests/github_operations/test_github_write_tools_labels_pr.py` — new test
+  class, shared with step 6 (create the file if step 6 has not landed yet)
 
 ## WHAT
 
@@ -88,7 +89,8 @@ either.
 
 ## Tests (TDD)
 
-New class in `tests/github_operations/test_github_write_tools.py`, patching
+New class in `tests/github_operations/test_github_write_tools_labels_pr.py`,
+patching
 `mcp_workspace.github_operations.pr_manager.PullRequestManager` and the two
 `git_operations` branch helpers at their `mcp_workspace.git_operations` import
 site:
@@ -101,7 +103,28 @@ site:
 5. Empty / whitespace title → `Error:`; `create_pull_request` never called.
 6. `head == base` → `Error:` naming the branch; `create_pull_request` never called.
 7. Invalid branch name (e.g. `feat~1`) → `Error:`; `create_pull_request` never
-   called; `_validate_branch_name` was what rejected it.
+   called, and the rejection demonstrably came from `_validate_branch_name`.
+
+   **The manager is patched, so `manager._validate_branch_name(...)` returns a
+   truthy `MagicMock` and the rejection is unreachable unless the test wires it
+   up.** Give the mock the real implementation:
+
+   ```python
+   from mcp_workspace.github_operations.pr_manager import PullRequestManager
+   mock_manager_cls.return_value._validate_branch_name.side_effect = (
+       lambda name: PullRequestManager._validate_branch_name(None, name)  # pylint: disable=protected-access
+   )
+   ```
+
+   The real method touches no instance state, so passing `None` as `self` is
+   safe — and it keeps the branch-name rules in one place, which is the whole
+   reason the tool calls the library validator instead of restating them. Assert
+   both that the result is an `Error:` naming the branch and that
+   `_validate_branch_name` was called with it.
+
+7b. Valid branch names pass the same wired validator — the happy-path test uses
+   the same `side_effect` so a rule change in the library cannot leave these
+   tests green against a tool that rejects everything.
 8. `get_current_branch_name` returns `None` → `Error:`.
 9. `get_default_branch_name` returns `None` → `Error:`.
 10. Sentinel — `create_pull_request` returns `{}` → `Error:`, not `Created PR`.

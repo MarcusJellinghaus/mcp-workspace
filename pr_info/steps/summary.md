@@ -21,8 +21,9 @@ All five tools live in `server.py`, next to the existing `github_*` read tools.
 A separate `server_github_write_tools.py` would need `tach.toml` entries, two
 `.importlinter` entries, and a second `_project_dir` setter wired through
 `set_project_dir` — cost without benefit. Consequently **`tach.toml`,
-`.importlinter` and `.large-files-allowlist` are unchanged** (`server.py` is
-already allowlisted).
+`.importlinter` and `.large-files-allowlist` are unchanged**: `server.py` is
+already allowlisted, and the new *test* modules are split so none of them
+approaches the 750-line limit (see "Test module layout" below).
 
 ### 2. Lazy imports stay load-bearing
 
@@ -60,8 +61,15 @@ Two consequences the design handles explicitly:
   swallowed and the function returns an empty `IssueData`, so a no-op removal
   would report failure *after* the title/body edit already landed.
 - **There is no transaction.** On a mid-sequence failure the tool refetches with
-  `get_issue` and reports the resulting state behind a warning line. A caller is
-  never told "failed" with no way to learn what landed.
+  `get_issue` and reports the resulting state behind a warning line, plus
+  `Applied:` / `Not applied:` lines derived from that refetch. A caller is never
+  told "failed" with no way to learn what landed. Note that failure reaches the
+  tool through **two** channels, not one: the empty-`IssueData` sentinel *and* a
+  raised exception, because `_handle_github_errors` re-raises 401/403 and every
+  `ValueError` — including the `IssueIdentityMismatchError` that the closing
+  `_get_issue_checked` throws after all writes have landed. Step 4 routes both
+  to the same refetch-and-warn path; a sentinel-only check would return a bare
+  error after a successful partial write.
 
 `edit_issue` is also the one place where PyGithub's shapes differ:
 `add_to_labels` and `add_to_assignees` are varargs (one request each), but
@@ -80,7 +88,11 @@ Two consequences the design handles explicitly:
   permanently pollutes the repo's label set — and returning the resulting label
   set does not catch it, because the typo comes back as a real label. The list is
   deliberately **not cached**: the server can run for days and a label created
-  meanwhile must not be wrongly rejected.
+  meanwhile must not be wrongly rejected. Step 1 first makes
+  `get_available_labels()` raise instead of returning `[]` on an API failure —
+  otherwise one swallowed 5xx would render as `Error: unknown label(s): bug` and
+  block every labelled write while blaming the caller. Validation is skipped
+  when the list cannot be read, never inverted.
 
 Both live in one helper, `_check_labels`, which runs the status guard first so a
 status label never costs an API call.
@@ -141,9 +153,16 @@ Labels: bug, enhancement
 Assignees: alice
 ```
 
-using `(none)` when a collection is empty, and prepends
-`Warning: edit partially failed — resulting state below` on the partial-write
-path.
+using `(none)` when a collection is empty. On the partial-write path it prepends
+
+```
+Warning: edit partially failed (<reason>) — resulting state below
+Applied: title, add_labels
+Not applied: add_assignees
+```
+
+where `Applied:` / `Not applied:` name only the arguments the caller actually
+passed, decided by comparing them against the refetched state.
 
 Every tool body is `@mcp.tool()` + `@log_function_call`, lazy imports inside,
 wrapped in `try / except Exception as e: return f"Error: {e}"`.
@@ -152,28 +171,60 @@ wrapped in `try / except Exception as e: return f"Error: {e}"`.
 
 ## Files created
 
-| Path | Purpose |
-|---|---|
-| `tests/github_operations/issues/test_manager_edit_issue.py` | Unit tests for the new `edit_issue` |
-| `tests/github_operations/test_github_write_tools.py` | Unit tests for all five tools |
+| Path | Purpose | Step |
+|---|---|---|
+| `tests/github_operations/issues/test_manager_edit_issue.py` | Unit tests for the new `edit_issue` | 2 |
+| `tests/github_operations/test_github_write_tools_issues.py` | `github_issue_create`, `github_issue_comment`, and the two shared helpers | 3, 5 |
+| `tests/github_operations/test_github_write_tools_issue_edit.py` | `github_issue_edit` | 4 |
+| `tests/github_operations/test_github_write_tools_labels_pr.py` | `github_label_list`, `github_pr_create` | 6, 7 |
 
 `test_manager.py` is ~600 lines, so `edit_issue` coverage gets its own file
 rather than pushing it against the 750-line limit.
+
+### Test module layout — why three files, not one
+
+The five tools carry **~55 mocked tests** between them (12 + 17 + 5 + 9 + 12).
+At the ~15 lines a mocked tool test costs in the existing
+`test_github_read_tools_issues.py` — decorator, signature, docstring, mock
+setup, call, asserts — one combined module lands near **850 lines**, over the
+750-line limit and into `.large-files-allowlist` territory for a file that has
+no reason to be large. Splitting is the cheaper option, and it splits cleanly
+because `github_issue_edit` alone accounts for a third of the tests:
+
+| Module | Tools | Tests | ~lines |
+|---|---|---|---|
+| `..._issues.py` | create, comment | 17 | ~300 |
+| `..._issue_edit.py` | edit | 17 | ~300 |
+| `..._labels_pr.py` | label_list, pr_create | 21 | ~350 |
+
+This also mirrors the existing read-tool split
+(`test_github_read_tools_issues.py` / `test_github_read_tools_pr_search.py`),
+which is grouped by subject rather than one file per tool.
+
+Shared setup — the autouse `setup_server` fixture and the autouse
+`server_module._login_cache` reset — goes in the existing
+`tests/github_operations/conftest.py` (which already provides `project_dir`) so
+all three modules pick it up without duplication.
 
 ## Files modified
 
 | Path | Change | Step |
 |---|---|---|
 | `src/mcp_workspace/github_operations/issues/manager.py` | `create_issue` gains `assignees`; new `edit_issue` + `_issue_to_data` | 1, 2 |
+| `src/mcp_workspace/github_operations/issues/labels_mixin.py` | `get_available_labels` drops `@_handle_github_errors` so `[]` no longer doubles as a failure signal | 1 |
 | `src/mcp_workspace/github_operations/_permission_probes.py` | `perm_write` key, `_probe_write`, docstrings | 8 |
 | `src/mcp_workspace/github_operations/verification.py` | probe section comment says "6" | 8 |
 | `src/mcp_workspace/server.py` | `_check_labels`, `_resolve_assignees`, five tools | 3–7 |
 | `vulture_whitelist.py` | one entry per tool | 3–7 |
-| `tests/github_operations/issues/test_manager.py` | `create_issue(assignees=…)` | 1 |
+| `tests/github_operations/issues/test_manager.py` | `create_issue(assignees=…)`, `get_available_labels` failure contract | 1 |
+| `tests/github_operations/conftest.py` | autouse `setup_server` and `_login_cache` reset for the write-tool modules | 3 |
 | `tests/github_operations/issues/test_manager_integration.py` | `edit_issue` in the existing single-issue workflow | 2 |
 | `tests/github_operations/test_permission_probes.py` | `perm_write` coverage, fixture, "six" names | 8 |
 | `tests/github_operations/test_verification.py` | "six" names and docstrings | 8 |
 | `.claude/CLAUDE.md` | tool table + Bash allowlist | 9 |
+| `.claude/skills/issue_create/SKILL.md` | `gh issue create` → `github_issue_create` | 9 |
+| `.claude/skills/issue_update/SKILL.md` | `gh issue edit --body-file` + tempfile dance → `github_issue_edit` | 9 |
+| `.claude/skills/issue_approve/SKILL.md` | `github_issue_comment` for same-repo; `gh` kept for `--repo` | 9 |
 | `tests/LLM_Test.md` | new opt-in Section 4 | 9 |
 
 ## Files deliberately NOT modified
@@ -182,9 +233,10 @@ rather than pushing it against the 750-line limit.
 - `tach.toml`, `.importlinter`, `.large-files-allowlist` — no new module.
 - `docs/ARCHITECTURE.md` — the lazy-import rule already covers the new tools.
 - `pr_manager.py` — `create_pull_request`'s contract is unchanged.
-- `issues/labels_mixin.py` — its `remove_labels(*labels)` passes several labels
+- `issues/labels_mixin.py`'s `remove_labels(*labels)` — it passes several labels
   to a single-label PyGithub call and is broken for more than one. Pre-existing,
-  out of scope, and one more reason `edit_issue` does not compose it.
+  out of scope, and one more reason `edit_issue` does not compose it. Only
+  `get_available_labels` changes in that module (step 1).
 
 ---
 
@@ -192,7 +244,7 @@ rather than pushing it against the 750-line limit.
 
 | # | Scope | Layer |
 |---|---|---|
-| 1 | `create_issue` gains `assignees` | library |
+| 1 | `create_issue` gains `assignees`; `get_available_labels` stops swallowing errors | library |
 | 2 | `edit_issue` + `_issue_to_data` | library |
 | 3 | `github_issue_create` + `_check_labels` + `_resolve_assignees` | tool |
 | 4 | `github_issue_edit` | tool |
@@ -200,7 +252,7 @@ rather than pushing it against the 750-line limit.
 | 6 | `github_label_list` | tool |
 | 7 | `github_pr_create` | tool |
 | 8 | `perm_write` probe | verification |
-| 9 | `CLAUDE.md` + `LLM_Test.md` | docs |
+| 9 | `CLAUDE.md` + three issue skills + `LLM_Test.md` | docs |
 
 Steps 3–7 each add their own `vulture_whitelist.py` entry so every commit is
 green on its own.

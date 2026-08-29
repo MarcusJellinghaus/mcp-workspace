@@ -8,7 +8,8 @@
 > fail, then implement. Use MCP tools for all file and check operations.
 > One commit at the end.
 
-Depends on step 1 (`create_issue` must accept `assignees`).
+Depends on step 1 (`create_issue` must accept `assignees`, and
+`get_available_labels` must raise instead of returning `[]` on API failure).
 
 ---
 
@@ -18,7 +19,9 @@ Depends on step 1 (`create_issue` must accept `assignees`).
   `_check_not_gitignored` (line ~60), and the tool placed after `github_search`
   (line ~838), keeping the `github_*` tools contiguous
 - `vulture_whitelist.py` — new "GitHub write tools" section
-- `tests/github_operations/test_github_write_tools.py` — **new file**
+- `tests/github_operations/test_github_write_tools_issues.py` — **new file**
+- `tests/github_operations/conftest.py` — the two autouse fixtures, shared with
+  the other write-tool test modules (see summary, "Test module layout")
 
 ## WHAT
 
@@ -58,6 +61,14 @@ def github_issue_create(
   status label never costs an API call. `get_available_labels()` is called only
   when `add` is non-empty, and its result is **not cached** — the server can run
   for days and a label created meanwhile must not be wrongly rejected.
+- **`_check_labels` never rejects a label because the lookup failed.** After
+  step 1, `get_available_labels()` raises on an API failure instead of returning
+  `[]`, so the two cases are distinguishable. `_check_labels` lets that exception
+  propagate: the tool's `except Exception` renders the real API error, and the
+  write is not attempted. Validation is skipped, not inverted — the caller is
+  never told their label is unknown when the truth is that the label list could
+  not be read. An empty list now means the repository genuinely has no labels,
+  and rejecting an add against it is correct.
 - `_resolve_assignees` resolves through `manager._github_client.get_user().login`
   (needs `# pylint: disable=protected-access`, precedent at `server.py:695,778,799`).
   Not `base_manager.get_authenticated_username()`, which re-reads the token via
@@ -78,10 +89,15 @@ def github_issue_create(
 offenders = [n for n in (*add, *remove) if n.startswith(_STATUS_LABEL_PREFIX)]
 if offenders: return "Error: these tools do not modify status-* labels (<names>). Use: mcp-coder gh-tool set-status <label>"
 if not add: return None
-known = {label["name"] for label in manager.get_available_labels()}
+known = {label["name"] for label in manager.get_available_labels()}   # raises on API failure
 unknown = [n for n in add if n not in known]
 return f"Error: unknown label(s): {', '.join(unknown)}" if unknown else None
 ```
+
+`get_available_labels()` is deliberately **not** wrapped in a local
+`try/except`. A failed lookup must reach the tool's `except Exception` and be
+reported as itself (`Error: 500 ...`), because the one thing it must never
+become is `Error: unknown label(s): bug`.
 
 `_resolve_assignees`:
 
@@ -115,10 +131,15 @@ except Exception as e: return f"Error: {e}"
 
 ## Tests (TDD)
 
-New `tests/github_operations/test_github_write_tools.py`. Mirror
+New `tests/github_operations/test_github_write_tools_issues.py`. Mirror
 `test_github_read_tools_issues.py`: an autouse `setup_server` fixture calling
 `set_project_dir(project_dir)`, and `@patch("mcp_workspace.github_operations.issues.IssueManager")`.
 Add an autouse fixture clearing `server_module._login_cache`.
+
+Put both autouse fixtures in `tests/github_operations/conftest.py` rather than
+this module — steps 4–7 need the same two, and the write-tool tests are split
+across three modules because one combined module would exceed the 750-line
+limit (summary, "Test module layout").
 
 1. Happy path — first line is `Created issue #42 — <url>`; `create_issue`
    received `title`/`body`.
@@ -132,6 +153,12 @@ Add an autouse fixture clearing `server_module._login_cache`.
    `labels=["bugg"]` → error naming `bugg`; `create_issue` never called.
 6. Known label accepted — passes through to `create_issue`.
 7. No labels → `get_available_labels` never called.
+7b. **Label lookup fails** — `get_available_labels` raises a 500
+   `GithubException`; the result carries the API error text and does **not**
+   contain `unknown label`; `create_issue` never called. This is the test that
+   pins the fix from step 1.
+7c. Repository genuinely has no labels — `get_available_labels` returns `[]`,
+   `labels=["bug"]` → `Error: unknown label(s): bug`. Empty still rejects.
 8. `assignees=["@me"]` → resolved to the mocked login before reaching
    `create_issue`.
 9. `@me` cache — two calls, `get_user` invoked once.

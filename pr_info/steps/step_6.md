@@ -7,8 +7,9 @@
 > fail, then implement. Use MCP tools for all file and check operations.
 > One commit at the end.
 
-Independent of steps 3, 4, 5 and 7. This is the only read-only tool in the set —
-it is here because it is what replaces `gh label list`.
+Independent of steps 3, 4, 5 and 7; depends on step 1 for
+`get_available_labels`' new failure contract. This is the only read-only tool in
+the set — it is here because it is what replaces `gh label list`.
 
 ---
 
@@ -16,7 +17,8 @@ it is here because it is what replaces `gh label list`.
 
 - `src/mcp_workspace/server.py` — after `github_issue_comment`
 - `vulture_whitelist.py` — `_.github_label_list`
-- `tests/github_operations/test_github_write_tools.py` — new test class
+- `tests/github_operations/test_github_write_tools_labels_pr.py` — **new file**,
+  shared with step 7
 
 ## WHAT
 
@@ -31,6 +33,9 @@ def github_label_list(search: Optional[str] = None) -> str:
 - Backed by `IssueManager.get_available_labels()`, matching the other `github_*`
   tools. The duplication with `LabelsManager.get_labels()` is deliberately left
   alone — it is its own issue, not a detour here.
+- After step 1 that function **raises** on an API failure instead of returning
+  `[]`, so `No labels found.` now means only what it says. A failed lookup falls
+  to `except Exception` and is reported as `Error: <msg>`.
 - Filtering happens in the **tool** layer; the library function takes no filter.
 - Case-insensitive substring match against name **or** description, mirroring
   `gh label list --search`.
@@ -65,7 +70,9 @@ Empty result — or an empty repo label set — renders `No labels found.`
 
 ## Tests (TDD)
 
-New class in `tests/github_operations/test_github_write_tools.py`:
+New class in `tests/github_operations/test_github_write_tools_labels_pr.py`
+(create the file if step 7 has not landed yet; the autouse fixtures come from
+`tests/github_operations/conftest.py`):
 
 1. No `search` — every label rendered, one line each, with name, `#color` and
    description.
@@ -76,6 +83,8 @@ New class in `tests/github_operations/test_github_write_tools.py`:
 6. Empty repo label list → `No labels found.`
 7. Label with an empty description — no trailing whitespace on the line.
 8. Exception → `Error: <msg>`.
+9. `get_available_labels` raises a 500 `GithubException` → `Error:` carrying the
+   API text, **not** `No labels found.` — the pair with test 6.
 
 ## Checks
 

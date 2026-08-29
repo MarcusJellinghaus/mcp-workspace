@@ -15,8 +15,19 @@ Depends on steps 3–7 (all five tools must exist).
 
 - `.claude/CLAUDE.md` — the "Tool mapping" table and the "Allowed commands via
   Bash tool" block
+- `.claude/skills/issue_create/SKILL.md` — `allowed-tools` (line ~6) and the
+  create command (line ~43)
+- `.claude/skills/issue_update/SKILL.md` — `allowed-tools` (line ~6) and the
+  four-step `--body-file` tempfile flow (lines ~29-41)
+- `.claude/skills/issue_approve/SKILL.md` — `allowed-tools` (line ~8) and the
+  comment command (line ~48)
 - `tests/LLM_Test.md` — new Section 4, appended after Section 3 (the file
   currently ends at line 151)
+
+The three skills are in scope because the allowlist edit below is what makes
+them wrong: each one *declares* and *instructs* a `gh` command this commit
+removes from the sanctioned list. Changing CLAUDE.md alone would leave the
+repository telling itself two different things.
 
 ## WHAT
 
@@ -46,6 +57,57 @@ stays as written.
 
 The table and the allowlist are one statement read from two directions, so both
 change in this commit.
+
+### `.claude/skills/issue_create/SKILL.md`
+
+- `allowed-tools`: replace `"Bash(gh issue create *)"` with
+  `mcp__mcp-workspace__github_issue_create`. Keep `mcp__mcp-workspace__git`
+  (used for the base-branch `ls_remote` check).
+- Replace the create command with the tool call:
+
+  ```python
+  mcp__mcp-workspace__github_issue_create(title="TITLE", body="BODY")
+  ```
+
+  Note in the skill that the body is passed inline — no escaping, no heredoc.
+
+### `.claude/skills/issue_update/SKILL.md`
+
+- `allowed-tools`: replace `"Bash(gh issue edit *)"` with
+  `mcp__mcp-workspace__github_issue_edit`.
+- **Delete the whole tempfile dance** — current steps 4, 5 and 6 (`save_file` to
+  `.scratch/issue_body_temp.md` → `gh issue edit --body-file` →
+  `delete_this_file`) collapse into one call:
+
+  ```python
+  mcp__mcp-workspace__github_issue_edit(number=<issue_number>, title="NEW_TITLE", body=body_content)
+  ```
+
+  This is the concrete instance of the issue's "eliminates the
+  `cat > /tmp/issue_body.md <<EOF` heredocs" claim, so it should not survive
+  this PR. `mcp__mcp-workspace__delete_this_file` can then come off that skill's
+  `allowed-tools` too, unless it is used elsewhere in the file — check before
+  removing.
+- The `### Base Branch` guidance and everything below it is unaffected.
+
+### `.claude/skills/issue_approve/SKILL.md`
+
+- `allowed-tools`: **add** `mcp__mcp-workspace__github_issue_comment`;
+  **keep** `"Bash(MSYS_NO_PATHCONV=1 gh issue comment *)"` and
+  `"Bash(gh issue view *)"`.
+- Step 3 becomes: use `mcp__mcp-workspace__github_issue_comment(number=…,
+  body="/approve")` for the current repo, and keep the `gh issue comment` form
+  **only** for the documented `--repo owner/repo` cross-repo path — the MCP
+  tools are repo-auto-detected and cannot reach another repository, exactly as
+  the skill's own "Cross-Repo Issues" section already says about
+  `github_issue_view`.
+- The `MSYS_NO_PATHCONV=1` note stays with the Bash form; it is a Git Bash
+  path-rewriting workaround and is irrelevant to the MCP call, which is worth
+  saying since `/approve` is precisely the slash-prefixed argument that needed
+  it.
+
+**Not changed:** `.claude/skills/plan_review*`, `implementation_review*` and the
+other skills reference only read tools.
 
 ### `tests/LLM_Test.md`
 
@@ -86,6 +148,12 @@ Only the rejection paths are scripted — creating a real PR needs a real branch
 - `.claude/settings.local.json` is **not** touched. The five write tools stay off
   the permission allowlist deliberately — that is the local half of the
   "hidden per-client" story, and adding them would undo it.
+- **The skill edits do not undo that.** A skill's `allowed-tools` frontmatter
+  grants a tool *inside that skill's invocation only*; the global allowlist
+  grants it everywhere. Naming `github_issue_create` in `issue_create`'s
+  frontmatter is the same narrow grant `"Bash(gh issue create *)"` was, moved to
+  a better tool. Outside those three skills the write tools still require
+  per-call approval.
 
 ## ALGORITHM
 
@@ -97,9 +165,14 @@ None.
 
 ## Tests
 
-None. Verify by reading the rendered markdown: the five rows are present in the
-tool table, the two `gh` lines are gone from the allowlist, and
-`git diff .claude/settings.local.json` is empty.
+None. Verify by reading the rendered markdown:
+
+- the five rows are present in the tool table;
+- the two `gh` lines are gone from the allowlist;
+- `grep -r "gh issue create\|gh issue edit\|gh pr create" .claude/` returns
+  nothing outside the cross-repo exception in `issue_approve`;
+- `.scratch/issue_body_temp.md` is no longer referenced anywhere;
+- `git diff .claude/settings.local.json` is empty.
 
 ## Checks
 
@@ -108,4 +181,4 @@ are unaffected by markdown.
 
 ## Commit
 
-`Document GitHub write tools in CLAUDE.md and LLM_Test.md`
+`Document GitHub write tools and switch issue skills to them`

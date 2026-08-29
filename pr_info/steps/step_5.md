@@ -16,7 +16,8 @@ Independent of steps 4, 6 and 7.
 
 - `src/mcp_workspace/server.py` — after `github_issue_edit`
 - `vulture_whitelist.py` — `_.github_issue_comment`
-- `tests/github_operations/test_github_write_tools.py` — new test class
+- `tests/github_operations/test_github_write_tools_issues.py` — new test class,
+  alongside the `github_issue_create` tests from step 3
 
 ## WHAT
 
@@ -58,7 +59,7 @@ except Exception as e: return f"Error: {e}"
 
 ## Tests (TDD)
 
-New class in `tests/github_operations/test_github_write_tools.py`:
+New class in `tests/github_operations/test_github_write_tools_issues.py`:
 
 1. Happy path — first line is `Added comment to issue #42 — <url>`;
    `add_comment` called once with `(42, body)`.
