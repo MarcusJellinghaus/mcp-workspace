@@ -27,13 +27,14 @@ Details: [step_1.md](./steps/step_1.md)
 
 - [x] Implementation (tests + production code)
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared: `Add create_issue assignees and stop get_available_labels swallowing errors`
-      Final text is written to `pr_info/commit_message_step1.txt`. It could not be
-      placed at `pr_info/.commit_message.txt`: that path is gitignored
-      (`.gitignore:48`) and the workspace MCP server refuses gitignored paths for
-      both `save_file` and `move_file`. Needs one manual step:
-      `mv pr_info/commit_message_step1.txt pr_info/.commit_message.txt`
-      (the staging file is NOT gitignored — move or delete it before `git add`).
+- [x] Commit message prepared: `Add create_issue assignees and stop get_available_labels swallowing errors`
+      Final text is at `pr_info/commit_message_step1.txt`. It could not be placed
+      at `pr_info/.commit_message.txt`: that path is gitignored (`.gitignore:48`)
+      and the workspace MCP server refuses gitignored paths for `save_file`,
+      `append_file` and `move_file` alike.
+      Step 1 code is already committed as `67fc8cc`, so the message has served its
+      purpose; `commit_message_step1.txt` is itself tracked (committed in
+      `6e71278`) and should be deleted once this PR is wrapped up.
 
 ### Step 2: `IssueManager.edit_issue` + `_issue_to_data`
 
