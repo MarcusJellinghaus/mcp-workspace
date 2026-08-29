@@ -7,7 +7,7 @@
 from pathlib import Path
 from typing import Optional
 
-from git import Commit
+from git import Commit, RemoteReference, Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError
 
 from .branch_queries import get_default_branch_name
@@ -15,6 +15,39 @@ from .core import logger, safe_repo_context
 from .repository_status import is_git_repository
 
 MERGE_BASE_DISTANCE_THRESHOLD = 20
+
+
+def _merge_base_distance(
+    repo: Repo, current_commit: Commit, candidate_commit: Commit, ref_name: str
+) -> Optional[int]:
+    """Count the commits between merge-base(HEAD, candidate) and HEAD.
+
+    Args:
+        repo: Open repository
+        current_commit: Commit of the current branch
+        candidate_commit: Commit of the candidate ref
+        ref_name: Candidate ref name, for logging only
+
+    Returns:
+        Distance in commits, or None if there is no merge-base or git fails.
+    """
+    try:
+        merge_base_list = repo.merge_base(current_commit, candidate_commit)
+        if not merge_base_list:
+            logger.debug("No merge-base found for '%s'", ref_name)
+            return None
+
+        merge_base = merge_base_list[0]
+        distance = sum(
+            1
+            for _ in repo.iter_commits(f"{merge_base.hexsha}..{current_commit.hexsha}")
+        )
+        logger.debug("Candidate '%s': merge-base distance = %d", ref_name, distance)
+        return distance
+
+    except GitCommandError as e:
+        logger.debug("Git error checking '%s': %s", ref_name, e)
+        return None
 
 
 def detect_parent_branch_via_merge_base(
@@ -91,49 +124,47 @@ def detect_parent_branch_via_merge_base(
                 ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
                     # One unreadable ref must not cost us every other candidate.
                     logger.debug("Error reading local branch '%s': %s", head.name, e)
+            remote_refs: list[RemoteReference] = []
             try:
                 if "origin" in [r.name for r in repo.remotes]:
-                    for ref in repo.remotes.origin.refs:
-                        branch_name = ref.name.replace("origin/", "", 1)
-                        if branch_name in (current_branch, "HEAD"):
-                            continue
-                        candidates.append((branch_name, ref.name, ref.commit))
+                    remote_refs = list(repo.remotes.origin.refs)
             except (
                 Exception
             ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
-                logger.debug("Error collecting remote branches: %s", e)
+                logger.debug("Error listing remote branches: %s", e)
+            for ref in remote_refs:
+                try:
+                    branch_name = ref.name.replace("origin/", "", 1)
+                    if branch_name in (current_branch, "HEAD"):
+                        continue
+                    candidates.append((branch_name, ref.name, ref.commit))
+                except (
+                    Exception
+                ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+                    # One unreadable ref must not cost us every other candidate.
+                    logger.debug("Error reading remote branch: %s", e)
 
             # Branch name -> smallest distance across that branch's refs. Keying
             # by NAME collapses the local/remote pair of one branch into a single
             # entry, so it can never look like a tie.
             best: dict[str, int] = {}
+            # Commit sha -> distance (None = unscorable). Local and remote refs
+            # of one branch normally point at the same commit, and that commit
+            # only has to be walked once; they are still scored separately when
+            # they actually differ, which is the case issue #265 is about.
+            distance_by_commit: dict[str, Optional[int]] = {}
             for branch_name, ref_name, candidate_commit in candidates:
-                try:
-                    merge_base_list = repo.merge_base(current_commit, candidate_commit)
-                    if not merge_base_list:
-                        logger.debug("No merge-base found for '%s'", ref_name)
-                        continue
-
-                    merge_base = merge_base_list[0]
-                    # Count commits from merge-base to current HEAD
-                    distance = sum(
-                        1
-                        for _ in repo.iter_commits(
-                            f"{merge_base.hexsha}..{current_commit.hexsha}"
-                        )
-                    )
-                    logger.debug(
-                        "Candidate '%s': merge-base distance = %d", ref_name, distance
+                sha = candidate_commit.hexsha
+                if sha not in distance_by_commit:
+                    distance_by_commit[sha] = _merge_base_distance(
+                        repo, current_commit, candidate_commit, ref_name
                     )
 
-                    if distance > distance_threshold:
-                        continue
-                    if branch_name not in best or distance < best[branch_name]:
-                        best[branch_name] = distance
-
-                except GitCommandError as e:
-                    logger.debug("Git error checking '%s': %s", ref_name, e)
+                distance = distance_by_commit[sha]
+                if distance is None or distance > distance_threshold:
                     continue
+                if branch_name not in best or distance < best[branch_name]:
+                    best[branch_name] = distance
 
             if not best:
                 logger.debug("No candidate branches found within threshold")

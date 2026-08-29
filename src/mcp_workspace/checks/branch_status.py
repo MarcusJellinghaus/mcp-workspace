@@ -450,11 +450,8 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
         recommendations.append(f"Fix task tracker error: {tasks_reason}")
 
     if rebase_needed and tasks_ok and ci_status != CIStatus.FAILED:
-        recommendations.append(
-            f"Pull origin/{default_branch_name}"
-            if is_default_branch
-            else "Rebase onto origin/main"
-        )
+        action = "Pull" if is_default_branch else "Rebase onto"
+        recommendations.append(f"{action} origin/{default_branch_name}")
 
     if pr_blocks:
         recommendations.append("Address review comments")

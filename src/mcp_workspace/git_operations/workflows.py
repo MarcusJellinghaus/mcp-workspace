@@ -141,6 +141,13 @@ def needs_rebase(
         (needs_rebase, reason) where:
         - needs_rebase: True if rebase is needed, False otherwise
         - reason: Description of status ("up-to-date", "3 commits behind", "error: <reason>")
+
+        The count is always measured against origin/<target_branch>, including
+        when target_branch is the current branch: a local branch behind its own
+        remote reports its real behind-count rather than "up-to-date". Only a
+        missing origin/<target_branch> yields "up-to-date" without comparing
+        commits, and only when it is the current branch (an unpushed branch has
+        nothing to be behind); for any other target it is an error.
     """
     logger.debug("Checking if rebase needed in %s", project_dir)
 
