@@ -110,14 +110,32 @@ site:
 
    **The manager is patched, so `manager._validate_branch_name(...)` returns a
    truthy `MagicMock` and the rejection is unreachable unless the test wires it
-   up.** Give the mock the real implementation:
+   up.** Give the mock the real implementation — and bind that implementation
+   **at module import time**, before any patch is active:
 
    ```python
+   # module level, next to the other imports — NOT inside a test body
    from mcp_workspace.github_operations.pr_manager import PullRequestManager
+
+   # pylint: disable-next=protected-access
+   _REAL_VALIDATE_BRANCH_NAME = PullRequestManager._validate_branch_name
+   ```
+
+   ```python
+   # inside each test that needs the real rules
    mock_manager_cls.return_value._validate_branch_name.side_effect = (
-       lambda name: PullRequestManager._validate_branch_name(None, name)  # pylint: disable=protected-access
+       lambda name: _REAL_VALIDATE_BRANCH_NAME(None, name)
    )
    ```
+
+   **The module-level binding is load-bearing.** `@patch(
+   "mcp_workspace.github_operations.pr_manager.PullRequestManager")` replaces the
+   attribute on the `pr_manager` module, so a `from ... import
+   PullRequestManager` executed *inside* the patched test body resolves to the
+   `MagicMock`; `PullRequestManager._validate_branch_name(None, name)` would then
+   return a truthy `MagicMock`, the `side_effect` would never reject, and tests 7
+   and 7b would assert nothing about the real validator. Capturing the function
+   at import time keeps a reference to the real one for the whole module.
 
    The real method touches no instance state, so passing `None` as `self` is
    safe — and it keeps the branch-name rules in one place, which is the whole
@@ -126,8 +144,8 @@ site:
    `_validate_branch_name` was called with it.
 
 7b. Valid branch names pass the same wired validator — the happy-path test uses
-   the same `side_effect` so a rule change in the library cannot leave these
-   tests green against a tool that rejects everything.
+   the same `_REAL_VALIDATE_BRANCH_NAME` `side_effect` so a rule change in the
+   library cannot leave these tests green against a tool that rejects everything.
 8. `get_current_branch_name` returns `None` → `Error:`.
 9. `get_default_branch_name` returns `None` → `Error:`.
 10. Sentinel — `create_pull_request` returns `{}` → `Error:`, not `Created PR`.
