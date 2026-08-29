@@ -172,16 +172,16 @@ def needs_rebase(
                     logger.debug("Could not determine default branch")
                     return False, f"error: {error_msg}"
 
-            # Don't check rebase against self
-            if current_branch == target_branch:
-                logger.debug("Current branch is the target branch")
-                return False, "up-to-date"
-
             # Check if origin/target_branch exists
             origin_target = f"origin/{target_branch}"
             try:
                 repo.git.rev_parse("--verify", origin_target)
             except GitCommandError:
+                if current_branch == target_branch:
+                    # Current branch was never pushed - nothing to compare
+                    # against, so it cannot be behind.
+                    logger.debug("No %s found - treating as up-to-date", origin_target)
+                    return False, "up-to-date"
                 error_msg = f"target branch '{origin_target}' not found"
                 logger.debug("Target branch not found: %s", origin_target)
                 return False, f"error: {error_msg}"

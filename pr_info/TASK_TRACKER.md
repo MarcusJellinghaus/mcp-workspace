@@ -99,9 +99,38 @@ Detail: [step_3.md](./steps/step_3.md)
 
 Detail: [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: add the two `TestNeedsRebase` cases, then delete the `current_branch == target_branch` short-circuit in `needs_rebase` and move its up-to-date outcome into the `rev_parse` `GitCommandError` branch
-- [ ] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add the two `TestNeedsRebase` cases, then delete the `current_branch == target_branch` short-circuit in `needs_rebase` and move its up-to-date outcome into the `rev_parse` `GitCommandError` branch
+- [x] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
+- [x] Commit message prepared (text drafted below; `pr_info/.commit_message.txt` is gitignored and rejected by the MCP workspace tools, so the file itself cannot be written)
+
+  ```
+  Remove the needs_rebase self-comparison short-circuit
+
+  needs_rebase short-circuited on current_branch == target_branch and
+  returned "up-to-date" without looking at any commits, so a stale local
+  main was reported as current even when origin/main was ahead (issue
+  #265, fourth defect).
+
+  Delete the short-circuit and move its up-to-date outcome into the
+  except GitCommandError branch of the origin/<target> rev_parse check,
+  still gated on current_branch == target_branch. That gate is
+  load-bearing, not incidental: it is what makes a never-pushed local
+  branch return "up-to-date" instead of falling into the "target branch
+  not found" error path. Every other missing origin/<target> keeps
+  returning the error, so a typo'd target branch is not silently
+  swallowed.
+
+  The fetch, the detached-HEAD check, the target auto-detection and the
+  commit counting are unchanged. check_branch_status on main will now
+  report Rebase=BEHIND where it previously said up-to-date; that is the
+  point of the change.
+
+  Add test_needs_rebase_on_default_branch_behind_origin (a stale local
+  main reports "1 commit behind") and
+  test_needs_rebase_current_branch_never_pushed (the regression guard for
+  the local-only case the short-circuit used to cover) to class
+  TestNeedsRebase in tests/git_operations/test_branches.py.
+  ```
 
 ### Step 5: Say `Pull origin/main` when the current branch is the default branch
 
