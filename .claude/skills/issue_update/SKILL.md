@@ -3,10 +3,9 @@ description: Update GitHub issue with refined content from analysis discussion
 disable-model-invocation: true
 argument-hint: "<issue-number>"
 allowed-tools:
-  - "Bash(gh issue edit *)"
+  - mcp__mcp-workspace__github_issue_edit
   - mcp__mcp-workspace__github_issue_view
   - mcp__mcp-workspace__save_file
-  - mcp__mcp-workspace__delete_this_file
   - mcp__mcp-workspace__read_file
   - mcp__mcp-workspace__list_directory
   - mcp__mcp-workspace__search_files
@@ -26,20 +25,12 @@ Based on our prior `/issue_analyse` discussion, update the GitHub issue with ref
    - Clear, concise title
    - Well-structured body with implementation ideas
 
-4. Write the issue body to a temp file (avoids bash escaping issues with markdown):
+4. Update the issue in one call:
 ```python
-mcp__mcp-workspace__save_file(file_path=".scratch/issue_body_temp.md", content=body_content)
+mcp__mcp-workspace__github_issue_edit(number=<issue_number>, title="NEW_TITLE", body=body_content)
 ```
 
-5. Update the issue using `--body-file`:
-```bash
-gh issue edit <issue_number> --title "NEW_TITLE" --body-file .scratch/issue_body_temp.md
-```
-
-6. Clean up the temp file:
-```python
-mcp__mcp-workspace__delete_this_file(file_path=".scratch/issue_body_temp.md")
-```
+The body is passed inline — no temp file, no bash escaping.
 
 **Editing Base Branch:**
 - To add a base branch: Insert `### Base Branch` section with the branch name

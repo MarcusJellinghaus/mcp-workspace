@@ -4,6 +4,7 @@ disable-model-invocation: true
 argument-hint: "<issue-number> [--repo owner/repo]"
 allowed-tools:
   - mcp__mcp-workspace__github_issue_view
+  - mcp__mcp-workspace__github_issue_comment
   - "Bash(gh issue view *)"
   - "Bash(MSYS_NO_PATHCONV=1 gh issue comment *)"
   - mcp__mcp-tools-py__sleep
@@ -42,10 +43,18 @@ issue with `gh issue view <issue_number> --repo owner/repo` via Bash —
 
    If any check fails, stop and report — do not approve.
 
-3. Comment `/approve` on the issue (use MSYS_NO_PATHCONV to prevent Windows Git Bash path conversion):
+3. Comment `/approve` on the issue:
+
+```python
+mcp__mcp-workspace__github_issue_comment(number=<issue_number>, body="/approve")
+```
+
+For a cross-repo issue (`--repo owner/repo`), use Bash instead — the MCP tool only
+reaches the current repository. `MSYS_NO_PATHCONV=1` prevents Windows Git Bash from
+rewriting the leading `/` and is needed only for this Bash form:
 
 ```bash
-MSYS_NO_PATHCONV=1 gh issue comment <issue_number> --body "/approve"
+MSYS_NO_PATHCONV=1 gh issue comment <issue_number> --body "/approve" --repo owner/repo
 ```
 
 This triggers the GitHub Action to promote the issue status (e.g., `status-01:created` → `status-02:awaiting-planning`).

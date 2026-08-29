@@ -123,9 +123,13 @@ Details: [step_8.md](./steps/step_8.md)
 
 Details: [step_9.md](./steps/step_9.md)
 
-- [ ] Implementation (documentation edits; no code, no new tests)
-- [ ] Quality checks: pytest — fix all issues
-- [ ] Commit message prepared: `Document GitHub write tools and switch issue skills to them`
+- [x] Implementation (documentation edits; no code, no new tests)
+- [x] Quality checks: pytest — fix all issues
+- [x] Commit message prepared: `Document GitHub write tools and switch issue skills to them`
+      Final text is at `pr_info/commit_message_step9.txt`, following the step-1
+      to step-8 convention: `pr_info/.commit_message.txt` is gitignored
+      (`.gitignore:48`) and the workspace MCP server refuses gitignored paths
+      for `save_file`.
 
 ## Pull Request
 
