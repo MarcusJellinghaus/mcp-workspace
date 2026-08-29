@@ -457,7 +457,7 @@ read_reference_file("config", "settings/production.yml")
 **Features:**
 - The repository is resolved from the reference project's configured URL — no clone is performed, so a URL-only reference project works
 - Only names listed by `get_reference_projects()` are accepted; arbitrary `owner/repo` strings are not
-- Reads only — there are no GitHub write tools
+- Reads only — `reference_name` is accepted by these four tools alone; every other GitHub tool, the write tools included, targets the workspace repository
 
 **Error Handling:** returned as `"Error: ..."` strings rather than raised:
 - `"Error: Reference project '<name>' not found"` - when the name is not a reference project
