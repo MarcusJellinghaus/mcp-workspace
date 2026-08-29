@@ -36,7 +36,9 @@ def detect_parent_branch_via_merge_base(
             Defaults to MERGE_BASE_DISTANCE_THRESHOLD (20).
 
     Returns:
-        Branch name if found within threshold, None otherwise
+        Branch name (unprefixed) if a parent is found within the threshold,
+        None if no candidate is within the threshold or the current branch is
+        the default branch (which has no parent to detect).
     """
     logger.debug(
         "Detecting parent branch for '%s' via merge-base (threshold=%d)",
@@ -60,6 +62,13 @@ def detect_parent_branch_via_merge_base(
                 return None
 
             default_branch = get_default_branch_name(project_dir)
+
+            if default_branch is not None and current_branch == default_branch:
+                logger.debug(
+                    "Current branch '%s' is the default branch - no parent branch",
+                    current_branch,
+                )
+                return None
 
             # Collect candidates. Local and remote refs of the same branch are
             # BOTH scored: they point at different commits when the local ref is

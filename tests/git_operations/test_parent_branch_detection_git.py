@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from git import Repo
 
+from mcp_workspace.git_operations.base_branch import detect_base_branch
 from mcp_workspace.git_operations.parent_branch_detection import (
     detect_parent_branch_via_merge_base,
 )
@@ -63,3 +64,21 @@ def test_feature_branch_off_current_main_detects_main(
     _commit(repo, project_dir, "f1.txt")
 
     assert detect_parent_branch_via_merge_base(project_dir, "feature") == "main"
+
+
+def test_returns_none_on_the_default_branch(
+    git_repo_with_remote: tuple[Repo, Path, Path],
+) -> None:
+    """On 'main' there is no parent branch to detect."""
+    repo, project_dir, _bare_remote = git_repo_with_remote
+
+    repo.git.push("-u", "origin", "main")
+    repo.git.checkout("-b", "feature")
+    _commit(repo, project_dir, "f1.txt")
+    repo.git.push("-u", "origin", "feature")
+    repo.git.checkout("main")
+
+    # Old behaviour: 'feature' ties at distance 0 and wins on enumeration order.
+    assert detect_parent_branch_via_merge_base(project_dir, "main") is None
+    # The caller's existing fallback supplies the default branch.
+    assert detect_base_branch(project_dir, current_branch="main") == "main"

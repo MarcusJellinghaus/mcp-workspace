@@ -33,9 +33,31 @@ Detail: [step_1.md](./steps/step_1.md)
 
 Detail: [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: add `test_returns_none_on_the_default_branch`, then add the default-branch guard after `default_branch` is resolved and update the docstring `Returns:` block
-- [ ] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add `test_returns_none_on_the_default_branch`, then add the default-branch guard after `default_branch` is resolved and update the docstring `Returns:` block
+- [x] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
+- [x] Commit message prepared (text drafted below; `pr_info/.commit_message.txt` is gitignored and rejected by the MCP workspace tools, so the file itself cannot be written)
+
+  ```
+  Return None from parent detection on the default branch
+
+  On the default branch there is no meaningful parent to detect: the
+  default branch is skipped as its own candidate and every other branch
+  ties at distance 0, so ref enumeration order picked an arbitrary
+  winner (issue #265, second defect).
+
+  Add a guard in detect_parent_branch_via_merge_base that returns None
+  immediately after default_branch is resolved when the current branch
+  is the default branch, and widen the docstring Returns: block to name
+  both meanings of None.
+
+  base_branch.py is unchanged: detect_base_branch already falls through
+  to the default branch name when detection returns None, so
+  get_base_branch still returns "main" while on "main".
+
+  Add test_returns_none_on_the_default_branch to
+  tests/git_operations/test_parent_branch_detection_git.py, covering
+  both the direct None result and the caller's fallback.
+  ```
 
 ### Step 3: Minimum distance per branch name, and `None` on an unresolved tie
 
