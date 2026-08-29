@@ -37,3 +37,25 @@ I'll gather context first: knowledge base files, the issue tree, and the plan fi
 Verdict(decision='tasks', tasks=['summary.md:205 — Do not put the new `setup_server` and `_login_cache` fixtures as autouse in `tests/github_operations/conftest.py`, where they would apply to all ~30 modules of the package and the `issues/` subpackage. Follow the existing read-tool convention: define `setup_server` per write-tool module (or make the conftest fixtures non-autouse and request them explicitly in the write-tool tests). Update steps 3–7 accordingly.', "step_6.md:10 and step_7.md:10 — Fix the dependency statements: step 6 line 75 and step 7 both reuse the conftest fixtures introduced in step 3, so neither is 'independent'. Either declare the dependency on step 3 explicitly, or (preferably, alongside the fixture-scoping fix) give each step its own module-level fixtures so the independence claim becomes true.", "step_9.md:49 — Reconcile the CLAUDE.md allowlist with step 9's own `issue_approve` edit (lines 96-101), which deliberately retains `gh issue comment` for the cross-repo path: add a `gh issue comment (cross-repo only)` allowlist entry mirroring the retained `gh issue view (cross-repo only)` line instead of removing `gh issue comment` wholesale.", 'step_9.md:172 — Extend the verification grep pattern to include `gh issue comment` so the check can actually detect allowlist/skill inconsistencies for that command.'], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 3 — 2026-08-29
+**Findings**:
+I'll gather context first: knowledge base, the issue tree, and the plan files.`pr_info/steps/step_7.md:116` — high — the snippet imports `PullRequestManager` *inside* the test body while `@patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")` is active, so the name resolves to the MagicMock and `PullRequestManager._validate_branch_name(None, name)` returns a truthy Mock; the wired `side_effect` therefore never rejects, tests 7 and 7b cannot exercise the real validator, and the round-1 fix is not actually applied. Bind the real function at module import time (e.g. `_REAL_VALIDATE_BRANCH_NAME = PullRequestManager._validate_branch_name` at module top, used in the lambda).
+
+`pr_info/steps/step_4.md:96` — medium — the sentinel channel is labelled "the write sequence started and something after it failed", but `edit_issue` also returns the empty `IssueData` for *pre-write* failures (`repo is None`, and a swallowed 404 when the issue does not exist); those land on the warn-and-refetch path and, since the refetch fails too, render as `Error: edit of issue #N failed (swallowed API error) and the issue could not be re-read` — a misleading message for the most common error (wrong issue number).
+
+`pr_info/steps/step_2.md:114` — medium — the issue's constraint "Write integration tests create real objects… use a fixture that creates and closes in teardown (`@pytest.mark.git_integration` + `GITHUB_TEST_REPO_URL`)" is met only by extending the existing `test_complete_issue_workflow` for `edit_issue`; `create_issue(assignees=…)` and all five tools have mocked coverage only, and the deviation from the issue's `Test cleanup | Create-and-close fixture` decision is not recorded as a deliberate one.
+**Decisions**:
+Verdict(decision='tasks', tasks=['step_7.md:116 — Fix tests 7 and 7b so the real `_validate_branch_name` actually runs: the in-body import resolves to the active MagicMock, so `PullRequestManager._validate_branch_name(None, name)` returns a truthy Mock and the wired `side_effect` never rejects. Bind the real function at module import time (e.g. `_REAL_VALIDATE_BRANCH_NAME = PullRequestManager._validate_branch_name` at module top) and use that binding in the `side_effect` lambda.'], escalate_reason=None)
+**Changes**:
+applied
+
+## Round 4 — 2026-08-29
+**Findings**:
+I'll gather context first: knowledge base, the issue tree, and the plan files.`pr_info/steps/step_4.md:96` — medium — the sentinel channel is treated as "the write sequence started and something after it failed", but `edit_issue` also returns the empty `IssueData` for *pre-write* failures (`repo is None`, swallowed 404 for a nonexistent issue); those reach the refetch path where `get_issue` also returns empty, rendering the most common caller error (wrong issue number / no repo access) as `Error: edit of issue #N failed (swallowed API error) and the issue could not be re-read`, which implies a possible partial write that cannot exist.
+
+`pr_info/steps/step_2.md:114` — medium — the issue's constraint "Write integration tests create real objects… use a fixture that creates and closes in teardown" and the Decisions row `Test cleanup | Create-and-close fixture` are met only by appending `edit_issue` assertions to the existing `test_complete_issue_workflow`; `create_issue(assignees=…)` and all five tools (steps 3–7) have mocked coverage only, and the deviation is still not recorded as a deliberate decision anywhere in the plan.
+**Decisions**:
+Verdict(decision='dismiss', tasks=[], escalate_reason=None)
+**Changes**:
+dismiss
