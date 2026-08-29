@@ -110,23 +110,26 @@ itself still needs amending by the maintainer.
 |------|--------|------|
 | `src/mcp_workspace/server.py` | Remove auto-add block, footer and now-unused `import re`; update docstring | 1 |
 | `src/mcp_workspace/server.py` | Build full query string for `state`/`labels`/`assignee`; validate the `state` vocabulary and document it | 2 |
-| `tests/github_operations/test_github_read_tools.py` | Delete `test_github_search_qualifier_injection`; strip injection assertions | 1 |
-| `tests/github_operations/test_github_read_tools.py` | Exact-query assertions for `state`/`labels`/`assignee`, the qualifier-only (`query=""`) path, and the `state` vocabulary | 2 |
-| `tests/github_operations/test_github_read_tools.py` | Add live `@pytest.mark.github_integration` test | 3 |
+| `tests/github_operations/test_github_search_tool.py` | Delete `test_github_search_qualifier_injection`; strip injection assertions | 1 |
+| `tests/github_operations/test_github_search_tool.py` | Exact-query assertions for `state`/`labels`/`assignee`, the qualifier-only (`query=""`) path, and the `state` vocabulary | 2 |
+| `tests/github_operations/test_github_search_tool.py` | Add live `@pytest.mark.github_integration` test | 3 |
 | `src/mcp_workspace/server.py` | Add `is:issue` when the query names no result type; restore `import re`; update docstring | 4 |
-| `tests/github_operations/test_github_read_tools.py` | Update exact-query assertions for the `is:issue` default; add default and suppression tests | 4 |
+| `tests/github_operations/test_github_search_tool.py` | Update exact-query assertions for the `is:issue` default; add default and suppression tests | 4 |
+| `tests/github_operations/test_github_read_tools_pr_search.py` | Docstring cross-reference to `test_github_search_tool.py` | — |
 | `tests/LLM_Test.md` | Line 139 expects the removed `(auto-added: ...)` footer | 1 |
 | `tests/LLM_Test.md` | Line 139 notes `is:issue` is the default result type | 4 |
 
 The `github_search` tests listed above were written in
 `tests/github_operations/test_github_read_tools.py` and later moved — see
-"Review rework" below.
+"Review rework" below. That module no longer exists: `main` split it into
+`test_github_read_tools_issues.py` and `test_github_read_tools_pr_search.py`.
 
 ### Created
 
 | File | Change |
 |------|--------|
 | `tests/github_operations/test_github_search_tool.py` | All `github_search` unit tests plus the live `github_integration` tests, split out of `test_github_read_tools.py` when it passed the 750-line limit |
+| `tests/github_operations/search_helpers.py` | `FakeSearchResults` and `make_search_items`, shared by `test_github_search_tool.py` and `test_github_read_tools_pr_search.py` |
 
 No new modules or packages under `src/`.
 
@@ -139,7 +142,7 @@ They are not part of any step; the reasoning is in
 
 | File | Change |
 |------|--------|
-| `tests/github_operations/test_github_search_tool.py` | Created by the file split (above); `test_github_read_tools.py` keeps the `github_issue_view` / `github_issue_list` / `github_pr_view` tests |
+| `tests/github_operations/test_github_search_tool.py` | Created by the file split (above). After the rebase, `github_issue_view` / `github_issue_list` live in `test_github_read_tools_issues.py` and `github_pr_view` in `test_github_read_tools_pr_search.py` |
 | `tests/github_operations/conftest.py` | `setup_server` moved here from the two test modules, which had diverging copies after the split. Kept non-autouse — `project_dir` copies test data per test — so each module opts in via `pytestmark` |
 | `src/mcp_workspace/server.py` | Reject `type:pull-request` before the API call: GitHub matches nothing against it, so forwarding it returns an empty result indistinguishable from a genuine one |
 | `src/mcp_workspace/server.py` | Reject a label containing a double quote: GitHub has no documented escape inside a quoted qualifier, so it cannot be expressed |
@@ -148,6 +151,21 @@ They are not part of any step; the reasoning is in
 | `src/mcp_workspace/server.py` | Match the `state` vocabulary case-insensitively, like every inline qualifier check |
 | `src/mcp_workspace/server.py` | Docstring: only the five listed spellings suppress the `is:issue` default, so a PR search written with a PR-only qualifier (`is:merged`, `base:`, …) needs an explicit `is:pull-request`; `type:pull-request` is rejected outright and so cannot be used as free text |
 | `src/mcp_workspace/server.py` | Docstring: a negated qualifier (`-is:issue`, `-is:open`) suppresses neither the `is:issue` default nor the `state` argument. Documented rather than coded for the same reason as the PR-only qualifiers — reading `-is:issue` as naming a type would leave a query naming none, which GitHub answers with a 422 |
+
+### Rebase integration
+
+The branch was rebuilt on `origin/main` as the single commit `379ba40`, because
+`main` had meanwhile reworked the same function and its tests (#262).
+Both sides were kept: `main`'s result capping, `totalCount`-based truncation
+notice and the split of `test_github_read_tools.py` into
+`test_github_read_tools_issues.py` and `test_github_read_tools_pr_search.py`
+survive as they were, and this branch's validation, query construction and
+docstring are applied on top. `main`'s `github_search` tests that this branch
+supersedes were dropped, and `FakeSearchResults` moved to `search_helpers.py`
+so both test modules can import it.
+
+The `step_*.md` files are left as historical records of the four planned steps;
+they describe the pre-rebase file layout.
 
 ### Explicitly unchanged
 

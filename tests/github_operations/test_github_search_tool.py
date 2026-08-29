@@ -1,4 +1,9 @@
-"""Tests for the github_search read-only MCP tool in server.py."""
+"""Tests for the github_search read-only MCP tool in server.py.
+
+Covers query construction and validation. The result-capping and
+truncation-notice tests live in ``test_github_read_tools_pr_search``; the two
+modules stay separate because merged they would exceed the file-size limit.
+"""
 
 import re
 from pathlib import Path
@@ -78,7 +83,7 @@ def test_github_search_empty(mock_manager_cls: MagicMock) -> None:
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults([])
 
     result = github_search(query="nonexistent")
 
@@ -94,7 +99,7 @@ def test_github_search_with_qualifiers(mock_manager_cls: MagicMock) -> None:
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults([])
 
     github_search(
         query="bug",
@@ -126,7 +131,7 @@ def test_github_search_multiple_labels(mock_manager_cls: MagicMock) -> None:
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults([])
 
     github_search(query="bug", labels=["bug", "urgent"])
 
@@ -151,7 +156,7 @@ def test_github_search_label_with_special_characters(
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults([])
 
     github_search(query="x", labels=["status-01:created"])
 
@@ -204,7 +209,7 @@ def test_github_search_state_emits_is_qualifier(mock_manager_cls: MagicMock) -> 
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults([])
 
     github_search(query="bug", state="closed")
 
@@ -235,7 +240,7 @@ def test_github_search_inline_state_suppresses_state_param(
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults([])
 
     github_search(query=query, state="open")
 
@@ -252,7 +257,7 @@ def test_github_search_qualifiers_only(mock_manager_cls: MagicMock) -> None:
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults([])
 
     github_search(query="", state="open", labels=["bug"])
 
@@ -269,7 +274,7 @@ def test_github_search_state_all_emits_no_token(mock_manager_cls: MagicMock) -> 
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults([])
 
     github_search(query="bug", state="all")
 
@@ -309,7 +314,7 @@ def test_github_search_state_is_case_insensitive(
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults([])
 
     github_search(query="bug", state=state)
 
@@ -443,7 +448,7 @@ def test_github_search_explicit_type_suppresses_default(
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults([])
 
     github_search(query=query)
 
@@ -473,7 +478,7 @@ def test_github_search_defaults_to_is_issue(
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults([])
 
     github_search(query=query)
 
@@ -515,7 +520,7 @@ def test_github_search_type_pull_request_rejection_boundaries(
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
-    mock_mgr._github_client.search_issues.return_value = []
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults([])
 
     github_search(query=query)
 
@@ -573,9 +578,12 @@ def test_github_search_live_label_and_state_filters(live_repo_root: Path) -> Non
 
     assert not result.startswith("Error:"), result
     assert result != "No results found."
-    assert f"#{anchor['number']}" in result
 
     result_lines = [line for line in result.strip().split("\n") if line.startswith("#")]
+    # startswith, not substring: anchor #12 would also match a line for #123.
+    assert any(
+        line.startswith(f"#{anchor['number']} ") for line in result_lines
+    ), result
     for line in result_lines:
         assert "[open]" in line, line
         assert anchor_label in line, line
@@ -601,7 +609,13 @@ def test_github_search_live_label_and_state_filters(live_repo_root: Path) -> Non
     )
 
     assert not text_result.startswith("Error:"), text_result
-    assert f"#{anchor['number']}" in text_result
+
+    text_lines = [
+        line for line in text_result.strip().split("\n") if line.startswith("#")
+    ]
+    assert any(
+        line.startswith(f"#{anchor['number']} ") for line in text_lines
+    ), text_result
 
 
 @pytest.mark.github_integration

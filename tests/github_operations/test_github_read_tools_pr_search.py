@@ -1,4 +1,9 @@
-"""Tests for the GitHub PR and search read-only MCP tools in server.py."""
+"""Tests for the GitHub PR and search read-only MCP tools in server.py.
+
+The github_search tests here cover result capping and the truncation notice.
+Query construction and validation live in ``test_github_search_tool``; the two
+modules stay separate because merged they would exceed the file-size limit.
+"""
 
 from unittest.mock import MagicMock, patch
 
