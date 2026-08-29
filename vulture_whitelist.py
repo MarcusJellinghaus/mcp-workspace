@@ -46,6 +46,9 @@ _.github_issue_list
 _.github_pr_view
 _.github_search
 
+# GitHub write tools registered in server.py
+_.github_issue_create
+
 # Base branch detection tool
 _.get_base_branch
 
@@ -169,6 +172,8 @@ _._reset_globals
 # Autouse fixtures for network diagnostics (referenced by pytest collection only)
 _.reset_network_diagnostics_guard
 _._default_network_ok
+# Autouse fixture resetting the server's @me login cache (pytest collection only)
+_.reset_login_cache
 # Autouse fixtures for issue #236 review-gate tests (referenced by pytest collection only)
 _._github_token
 _._reset_global

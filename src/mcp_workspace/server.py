@@ -56,6 +56,69 @@ _fail_on_reviews: bool = False
 # Per-file locks for concurrent edit safety
 _file_locks: dict[str, asyncio.Lock] = {}
 
+# Workflow status labels are owned by `mcp-coder gh-tool set-status`, not by these tools
+_STATUS_LABEL_PREFIX = "status-"
+
+# Authenticated login for "@me", resolved once per process. A dict rather than a
+# rebound global so pylint's global-statement never applies and tests reset it
+# with a single .clear().
+_login_cache: Dict[str, str] = {}
+
+
+def _check_labels(manager: Any, add: List[str], remove: List[str]) -> Optional[str]:
+    """Reject status-* labels on both sides, then unknown add-side names.
+
+    ``manager`` is typed ``Any`` rather than ``IssueManager`` on purpose: a real
+    annotation would force a top-level ``github_operations`` import and pull
+    PyGithub onto the server startup path.
+
+    Args:
+        manager: An IssueManager instance used to read the repository labels.
+        add: Label names about to be added.
+        remove: Label names about to be removed.
+
+    Returns:
+        An error string, or None when the labels are acceptable.
+
+    Raises:
+        Exception: Whatever ``get_available_labels`` raises. Deliberately not
+            caught: a failed lookup must be reported as itself by the calling
+            tool, never rendered as "unknown label(s)".
+    """
+    offenders = [n for n in (*add, *remove) if n.startswith(_STATUS_LABEL_PREFIX)]
+    if offenders:
+        return (
+            "Error: these tools do not modify status-* labels "
+            f"({', '.join(offenders)}). Use: mcp-coder gh-tool set-status <label>"
+        )
+    if not add:
+        return None
+    # Not cached: the server can run for days, and a label created meanwhile
+    # must not be wrongly rejected.
+    known = {label["name"] for label in manager.get_available_labels()}
+    unknown = [n for n in add if n not in known]
+    if unknown:
+        return f"Error: unknown label(s): {', '.join(unknown)}"
+    return None
+
+
+def _resolve_assignees(manager: Any, logins: List[str]) -> List[str]:
+    """Resolve '@me' to the authenticated login, cached per process.
+
+    Args:
+        manager: An IssueManager instance used to read the authenticated user.
+        logins: Requested assignee logins, possibly containing "@me".
+
+    Returns:
+        The logins with "@me" replaced by the authenticated username.
+    """
+    if "@me" in logins and "login" not in _login_cache:
+        # Not get_authenticated_username(): that re-reads the token via
+        # get_github_token() and would ignore a token passed to the manager.
+        # pylint: disable=protected-access
+        _login_cache["login"] = manager._github_client.get_user().login
+    return [_login_cache["login"] if name == "@me" else name for name in logins]
+
 
 def _check_not_gitignored(file_path: str) -> None:
     """Raise ValueError if path is excluded by .gitignore.
@@ -902,6 +965,53 @@ def github_search(
         return format_search_results(
             items, capped, results.totalCount if items else None
         )
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+@log_function_call
+def github_issue_create(
+    title: str,
+    body: str = "",
+    labels: Optional[List[str]] = None,
+    assignees: Optional[List[str]] = None,
+) -> str:
+    """Create a real GitHub issue in this repository. This writes to GitHub.
+
+    Workflow status labels (status-*) are rejected — use
+    `mcp-coder gh-tool set-status <label>` for those. Other label names are
+    validated against the repository's labels before writing, so a typo cannot
+    silently create a new label.
+
+    Args:
+        title: Issue title (required, cannot be empty)
+        body: Issue description in Markdown (default: empty)
+        labels: Label names to apply — each must already exist in the repository
+        assignees: GitHub usernames to assign; "@me" means the authenticated user
+
+    Returns:
+        "Created issue #<number> — <url>", or error message string.
+    """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.issues import IssueManager
+
+    try:
+        manager = IssueManager(project_dir=_project_dir)
+        label_error = _check_labels(manager, labels or [], [])
+        if label_error:
+            return label_error
+        resolved = _resolve_assignees(manager, assignees or [])
+        issue = manager.create_issue(
+            title=title,
+            body=body,
+            labels=labels,
+            assignees=resolved or None,
+        )
+        # Empty IssueData is the library's swallowed-failure sentinel
+        if not issue["number"]:
+            return "Error: issue creation failed - no issue was created"
+        return f"Created issue #{issue['number']} — {issue['url']}"
     except Exception as e:
         return f"Error: {e}"
 

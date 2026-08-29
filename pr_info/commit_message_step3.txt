@@ -1,0 +1,25 @@
+Add github_issue_create MCP tool
+
+Expose issue creation as an MCP tool so the headless flow no longer needs
+Bash `gh issue create`.
+
+Two module-private helpers in server.py back it and are shared with the
+remaining write tools:
+
+- `_check_labels` rejects status-* labels on both the add and remove side
+  before any API call, then validates add-side names against
+  `get_available_labels()`. The lookup result is deliberately not cached, and
+  a failed lookup is left to propagate: after the step-1 change it raises
+  instead of returning `[]`, so an API error is reported as itself rather
+  than as "unknown label(s)".
+- `_resolve_assignees` resolves "@me" to the authenticated login via the
+  manager's own client, cached per process in a module-level dict.
+
+Both take `manager: Any` rather than `IssueManager` so no top-level
+github_operations import lands on the server startup path.
+
+The tool checks the empty-IssueData sentinel explicitly, since
+`_handle_github_errors` swallows 404/422/5xx.
+
+Adds tests/github_operations/test_github_write_tools_issues.py (12 tests)
+and vulture_whitelist entries for the tool and the new autouse fixture.
