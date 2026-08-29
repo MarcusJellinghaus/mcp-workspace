@@ -24,6 +24,7 @@ If you can't name the gap, use the MCP tool. Exempt: the approved git/gh command
 | Write file | `mcp__mcp-workspace__save_file` |
 | Append to file | `mcp__mcp-workspace__append_file` |
 | Delete file | `mcp__mcp-workspace__delete_this_file` |
+| Delete directory | `mcp__mcp-workspace__delete_directory` |
 | Move file | `mcp__mcp-workspace__move_file` |
 | List directory | `mcp__mcp-workspace__list_directory` |
 | Search files | `mcp__mcp-workspace__search_files` |
