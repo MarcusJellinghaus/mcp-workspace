@@ -169,20 +169,30 @@ def truncate_output(text: str, max_lines: int) -> str:
 
     Args:
         text: Text to truncate.
-        max_lines: Maximum number of lines to keep.
+        max_lines: Maximum number of lines to keep. Negative values are
+            treated as 0.
 
     Returns:
         Original text if within limit, otherwise truncated text with
-        a notice showing how many lines were omitted.
+        a notice stating the applied cap, the total line count and the
+        max_lines value that returns the full output.
     """
     if not text:
         return text
 
+    # max_lines arrives straight from the unvalidated git tool parameter, so
+    # clamp it before anything derives from it: a negative cap made
+    # lines[:max_lines] keep all but the last line under a notice reading
+    # "showing -1 of {total}".
+    max_lines = max(0, max_lines)
     lines = text.splitlines()
     if len(lines) <= max_lines:
         return text
 
     kept = lines[:max_lines]
-    remaining = len(lines) - max_lines
-    kept.append(f"[truncated — {remaining} more lines]")
+    total = len(lines)
+    kept.append(
+        f"[truncated: showing {max_lines} of {total} lines "
+        f"— pass max_lines={total} for the full output]"
+    )
     return "\n".join(kept)

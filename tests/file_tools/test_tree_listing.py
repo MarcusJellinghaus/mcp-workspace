@@ -328,7 +328,10 @@ class TestTruncation:
         lines = [f"file{i}.py" for i in range(300)]
         result = _truncate(lines)
         summary = result[-1]
-        assert summary == "... and 50 more entries (0 dirs, 50 files) — 300 total"
+        assert summary == (
+            "... and 50 more entries (0 dirs, 50 files) — 300 total. "
+            "Narrow with path=<subdir> or dirs_only=True."
+        )
 
     def test_dir_file_counts_in_summary(self) -> None:
         """Summary correctly distinguishes dirs vs files in truncated portion."""

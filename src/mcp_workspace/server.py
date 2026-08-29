@@ -4,6 +4,7 @@ import asyncio
 import logging
 import re
 from datetime import datetime
+from itertools import islice
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -643,14 +644,22 @@ def github_issue_list(
     try:
         manager = IssueManager(project_dir=_project_dir)
         since_dt = datetime.fromisoformat(since) if since else None
+        # max_results is an unvalidated tool parameter; clamp before deriving
+        # anything from it so a negative value cannot reach the notice as a
+        # negative "shown" count.
+        capped = max(0, max_results)
+        # Over-fetch by one: no total count exists for issue listing, so the
+        # surplus item is what proves more results exist. The formatter still
+        # receives the capped value; it takes the notice's lower bound from the
+        # over-fetched list, so a default-sized call renders "30 of 31+".
         issues = manager.list_issues(
             state=state,
             labels=labels,
             assignee=assignee,
             since=since_dt,
-            max_results=max_results,
+            max_results=capped + 1,
         )
-        return format_issue_list(issues, max_results)
+        return format_issue_list(issues, capped)
     except Exception as e:
         return f"Error: {e}"
 
@@ -789,9 +798,12 @@ def github_search(
         # pylint: disable=protected-access
         results = manager._github_client.search_issues(**qualifiers)
         items = []
-        for i, item in enumerate(results):
-            if i >= max_results:
-                break
+        # max(0, ...) because islice rejects a negative stop, where the old
+        # enumerate guard simply collected nothing.
+        capped = max(0, max_results)
+        # islice stops at max_results without pulling the next item, so a
+        # default-sized search never fetches page 2 just to discard item 31.
+        for item in islice(results, capped):
             item_labels = [label.name for label in item.labels] if item.labels else []
             items.append(
                 {
@@ -802,7 +814,22 @@ def github_search(
                     "pull_request": item.pull_request is not None,
                 }
             )
-        result = format_search_results(items, max_results)
+        # Read totalCount only after iterating, and only when we collected
+        # something: PyGithub fills it from the first search page, which the
+        # iteration above already paid for. Neither empty path needs the read,
+        # for a different reason each:
+        #   - clamped cap of 0: islice pulled nothing, so no page was fetched
+        #     and the property would fall back to a separate per_page=1 request
+        #     — the extra call this design exists to avoid.
+        #   - positive cap, no matches: page 1 was fetched and cached
+        #     totalCount == 0, so the read would be free, but the total is
+        #     already known to be 0 and the "No results found." render has no
+        #     use for it.
+        # format_search_results owns both empty renders: it tells the two cases
+        # apart from `capped` alone.
+        result = format_search_results(
+            items, capped, results.totalCount if items else None
+        )
         if not has_qualifier:
             result += "\n(auto-added: is:issue is:pull-request)"
         return result

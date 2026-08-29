@@ -488,3 +488,52 @@ class TestAsyncPollBranchStatus:
         mock_wait_pr.assert_not_called()
         assert mock_collect.call_count == 1
         assert result == report.format_for_llm()
+
+    @pytest.mark.asyncio
+    async def test_max_log_lines_reaches_the_render_cap(
+        self, project_dir: Path
+    ) -> None:
+        """`max_log_lines` is forwarded to `format_for_llm`, not just to collection."""
+        from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
+
+        mock_report = MagicMock(spec=BranchStatusReport)
+        mock_report.format_for_llm.return_value = "captured"
+
+        with (
+            patch(
+                "mcp_workspace.checks.branch_status_polling.get_current_branch_name",
+                return_value="feature/x",
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling.collect_branch_status",
+                return_value=mock_report,
+            ),
+        ):
+            await async_poll_branch_status(project_dir, max_log_lines=500)
+
+        assert mock_report.format_for_llm.call_args.kwargs["max_lines"] == 500
+
+    @pytest.mark.asyncio
+    async def test_max_log_lines_reaches_the_render_cap_without_a_branch(
+        self, project_dir: Path
+    ) -> None:
+        """The detached-HEAD early return forwards `max_log_lines` too."""
+        from mcp_workspace.checks.branch_status_polling import async_poll_branch_status
+
+        mock_report = MagicMock(spec=BranchStatusReport)
+        mock_report.format_for_llm.return_value = "captured"
+
+        with (
+            patch(
+                "mcp_workspace.checks.branch_status_polling.get_current_branch_name",
+                return_value=None,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling.collect_branch_status",
+                return_value=mock_report,
+            ),
+        ):
+            result = await async_poll_branch_status(project_dir, max_log_lines=500)
+
+        assert result == "captured"
+        assert mock_report.format_for_llm.call_args.kwargs["max_lines"] == 500

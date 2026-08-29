@@ -25,36 +25,72 @@ __all__ = [
 ]
 
 
+def _truncation_marker(kept: int, total: int) -> str:
+    """Build the one and only CI log truncation marker.
+
+    Shared by `truncate_ci_details` and `build_ci_error_details` so the marker
+    has a single spelling. Names `max_log_lines` without a pasteable value:
+    `build_ci_error_details` shares one line budget across every failed job,
+    so `max_log_lines={total}` would not return this job's full log.
+
+    Args:
+        kept: Number of log lines shown.
+        total: Number of log lines before truncation.
+
+    Returns:
+        The truncation marker line.
+    """
+    return (
+        f"[... {total - kept} lines omitted: showing {kept} of {total} "
+        "— raise max_log_lines for more ...]"
+    )
+
+
 def truncate_ci_details(
     details: str, max_lines: int = 300, head_lines: int = 10
 ) -> str:
     """Truncate CI details with head + tail preservation.
 
-    If the details exceed max_lines, keeps the first head_lines and
-    the last (max_lines - head_lines) lines, inserting a truncation marker.
+    max_lines reaches this function straight from the unvalidated max_log_lines
+    tool parameter, so it is clamped to max(0, max_lines) before anything
+    derives from it. head_lines is then clamped to max_lines // 2, which keeps
+    the tail non-empty for every positive cap. Both clamps are no-ops at the
+    defaults. Details within the clamped cap are returned unchanged; otherwise
+    the first head_lines and the last (max_lines - head_lines) lines are kept
+    around a truncation marker. A clamped cap of 0 yields the marker alone.
 
     Args:
         details: The CI details string to potentially truncate.
-        max_lines: Maximum number of lines to keep (default 300).
-        head_lines: Number of lines to keep from the start (default 10).
+        max_lines: Maximum number of log lines to keep, excluding the marker
+            line itself (default 300). Negative values are treated as 0.
+        head_lines: Number of lines to keep from the start (default 10),
+            reduced to max_lines // 2 when the cap is below twice this value.
 
     Returns:
-        The original string if within limits, or a truncated version
-        with head + tail preservation and a marker showing skipped lines.
+        The original string if within the clamped cap, or a truncated version
+        with head + tail preservation and a marker naming the omitted count.
     """
     if not details:
         return ""
 
     lines = details.split("\n")
+    # max_lines arrives straight from the unvalidated check_branch_status
+    # parameter, so clamp it before anything derives from it: a negative cap
+    # made head_lines negative (-1 // 2 == -1), so lines[:-1] emitted almost
+    # the whole log under a marker reading "showing -1 of {total}".
+    max_lines = max(0, max_lines)
     if len(lines) <= max_lines:
         return details
 
+    # min() is a no-op at the default (max_lines=300, head_lines=10); it only
+    # fires when the caller's max_log_lines is below 2 * head_lines, where the
+    # old arithmetic produced a negative tail_lines and duplicated the log.
+    head_lines = min(head_lines, max_lines // 2)
     tail_lines = max_lines - head_lines
     head = lines[:head_lines]
-    tail = lines[-tail_lines:]
-    truncated_count = len(lines) - head_lines - tail_lines
+    tail = lines[-tail_lines:] if tail_lines else []
 
-    return "\n".join(head + [f"[... truncated {truncated_count} lines ...]"] + tail)
+    return "\n".join(head + [_truncation_marker(max_lines, len(lines))] + tail)
 
 
 def _strip_timestamps(log_content: str) -> str:
@@ -343,9 +379,7 @@ def build_ci_error_details(
             tail_count = remaining_budget - head_count - 1
             truncated_log = (
                 log_lines[:head_count]
-                + [
-                    f"[... truncated {len(log_lines) - head_count - tail_count} lines ...]"
-                ]
+                + [_truncation_marker(head_count + tail_count, len(log_lines))]
                 + log_lines[-tail_count:]
             )
             log_content = "\n".join(truncated_log)
@@ -368,7 +402,9 @@ def build_ci_error_details(
 
     # Section 3: List jobs that didn't fit
     if jobs_truncated:
-        output_lines.append("## Other failed jobs (logs truncated to save space)")
+        output_lines.append(
+            "## Other failed jobs (logs omitted — raise max_log_lines to include them)"
+        )
         for trunc_job_name in jobs_truncated:
             for job in failed_jobs:
                 if str(job.get("name")) == trunc_job_name:

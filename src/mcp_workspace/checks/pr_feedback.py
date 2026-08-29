@@ -15,8 +15,15 @@ from mcp_workspace.github_operations.pr_manager import PRFeedback, PullRequestMa
 
 logger = logging.getLogger(__name__)
 
+# Deliberate internal caps with no lift parameter: this block is a compact
+# summary embedded in the branch-status report, not a full feedback dump.
+# Readers who need the full list or the full text of a cut body use
+# github_pr_view(include_comments=True) — which _FULL_TEXT_HINT names in the
+# output whenever either cap actually fires.
 _MAX_FEEDBACK_ITEMS = 20
 _MAX_LINES_PER_COMMENT = 10
+
+_FULL_TEXT_HINT = "Full comment text: github_pr_view(include_comments=True)"
 
 # Feedback sections whose unavailability makes the merge/review verdict
 # undeterminable: "threads" (unresolved threads + changes_requested) and
@@ -29,12 +36,15 @@ def _truncate_body(body: str) -> str:
     """Truncate a comment body at `_MAX_LINES_PER_COMMENT` lines.
 
     Returns:
-        The body, truncated with a "... (truncated)" marker if too long.
+        The body, truncated with a "... (truncated: showing X of Y lines)"
+        marker if too long.
     """
     lines = body.splitlines()
     if len(lines) <= _MAX_LINES_PER_COMMENT:
         return body
-    return "\n".join(lines[:_MAX_LINES_PER_COMMENT]) + "\n... (truncated)"
+    return "\n".join(lines[:_MAX_LINES_PER_COMMENT]) + (
+        f"\n... (truncated: showing {_MAX_LINES_PER_COMMENT} of {len(lines)} lines)"
+    )
 
 
 def format_pr_feedback(feedback: PRFeedback) -> str:
@@ -56,13 +66,16 @@ def format_pr_feedback(feedback: PRFeedback) -> str:
         return "Reviews: clean (0 unresolved threads, 0 alerts)"
 
     rendered: List[str] = []
+    body_cut = False
 
     for thread in unresolved:
         path = thread.get("path", "")
         line_no = thread.get("line")
         author = thread.get("author", "")
         diff_hunk = thread.get("diff_hunk", "")
-        body = _truncate_body(thread.get("body", ""))
+        raw = thread.get("body", "")
+        body = _truncate_body(raw)
+        body_cut = body_cut or body != raw
         indented_hunk = "\n".join(f"  {line}" for line in diff_hunk.splitlines())
         location = f"{path}:{line_no}" if line_no else path
         rendered.append(
@@ -71,14 +84,11 @@ def format_pr_feedback(feedback: PRFeedback) -> str:
             f"  Comment: {body}"
         )
 
-    for comment in comments:
-        author = comment.get("author", "")
-        body = _truncate_body(comment.get("body", ""))
-        rendered.append(f"[comment] {author}:\n  {body}")
-
     for review in changes_requested:
         author = review.get("author", "")
-        body = _truncate_body(review.get("body", ""))
+        raw = review.get("body", "")
+        body = _truncate_body(raw)
+        body_cut = body_cut or body != raw
         rendered.append(f"[changes_requested] {author}: {body}")
 
     for alert in alerts:
@@ -89,10 +99,23 @@ def format_pr_feedback(feedback: PRFeedback) -> str:
         location = f"{path}:{line_no}" if line_no else path
         rendered.append(f"[alert] {rule}: {message} @ {location}")
 
+    # Conversation comments render last: they never drain, so ahead of the
+    # verdict-bearing sections they would starve alerts under the shared cap.
+    for comment in comments:
+        author = comment.get("author", "")
+        raw = comment.get("body", "")
+        body = _truncate_body(raw)
+        body_cut = body_cut or body != raw
+        rendered.append(f"[comment] {author}:\n  {body}")
+
     total = len(rendered)
-    if total > _MAX_FEEDBACK_ITEMS:
+    cap_fired = total > _MAX_FEEDBACK_ITEMS
+    if cap_fired:
         kept = rendered[:_MAX_FEEDBACK_ITEMS]
-        kept.append(f"... and {total - _MAX_FEEDBACK_ITEMS} more")
+        kept.append(
+            f"... and {total - _MAX_FEEDBACK_ITEMS} more of {total} items "
+            f"— full list via github_pr_view(include_comments=True)"
+        )
         rendered = kept
 
     lines: List[str] = ["PR Reviews:"]
@@ -103,6 +126,9 @@ def format_pr_feedback(feedback: PRFeedback) -> str:
 
     if resolved_count > 0:
         lines.append(f"{resolved_count} resolved threads")
+
+    if body_cut or cap_fired:
+        lines.append(_FULL_TEXT_HINT)
 
     return "\n".join(lines)
 

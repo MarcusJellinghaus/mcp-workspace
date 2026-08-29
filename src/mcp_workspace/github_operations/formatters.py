@@ -31,16 +31,25 @@ def truncate_output(text: str, max_lines: int) -> str:
 
     Args:
         text: The text to potentially truncate.
-        max_lines: Maximum number of lines to keep.
+        max_lines: Maximum number of lines to keep. Negative values are
+            treated as 0.
 
     Returns:
         Original text if within limit, otherwise truncated with indicator.
     """
+    # max_lines arrives straight from the unvalidated github_issue_view /
+    # github_pr_view parameter, so clamp it before anything derives from it:
+    # a negative cap made lines[:max_lines] keep all but the last line under a
+    # notice reading "showing -1 of {total}".
+    max_lines = max(0, max_lines)
     lines = text.splitlines()
     if len(lines) <= max_lines:
         return text
     total = len(lines)
-    return "\n".join(lines[:max_lines]) + f"\n\n... truncated, {total} lines total"
+    return "\n".join(lines[:max_lines]) + (
+        f"\n\n... truncated: showing {max_lines} of {total} lines. "
+        f"Pass max_lines={total} for the full output."
+    )
 
 
 def format_issue_view(
@@ -82,30 +91,64 @@ def format_issue_list(
 ) -> str:
     """Format issue list as compact summary lines.
 
+    The truncation notice is driven by the caller's over-fetch. Issue listing
+    has no total count, so the only evidence that more results exist is a
+    surplus item: callers must fetch with a limit of `max_results + 1` and pass
+    `max_results` unchanged. This function then displays the first
+    `max_results` issues and renders the "31+" notice when the surplus item is
+    present — `len(issues)` is the largest total this function can prove, so it
+    is the lower bound the notice reports.
+
+    Passing a list already capped at `max_results` makes the notice condition
+    unreachable, so the list truncates silently. That is the bug this contract
+    exists to prevent.
+
     Args:
-        issues: List of issue data dicts.
-        max_results: Maximum number of issues to display.
+        issues: Issue data dicts, fetched with a limit of `max_results + 1` so
+            the surplus item can prove that more results exist. At most
+            `max_results` of them are displayed.
+        max_results: Maximum number of issues to display. Must be the
+            unincremented cap, not the limit used to fetch `issues`. Negative
+            values are treated as 0.
 
     Returns:
-        Compact one-line-per-issue text.
+        Compact one-line-per-issue text, with a truncation notice when the
+        surplus item is present. A cap of 0 renders the notice alone; only a
+        genuinely empty `issues` renders "No issues found."
     """
+    max_results = max(0, max_results)
+    displayed = issues[:max_results]
+    # Emptiness is judged on the over-fetched list, not the capped one, so
+    # "No issues found." never stands for "the cap was 0 while the over-fetch
+    # proved issues exist". It still covers a swallowed API failure:
+    # IssueManager.list_issues is wrapped in @_handle_github_errors with a
+    # default_return of [], which arrives here indistinguishable from a
+    # genuinely empty listing.
     if not issues:
         return "No issues found."
 
     lines: list[str] = []
-    for issue in issues[:max_results]:
+    for issue in displayed:
         labels_str = ", ".join(issue["labels"]) if issue["labels"] else ""
         label_part = f"  {labels_str}" if labels_str else ""
         lines.append(
             f"#{issue['number']} [{issue['state']}] {issue['title']}{label_part}"
         )
 
-    if len(issues) > max_results:
-        lines.append(
-            f"\n... {len(issues)} total results. "
-            f"Showing first {max_results}. "
-            f"Refine your query for more specific results."
+    if len(issues) > len(displayed):
+        # One spelling of the notice for every cap, including 0, so the two
+        # paths cannot drift apart. The count is len(issues) in both cases: the
+        # over-fetched list is a proven lower bound on the true total, hence the
+        # trailing "+". Reporting max_results instead would state less than the
+        # caller already handed us — at a cap of 0 it read "0 of 0+ results",
+        # which scans as "there are none".
+        notice = (
+            f"... showing {len(displayed)} of {len(issues)}+ results "
+            f"— raise max_results or narrow with state/labels/assignee/since."
         )
+        # A cap of 0 displays nothing, so the notice is the whole render —
+        # emitted bare rather than under a blank line and an empty list.
+        lines.append(f"\n{notice}" if lines else notice)
 
     return "\n".join(lines)
 
@@ -164,17 +207,33 @@ def format_pr_view(
 def format_search_results(
     items: list[dict[str, Any]],
     max_results: int = 30,
+    total_count: Optional[int] = None,
 ) -> str:
     """Format search results as compact summary lines.
 
     Args:
         items: List of search result dicts with number, title, state, labels, etc.
         max_results: Maximum number of results to display.
+        total_count: Exact total from the search API when known; falls back to
+            len(items). Callers must pass None whenever `items` is empty, since
+            no page was necessarily fetched to fill it.
 
     Returns:
-        Compact one-line-per-result text with Issue/PR indicator.
+        Compact one-line-per-result text with Issue/PR indicator. An empty
+        `items` renders "No results found." only under a positive cap; a cap of
+        0 renders the suppression notice instead, because such a call never
+        established that the search matched nothing.
     """
     if not items:
+        # A non-positive cap collects nothing regardless of what the search
+        # matched, so no page is fetched and the true total is unknowable
+        # without an extra request. Say only what is known: the cap suppressed
+        # the output.
+        if max_results <= 0:
+            return (
+                "... showing 0 of an unknown total — a max_results cap of 0 "
+                "suppressed the output; raise max_results to see results."
+            )
         return "No results found."
 
     lines: list[str] = []
@@ -186,11 +245,14 @@ def format_search_results(
             f"#{item['number']} [{kind}] [{item['state']}] {item['title']}{label_part}"
         )
 
-    if len(items) > max_results:
+    # lines was built from items[:max_results], so its length is exactly the
+    # number of results actually shown.
+    shown = len(lines)
+    total = total_count if total_count is not None else len(items)
+    if total > shown:
         lines.append(
-            f"\n... {len(items)} total results. "
-            f"Showing first {max_results}. "
-            f"Refine your query for more specific results."
+            f"\n... showing {shown} of {total} results "
+            f"— raise max_results or refine your query."
         )
 
     return "\n".join(lines)

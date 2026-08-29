@@ -196,7 +196,18 @@ class TestBodyTruncation:
         result = format_pr_feedback(feedback)
         assert "line 10" in result
         assert "line 11" not in result
-        assert "... (truncated)" in result
+        assert "... (truncated: showing 10 of 20 lines)" in result
+        assert "github_pr_view(include_comments=True)" in result
+
+    def test_footer_absent_when_nothing_was_cut(self) -> None:
+        """No footer on a PR with feedback that fits."""
+        feedback = _empty_feedback()
+        feedback["conversation_comments"] = [
+            _comment(author="bob", body="LGTM"),
+            _comment(author="dave", body="Ship it"),
+        ]
+        result = format_pr_feedback(feedback)
+        assert "github_pr_view" not in result
 
 
 class TestItemCap:
@@ -209,7 +220,8 @@ class TestItemCap:
         ]
         result = format_pr_feedback(feedback)
         assert result.count("[comment]") == 20
-        assert "... and 10 more" in result
+        assert "... and 10 more of 30 items" in result
+        assert "github_pr_view(include_comments=True)" in result
 
 
 class TestUnavailableSection:
@@ -359,9 +371,11 @@ class TestCollectPrFeedbackUndeterminable:
 
 
 class TestCapOrdering:
-    """Cap-ordering: unresolved → comments → changes_requested → alerts."""
+    """Cap-ordering: unresolved → changes_requested → alerts → comments."""
 
     def test_unresolved_threads_filling_cap_drops_others(self) -> None:
+        # Thread-heavy overflow still starves alerts by design: the single
+        # shared cap is kept, and only the non-draining comments section moved.
         feedback = _empty_feedback()
         feedback["unresolved_threads"] = [_thread() for _ in range(25)]
         feedback["conversation_comments"] = [_comment()]
@@ -371,3 +385,21 @@ class TestCapOrdering:
         assert "[comment]" not in result
         assert "[alert]" not in result
         assert "... and 7 more" in result
+
+    def test_alerts_survive_comment_heavy_overflow(self) -> None:
+        """Alerts render even when conversation comments overflow the cap."""
+        feedback = _empty_feedback()
+        feedback["unresolved_threads"] = [_thread()]
+        feedback["changes_requested"] = [_changes_requested()]
+        feedback["alerts"] = [_alert()]
+        feedback["conversation_comments"] = [
+            _comment(author=f"user{i}", body=f"comment {i}") for i in range(30)
+        ]
+        result = format_pr_feedback(feedback)
+        assert "[alert]" in result
+        assert "[changes_requested]" in result
+
+        lines = result.split("\n")
+        alert_idx = next(i for i, line in enumerate(lines) if "[alert]" in line)
+        comment_idx = next(i for i, line in enumerate(lines) if "[comment]" in line)
+        assert alert_idx < comment_idx

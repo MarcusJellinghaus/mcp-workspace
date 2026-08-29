@@ -277,7 +277,7 @@ class TestSearchFilesLineTruncation:
 
         detail = result["details"][0]
         assert len(detail["text"]) < 1000
-        assert "... [truncated, line has 1000 chars]" in detail["text"]
+        assert "... [line truncated: showing 500 of 1000 chars]" in detail["text"]
         assert detail["text"].startswith("x" * 500)
 
     def test_short_line_not_truncated(self, project_dir: Path) -> None:
@@ -300,7 +300,7 @@ class TestSearchFilesLineTruncation:
         text = result["details"][0]["text"]
         lines = text.split("\n")
         # First line (context) should be truncated
-        assert "... [truncated, line has 800 chars]" in lines[0]
+        assert "... [line truncated: showing 500 of 800 chars]" in lines[0]
         # Match line should be intact
         assert lines[1] == "MATCH"
 

@@ -2,6 +2,8 @@
 
 from typing import Any, Dict
 
+import pytest
+
 from mcp_workspace.github_operations.formatters import (
     InlineCommentData,
     ReviewData,
@@ -74,7 +76,18 @@ class TestTruncateOutput:
         assert "line1" in result
         assert "line2" in result
         assert "line3" not in result
-        assert "... truncated, 10 lines total" in result
+        assert "showing 3 of 10 lines" in result
+        assert "max_lines=10" in result
+
+    def test_truncate_output_negative_max_lines(self) -> None:
+        """A negative cap keeps nothing and never reports a negative count."""
+        text = "\n".join(f"line{i}" for i in range(10))
+        result = truncate_output(text, max_lines=-1)
+        assert "line0" not in result
+        assert "line9" not in result
+        assert "showing 0 of 10 lines" in result
+        assert "max_lines=10" in result
+        assert "-1" not in result
 
     def test_truncate_output_exact_limit(self) -> None:
         """Text at exact limit not truncated."""
@@ -140,7 +153,8 @@ class TestFormatIssueView:
         """Long output truncated with indicator."""
         issue = _make_issue(body="\n".join(f"line {i}" for i in range(300)))
         result = format_issue_view(issue, comments=[], max_lines=10)
-        assert "truncated" in result
+        assert "showing 10 of 304 lines" in result
+        assert "max_lines=304" in result
 
     def test_format_issue_view_empty_body(self) -> None:
         """'(no description)' placeholder for empty body."""
@@ -178,8 +192,32 @@ class TestFormatIssueList:
         assert "#1" in result
         assert "#2" in result
         assert "#3" not in result
-        assert "5 total results" in result
-        assert "Showing first 3" in result
+        # The lower bound is the length of the list handed in, not the cap.
+        assert "showing 3 of 5+ results" in result
+        assert "raise max_results" in result
+        assert "state/labels/assignee/since" in result
+        assert "query" not in result  # this tool has no query parameter
+
+    @pytest.mark.parametrize("max_results", [0, -1])
+    def test_format_issue_list_non_positive_max_results(self, max_results: int) -> None:
+        """A non-positive cap renders the notice alone, with no negative count."""
+        issues = [_make_issue(number=i, title=f"Issue {i}") for i in range(3)]
+        result = format_issue_list(issues, max_results=max_results)
+        # One spelling of the notice, and a lower bound the caller proved.
+        assert result == (
+            "... showing 0 of 3+ results "
+            "— raise max_results or narrow with state/labels/assignee/since."
+        )
+
+    def test_format_issue_list_empty_distinguished_from_zero_cap(self) -> None:
+        """The empty message means empty, never that the cap was 0."""
+        issues = [_make_issue(number=i, title=f"Issue {i}") for i in range(3)]
+
+        assert format_issue_list([], max_results=0) == "No issues found."
+
+        capped = format_issue_list(issues, max_results=0)
+        assert "No issues found." not in capped
+        assert "raise max_results" in capped
 
     def test_format_issue_list_labels(self) -> None:
         """Labels rendered in summary line."""
@@ -333,6 +371,21 @@ class TestFormatSearchResults:
         result = format_search_results([])
         assert result == "No results found."
 
+    @pytest.mark.parametrize("max_results", [0, -1])
+    def test_format_search_results_non_positive_max_results(
+        self, max_results: int
+    ) -> None:
+        """A non-positive cap reports suppression, not an empty result set.
+
+        Such a call collects nothing whatever the search matched, so it never
+        established that there were no results, and has no total to report.
+        """
+        result = format_search_results([], max_results=max_results)
+        assert result == (
+            "... showing 0 of an unknown total — a max_results cap of 0 "
+            "suppressed the output; raise max_results to see results."
+        )
+
     def test_format_search_results_issue_vs_pr(self) -> None:
         """Correct Issue/PR indicator."""
         items = [
@@ -360,5 +413,15 @@ class TestFormatSearchResults:
         assert "#1" in result
         assert "#2" in result
         assert "#3" not in result
-        assert "5 total results" in result
-        assert "Showing first 3" in result
+        assert "showing 3 of 5 results" in result
+        assert "raise max_results" in result
+        assert "refine your query" in result
+
+    def test_format_search_results_uses_total_count(self) -> None:
+        """An explicit total_count is rendered instead of len(items)."""
+        items = [
+            {"number": i, "title": f"Result {i}", "state": "open", "labels": []}
+            for i in range(3)
+        ]
+        result = format_search_results(items, max_results=3, total_count=412)
+        assert "showing 3 of 412 results" in result

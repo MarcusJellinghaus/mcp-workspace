@@ -39,19 +39,20 @@ class TestTruncateCiDetails:
         assert "line1" in result
         assert "line2" in result
         assert "line19" in result
-        assert "truncated" in result
+        assert "omitted" in result
 
     def test_truncation_marker_shows_count(self) -> None:
         """Truncation marker uses square bracket format from p_coder."""
         lines = [f"line{i}" for i in range(30)]
         content = "\n".join(lines)
         result = truncate_ci_details(content, max_lines=10, head_lines=3)
-        assert "[... truncated 20 lines ...]" in result
+        assert (
+            "[... 20 lines omitted: showing 10 of 30 — raise max_log_lines for more ...]"
+            in result
+        )
         # No extra blank lines around marker
         result_lines = result.split("\n")
-        marker_idx = next(
-            i for i, line in enumerate(result_lines) if "truncated" in line
-        )
+        marker_idx = next(i for i, line in enumerate(result_lines) if "omitted" in line)
         # Line before marker should not be blank
         assert result_lines[marker_idx - 1] != ""
         # Line after marker should not be blank
@@ -60,6 +61,23 @@ class TestTruncateCiDetails:
     def test_empty_input_returns_empty(self) -> None:
         """Empty string input returns empty string."""
         assert truncate_ci_details("") == ""
+
+    @pytest.mark.parametrize("max_lines", [10, 3, 0, -5])
+    def test_small_cap_truncates_without_duplicating(self, max_lines: int) -> None:
+        """A small, zero or negative cap still truncates, and the marker counts hold."""
+        content = "\n".join(f"line{i}" for i in range(300))
+        result = truncate_ci_details(content, max_lines=max_lines)
+
+        expected = max(0, max_lines)
+        result_lines = result.split("\n")
+        # Kept lines plus the marker; at 0 and -5 the marker stands alone.
+        assert len(result_lines) == expected + 1
+        assert f"showing {expected} of 300" in result
+        assert f"[... {300 - expected} lines omitted:" in result
+        assert 300 - expected >= 0
+
+        body = [line for line in result_lines if "lines omitted:" not in line]
+        assert len(set(body)) == len(body)
 
 
 class TestStripTimestamps:
@@ -348,7 +366,38 @@ class TestBuildCiErrorDetails:
         }
         result = build_ci_error_details(ci_manager, status, max_lines=20)
         assert result is not None
-        assert "truncated" in result
+        assert "omitted" in result
+
+    def test_both_marker_sites_use_one_spelling(self) -> None:
+        """`truncate_ci_details` and `build_ci_error_details` emit the same marker shape."""
+        ci_manager = MagicMock()
+        inner_lines = "\n".join([f"line {i}" for i in range(500)])
+        long_log = f"##[group]Run tests\n{inner_lines}\n##[endgroup]"
+        ci_manager.get_run_logs.return_value = {"0_test-job.txt": long_log}
+        status = {
+            "run": {"url": "https://github.com/org/repo/actions/runs/123"},
+            "jobs": [
+                {
+                    "conclusion": "failure",
+                    "name": "test-job",
+                    "id": 456,
+                    "run_id": 123,
+                    "steps": [
+                        {"name": "Run tests", "number": 3, "conclusion": "failure"}
+                    ],
+                }
+            ],
+        }
+        # max_lines=60 leaves this job a per-job budget large enough to keep
+        # some log lines, so the inline marker fires instead of the job being
+        # dropped into the "Other failed jobs" list.
+        build_result = build_ci_error_details(ci_manager, status, max_lines=60)
+        truncate_result = truncate_ci_details(long_log, max_lines=20)
+
+        assert build_result is not None
+        for result in (build_result, truncate_result):
+            assert "lines omitted: showing " in result
+            assert "raise max_log_lines for more" in result
 
     def test_run_url_in_output(self) -> None:
         """Run URL is included in the output report."""
@@ -393,3 +442,7 @@ class TestBuildCiErrorDetails:
         assert result is not None
         # Should show some jobs and indicate truncation
         assert "job-0" in result
+        assert (
+            "## Other failed jobs (logs omitted — raise max_log_lines to include them)"
+            in result
+        )
