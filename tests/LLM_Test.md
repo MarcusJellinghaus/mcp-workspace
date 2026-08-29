@@ -136,11 +136,11 @@ These hit live APIs. Run only when needed.
 ### Test 3.1
 
 1. `github_issue_list(state="open", max_results=3)` — expect lines starting with `#` (e.g. `"#200 [open] ..."`)
-2. `github_search(query="bug", max_results=3)` — expect results plus auto-filter note `"(auto-added: is:issue is:pull-request)"`
+2. `github_search(query="bug", max_results=3)` — expect issue results only (`is:issue` is the default), no auto-filter note
 3. Pick an issue number from step 1.
 4. `github_issue_view(number=<from step 1>)` — expect formatted issue body
-5. Pick a closed PR number from step 2 (or skip if none).
-6. `github_pr_view(number=<from step 2>)` — expect formatted PR body
+5. `github_search(query="is:pr is:closed", max_results=3)` — expect `[PR]` lines only; pick a closed PR number (or skip if none)
+6. `github_pr_view(number=<from step 5>)` — expect formatted PR body
 
 ### Test 3.2
 

@@ -752,16 +752,39 @@ def github_search(
     order: Optional[str] = None,
     max_results: int = 30,
 ) -> str:
-    """Search GitHub issues and pull requests in this repository.
+    """Search this repository's GitHub issues; PRs need is:pull-request or is:pr.
 
-    Automatically scoped to current repository. Additional qualifiers
-    can be included inline in the query string (e.g., "fix login author:marcus").
+    Automatically scoped to current repository. GitHub rejects a query that
+    names no result type with HTTP 422, so "is:issue" is added when the query
+    names none itself - the default is therefore issues only. Exactly five
+    spellings suppress that default: "is:issue", "is:pr", "is:pull-request",
+    "type:issue" and "type:pr". Nothing else does - a pull request search
+    expressed through a PR-only qualifier such as "is:merged", "is:draft",
+    "base:", "head:", "review:" or "merged:" must carry an explicit
+    "is:pull-request" as well, or "is:issue" is added alongside it and no
+    result can match. A negated qualifier ("-is:issue", "-is:open") never
+    counts as naming a type or a state either, so it suppresses neither the
+    added "is:issue" nor the "state" argument and is contradicted by the token
+    this tool adds. "type:pull-request" is not GitHub syntax and is rejected
+    with an error rather than sent, so that literal string cannot be used as
+    free text either. Any other qualifier can be included inline (e.g.,
+    "fix login is:pull-request author:marcus").
 
     Args:
         query: Search query text
-        state: Filter by state - "open" or "closed"
-        labels: Filter by label names
-        assignee: Filter by assignee username
+        state: Filter by state - "open", "closed" or "all" (default: all
+            states), matched case-insensitively.
+            Ignored when the query already names a state inline
+            ("is:open"/"is:closed"/"state:open"/"state:closed"), which wins -
+            emitting both would ask GitHub for two states at once and match
+            nothing
+        labels: Filter by label names - multiple labels are ANDed (sent as
+            label:"a" label:"b"), so only items carrying every label match.
+            A label that is empty, whitespace-only, or contains a double quote
+            is rejected
+        assignee: Filter by assignee username - a value containing whitespace
+            is rejected, since it would split into a qualifier plus stray
+            free text
         sort: Sort by "comments", "created", or "updated"
         order: Sort order - "asc" or "desc"
         max_results: Maximum results to return (default: 30)
@@ -773,30 +796,79 @@ def github_search(
     from mcp_workspace.github_operations.formatters import format_search_results
     from mcp_workspace.github_operations.issues import IssueManager
 
+    # Case-insensitive, matching every inline qualifier check below
+    normalized_state = state.lower() if state else None
+    if normalized_state and normalized_state not in ("open", "closed", "all"):
+        return f"Error: Invalid state: {state}. Expected 'open', 'closed' or 'all'."
+    # Reject rather than forward: live probing shows GitHub matches nothing
+    # against "type:pull-request", so sending it on would return an empty
+    # result indistinguishable from a genuine one.
+    if re.search(r"(?:^|\s)type:pull-request(?![\w-])", query, re.IGNORECASE):
+        return (
+            "Error: Invalid qualifier 'type:pull-request': "
+            "use 'is:pull-request' or 'is:pr'"
+        )
+    # GitHub search has no documented escape inside a quoted qualifier, so a
+    # label carrying a double quote cannot be expressed - fail loudly instead
+    # of guessing at an escape and silently matching something else. An empty
+    # or whitespace-only label is unrepresentable for the same reason: it goes
+    # out as label:"" and matches nothing, which reads as a genuine result.
+    for label in labels or []:
+        if not label.strip():
+            return (
+                f"Error: Invalid label {label!r}: "
+                "a label cannot be empty or whitespace-only"
+            )
+        if '"' in label:
+            return (
+                f"Error: Invalid label {label!r}: "
+                "a label containing a double quote cannot be searched"
+            )
+    # Unquoted in the query, so whitespace would split into "assignee:john"
+    # plus a stray free-text term - a silently narrower search, not an error.
+    if assignee and any(char.isspace() for char in assignee):
+        return (
+            f"Error: Invalid assignee {assignee!r}: "
+            "a GitHub username cannot contain whitespace"
+        )
+
     try:
         manager = IssueManager(project_dir=_project_dir)
         repo = manager._get_repository()  # pylint: disable=protected-access
         if not repo:
             return "Error: Could not access repository"
-        has_qualifier = re.search(
-            r"(?:^|\s)is:(issue|pull-request)", query, re.IGNORECASE
+        parts = [f"repo:{repo.full_name}"]
+        # GitHub's /search/issues rejects a query that names no result type.
+        # "type:pull-request" is deliberately absent - it is rejected above.
+        if not re.search(
+            r"(?:^|\s)(?:is:(?:issue|pr|pull-request)|type:(?:issue|pr))(?![\w-])",
+            query,
+            re.IGNORECASE,
+        ):
+            parts.append("is:issue")
+        parts.append(query)
+        # An inline state qualifier wins: adding the parameter's on top would
+        # send "is:closed is:open", which GitHub matches nothing against.
+        # Both spellings are live-verified to filter by state - see
+        # test_github_search_live_state_spelling_honored - so trusting the
+        # "state:" form here cannot silently drop the caller's state filter.
+        inline_state = re.search(
+            r"(?:^|\s)(?:is|state):(?:open|closed)(?![\w-])", query, re.IGNORECASE
         )
-        if not has_qualifier:
-            query = query + " is:issue is:pull-request"
-        full_query = f"repo:{repo.full_name} {query}"
-        qualifiers: Dict[str, str] = {"query": full_query}
-        if state:
-            qualifiers["state"] = state
-        if labels:
-            qualifiers["labels"] = ",".join(labels)
+        if normalized_state in ("open", "closed") and not inline_state:
+            parts.append(f"is:{normalized_state}")
+        for label in labels or []:
+            # Always quoted - this repo's own labels contain colons
+            parts.append(f'label:"{label}"')
         if assignee:
-            qualifiers["assignee"] = assignee
+            parts.append(f"assignee:{assignee}")
+        kwargs: Dict[str, str] = {"query": " ".join(p for p in parts if p)}
         if sort:
-            qualifiers["sort"] = sort
+            kwargs["sort"] = sort
         if order:
-            qualifiers["order"] = order
+            kwargs["order"] = order
         # pylint: disable=protected-access
-        results = manager._github_client.search_issues(**qualifiers)
+        results = manager._github_client.search_issues(**kwargs)
         items = []
         # max(0, ...) because islice rejects a negative stop, where the old
         # enumerate guard simply collected nothing.
@@ -827,12 +899,9 @@ def github_search(
         #     use for it.
         # format_search_results owns both empty renders: it tells the two cases
         # apart from `capped` alone.
-        result = format_search_results(
+        return format_search_results(
             items, capped, results.totalCount if items else None
         )
-        if not has_qualifier:
-            result += "\n(auto-added: is:issue is:pull-request)"
-        return result
     except Exception as e:
         return f"Error: {e}"
 
