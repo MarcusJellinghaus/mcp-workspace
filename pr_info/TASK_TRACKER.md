@@ -21,6 +21,79 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Library prerequisites — `create_issue` assignees, honest `get_available_labels`
+
+Details: [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared: `Add create_issue assignees and stop get_available_labels swallowing errors`
+
+### Step 2: `IssueManager.edit_issue` + `_issue_to_data`
+
+Details: [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared: `Add IssueManager.edit_issue combined edit function`
+
+### Step 3: `github_issue_create` tool (+ `_check_labels`, `_resolve_assignees`)
+
+Details: [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy, vulture — fix all issues
+- [ ] Commit message prepared: `Add github_issue_create MCP tool`
+
+### Step 4: `github_issue_edit` tool
+
+Details: [step_4.md](./steps/step_4.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy, vulture — fix all issues
+- [ ] Commit message prepared: `Add github_issue_edit MCP tool`
+
+### Step 5: `github_issue_comment` tool
+
+Details: [step_5.md](./steps/step_5.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy, vulture — fix all issues
+- [ ] Commit message prepared: `Add github_issue_comment MCP tool`
+
+### Step 6: `github_label_list` tool
+
+Details: [step_6.md](./steps/step_6.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy, vulture — fix all issues
+- [ ] Commit message prepared: `Add github_label_list MCP tool`
+
+### Step 7: `github_pr_create` tool
+
+Details: [step_7.md](./steps/step_7.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy, vulture — fix all issues
+- [ ] Commit message prepared: `Add github_pr_create MCP tool`
+
+### Step 8: `perm_write` permission probe
+
+Details: [step_8.md](./steps/step_8.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared: `Add perm_write probe to verify_github`
+
+### Step 9: Documentation — `CLAUDE.md`, issue skills, `LLM_Test.md`
+
+Details: [step_9.md](./steps/step_9.md)
+
+- [ ] Implementation (documentation edits; no code, no new tests)
+- [ ] Quality checks: pytest — fix all issues
+- [ ] Commit message prepared: `Document GitHub write tools and switch issue skills to them`
 
 ## Pull Request
+
+- [ ] PR review — address review feedback
+- [ ] PR summary prepared (include the manual read-only-token result for the `perm_write` probe, per summary.md)
