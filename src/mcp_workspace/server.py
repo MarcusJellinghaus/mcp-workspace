@@ -1153,8 +1153,7 @@ def github_issue_edit(
         instead of "Updated issue". Or error message string.
     """
     # Lazy imports: keep PyGithub off the server startup import path
-    from github import GithubException
-
+    from mcp_workspace.github_operations import GithubException
     from mcp_workspace.github_operations.issues import IssueManager
     from mcp_workspace.github_operations.issues.types import create_empty_issue_data
 

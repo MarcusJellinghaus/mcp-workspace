@@ -6,8 +6,11 @@ pull requests, labels, and repository operations.
 
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 
+# GithubException is re-exported so callers outside this package can catch
+# PyGithub errors without importing PyGithub themselves (see .importlinter).
 from .base_manager import (
     BaseGitHubManager,
+    GithubException,
     IssueIdentityMismatchError,
     get_authenticated_username,
 )
@@ -25,6 +28,7 @@ __all__ = [
     "CheckResult",
     "CIResultsManager",
     "CIStatusData",
+    "GithubException",
     "IssueIdentityMismatchError",
     "LabelData",
     "LabelsManager",

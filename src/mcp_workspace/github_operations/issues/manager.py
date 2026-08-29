@@ -422,9 +422,8 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             state: New issue state — 'open' or 'closed' (optional)
             attempted_writes: Optional list this method appends to, one entry
                 per write call, recorded immediately before the call is issued.
-                There is no transaction, so a caller that sees a failure needs
-                this to tell "the opening fetch failed and nothing was written"
-                from "a write went out and may have landed".
+                Empty therefore means no write was ever issued — the failure
+                came before the first one, or the request had no write to make.
 
         Returns:
             IssueData with the refetched issue information, or empty IssueData
