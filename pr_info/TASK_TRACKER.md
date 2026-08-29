@@ -21,6 +21,47 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Drop the local/remote dedupe; score every ref in one loop
+
+Detail: [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: create `tests/git_operations/test_parent_branch_detection_git.py` with the two real-git tests, then delete `checked_branch_names` in `detect_parent_branch_via_merge_base` and merge the two scoring loops into one candidate list plus one scoring loop
+- [ ] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Return `None` when the current branch is the default branch
+
+Detail: [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: add `test_returns_none_on_the_default_branch`, then add the default-branch guard after `default_branch` is resolved and update the docstring `Returns:` block
+- [ ] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: Minimum distance per branch name, and `None` on an unresolved tie
+
+Detail: [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation: add the two tie tests, then replace `candidates_passing` with `best: dict[str, int]`, replace the sort-based winner selection with the three selection rules, and finalize the docstring `Returns:` block
+- [ ] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 4: Remove the `needs_rebase` self-comparison short-circuit
+
+Detail: [step_4.md](./steps/step_4.md)
+
+- [ ] Implementation: add the two `TestNeedsRebase` cases, then delete the `current_branch == target_branch` short-circuit in `needs_rebase` and move its up-to-date outcome into the `rev_parse` `GitCommandError` branch
+- [ ] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 5: Say `Pull origin/main` when the current branch is the default branch
+
+Detail: [step_5.md](./steps/step_5.md)
+
+- [ ] Implementation: add the recommendation test and the end-to-end `test_on_default_branch_recommends_pull`, then plumb `is_default_branch` through `report_data` and switch the wording in `_generate_recommendations`
+- [ ] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: verify all steps implemented, check for regressions and leftover defects
+- [ ] PR summary prepared
