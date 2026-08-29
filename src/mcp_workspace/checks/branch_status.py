@@ -23,6 +23,7 @@ from mcp_workspace.git_operations.base_branch import detect_base_branch
 from mcp_workspace.git_operations.branch_queries import (
     extract_issue_number_from_branch,
     get_current_branch_name,
+    get_default_branch_name,
 )
 from mcp_workspace.git_operations.workflows import needs_rebase
 from mcp_workspace.github_operations import IssueIdentityMismatchError
@@ -417,6 +418,7 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
     tasks_reason = report_data.get("tasks_reason", "")
     tasks_is_blocking = report_data.get("tasks_is_blocking", False)
     tasks_ok = not tasks_is_blocking
+    is_default_branch = report_data.get("is_default_branch", False)
     pr_mergeable = report_data.get("pr_mergeable")
     pr_blocks = report_data.get("pr_feedback_blocks_merge", False)
     ci_failing_job_names = report_data.get("ci_failing_job_names", [])
@@ -447,7 +449,9 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
         recommendations.append(f"Fix task tracker error: {tasks_reason}")
 
     if rebase_needed and tasks_ok and ci_status != CIStatus.FAILED:
-        recommendations.append("Rebase onto origin/main")
+        recommendations.append(
+            "Pull origin/main" if is_default_branch else "Rebase onto origin/main"
+        )
 
     if pr_blocks:
         recommendations.append("Address review comments")
@@ -581,6 +585,7 @@ def collect_branch_status(
             "pr_mergeable": pr_mergeable,
             "pr_mergeable_state": pr_mergeable_state,
             "pr_feedback_blocks_merge": pr_feedback_blocks_merge,
+            "is_default_branch": branch_name == get_default_branch_name(project_dir),
         }
         recommendations = _generate_recommendations(report_data)
 

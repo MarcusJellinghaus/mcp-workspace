@@ -136,9 +136,44 @@ Detail: [step_4.md](./steps/step_4.md)
 
 Detail: [step_5.md](./steps/step_5.md)
 
-- [ ] Implementation: add the recommendation test and the end-to-end `test_on_default_branch_recommends_pull`, then plumb `is_default_branch` through `report_data` and switch the wording in `_generate_recommendations`
-- [ ] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add the recommendation test and the end-to-end `test_on_default_branch_recommends_pull`, then plumb `is_default_branch` through `report_data` and switch the wording in `_generate_recommendations`
+- [x] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
+- [x] Commit message prepared (text drafted below; `pr_info/.commit_message.txt` is gitignored and rejected by the MCP workspace tools, so the file itself cannot be written)
+
+  ```
+  Say "Pull origin/main" on the default branch
+
+  The recommendation was hardcoded to "Rebase onto origin/main" for every
+  branch, so once step 4 let a stale local main report BEHIND, the report
+  told the user to rebase main onto itself (issue #265, fifth defect). On
+  the default branch the action is a fast-forward, not a rebase.
+
+  _generate_recommendations receives only CI / rebase / task / PR fields,
+  so it could not tell which branch it was describing. Plumb one boolean,
+  is_default_branch, through report_data rather than the whole branch
+  name: it is the only fact the wording depends on. Read it with
+  .get("is_default_branch", False) so existing dict-literal call sites in
+  the tests stay valid.
+
+  Compute it in collect_branch_status from get_default_branch_name (added
+  to the existing branch_queries import block, so no new module
+  dependency). The shortcut branch_name == base_branch would coincide on
+  main after step 2, but it would make the wording depend on the detection
+  result and misfire on a mis-set base_branch.
+
+  The literal origin/main is kept, matching the already-hardcoded
+  "Rebase onto origin/main" on the line being changed; interpolating the
+  real default branch name is listed in the issue as a separate,
+  out-of-scope defect. BranchStatusReport is unchanged — no new field and
+  no rendering change.
+
+  Add test_rebase_needed_on_default_branch_says_pull to
+  tests/checks/test_branch_status_recommendations.py, and the end-to-end
+  test_on_default_branch_recommends_pull to
+  TestCollectBranchStatusRegressions in tests/checks/test_branch_status.py,
+  which spies on _generate_recommendations with wraps= so the key is proven
+  to be plumbed through report_data rather than only hand-supplied.
+  ```
 
 ## Pull Request
 

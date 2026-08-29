@@ -84,6 +84,20 @@ class TestGenerateRecommendations:
         )
         assert "Rebase onto origin/main" in recs
 
+    def test_rebase_needed_on_default_branch_says_pull(self) -> None:
+        recs = _generate_recommendations(
+            {
+                "ci_status": CIStatus.PASSED,
+                "rebase_needed": True,
+                "tasks_status": TaskTrackerStatus.N_A,
+                "tasks_reason": "No tasks",
+                "tasks_is_blocking": False,
+                "is_default_branch": True,
+            }
+        )
+        assert "Pull origin/main" in recs
+        assert "Rebase onto origin/main" not in recs
+
     def test_rebase_needed_but_tasks_blocking(self) -> None:
         recs = _generate_recommendations(
             {
