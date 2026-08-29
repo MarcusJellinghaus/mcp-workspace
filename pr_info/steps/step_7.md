@@ -7,7 +7,8 @@
 > only. Follow TDD: write the tests first, watch them fail, then implement.
 > Use MCP tools for all file and check operations. One commit at the end.
 
-Independent of steps 3–6.
+Independent of steps 3–6 — its test module carries its own `setup_server`
+fixture, so it borrows nothing from the other write-tool steps.
 
 ---
 
@@ -89,8 +90,10 @@ either.
 
 ## Tests (TDD)
 
-New class in `tests/github_operations/test_github_write_tools_labels_pr.py`,
-patching
+New class in `tests/github_operations/test_github_write_tools_labels_pr.py`
+(create the file with its own autouse `setup_server` fixture if step 6 has not
+landed yet — fixtures are per-module, not in
+`tests/github_operations/conftest.py`), patching
 `mcp_workspace.github_operations.pr_manager.PullRequestManager` and the two
 `git_operations` branch helpers at their `mcp_workspace.git_operations` import
 site:

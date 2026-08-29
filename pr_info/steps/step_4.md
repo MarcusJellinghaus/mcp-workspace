@@ -184,8 +184,10 @@ reason is out of scope.
 ## Tests (TDD)
 
 New `tests/github_operations/test_github_write_tools_issue_edit.py`, same
-patching pattern as step 3 and reusing the autouse fixtures step 3 put in
-`tests/github_operations/conftest.py`:
+patching pattern as step 3 and carrying its own copy of step 3's two autouse
+fixtures (`setup_server` and the `server_module._login_cache` reset) — they are
+per-module, not in `tests/github_operations/conftest.py` (summary, "Test module
+layout"):
 
 1. Happy path — three lines; first is `Updated issue #42 — <url> (state: open)`;
    resulting labels and assignees rendered from the returned `IssueData`.

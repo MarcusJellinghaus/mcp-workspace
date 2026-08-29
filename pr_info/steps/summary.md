@@ -202,9 +202,16 @@ This also mirrors the existing read-tool split
 which is grouped by subject rather than one file per tool.
 
 Shared setup — the autouse `setup_server` fixture and the autouse
-`server_module._login_cache` reset — goes in the existing
-`tests/github_operations/conftest.py` (which already provides `project_dir`) so
-all three modules pick it up without duplication.
+`server_module._login_cache` reset — is defined **per write-tool module**, the
+way `test_github_read_tools_issues.py` already defines its own `setup_server`.
+It is deliberately **not** put in `tests/github_operations/conftest.py`: an
+autouse fixture there applies to every module in that package *and* the
+`issues/` subpackage — ~30 modules that neither touch `server.py` nor need
+`project_dir`, whose `shutil.copytree` of `testdata/` they would then pay per
+test. Repeating a five-line fixture in three modules is the cheaper trade, and
+it keeps each write-tool module runnable on its own. The `_login_cache` reset
+is only needed where `@me` is resolved, so `..._labels_pr.py` carries
+`setup_server` alone.
 
 ## Files modified
 
@@ -217,7 +224,6 @@ all three modules pick it up without duplication.
 | `src/mcp_workspace/server.py` | `_check_labels`, `_resolve_assignees`, five tools | 3–7 |
 | `vulture_whitelist.py` | one entry per tool | 3–7 |
 | `tests/github_operations/issues/test_manager.py` | `create_issue(assignees=…)`, `get_available_labels` failure contract | 1 |
-| `tests/github_operations/conftest.py` | autouse `setup_server` and `_login_cache` reset for the write-tool modules | 3 |
 | `tests/github_operations/issues/test_manager_integration.py` | `edit_issue` in the existing single-issue workflow | 2 |
 | `tests/github_operations/test_permission_probes.py` | `perm_write` coverage, fixture, "six" names | 8 |
 | `tests/github_operations/test_verification.py` | "six" names and docstrings | 8 |

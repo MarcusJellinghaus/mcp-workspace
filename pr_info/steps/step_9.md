@@ -43,12 +43,29 @@ Add five rows to the tool-mapping table, after `Search GitHub`:
 | Create GitHub PR | `mcp__mcp-workspace__github_pr_create` |
 | List GitHub labels | `mcp__mcp-workspace__github_label_list` |
 
-Remove from the Bash allowlist block:
+Replace the Bash allowlist line
 
 ```
 gh issue create / edit / comment (labels only via set-status)
+```
+
+with
+
+```
+gh issue comment (cross-repo only — otherwise use the MCP tool)
+```
+
+and remove
+
+```
 gh pr create
 ```
+
+The cross-repo carve-out mirrors the existing
+`gh issue view (cross-repo only)` line and matches this step's own
+`issue_approve` edit below, which keeps `gh issue comment` for the
+`--repo owner/repo` path: the MCP tools are repo-auto-detected and cannot reach
+another repository, so that one use has no MCP equivalent.
 
 **Keep** `gh issue view (cross-repo only)`, `gh run view`, the `git` commands,
 and `mcp-coder gh-tool set-status <label>` — none of those has an MCP
@@ -168,9 +185,11 @@ None.
 None. Verify by reading the rendered markdown:
 
 - the five rows are present in the tool table;
-- the two `gh` lines are gone from the allowlist;
-- `grep -r "gh issue create\|gh issue edit\|gh pr create" .claude/` returns
-  nothing outside the cross-repo exception in `issue_approve`;
+- `gh issue create`, `gh issue edit` and `gh pr create` are gone from the
+  allowlist, and `gh issue comment` now carries the cross-repo carve-out;
+- `grep -r "gh issue create\|gh issue edit\|gh issue comment\|gh pr create" .claude/`
+  returns nothing outside the cross-repo exceptions in `issue_approve` and the
+  matching `gh issue comment (cross-repo only)` allowlist line in `CLAUDE.md`;
 - `.scratch/issue_body_temp.md` is no longer referenced anywhere;
 - `git diff .claude/settings.local.json` is empty.
 

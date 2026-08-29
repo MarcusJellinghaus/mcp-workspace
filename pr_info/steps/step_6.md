@@ -7,9 +7,11 @@
 > fail, then implement. Use MCP tools for all file and check operations.
 > One commit at the end.
 
-Independent of steps 3, 4, 5 and 7; depends on step 1 for
-`get_available_labels`' new failure contract. This is the only read-only tool in
-the set — it is here because it is what replaces `gh label list`.
+Independent of steps 3, 4, 5 and 7 — its test module carries its own
+`setup_server` fixture, so it borrows nothing from the other write-tool steps.
+Depends on step 1 for `get_available_labels`' new failure contract. This is the
+only read-only tool in the set — it is here because it is what replaces
+`gh label list`.
 
 ---
 
@@ -71,8 +73,10 @@ Empty result — or an empty repo label set — renders `No labels found.`
 ## Tests (TDD)
 
 New class in `tests/github_operations/test_github_write_tools_labels_pr.py`
-(create the file if step 7 has not landed yet; the autouse fixtures come from
-`tests/github_operations/conftest.py`):
+(create the file if step 7 has not landed yet, giving it its own autouse
+`setup_server` fixture like step 3's module — fixtures are per-module, not in
+`tests/github_operations/conftest.py`. The `_login_cache` reset is not needed
+here: neither `github_label_list` nor `github_pr_create` resolves `@me`):
 
 1. No `search` — every label rendered, one line each, with name, `#color` and
    description.

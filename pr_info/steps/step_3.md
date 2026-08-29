@@ -19,9 +19,8 @@ Depends on step 1 (`create_issue` must accept `assignees`, and
   `_check_not_gitignored` (line ~60), and the tool placed after `github_search`
   (line ~838), keeping the `github_*` tools contiguous
 - `vulture_whitelist.py` — new "GitHub write tools" section
-- `tests/github_operations/test_github_write_tools_issues.py` — **new file**
-- `tests/github_operations/conftest.py` — the two autouse fixtures, shared with
-  the other write-tool test modules (see summary, "Test module layout")
+- `tests/github_operations/test_github_write_tools_issues.py` — **new file**,
+  carrying its own two autouse fixtures (see summary, "Test module layout")
 
 ## WHAT
 
@@ -136,10 +135,12 @@ New `tests/github_operations/test_github_write_tools_issues.py`. Mirror
 `set_project_dir(project_dir)`, and `@patch("mcp_workspace.github_operations.issues.IssueManager")`.
 Add an autouse fixture clearing `server_module._login_cache`.
 
-Put both autouse fixtures in `tests/github_operations/conftest.py` rather than
-this module — steps 4–7 need the same two, and the write-tool tests are split
-across three modules because one combined module would exceed the 750-line
-limit (summary, "Test module layout").
+Both fixtures live **in this module**, not in
+`tests/github_operations/conftest.py` — an autouse fixture there would apply to
+every module in that package and its `issues/` subpackage, none of which needs
+`set_project_dir` or the `testdata`-copying `project_dir` fixture. Steps 4, 6
+and 7 repeat the same five lines in their own modules, exactly as the read-tool
+modules already do (summary, "Test module layout").
 
 1. Happy path — first line is `Created issue #42 — <url>`; `create_issue`
    received `title`/`body`.
