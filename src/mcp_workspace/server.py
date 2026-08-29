@@ -173,7 +173,10 @@ def _edit_change_lines(
     # the refetch returns the canonical casing.
     assigned = {name.casefold() for name in issue["assignees"]}
     checks = (
-        ("title", title is not None, issue["title"] == title),
+        # Stripped because edit_issue strips the title before writing it, just
+        # as create_issue does; comparing against the raw request would report
+        # a title edit that landed as "Not applied".
+        ("title", title is not None, issue["title"] == (title or "").strip()),
         # Newline-normalized because GitHub may store CRLF as LF, which would
         # otherwise report a body edit that landed as "Not applied".
         (
@@ -1131,11 +1134,12 @@ def github_issue_edit(
 
     The edit is not a transaction: if a later part fails, the earlier part
     stays applied. The result then opens with a warning naming which requested
-    changes landed, followed by the resulting state.
+    changes landed, followed by the resulting state. A failure that happens
+    before any write instead opens with an error saying nothing was applied.
 
     Args:
         number: Issue number to edit (must be positive)
-        title: New issue title
+        title: New issue title; surrounding whitespace is stripped
         body: New issue description in Markdown
         add_labels: Label names to add — each must already exist in the repository
         remove_labels: Label names to remove; labels already absent are ignored
@@ -1215,8 +1219,17 @@ def github_issue_edit(
                     f"may or may not have been applied: {', '.join(attempted)}"
                 )
 
+        # Same signal as above: an empty write log means the failure hit
+        # edit_issue's opening fetch, so no write went out. Nothing was
+        # applied, which makes both "partially failed" and "Updated" untrue.
+        failed_before_write = bool(reason) and not attempted
         lines: List[str] = []
-        if reason:
+        if failed_before_write:
+            lines.append(
+                f"Error: edit of issue #{number} failed ({reason}) "
+                f"- no changes were made; current state below"
+            )
+        elif reason:
             lines.append(
                 f"Warning: edit partially failed ({reason}) — resulting state below"
             )
@@ -1225,8 +1238,9 @@ def github_issue_edit(
                     issue, title, body, state, add_labels, remove_labels, resolved
                 )
             )
+        state_verb = "Issue" if failed_before_write else "Updated issue"
         lines.append(
-            f"Updated issue #{issue['number']} — {issue['url']} "
+            f"{state_verb} #{issue['number']} — {issue['url']} "
             f"(state: {issue['state']})"
         )
         lines.append(f"Labels: {', '.join(issue['labels']) or '(none)'}")

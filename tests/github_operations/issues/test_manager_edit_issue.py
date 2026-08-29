@@ -56,6 +56,21 @@ class TestIssueManagerEditIssue:
         issue.add_to_assignees.assert_not_called()
         assert result["number"] == 1
 
+    def test_edit_issue_strips_the_title(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """Surrounding whitespace is stripped, as create_issue strips it.
+
+        Otherwise the same input stores a different title depending on whether
+        it was created or edited.
+        """
+        issue = _make_editable_issue()
+        mock_issue_manager._repository.get_issue.return_value = issue
+
+        mock_issue_manager.edit_issue(1, title="  New title  ")
+
+        issue.edit.assert_called_once_with(title="New title")
+
     def test_edit_issue_no_arguments_skips_edit(
         self, mock_issue_manager: IssueManager
     ) -> None:

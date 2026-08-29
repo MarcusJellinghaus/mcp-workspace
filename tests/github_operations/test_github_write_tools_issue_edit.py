@@ -192,7 +192,8 @@ def test_github_issue_edit_sentinel_channel_warns_and_reports(
     mock_manager_cls: MagicMock,
 ) -> None:
     """A swallowed API error still reports the resulting state behind a warning."""
-    mock_mgr = _make_manager(issue=create_empty_issue_data())
+    mock_mgr = _make_manager()
+    mock_mgr.edit_issue.side_effect = _recording_edit_issue(["scalars"])
     mock_mgr.get_issue.return_value = _make_issue(title="New title")
     mock_manager_cls.return_value = mock_mgr
 
@@ -212,8 +213,11 @@ def test_github_issue_edit_exception_channel_warns_and_reports(
 ) -> None:
     """A re-raised 403 mid-sequence is a partial write, never a bare error."""
     mock_mgr = _make_manager(available_labels=[_label("bug")])
-    mock_mgr.edit_issue.side_effect = GithubException(
-        403, {"message": "Resource not accessible by integration"}, None
+    mock_mgr.edit_issue.side_effect = _recording_edit_issue(
+        ["scalars", "add_labels"],
+        error=GithubException(
+            403, {"message": "Resource not accessible by integration"}, None
+        ),
     )
     # The title landed before the label add was rejected
     mock_mgr.get_issue.return_value = _make_issue(title="New title", labels=[])
@@ -238,8 +242,11 @@ def test_github_issue_edit_value_error_channel_warns_and_reports(
 ) -> None:
     """An IssueIdentityMismatchError from the closing refetch is a partial write."""
     mock_mgr = _make_manager()
-    mock_mgr.edit_issue.side_effect = IssueIdentityMismatchError(
-        "Issue #42 belongs to other/repo, not test/repo"
+    mock_mgr.edit_issue.side_effect = _recording_edit_issue(
+        ["scalars"],
+        error=IssueIdentityMismatchError(
+            "Issue #42 belongs to other/repo, not test/repo"
+        ),
     )
     mock_mgr.get_issue.return_value = _make_issue(title="New title")
     mock_manager_cls.return_value = mock_mgr
@@ -260,7 +267,8 @@ def test_github_issue_edit_reports_only_requested_arguments(
     mock_manager_cls: MagicMock,
 ) -> None:
     """Arguments the caller never passed appear in neither Applied nor Not applied."""
-    mock_mgr = _make_manager(issue=create_empty_issue_data())
+    mock_mgr = _make_manager()
+    mock_mgr.edit_issue.side_effect = _recording_edit_issue(["scalars"])
     mock_mgr.get_issue.return_value = _make_issue(title="New title")
     mock_manager_cls.return_value = mock_mgr
 
@@ -332,6 +340,53 @@ def test_github_issue_edit_body_differing_only_in_line_endings_is_applied(
 
     assert _line_starting(result, "Applied:") == "Applied: body"
     assert _line_starting(result, "Not applied:") == "Not applied: (none)"
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_edit_title_differing_only_in_whitespace_is_applied(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A title stored without its surrounding whitespace still counts as Applied.
+
+    edit_issue strips the title before writing it, exactly as create_issue
+    does, so a byte-for-byte comparison against the request would report a
+    title edit that landed as "Not applied".
+    """
+    mock_mgr = _make_manager()
+    mock_mgr.edit_issue.side_effect = _recording_edit_issue(["scalars"])
+    mock_mgr.get_issue.return_value = _make_issue(title="New title")
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, title="  New title  ")
+
+    assert _line_starting(result, "Applied:") == "Applied: title"
+    assert _line_starting(result, "Not applied:") == "Not applied: (none)"
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_edit_failure_before_any_write_does_not_claim_an_update(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """No write was logged, so the readable issue is current state, not an update.
+
+    The opening fetch failed, so nothing can have been applied: calling this a
+    partial failure or reporting the issue as "Updated" would both be false.
+    """
+    mock_mgr = _make_manager()
+    mock_mgr.edit_issue.side_effect = _recording_edit_issue([])
+    mock_mgr.get_issue.return_value = _make_issue(title="Old title", labels=["bug"])
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, title="New title")
+
+    assert result.startswith("Error: edit of issue #42 failed")
+    assert "no changes were made" in result
+    assert "Warning" not in result
+    assert "Updated issue" not in result
+    assert "Applied:" not in result
+    # The resulting state is still reported, just not as an update
+    assert "Issue #42 — https://github.com/test/repo/issues/42 (state: open)" in result
+    assert "Labels: bug" in result
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")

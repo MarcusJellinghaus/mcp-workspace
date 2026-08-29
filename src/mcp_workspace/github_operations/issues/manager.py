@@ -414,7 +414,7 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
 
         Args:
             issue_number: Issue number to edit
-            title: New issue title (optional)
+            title: New issue title, stripped of surrounding whitespace (optional)
             body: New issue description (optional)
             add_labels: Label names to add (optional)
             remove_labels: Label names to remove (optional)
@@ -467,9 +467,15 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
         # Scalars go out together in a single edit() call. Annotated as Any
         # because PyGithub types each edit() keyword separately, so mypy
         # cannot check a **kwargs unpacking against them.
+        # The title is stripped exactly as create_issue strips it, so the same
+        # input stores the same title whichever path wrote it.
         scalars: dict[str, Any] = {
             key: value
-            for key, value in (("title", title), ("body", body), ("state", state))
+            for key, value in (
+                ("title", title.strip() if title is not None else None),
+                ("body", body),
+                ("state", state),
+            )
             if value is not None
         }
         if scalars:
