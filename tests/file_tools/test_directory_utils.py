@@ -1,5 +1,6 @@
 """Tests for directory_utils functionality."""
 
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -151,11 +152,10 @@ def test_read_gitignore_rules_no_file() -> None:
         temp_path = Path(temp_dir) / ".gitignore"
 
         # Test with non-existent file
-        matcher, content = read_gitignore_rules(temp_path)
+        matcher = read_gitignore_rules(temp_path)
 
-        # Both should be None when file doesn't exist
+        # The matcher should be None when file doesn't exist
         assert matcher is None
-        assert content is None
 
 
 def test_read_gitignore_rules_with_file() -> None:
@@ -169,10 +169,7 @@ def test_read_gitignore_rules_with_file() -> None:
         temp_path.write_text(gitignore_content)
 
         # Test reading the rules
-        matcher, content = read_gitignore_rules(temp_path)
-
-        # Content should match what we wrote
-        assert content == gitignore_content
+        matcher = read_gitignore_rules(temp_path)
 
         # Matcher should be a callable function
         assert callable(matcher)
@@ -184,6 +181,23 @@ def test_read_gitignore_rules_with_file() -> None:
         # True means the file should be ignored
         assert matcher(ignored_file) is True
         assert matcher(not_ignored_file) is False
+
+
+def test_read_gitignore_rules_logs_nothing_above_debug(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The gitignore hot path emits no INFO+ records (issue #48)."""
+    module_logger = "mcp_workspace.file_tools.directory_utils"
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir) / ".gitignore"
+
+        with caplog.at_level(logging.INFO, logger=module_logger):
+            read_gitignore_rules(temp_path)  # absent-file path
+            temp_path.write_text("*.log\n")
+            read_gitignore_rules(temp_path)  # parsed-file path
+
+        assert [r for r in caplog.records if r.name == module_logger] == []
 
 
 def test_apply_gitignore_filter(project_dir: Path) -> None:
