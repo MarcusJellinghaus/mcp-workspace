@@ -33,9 +33,7 @@ from mcp_workspace.server_reference_tools import (
     get_reference_project_path,
 )
 from mcp_workspace.server_reference_tools import register as register_reference_tools
-from mcp_workspace.server_reference_tools import (
-    set_reference_projects,
-)
+from mcp_workspace.server_reference_tools import set_reference_projects
 
 # Initialize loggers
 logger = logging.getLogger(__name__)
