@@ -143,7 +143,14 @@ Details: [step_9.md](./steps/step_9.md)
 
 ## Pull Request
 
-- [ ] PR review — address review feedback
+- [x] PR review — address review feedback
+      Run 2 (`implementation_review_log_2.md`) ran four rounds on top of run 1's
+      three. All accepted findings are implemented and committed. The one
+      escalation, a `PyGithub Library Isolation` contract violation, was resolved
+      by re-exporting `GithubException` from `github_operations` (`2da2144`).
+      Still open, and **not** review feedback: the CI `isort` failure caused by a
+      local/CI version split (local 8.0.1, CI 9.0.1, `pyproject.toml` pins only
+      `isort>=5.13.2`), and the rebase onto `main`.
 - [ ] PR summary prepared (note that the `perm_write` probe was dropped, per Step 8)
 - [x] **Resolved (round 2): probe dropped, no longer blocking.** The read-only-token
       acceptance check could not be run here — it needs a second, deliberately
