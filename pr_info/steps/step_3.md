@@ -15,7 +15,8 @@ Depends on steps 1 and 2 being committed.
 No signature changes. The `candidates_passing: list[tuple[str, int]]` accumulator
 becomes `best: dict[str, int]` (branch name → smallest distance seen for that
 name), and the `candidates_passing.sort(key=...)` block becomes three explicit
-selection rules.
+selection rules. The docstring's `Returns:` block (rewritten in step 2) gains the
+third meaning of `None`.
 
 ## HOW
 
@@ -42,6 +43,10 @@ selection rules.
   deterministic.
 - Keep the empty-result path (`return None` when nothing passed the threshold) and
   its existing log message.
+- Extend the docstring so all three meanings of `None` are stated. The function
+  is re-exported from `git_operations/__init__.py`, and `detect_base_branch`
+  turns every one of them into the same default-branch fallback, so a caller
+  reading only the signature cannot tell them apart.
 
 ## ALGORITHM
 
@@ -101,6 +106,21 @@ Replace the whole `if candidates_passing: ... return winner[0]` block with:
                 minimum,
             )
             return winner
+```
+
+Final docstring `Returns:` block (replaces the two-meaning version from step 2):
+
+```python
+    Returns:
+        Branch name (unprefixed) if a single parent can be determined, None if:
+        - no candidate is within the distance threshold
+        - the current branch is the default branch (nothing to detect)
+        - two or more distinct non-default branches tie at the minimum distance
+          (ambiguous)
+
+        Callers such as detect_base_branch treat every None the same way and
+        fall back to the default branch.
+    """
 ```
 
 ## TESTS (write first)
@@ -165,6 +185,7 @@ Notes:
   unique minimum or the default branch among the winners — if one fails, the
   implementation has drifted from this plan).
 - `candidates_passing` and the `.sort(...)` call no longer appear in the file.
+- The docstring's `Returns:` block lists all three meanings of `None`.
 - pylint, mypy, pytest (fast subset **and** `markers=["git_integration"]`) all pass.
 - `./tools/format_all.sh` run, then exactly one commit.
 
@@ -184,8 +205,9 @@ Notes:
 > fails while `test_local_and_remote_ref_of_one_branch_are_not_a_tie` already
 > passes. Then in `detect_parent_branch_via_merge_base` replace the
 > `candidates_passing` list with a `best: dict[str, int]` accumulated as
-> minimum-per-branch-name, and replace the sort-based winner selection with the
-> three rules in the step file.
+> minimum-per-branch-name, replace the sort-based winner selection with the
+> three rules in the step file, and replace the docstring `Returns:` block with
+> the final three-meaning version.
 >
 > Do not modify the existing mock tests in `test_parent_branch_detection.py` — all
 > 13 must still pass. Do not touch `workflows.py` or `branch_status.py`.

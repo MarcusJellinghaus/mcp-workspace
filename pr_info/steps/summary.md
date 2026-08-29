@@ -120,6 +120,7 @@ No new folders or modules.
 |---|---|
 | `tests/git_operations/test_branches.py` | 4 (two cases added to `TestNeedsRebase`) |
 | `tests/checks/test_branch_status_recommendations.py` | 5 (one case added) |
+| `tests/checks/test_branch_status.py` | 5 (one end-to-end case added to `TestCollectBranchStatusRegressions`, proving `is_default_branch` is plumbed into `report_data`) |
 
 **Read but not modified:** `src/mcp_workspace/git_operations/base_branch.py` (its
 step 4 → step 5 fall-through is already correct), `src/mcp_workspace/server.py`

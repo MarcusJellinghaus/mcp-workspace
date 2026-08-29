@@ -8,6 +8,8 @@ observable in practice once step 4 lets a stale `main` report `BEHIND`.
 - **Modify:** `src/mcp_workspace/checks/branch_status.py`
   (functions `collect_branch_status` and `_generate_recommendations`)
 - **Modify:** `tests/checks/test_branch_status_recommendations.py`
+- **Modify:** `tests/checks/test_branch_status.py`
+  (class `TestCollectBranchStatusRegressions`)
 
 ## WHAT
 
@@ -126,11 +128,80 @@ Notes:
   new test is needed.
 - The new test fails before the change with `'Pull origin/main' not in recs`.
 
+The test above hand-supplies `is_default_branch`, so it cannot see whether
+`collect_branch_status` actually populates the key. Add one end-to-end case that
+does, to `class TestCollectBranchStatusRegressions` in
+`tests/checks/test_branch_status.py`, following the existing
+`test_full_collection` patch pattern in that file and adding
+`_generate_recommendations` to the existing import block at the top:
+
+```python
+    @patch("mcp_workspace.checks.branch_status._collect_pr_info")
+    @patch("mcp_workspace.checks.branch_status._collect_github_label")
+    @patch("mcp_workspace.checks.branch_status._collect_task_status")
+    @patch("mcp_workspace.checks.branch_status._collect_rebase_status")
+    @patch("mcp_workspace.checks.branch_status._collect_ci_status")
+    @patch("mcp_workspace.checks.branch_status.detect_base_branch")
+    @patch("mcp_workspace.checks.branch_status.PullRequestManager")
+    @patch("mcp_workspace.checks.branch_status.IssueManager")
+    @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
+    @patch("mcp_workspace.checks.branch_status.get_default_branch_name")
+    @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    def test_on_default_branch_recommends_pull(
+        self,
+        mock_branch: MagicMock,
+        mock_default: MagicMock,
+        mock_extract: MagicMock,
+        mock_issue_mgr_cls: MagicMock,
+        mock_pr_mgr_cls: MagicMock,
+        mock_detect: MagicMock,
+        mock_ci: MagicMock,
+        mock_rebase: MagicMock,
+        mock_tasks: MagicMock,
+        mock_label: MagicMock,
+        mock_pr_info: MagicMock,
+    ) -> None:
+        """On the default branch the report says pull, not rebase (issue #265)."""
+        mock_branch.return_value = "main"
+        mock_default.return_value = "main"
+        mock_extract.return_value = None
+        mock_issue_mgr_cls.return_value = MagicMock()
+        mock_pr_mgr_cls.return_value = MagicMock()
+        mock_detect.return_value = "main"
+        mock_ci.return_value = (CIStatus.PASSED, None, [])
+        mock_rebase.return_value = (True, "1 commit behind")
+        mock_tasks.return_value = (TaskTrackerStatus.N_A, "N/A", False)
+        mock_label.return_value = "unknown"
+        mock_pr_info.return_value = (None, None, False, None, None)
+
+        with patch(
+            "mcp_workspace.checks.branch_status._generate_recommendations",
+            wraps=_generate_recommendations,
+        ) as spy:
+            report = collect_branch_status(Path("/tmp"))
+
+        # The flag is plumbed through report_data, not just readable by the
+        # pure function when a test hands it in.
+        assert spy.call_args.args[0]["is_default_branch"] is True
+        assert "Pull origin/main" in report.recommendations
+        assert "Rebase onto origin/main" not in report.recommendations
+```
+
+- Before the change this fails on the `is_default_branch` assertion with
+  `KeyError`, because `collect_branch_status` does not put the key in
+  `report_data`.
+- `wraps=` keeps the real `_generate_recommendations` running, so the wording
+  assertions still exercise production code.
+- `_collect_pr_info` returns `pr_found=False`, so `_apply_pr_merge_override`
+  leaves `rebase_needed` at `True`.
+
 ## Definition of done
 
-- The new test passes; every existing test in
+- Both new tests pass; every existing test in
   `tests/checks/test_branch_status_recommendations.py` and
   `tests/checks/test_branch_status.py` passes unchanged.
+- `report_data` in `collect_branch_status` carries `is_default_branch`, proven by
+  `test_on_default_branch_recommends_pull` rather than by inspection.
 - pylint, mypy, pytest (fast subset) all pass; run the `git_integration` subset too
   since `collect_branch_status` now calls `get_default_branch_name`.
 - `./tools/format_all.sh` run, then exactly one commit.
@@ -147,8 +218,11 @@ Notes:
 >
 > Work test-first: add `test_rebase_needed_on_default_branch_says_pull` to
 > `class TestGenerateRecommendations` in
-> `tests/checks/test_branch_status_recommendations.py`, run the fast pytest subset
-> and confirm it fails. Then in `src/mcp_workspace/checks/branch_status.py`: import
+> `tests/checks/test_branch_status_recommendations.py` and
+> `test_on_default_branch_recommends_pull` to
+> `class TestCollectBranchStatusRegressions` in
+> `tests/checks/test_branch_status.py`, run the fast pytest subset
+> and confirm both fail. Then in `src/mcp_workspace/checks/branch_status.py`: import
 > `get_default_branch_name` from `git_operations.branch_queries`, add
 > `"is_default_branch": branch_name == get_default_branch_name(project_dir)` to the
 > `report_data` dict in `collect_branch_status`, and make
@@ -157,7 +231,8 @@ Notes:
 > `.get("is_default_branch", False)`).
 >
 > Do not add a field to `BranchStatusReport` and do not change the rendering
-> modules. Do not modify existing tests — they must all still pass.
+> modules. Do not modify existing test cases — they must all still pass; only
+> add the two new ones.
 >
 > Then run pylint, mypy, the fast pytest subset and the `git_integration` pytest
 > run. Fix anything that fails. Finally run `./tools/format_all.sh` and make one

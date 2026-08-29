@@ -17,7 +17,8 @@ Depends on step 1 being committed.
 
 No signature changes. A four-line guard added to
 `detect_parent_branch_via_merge_base`, placed immediately after `default_branch`
-is resolved and before any candidate is collected or scored.
+is resolved and before any candidate is collected or scored, plus the docstring
+update that goes with the widened `None` contract.
 
 ## HOW
 
@@ -34,6 +35,9 @@ is resolved and before any candidate is collected or scored.
   `detect_parent_branch_via_merge_base` is exported and can be called directly.
 - This is **not** made redundant by step 3's tie rule: with exactly one other
   branch in the repository there is no tie, and that branch would win.
+- Update the docstring: `None` no longer means only "nothing within threshold".
+  The function is re-exported from `git_operations/__init__.py`, so the contract
+  is public. Step 3 adds the third meaning to the same `Returns:` block.
 
 ## ALGORITHM
 
@@ -62,6 +66,16 @@ Insert directly below the existing `default_branch = get_default_branch_name(pro
                     current_branch,
                 )
                 return None
+```
+
+Replace the docstring's `Returns:` block:
+
+```python
+    Returns:
+        Branch name (unprefixed) if a parent is found within the threshold,
+        None if no candidate is within the threshold or the current branch is
+        the default branch (which has no parent to detect).
+    """
 ```
 
 ## TESTS (write first)
@@ -97,6 +111,7 @@ Notes:
 ## Definition of done
 
 - The new test passes; the two step-1 tests and all mock tests still pass.
+- The docstring's `Returns:` block names both meanings of `None`.
 - pylint, mypy, pytest (fast subset **and** `markers=["git_integration"]`) all pass.
 - `./tools/format_all.sh` run, then exactly one commit.
 
@@ -115,7 +130,8 @@ Notes:
 > `detect_base_branch` import), run it with `markers=["git_integration"]` and
 > confirm it fails. Then add the four-line default-branch guard to
 > `detect_parent_branch_via_merge_base` immediately after `default_branch` is
-> resolved, exactly as in the step file.
+> resolved, and replace its docstring `Returns:` block, both exactly as in the
+> step file.
 >
 > Do not change `base_branch.py` — its fall-through is already correct. Do not
 > touch the winner-selection code; step 3 handles that.
