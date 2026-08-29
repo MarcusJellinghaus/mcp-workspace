@@ -419,6 +419,7 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
     tasks_is_blocking = report_data.get("tasks_is_blocking", False)
     tasks_ok = not tasks_is_blocking
     is_default_branch = report_data.get("is_default_branch", False)
+    default_branch_name = report_data.get("default_branch_name") or "main"
     pr_mergeable = report_data.get("pr_mergeable")
     pr_blocks = report_data.get("pr_feedback_blocks_merge", False)
     ci_failing_job_names = report_data.get("ci_failing_job_names", [])
@@ -450,7 +451,9 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
 
     if rebase_needed and tasks_ok and ci_status != CIStatus.FAILED:
         recommendations.append(
-            "Pull origin/main" if is_default_branch else "Rebase onto origin/main"
+            f"Pull origin/{default_branch_name}"
+            if is_default_branch
+            else "Rebase onto origin/main"
         )
 
     if pr_blocks:
@@ -574,6 +577,7 @@ def collect_branch_status(
             pr_feedback_undeterminable = pr_found is None
 
         # 11. Generate recommendations
+        default_branch_name = get_default_branch_name(project_dir)
         report_data: Dict[str, Any] = {
             "ci_status": ci_status,
             "ci_details": ci_details,
@@ -585,7 +589,8 @@ def collect_branch_status(
             "pr_mergeable": pr_mergeable,
             "pr_mergeable_state": pr_mergeable_state,
             "pr_feedback_blocks_merge": pr_feedback_blocks_merge,
-            "is_default_branch": branch_name == get_default_branch_name(project_dir),
+            "is_default_branch": branch_name == default_branch_name,
+            "default_branch_name": default_branch_name,
         }
         recommendations = _generate_recommendations(report_data)
 

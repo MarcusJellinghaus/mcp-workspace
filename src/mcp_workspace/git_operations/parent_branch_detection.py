@@ -40,7 +40,9 @@ def detect_parent_branch_via_merge_base(
         - no candidate is within the distance threshold
         - the current branch is the default branch (nothing to detect)
         - two or more distinct non-default branches tie at the minimum distance
-          (ambiguous)
+          (ambiguous), unless no default branch can be resolved at all, in
+          which case the first tied name is returned rather than leaving the
+          caller with no fallback either
 
         Callers such as detect_base_branch treat every None the same way and
         fall back to the default branch.
@@ -78,11 +80,17 @@ def detect_parent_branch_via_merge_base(
             # Collect candidates. Local and remote refs of the same branch are
             # BOTH scored: they point at different commits when the local ref is
             # stale, and the stale one is not the answer (issue #265).
-            candidates: list[tuple[str, str, Commit]] = [
-                (head.name, head.name, head.commit)
-                for head in repo.heads
-                if head.name != current_branch
-            ]
+            candidates: list[tuple[str, str, Commit]] = []
+            for head in repo.heads:
+                if head.name == current_branch:
+                    continue
+                try:
+                    candidates.append((head.name, head.name, head.commit))
+                except (
+                    Exception
+                ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+                    # One unreadable ref must not cost us every other candidate.
+                    logger.debug("Error reading local branch '%s': %s", head.name, e)
             try:
                 if "origin" in [r.name for r in repo.remotes]:
                     for ref in repo.remotes.origin.refs:
@@ -134,9 +142,22 @@ def detect_parent_branch_via_merge_base(
             minimum = min(best.values())
             winners = sorted(name for name, dist in best.items() if dist == minimum)
 
-            if default_branch in winners:
+            if default_branch is not None and default_branch in winners:
                 winner = default_branch
             elif len(winners) == 1:
+                winner = winners[0]
+            elif default_branch is None:
+                # Returning None here would cascade: the caller's fallback is
+                # the default branch, which does not resolve either, so the
+                # base would end up "unknown". winners is sorted, so picking
+                # the first is at least deterministic.
+                logger.debug(
+                    "Ambiguous parent branch %s at distance %d and no default "
+                    "branch to fall back on - picking '%s'",
+                    winners,
+                    minimum,
+                    winners[0],
+                )
                 winner = winners[0]
             else:
                 logger.debug(

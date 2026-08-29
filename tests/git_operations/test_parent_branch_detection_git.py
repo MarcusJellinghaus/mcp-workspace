@@ -10,6 +10,7 @@ import pytest
 from git import Repo
 
 from mcp_workspace.git_operations.base_branch import detect_base_branch
+from mcp_workspace.git_operations.branch_queries import get_default_branch_name
 from mcp_workspace.git_operations.parent_branch_detection import (
     detect_parent_branch_via_merge_base,
 )
@@ -123,3 +124,32 @@ def test_local_and_remote_ref_of_one_branch_are_not_a_tie(
 
     # 'develop' is scored twice at distance 1; 'main' twice at distance 2.
     assert detect_parent_branch_via_merge_base(project_dir, "feature") == "develop"
+
+
+def test_tie_without_a_resolvable_default_branch_still_picks_a_candidate(
+    git_repo_with_remote: tuple[Repo, Path, Path],
+) -> None:
+    """A tie must not return None when there is no default branch to fall back on."""
+    repo, project_dir, _bare_remote = git_repo_with_remote
+
+    sha_a = str(repo.head.commit.hexsha)
+    # No local 'main'/'master' and no origin/HEAD, so the default branch is
+    # unresolvable and the caller's fallback would yield nothing.
+    repo.git.branch("-M", "trunk")
+    repo.git.push("-u", "origin", "trunk")
+    assert get_default_branch_name(project_dir) is None
+
+    repo.git.checkout("-b", "x", sha_a)
+    _commit(repo, project_dir, "x1.txt")
+    repo.git.checkout("-b", "y", sha_a)
+    _commit(repo, project_dir, "y1.txt")
+    repo.git.checkout("-b", "feature", sha_a)
+    _commit(repo, project_dir, "f1.txt")
+
+    # 'trunk', 'x' and 'y' all sit at distance 1; sorted order makes the pick
+    # deterministic rather than dependent on ref enumeration order.
+    assert detect_parent_branch_via_merge_base(project_dir, "feature") == "trunk"
+    # Without this, detection returns None and detect_base_branch returns None
+    # too, which surfaces as base_branch="unknown" and a bogus
+    # "origin/unknown not found" rebase error.
+    assert detect_base_branch(project_dir, current_branch="feature") == "trunk"
