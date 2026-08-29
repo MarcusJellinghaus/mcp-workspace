@@ -184,6 +184,11 @@ class TestFormatIssueList:
         result = format_issue_list([])
         assert result == "No issues found."
 
+    def test_format_issue_list_empty_names_repo(self) -> None:
+        """Empty result names the repository when it is known."""
+        result = format_issue_list([], repo_full_name="owner/repo")
+        assert result == "No issues found in owner/repo."
+
     def test_format_issue_list_max_results_cap(self) -> None:
         """Excess issues truncated with guidance."""
         issues = [_make_issue(number=i, title=f"Issue {i}") for i in range(5)]
