@@ -25,9 +25,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 Detail: [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: create `tests/git_operations/test_parent_branch_detection_git.py` with the two real-git tests, then delete `checked_branch_names` in `detect_parent_branch_via_merge_base` and merge the two scoring loops into one candidate list plus one scoring loop
-- [ ] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: create `tests/git_operations/test_parent_branch_detection_git.py` with the two real-git tests, then delete `checked_branch_names` in `detect_parent_branch_via_merge_base` and merge the two scoring loops into one candidate list plus one scoring loop
+- [x] Quality checks: pylint, pytest (fast subset + `markers=["git_integration"]`), mypy — fix all issues
+- [ ] Commit message prepared (text drafted; `pr_info/.commit_message.txt` is gitignored and not writable by the MCP workspace tools)
 
 ### Step 2: Return `None` when the current branch is the default branch
 

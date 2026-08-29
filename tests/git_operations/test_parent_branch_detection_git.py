@@ -1,0 +1,65 @@
+"""Real-git regression tests for parent branch detection (issue #265).
+
+Complements the mock-based tests in test_parent_branch_detection.py: the
+defects fixed in #265 are ref topology, which mocks cannot express.
+"""
+
+from pathlib import Path
+
+import pytest
+from git import Repo
+
+from mcp_workspace.git_operations.parent_branch_detection import (
+    detect_parent_branch_via_merge_base,
+)
+
+pytestmark = pytest.mark.git_integration
+
+
+def _commit(repo: Repo, project_dir: Path, filename: str) -> str:
+    """Create and commit a file; return the new commit sha."""
+    (project_dir / filename).write_text(filename)
+    repo.index.add([filename])
+    return str(repo.index.commit(f"Add {filename}").hexsha)
+
+
+def test_stale_local_main_does_not_shadow_origin_main(
+    git_repo_with_remote: tuple[Repo, Path, Path],
+) -> None:
+    """A stale local 'main' must not stop origin/main from being scored."""
+    repo, project_dir, _bare_remote = git_repo_with_remote
+
+    sha_a = str(repo.head.commit.hexsha)  # A: initial commit on main
+    _commit(repo, project_dir, "b.txt")  # B on main
+    repo.git.push("-u", "origin", "main")  # origin/main = B
+
+    repo.git.checkout("-b", "other")  # unrelated branch off B
+    _commit(repo, project_dir, "o1.txt")
+    repo.git.push("-u", "origin", "other")
+
+    repo.git.checkout("main")
+    repo.git.checkout("-b", "feature")  # feature off B
+    _commit(repo, project_dir, "f1.txt")
+    _commit(repo, project_dir, "f2.txt")
+
+    repo.git.branch("-D", "other")  # only origin/other remains
+    repo.git.branch("-f", "main", sha_a)  # local main falls behind by one
+
+    # Distances to feature HEAD: local main (A) = 3, origin/main (B) = 2,
+    # origin/other (B) = 2. The old dedupe never scored origin/main, so
+    # "other" won at 2. origin/main ties at 2 and wins on the default-branch
+    # tiebreak.
+    assert detect_parent_branch_via_merge_base(project_dir, "feature") == "main"
+
+
+def test_feature_branch_off_current_main_detects_main(
+    git_repo_with_remote: tuple[Repo, Path, Path],
+) -> None:
+    """Common case still works: local and remote main agree."""
+    repo, project_dir, _bare_remote = git_repo_with_remote
+
+    repo.git.push("-u", "origin", "main")
+    repo.git.checkout("-b", "feature")
+    _commit(repo, project_dir, "f1.txt")
+
+    assert detect_parent_branch_via_merge_base(project_dir, "feature") == "main"
