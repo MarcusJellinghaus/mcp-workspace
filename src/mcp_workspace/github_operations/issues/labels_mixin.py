@@ -48,7 +48,7 @@ class LabelsMixin:
             >>> labels = manager.get_available_labels()
             >>> for label in labels:
             ...     print(f"{label['name']}: {label['color']}")
-        """
+        """  # noqa: DOC502  # GithubException comes from _get_repository/get_labels
         # Get repository
         repo = self._get_repository()
         if repo is None:

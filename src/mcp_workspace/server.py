@@ -84,7 +84,7 @@ def _check_labels(manager: Any, add: List[str], remove: List[str]) -> Optional[s
         Exception: Whatever ``get_available_labels`` raises. Deliberately not
             caught: a failed lookup must be reported as itself by the calling
             tool, never rendered as "unknown label(s)".
-    """
+    """  # noqa: DOC502  # Exception propagates from get_available_labels
     offenders = [n for n in (*add, *remove) if n.startswith(_STATUS_LABEL_PREFIX)]
     if offenders:
         return (
