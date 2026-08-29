@@ -75,6 +75,11 @@ _.setup_and_cleanup
 _.setup_test_file
 _.setup_server
 
+# Module-level name pytest reads during collection to apply marks to every test
+# in the module - test modules use it to opt into the non-autouse setup_server
+# fixture. Never referenced by our own code.
+_.pytestmark
+
 # =============================================================================
 # Git Operations Public API
 # =============================================================================

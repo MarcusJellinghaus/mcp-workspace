@@ -9,9 +9,27 @@ from unittest.mock import Mock, patch
 import git
 import pytest
 
+from mcp_workspace import server
 from mcp_workspace.github_operations import CIResultsManager
 from mcp_workspace.github_operations._network import _reset_network_diagnostics_guard
 from mcp_workspace.github_operations.issues import CacheData, IssueData, IssueManager
+from mcp_workspace.server import set_project_dir
+
+
+@pytest.fixture
+def setup_server(project_dir: Path) -> Generator[None, None, None]:
+    """Point the server at the test project dir, restoring the previous value.
+
+    Not autouse: `project_dir` copies test data per test, so only the modules
+    that exercise server-level tools opt in via `pytest.mark.usefixtures`.
+    Restoring matters because the live search tests re-point the server at this
+    repository's own checkout, which must not leak to other modules sharing an
+    xdist worker.
+    """
+    previous = server._project_dir  # pylint: disable=protected-access
+    set_project_dir(project_dir)
+    yield
+    server._project_dir = previous  # pylint: disable=protected-access
 
 
 @pytest.fixture(autouse=True)

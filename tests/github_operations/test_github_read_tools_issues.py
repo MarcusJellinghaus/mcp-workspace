@@ -1,22 +1,15 @@
 """Tests for the GitHub issue read-only MCP tools in server.py."""
 
 from datetime import datetime
-from pathlib import Path
-from typing import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues.types import CommentData, IssueData
-from mcp_workspace.server import github_issue_list, github_issue_view, set_project_dir
+from mcp_workspace.server import github_issue_list, github_issue_view
 
-
-@pytest.fixture(autouse=True)
-def setup_server(project_dir: Path) -> Generator[None, None, None]:
-    """Setup the server with the project directory."""
-    set_project_dir(project_dir)
-    yield
+pytestmark = pytest.mark.usefixtures("setup_server")
 
 
 def _make_issue(
