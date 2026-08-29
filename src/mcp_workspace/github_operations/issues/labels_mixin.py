@@ -29,23 +29,30 @@ class LabelsMixin:
     """
 
     @log_function_call
-    @_handle_github_errors(default_return=[])
     def get_available_labels(self: "BaseGitHubManager") -> List[LabelData]:
         """Get all available labels in the repository.
 
+        Deliberately undecorated with ``_handle_github_errors``: callers
+        validate label names against this list, so an empty list must mean
+        "the repository has no labels" and nothing else. A swallowed API
+        failure returning ``[]`` would make every known label look unknown.
+
         Returns:
-            List of LabelData dictionaries with label information, or empty list on error
+            List of LabelData dictionaries with label information
+
+        Raises:
+            ValueError: If the repository cannot be accessed.
+            GithubException: If the GitHub API call fails.
 
         Example:
             >>> labels = manager.get_available_labels()
             >>> for label in labels:
             ...     print(f"{label['name']}: {label['color']}")
-        """
+        """  # noqa: DOC502  # GithubException comes from _get_repository/get_labels
         # Get repository
         repo = self._get_repository()
         if repo is None:
-            logger.error("Failed to get repository")
-            return []
+            raise ValueError("Could not access repository")
 
         # Get all labels from repository
         github_labels = repo.get_labels()

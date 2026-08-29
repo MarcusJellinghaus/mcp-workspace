@@ -24,6 +24,13 @@ from mcp_workspace.github_operations._network import maybe_log_network_diagnosti
 from mcp_workspace.utils.repo_identifier import RepoIdentifier, hostname_to_api_base_url
 from mcp_workspace.utils.token_fingerprint import format_token_fingerprint
 
+__all__ = [
+    "BaseGitHubManager",
+    "GithubException",
+    "IssueIdentityMismatchError",
+    "get_authenticated_username",
+]
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")

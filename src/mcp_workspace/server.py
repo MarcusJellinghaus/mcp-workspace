@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from itertools import islice
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from mcp.server.fastmcp import FastMCP
 from mcp_coder_utils.log_utils import log_function_call
@@ -33,9 +33,7 @@ from mcp_workspace.server_reference_tools import (
     get_reference_project_path,
 )
 from mcp_workspace.server_reference_tools import register as register_reference_tools
-from mcp_workspace.server_reference_tools import (
-    set_reference_projects,
-)
+from mcp_workspace.server_reference_tools import set_reference_projects
 
 # Initialize loggers
 logger = logging.getLogger(__name__)
@@ -55,6 +53,160 @@ _fail_on_reviews: bool = False
 
 # Per-file locks for concurrent edit safety
 _file_locks: dict[str, asyncio.Lock] = {}
+
+# Workflow status labels are owned by `mcp-coder gh-tool set-status`, not by these tools
+_STATUS_LABEL_PREFIX = "status-"
+
+# Authenticated login for "@me", resolved once per process. A dict rather than a
+# rebound global so pylint's global-statement never applies and tests reset it
+# with a single .clear().
+_login_cache: Dict[str, str] = {}
+
+
+def _check_labels(manager: Any, add: List[str], remove: List[str]) -> Optional[str]:
+    """Reject status-* labels on both sides, then unknown add-side names.
+
+    Both checks are case-insensitive, because GitHub label names are: adding
+    "Bug" attaches the existing "bug" rather than creating a second label, so an
+    exact-match comparison would reject a valid name and — worse on the remove
+    side, which has no known-label check — let "Status-04:..." past the guard.
+
+    ``manager`` is typed ``Any`` rather than ``IssueManager`` on purpose: a real
+    annotation would force a top-level ``github_operations`` import and pull
+    PyGithub onto the server startup path.
+
+    Args:
+        manager: An IssueManager instance used to read the repository labels.
+        add: Label names about to be added.
+        remove: Label names about to be removed.
+
+    Returns:
+        An error string, or None when the labels are acceptable.
+
+    Raises:
+        Exception: Whatever ``get_available_labels`` raises. Deliberately not
+            caught: a failed lookup must be reported as itself by the calling
+            tool, never rendered as "unknown label(s)".
+    """  # noqa: DOC502  # Exception propagates from get_available_labels
+    offenders = [
+        n for n in (*add, *remove) if n.casefold().startswith(_STATUS_LABEL_PREFIX)
+    ]
+    if offenders:
+        return (
+            "Error: these tools do not modify status-* labels "
+            f"({', '.join(offenders)}). Use: mcp-coder gh-tool set-status <label>"
+        )
+    if not add:
+        return None
+    # Not cached: the server can run for days, and a label created meanwhile
+    # must not be wrongly rejected.
+    known = {label["name"].casefold() for label in manager.get_available_labels()}
+    unknown = [n for n in add if n.casefold() not in known]
+    if unknown:
+        return f"Error: unknown label(s): {', '.join(unknown)}"
+    return None
+
+
+def _resolve_assignees(manager: Any, logins: List[str]) -> List[str]:
+    """Resolve '@me' to the authenticated login, cached per process.
+
+    Args:
+        manager: An IssueManager instance used to read the authenticated user.
+        logins: Requested assignee logins, possibly containing "@me".
+
+    Returns:
+        The logins with "@me" replaced by the authenticated username.
+    """
+    if "@me" in logins and "login" not in _login_cache:
+        # Not get_authenticated_username(): that re-reads the token via
+        # get_github_token() and would ignore a token passed to the manager.
+        # pylint: disable=protected-access
+        _login_cache["login"] = manager._github_client.get_user().login
+    return [_login_cache["login"] if name == "@me" else name for name in logins]
+
+
+def _normalize_newlines(text: Optional[str]) -> str:
+    r"""Return text with CRLF and CR line endings folded to LF.
+
+    Args:
+        text: Text to normalize, or None for an absent body.
+
+    Returns:
+        The text with "\r\n" and "\r" replaced by "\n"; "" when text is None.
+    """
+    return (text or "").replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _edit_change_lines(
+    issue: Any,
+    title: Optional[str],
+    body: Optional[str],
+    state: Optional[str],
+    add_labels: Optional[List[str]],
+    remove_labels: Optional[List[str]],
+    assignees: List[str],
+) -> List[str]:
+    """Describe which requested changes are visible in the refetched issue.
+
+    Only arguments the caller actually passed are reported: an argument left at
+    None or [] is not a change and appears in neither list.
+
+    Args:
+        issue: Refetched IssueData to compare the request against.
+        title: Requested title, or None when unchanged.
+        body: Requested body, or None when unchanged.
+        state: Requested state, or None when unchanged.
+        add_labels: Label names requested to be added, if any.
+        remove_labels: Label names requested to be removed, if any.
+        assignees: Resolved logins requested to be assigned, if any.
+
+    Returns:
+        The "Applied:" and "Not applied:" lines, using "(none)" when empty.
+    """
+    # Casefolded because GitHub matches label names case-insensitively and
+    # _check_labels accepts a differently-cased name: requesting "Bug" lands
+    # the repository's "bug", which is applied, not "Not applied".
+    labels = {name.casefold() for name in issue["labels"]}
+    # Casefolded for the same reason: GitHub logins are case-insensitive and
+    # the refetch returns the canonical casing.
+    assigned = {name.casefold() for name in issue["assignees"]}
+    checks = (
+        # Stripped because edit_issue strips the title before writing it, just
+        # as create_issue does; comparing against the raw request would report
+        # a title edit that landed as "Not applied".
+        ("title", title is not None, issue["title"] == (title or "").strip()),
+        # Newline-normalized because GitHub may store CRLF as LF, which would
+        # otherwise report a body edit that landed as "Not applied".
+        (
+            "body",
+            body is not None,
+            _normalize_newlines(issue["body"]) == _normalize_newlines(body),
+        ),
+        ("state", state is not None, issue["state"] == state),
+        (
+            "add_labels",
+            bool(add_labels),
+            all(n.casefold() in labels for n in add_labels or []),
+        ),
+        (
+            "remove_labels",
+            bool(remove_labels),
+            all(n.casefold() not in labels for n in remove_labels or []),
+        ),
+        (
+            "add_assignees",
+            bool(assignees),
+            all(a.casefold() in assigned for a in assignees),
+        ),
+    )
+    applied = [name for name, requested, landed in checks if requested and landed]
+    not_applied = [
+        name for name, requested, landed in checks if requested and not landed
+    ]
+    return [
+        f"Applied: {', '.join(applied) or '(none)'}",
+        f"Not applied: {', '.join(not_applied) or '(none)'}",
+    ]
 
 
 def _check_not_gitignored(file_path: str) -> None:
@@ -902,6 +1054,327 @@ def github_search(
         return format_search_results(
             items, capped, results.totalCount if items else None
         )
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+@log_function_call
+def github_issue_create(
+    title: str,
+    body: str = "",
+    labels: Optional[List[str]] = None,
+    assignees: Optional[List[str]] = None,
+) -> str:
+    """Create a real GitHub issue in this repository. This writes to GitHub.
+
+    Workflow status labels (status-*) are rejected — use
+    `mcp-coder gh-tool set-status <label>` for those. Other label names are
+    validated against the repository's labels before writing, so a typo cannot
+    silently create a new label.
+
+    Args:
+        title: Issue title (required, cannot be empty)
+        body: Issue description in Markdown (default: empty)
+        labels: Label names to apply — each must already exist in the repository
+        assignees: GitHub usernames to assign; "@me" means the authenticated user
+
+    Returns:
+        "Created issue #<number> — <url>" followed by the resulting labels and
+        assignees, or error message string.
+    """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.issues import IssueManager
+
+    try:
+        manager = IssueManager(project_dir=_project_dir)
+        label_error = _check_labels(manager, labels or [], [])
+        if label_error:
+            return label_error
+        resolved = _resolve_assignees(manager, assignees or [])
+        issue = manager.create_issue(
+            title=title,
+            body=body,
+            labels=labels,
+            assignees=resolved or None,
+        )
+        # Empty IssueData is the library's swallowed-failure sentinel
+        if not issue["number"]:
+            return "Error: issue creation failed - no issue was created"
+        # GitHub drops a non-assignable login or an unusable label silently, so
+        # the resulting lists are the only way a caller sees what did not take
+        return (
+            f"Created issue #{issue['number']} — {issue['url']}\n"
+            f"Labels: {', '.join(issue['labels']) or '(none)'}\n"
+            f"Assignees: {', '.join(issue['assignees']) or '(none)'}"
+        )
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+@log_function_call
+def github_issue_edit(
+    number: int,
+    title: Optional[str] = None,
+    body: Optional[str] = None,
+    add_labels: Optional[List[str]] = None,
+    remove_labels: Optional[List[str]] = None,
+    add_assignees: Optional[List[str]] = None,
+    state: Optional[str] = None,
+) -> str:
+    """Modify a real GitHub issue in this repository. This writes to GitHub.
+
+    Only the arguments you pass are changed. Label changes are additive and
+    subtractive, never a replacement of the whole set. Workflow status labels
+    (status-*) are rejected on the add and the remove side — use
+    `mcp-coder gh-tool set-status <label>` for those.
+
+    The edit is not a transaction: if a later part fails, the earlier part
+    stays applied. The result then opens with a warning naming which requested
+    changes landed, followed by the resulting state. A failure that happens
+    before any write instead opens with an error saying nothing was applied.
+
+    Args:
+        number: Issue number to edit (must be positive)
+        title: New issue title; surrounding whitespace is stripped
+        body: New issue description in Markdown
+        add_labels: Label names to add — each must already exist in the repository
+        remove_labels: Label names to remove; labels already absent are ignored
+        add_assignees: Usernames to assign; "@me" means the authenticated user
+        state: New issue state — only "open" or "closed" are accepted
+
+    Returns:
+        "Updated issue #<number> — <url> (state: <state>)" followed by the
+        resulting labels and assignees. When nothing was applied, the same
+        block opens with an error line and reads "Issue #<number> — ..."
+        instead of "Updated issue". Or error message string.
+    """
+    # Lazy imports: keep PyGithub off the server startup import path
+    from mcp_workspace.github_operations import GithubException
+    from mcp_workspace.github_operations.issues import IssueManager
+    from mcp_workspace.github_operations.issues.types import create_empty_issue_data
+
+    try:
+        # Pre-write validation. Nothing has been written yet, so a plain error
+        # is honest — and it keeps the inner except below meaning exactly one
+        # thing: the write sequence started and something after it failed.
+        if number <= 0:
+            return f"Error: invalid issue number: {number}"
+        if title is not None and not title.strip():
+            return "Error: Issue title cannot be empty"
+        if state not in (None, "open", "closed"):
+            return f"Error: state must be 'open' or 'closed', got: {state}"
+
+        manager = IssueManager(project_dir=_project_dir)
+        label_error = _check_labels(manager, add_labels or [], remove_labels or [])
+        if label_error:
+            return label_error
+        resolved = _resolve_assignees(manager, add_assignees or [])
+
+        reason = ""
+        # edit_issue appends one entry per write call it issues, before
+        # issuing it. Empty therefore means no write was ever issued — the
+        # failure came before the first one, or the request had no write to
+        # make. Either way nothing can have been written, which is the only
+        # case in which claiming "no changes were made" is honest.
+        attempted: List[str] = []
+        try:
+            issue = manager.edit_issue(
+                number,
+                title=title,
+                body=body,
+                add_labels=add_labels,
+                remove_labels=remove_labels,
+                add_assignees=resolved or None,
+                state=state,
+                attempted_writes=attempted,
+            )
+            # Empty IssueData is the library's swallowed-failure sentinel
+            if not issue["number"]:
+                reason = "swallowed API error"
+        except (GithubException, ValueError) as exc:
+            # _handle_github_errors re-raises 401/403 and every ValueError,
+            # including the identity check on edit_issue's own closing refetch.
+            # Both can happen after part of the write landed.
+            issue, reason = create_empty_issue_data(), str(exc)
+
+        if reason:
+            # The write sequence may have started and did not finish cleanly —
+            # read the issue back so the caller learns what actually landed.
+            reread_error = ""
+            try:
+                issue = manager.get_issue(number)
+            except Exception as exc:
+                issue, reread_error = create_empty_issue_data(), f": {exc}"
+            if not issue["number"]:
+                if not attempted:
+                    return (
+                        f"Error: issue #{number} not found or not accessible "
+                        f"({reason}){reread_error} - no changes were made"
+                    )
+                return (
+                    f"Error: edit of issue #{number} failed ({reason}) and the "
+                    f"issue could not be re-read{reread_error} - these changes "
+                    f"may or may not have been applied: {', '.join(attempted)}"
+                )
+
+        # Same signal as above: an empty write log means no write went out, so
+        # nothing was applied — which makes both "partially failed" and
+        # "Updated" untrue.
+        failed_before_write = bool(reason) and not attempted
+        lines: List[str] = []
+        if failed_before_write:
+            lines.append(
+                f"Error: edit of issue #{number} failed ({reason}) "
+                f"- no changes were made; current state below"
+            )
+        elif reason:
+            lines.append(
+                f"Warning: edit partially failed ({reason}) — resulting state below"
+            )
+            lines.extend(
+                _edit_change_lines(
+                    issue, title, body, state, add_labels, remove_labels, resolved
+                )
+            )
+        state_verb = "Issue" if failed_before_write else "Updated issue"
+        lines.append(
+            f"{state_verb} #{issue['number']} — {issue['url']} "
+            f"(state: {issue['state']})"
+        )
+        lines.append(f"Labels: {', '.join(issue['labels']) or '(none)'}")
+        lines.append(f"Assignees: {', '.join(issue['assignees']) or '(none)'}")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+@log_function_call
+def github_issue_comment(number: int, body: str) -> str:
+    """Post a real comment on a GitHub issue. This writes to GitHub.
+
+    The comment text is passed inline — no temporary file is needed, and
+    multi-line Markdown is sent through unchanged.
+
+    Args:
+        number: Issue number to comment on (must be positive)
+        body: Comment text in Markdown (required, cannot be empty)
+
+    Returns:
+        "Added comment to issue #<number> — <url>", or error message string.
+    """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.issues import IssueManager
+
+    try:
+        manager = IssueManager(project_dir=_project_dir)
+        comment = manager.add_comment(number, body)
+        # Empty CommentData carries id == 0, not number == 0 as issues do
+        if not comment["id"]:
+            return f"Error: failed to add comment to issue #{number}"
+        return f"Added comment to issue #{number} — {comment['url']}"
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+@log_function_call
+def github_label_list(search: Optional[str] = None) -> str:
+    """List the labels defined in the repository. This only reads from GitHub.
+
+    Args:
+        search: Optional filter — case-insensitive substring matched against
+            the label name or its description, as ``gh label list --search``
+            does. Omit it to list every label.
+
+    Returns:
+        One line per label, ``<name>  #<color>  <description>``, or
+        "No labels found." when nothing matches, or error message string.
+    """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.issues import IssueManager
+
+    try:
+        manager = IssueManager(project_dir=_project_dir)
+        # Raises rather than returning [] on API failure, so an empty list here
+        # means the repository really has no labels
+        labels = manager.get_available_labels()
+        if search:
+            query = search.lower()
+            labels = [
+                label
+                for label in labels
+                if query in label["name"].lower()
+                or query in label["description"].lower()
+            ]
+        if not labels:
+            return "No labels found."
+        return "\n".join(
+            f"{label['name']}  #{label['color']}  {label['description']}".rstrip()
+            for label in labels
+        )
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+@log_function_call
+def github_pr_create(
+    title: str,
+    body: str = "",
+    head: Optional[str] = None,
+    base: Optional[str] = None,
+) -> str:
+    """Open a real pull request on this repository. This writes to GitHub.
+
+    Args:
+        title: Pull request title (required, cannot be empty)
+        body: Pull request description in Markdown (default: empty)
+        head: Source branch (default: the currently checked-out branch)
+        base: Target branch (default: the repository's default branch)
+
+    Returns:
+        "Created PR #<number> — <url>", or error message string.
+    """
+    # Lazy imports: keep PyGithub/GitPython off the server startup import path
+    from mcp_workspace.git_operations import (
+        get_current_branch_name,
+        get_default_branch_name,
+    )
+    from mcp_workspace.github_operations.pr_manager import PullRequestManager
+
+    try:
+        if not title.strip():
+            return "Error: PR title cannot be empty"
+        # Raises ValueError when _project_dir is unset, caught below
+        manager = PullRequestManager(project_dir=_project_dir)
+        # The constructor rejects a missing project_dir, so it is a Path by now
+        project_dir = cast(Path, _project_dir)
+        head = head or get_current_branch_name(project_dir)
+        base = base or get_default_branch_name(project_dir)
+        if not head:
+            return "Error: could not determine the current branch for head"
+        if not base:
+            return "Error: could not determine the repository default branch for base"
+        if head == base:
+            return f"Error: head and base are the same branch ({head})"
+        for name in (head, base):
+            # Reuse the library's branch rules rather than restating them
+            # pylint: disable-next=protected-access
+            if not manager._validate_branch_name(name):
+                return f"Error: invalid branch name: {name}"
+        pr = manager.create_pull_request(
+            title=title,
+            head_branch=head,
+            base_branch=base,
+            body=body,
+        )
+        # create_pull_request's swallowed-failure sentinel is {}, not number == 0
+        if not pr.get("number"):
+            return "Error: PR creation failed - no pull request was created"
+        return f"Created PR #{pr['number']} — {pr['url']}"
     except Exception as e:
         return f"Error: {e}"
 

@@ -4,6 +4,14 @@ Probes six fine-grained PAT permissions (Contents, Administration, Pull
 requests, Issues, Actions, Commit statuses) by issuing a single read against
 each permission's representative endpoint. Failures are classified into
 hint strings naming the permission, HTTP status, and probed URL.
+
+There is deliberately no write probe. A ``perm_write`` row derived from
+``repo.permissions.push`` was considered and dropped: it is unverified whether
+``push`` reflects the *token's* grant or the *user's* underlying repo access,
+so a read-only token on a repo you own could report ``push: true`` — a false
+green that is worse than no row at all. Issue #232 makes shipping it
+conditional on a one-off check with a deliberately read-only token; until that
+check is run and recorded, the probe stays out.
 """
 
 from typing import Callable

@@ -195,6 +195,29 @@ class TestIssueManagerIntegration:
             issue_manager.add_labels(issue_number, "test")
             print("✓ Re-added 'test' label for cleanup identification")
 
+            # Combined edit: title + label add + label remove + assignee
+            print("\n2.7: Combined edit (edit_issue)...")
+            edited_title = f"{issue_title} - edited"
+            assignee = created_issue["user"]
+            combined = issue_manager.edit_issue(
+                issue_number,
+                title=edited_title,
+                add_labels=["enhancement"],
+                remove_labels=["test", "nonexistent-xyz-123"],
+                add_assignees=[assignee] if assignee else None,
+            )
+            assert combined["number"] == issue_number
+            assert combined["title"] == edited_title
+            assert "enhancement" in combined["labels"]
+            assert "test" not in combined["labels"]
+            if assignee:
+                assert assignee in combined["assignees"]
+            print(f"✓ Combined edit applied: {combined['labels']}")
+
+            # Restore the cleanup-identification label
+            issue_manager.set_labels(issue_number, "test")
+            print("✓ Restored 'test' label after combined edit")
+
             # ============================================================
             # SECTION 3: Comment Operations
             # ============================================================

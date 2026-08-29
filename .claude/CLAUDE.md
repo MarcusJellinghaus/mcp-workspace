@@ -52,6 +52,11 @@ If you can't name the gap, use the MCP tool. Exempt: the approved git/gh command
 | View GitHub issue | `mcp__mcp-workspace__github_issue_view` |
 | View GitHub PR | `mcp__mcp-workspace__github_pr_view` |
 | Search GitHub | `mcp__mcp-workspace__github_search` |
+| Create GitHub issue | `mcp__mcp-workspace__github_issue_create` |
+| Edit GitHub issue | `mcp__mcp-workspace__github_issue_edit` |
+| Comment on GitHub issue | `mcp__mcp-workspace__github_issue_comment` |
+| Create GitHub PR | `mcp__mcp-workspace__github_pr_create` |
+| List GitHub labels | `mcp__mcp-workspace__github_label_list` |
 
 Sibling repos are readable in full via the reference tools and `git` with `reference_name` (`get_reference_projects` lists them). Check there before asking about another repo.
 
@@ -94,9 +99,8 @@ Never use `python -c` via Bash. If you reason instead of running, label the conc
 
 ```
 git commit / add / rebase / push / checkout -b / branch
-gh issue create / edit / comment (labels only via set-status)
+gh issue comment (cross-repo only — otherwise use the MCP tool)
 gh issue view (cross-repo only — otherwise use the MCP tool)
-gh pr create
 gh run view
 mcp-coder gh-tool set-status <label>
 ```
