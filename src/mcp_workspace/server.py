@@ -153,16 +153,23 @@ def _edit_change_lines(
     Returns:
         The "Applied:" and "Not applied:" lines, using "(none)" when empty.
     """
-    labels = issue["labels"]
+    # Casefolded because GitHub matches label names case-insensitively and
+    # _check_labels accepts a differently-cased name: requesting "Bug" lands
+    # the repository's "bug", which is applied, not "Not applied".
+    labels = {name.casefold() for name in issue["labels"]}
     checks = (
         ("title", title is not None, issue["title"] == title),
         ("body", body is not None, issue["body"] == body),
         ("state", state is not None, issue["state"] == state),
-        ("add_labels", bool(add_labels), all(n in labels for n in add_labels or [])),
+        (
+            "add_labels",
+            bool(add_labels),
+            all(n.casefold() in labels for n in add_labels or []),
+        ),
         (
             "remove_labels",
             bool(remove_labels),
-            all(n not in labels for n in remove_labels or []),
+            all(n.casefold() not in labels for n in remove_labels or []),
         ),
         (
             "add_assignees",
@@ -1139,7 +1146,11 @@ def github_issue_edit(
         resolved = _resolve_assignees(manager, add_assignees or [])
 
         reason = ""
-        raised = False
+        # edit_issue appends one entry per write call it issues, before
+        # issuing it. Empty means the failure happened on its opening fetch,
+        # so nothing can have been written — the only case in which claiming
+        # "no changes were made" is honest.
+        attempted: List[str] = []
         try:
             issue = manager.edit_issue(
                 number,
@@ -1149,6 +1160,7 @@ def github_issue_edit(
                 remove_labels=remove_labels,
                 add_assignees=resolved or None,
                 state=state,
+                attempted_writes=attempted,
             )
             # Empty IssueData is the library's swallowed-failure sentinel
             if not issue["number"]:
@@ -1157,30 +1169,26 @@ def github_issue_edit(
             # _handle_github_errors re-raises 401/403 and every ValueError,
             # including the identity check on edit_issue's own closing refetch.
             # Both can happen after part of the write landed.
-            issue, reason, raised = create_empty_issue_data(), str(exc), True
+            issue, reason = create_empty_issue_data(), str(exc)
 
         if reason:
             # The write sequence may have started and did not finish cleanly —
             # read the issue back so the caller learns what actually landed.
+            reread_error = ""
             try:
                 issue = manager.get_issue(number)
             except Exception as exc:
-                return (
-                    f"Error: edit of issue #{number} failed ({reason}) and the "
-                    f"issue could not be re-read: {exc}"
-                )
-            if not issue["number"] and not raised:
-                # Nothing was raised and the issue cannot be read at all, so the
-                # swallowed error was edit_issue's own opening fetch: no write
-                # was ever attempted.
-                return (
-                    f"Error: issue #{number} not found or not accessible - "
-                    "no changes were made"
-                )
+                issue, reread_error = create_empty_issue_data(), f": {exc}"
             if not issue["number"]:
+                if not attempted:
+                    return (
+                        f"Error: issue #{number} not found or not accessible "
+                        f"({reason}){reread_error} - no changes were made"
+                    )
                 return (
                     f"Error: edit of issue #{number} failed ({reason}) and the "
-                    "issue could not be re-read"
+                    f"issue could not be re-read{reread_error} - these changes "
+                    f"may or may not have been applied: {', '.join(attempted)}"
                 )
 
         lines: List[str] = []

@@ -107,7 +107,7 @@ Details: [step_7.md](./steps/step_7.md)
       (`.gitignore:48`) and the workspace MCP server refuses gitignored paths
       for `save_file`.
 
-### Step 8: `perm_write` permission probe
+### Step 8: `perm_write` permission probe — REVERTED, not shipped
 
 Details: [step_8.md](./steps/step_8.md)
 
@@ -118,6 +118,16 @@ Details: [step_8.md](./steps/step_8.md)
       to step-7 convention: `pr_info/.commit_message.txt` is gitignored
       (`.gitignore:48`) and the workspace MCP server refuses gitignored paths
       for `save_file`.
+- [x] **Reverted during review (round 2).** Issue #232 makes shipping the probe
+      conditional on a one-off check with a deliberately read-only token: if
+      `repo.permissions.push` reflects the *user's* repo access rather than the
+      *token's* grant, `perm_write: OK` is a false green and the issue says to
+      drop the probe rather than ship it misleading. That check needs a second,
+      deliberately read-only GitHub token which is not available here, and the
+      answer is a property of GitHub's API that cannot be inferred from the
+      code — so the conditional resolves to "do not ship". `_probe_write`, the
+      `perm_write` key and their tests are removed; `_PROBE_KEYS` is back to the
+      six read probes. Re-open a follow-up issue if the token check is ever run.
 
 ### Step 9: Documentation — `CLAUDE.md`, issue skills, `LLM_Test.md`
 
@@ -134,13 +144,12 @@ Details: [step_9.md](./steps/step_9.md)
 ## Pull Request
 
 - [ ] PR review — address review feedback
-- [ ] PR summary prepared (include the manual read-only-token result for the `perm_write` probe, per summary.md)
-- [ ] **BLOCKING, still open:** run `_probe_write` once against a deliberately
-      read-only token (`BaseGitHubManager(github_token=…)` accepts one
-      explicitly) and record the observed `repo.permissions.push` value in the
-      PR description. If it reports `push: true` for a token with no write
-      grant, that is a false green — drop the `perm_write` probe rather than
-      ship it, per the acceptance criterion in issue #232 and summary.md.
-      Not doable from the review environment: it needs a second, deliberately
-      read-only GitHub token that is not available here, and the result cannot
-      be inferred from the code — it is a property of GitHub's API.
+- [ ] PR summary prepared (note that the `perm_write` probe was dropped, per Step 8)
+- [x] **Resolved (round 2): probe dropped, no longer blocking.** The read-only-token
+      acceptance check could not be run here — it needs a second, deliberately
+      read-only GitHub token that is not available in this environment, and the
+      result is a property of GitHub's API that cannot be inferred from the
+      code. Issue #232's stated fallback ("If it reports a false green, drop the
+      probe rather than ship it misleading") therefore applies: `_probe_write`
+      and the `perm_write` key are removed. Nothing about write permissions is
+      claimed, so there is no false green left to validate.

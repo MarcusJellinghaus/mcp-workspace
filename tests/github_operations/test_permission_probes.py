@@ -10,7 +10,6 @@ from mcp_workspace.github_operations._permission_probes import (
     _classify_permission_response,
     _probe_administration,
     _probe_statuses,
-    _probe_write,
     _run_probe,
     run_permission_probes,
 )
@@ -166,8 +165,6 @@ def mock_repo_full() -> Mock:
     commit = Mock()
     commit.get_combined_status.return_value = Mock()
     repo.get_commit.return_value = commit
-
-    repo.permissions.push = True
     return repo
 
 
@@ -410,70 +407,6 @@ class TestAdministrationTwoCallAttribution:
 
 
 # ===================================================================
-# 5c. perm_write probe (repo.permissions.push)
-# ===================================================================
-
-
-def _make_repo_with_push(push: object) -> Mock:
-    """Build a mock Repository whose permissions.push is the given value."""
-    repo = Mock()
-    repo.permissions.push = push
-    return repo
-
-
-class TestWriteProbe:
-    """_probe_write reports push access from repo.permissions.push."""
-
-    def test_push_true_is_ok(self) -> None:
-        result = _probe_write(_make_repo_with_push(True))
-        assert result["ok"] is True
-        assert result["value"] == "OK"
-        assert result["severity"] == "warning"
-        assert "error" not in result
-
-    def test_push_false_reports_no_push_access(self) -> None:
-        result = _probe_write(_make_repo_with_push(False))
-        assert result["ok"] is False
-        assert result["value"] == "no push access"
-        assert result["severity"] == "warning"
-        assert "push" in result["error"]
-
-    def test_push_none_is_not_checked(self) -> None:
-        result = _probe_write(_make_repo_with_push(None))
-        assert result["ok"] is False
-        assert result["value"] == "not checked"
-        assert result["severity"] == "warning"
-        assert result["error"] == "repository permissions not reported"
-
-    def test_truthy_non_bool_is_not_checked(self) -> None:
-        """A truthy Mock must not be mistaken for push access."""
-        result = _probe_write(_make_repo_with_push(Mock()))
-        assert result["ok"] is False
-        assert result["value"] == "not checked"
-        assert result["severity"] == "warning"
-
-    def test_permissions_lookup_raises_is_not_checked(self) -> None:
-        repo = Mock()
-        type(repo).permissions = PropertyMock(
-            side_effect=GithubException(status=403, data={}, headers={})
-        )
-        result = _probe_write(repo)
-        assert result["ok"] is False
-        assert result["value"] == "not checked"
-        assert result["severity"] == "warning"
-        assert "could not read repository permissions" in result["error"]
-        assert "403" in result["error"]
-
-    def test_included_in_run_permission_probes(self, mock_repo_full: Mock) -> None:
-        manager = _make_manager()
-        results = run_permission_probes(manager, mock_repo_full)
-        check = results["perm_write"]
-        assert check["ok"] is True
-        assert check["value"] == "OK"
-        assert check["severity"] == "warning"
-
-
-# ===================================================================
 # 6. Network error path
 # ===================================================================
 
@@ -497,14 +430,14 @@ class TestNetworkError:
 
 
 # ===================================================================
-# 7. Skip-when-unreachable: placeholder rows, NO manager dereference
+# 7. Skip-when-unreachable: 6 placeholder rows, NO manager dereference
 # ===================================================================
 
 
 class TestSkipWhenUnreachable:
-    """When repo is None, returns placeholders without touching manager."""
+    """When repo is None, returns 6 placeholders without touching manager."""
 
-    def test_placeholder_rows_for_all_keys(self) -> None:
+    def test_six_placeholder_rows(self) -> None:
         manager = MagicMock()
         results = run_permission_probes(manager, None)
         assert set(results.keys()) == set(_PROBE_KEYS)

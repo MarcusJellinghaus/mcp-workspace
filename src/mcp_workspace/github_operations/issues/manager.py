@@ -403,6 +403,7 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
         remove_labels: Optional[List[str]] = None,
         add_assignees: Optional[List[str]] = None,
         state: Optional[str] = None,
+        attempted_writes: Optional[List[str]] = None,
     ) -> IssueData:
         """Apply several edits to an issue in one combined operation.
 
@@ -419,6 +420,11 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             remove_labels: Label names to remove (optional)
             add_assignees: GitHub usernames to assign (optional)
             state: New issue state — 'open' or 'closed' (optional)
+            attempted_writes: Optional list this method appends to, one entry
+                per write call, recorded immediately before the call is issued.
+                There is no transaction, so a caller that sees a failure needs
+                this to tell "the opening fetch failed and nothing was written"
+                from "a write went out and may have landed".
 
         Returns:
             IssueData with the refetched issue information, or empty IssueData
@@ -447,9 +453,16 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             logger.error("Failed to get repository")
             return create_empty_issue_data()
 
-        # Fetch once — the response already carries the current labels
+        # Every write from here on is recorded before it is issued
+        writes = attempted_writes if attempted_writes is not None else []
+
+        # Fetch once — the response already carries the current labels. Keyed
+        # by casefolded name because GitHub matches label names
+        # case-insensitively: removing "Bug" must detach the repo's "bug".
         github_issue = self._get_issue_checked(repo, issue_number)
-        current_labels = {label.name for label in github_issue.labels}
+        current_labels = {
+            label.name.casefold(): label.name for label in github_issue.labels
+        }
 
         # Scalars go out together in a single edit() call. Annotated as Any
         # because PyGithub types each edit() keyword separately, so mypy
@@ -460,19 +473,28 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             if value is not None
         }
         if scalars:
+            writes.append("scalars")
             github_issue.edit(**scalars)
 
         if add_labels:
+            writes.append("add_labels")
             github_issue.add_to_labels(*add_labels)
 
         # remove_from_labels takes a single label, unlike the add_* varargs
         # calls. Removing an absent label 404s, and the swallowed 404 would
         # report the whole edit as failed after the scalars already landed.
-        for label_name in remove_labels or []:
-            if label_name in current_labels:
+        removable = [
+            current_labels[name.casefold()]
+            for name in remove_labels or []
+            if name.casefold() in current_labels
+        ]
+        if removable:
+            writes.append("remove_labels")
+            for label_name in removable:
                 github_issue.remove_from_labels(label_name)
 
         if add_assignees:
+            writes.append("add_assignees")
             github_issue.add_to_assignees(*add_assignees)
 
         # Refetch so the returned labels/assignees are the resulting sets

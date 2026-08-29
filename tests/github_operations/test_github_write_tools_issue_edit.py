@@ -7,7 +7,7 @@ that partially landed.
 """
 
 from pathlib import Path
-from typing import Generator
+from typing import Any, Callable, Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -77,6 +77,38 @@ def _make_manager(
     mock_mgr.get_available_labels.return_value = available_labels or []
     mock_mgr._github_client.get_user.return_value.login = login
     return mock_mgr
+
+
+def _recording_edit_issue(
+    writes: list[str],
+    result: IssueData | None = None,
+    error: Exception | None = None,
+) -> Callable[..., IssueData]:
+    """Build an ``edit_issue`` side effect that logs writes like the real one.
+
+    The real ``edit_issue`` appends to ``attempted_writes`` before issuing each
+    write call, so a mock standing in for a mid-sequence failure must do the
+    same — that log is how the tool tells a failed opening fetch from a write
+    that may already have landed.
+
+    Args:
+        writes: Entries the stand-in records before failing or returning.
+        result: IssueData to return; defaults to the empty sentinel.
+        error: Exception to raise instead of returning, if any.
+
+    Returns:
+        A callable suitable for ``mock_mgr.edit_issue.side_effect``.
+    """
+
+    def _side_effect(_number: int, **kwargs: Any) -> IssueData:
+        attempted = kwargs.get("attempted_writes")
+        if attempted is not None:
+            attempted.extend(writes)
+        if error is not None:
+            raise error
+        return result if result is not None else create_empty_issue_data()
+
+    return _side_effect
 
 
 def _line_starting(result: str, prefix: str) -> str:
@@ -243,25 +275,71 @@ def test_github_issue_edit_reports_only_requested_arguments(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_edit_case_differing_label_counts_as_applied(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A label that landed under the repository's casing is Applied, not missing.
+
+    _check_labels accepts "Bug" for the repository's "bug", and GitHub attaches
+    "bug", so an exact-match comparison against the refetched set would report a
+    change that did land as "Not applied".
+    """
+    mock_mgr = _make_manager(available_labels=[_label("bug"), _label("wontfix")])
+    mock_mgr.edit_issue.side_effect = _recording_edit_issue(
+        ["add_labels", "remove_labels"]
+    )
+    mock_mgr.get_issue.return_value = _make_issue(labels=["bug"])
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, add_labels=["Bug"], remove_labels=["WontFix"])
+
+    assert _line_starting(result, "Applied:") == "Applied: add_labels, remove_labels"
+    assert _line_starting(result, "Not applied:") == "Not applied: (none)"
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_unreadable_issue_reports_not_found(
     mock_manager_cls: MagicMock,
 ) -> None:
-    """A swallowed error plus an unreadable issue is a 404 on the opening fetch.
+    """No write was logged and the issue is unreadable: the opening fetch 404ed.
 
-    Nothing was raised and the issue cannot be read at all, so no write was ever
-    attempted — saying "edit failed" would imply a partial write that cannot
-    have happened.
+    Saying "edit failed" would imply a partial write that cannot have happened,
+    because edit_issue never issued a write call.
     """
-    mock_mgr = _make_manager(issue=create_empty_issue_data())
+    mock_mgr = _make_manager()
+    mock_mgr.edit_issue.side_effect = _recording_edit_issue([])
     mock_mgr.get_issue.return_value = create_empty_issue_data()
     mock_manager_cls.return_value = mock_mgr
 
     result = github_issue_edit(number=42, title="New title")
 
-    assert result == (
-        "Error: issue #42 not found or not accessible - no changes were made"
-    )
+    assert result.startswith("Error: issue #42 not found or not accessible")
+    assert result.endswith("no changes were made")
     assert "Warning" not in result
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_edit_swallowed_mid_sequence_failure_is_indeterminate(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A logged write plus an unreadable refetch must not claim nothing changed.
+
+    The scalar edit went out before the swallowed failure, so the tool cannot
+    know whether it landed — it names the writes it issued instead of asserting
+    an outcome it has no evidence for.
+    """
+    mock_mgr = _make_manager()
+    mock_mgr.edit_issue.side_effect = _recording_edit_issue(["scalars", "add_labels"])
+    mock_mgr.get_available_labels.return_value = [_label("bug")]
+    # The refetch is swallowed too, so the resulting state cannot be read
+    mock_mgr.get_issue.return_value = create_empty_issue_data()
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, title="New title", add_labels=["bug"])
+
+    assert result.startswith("Error:")
+    assert "no changes were made" not in result
+    assert "may or may not have been applied: scalars, add_labels" in result
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
@@ -270,8 +348,11 @@ def test_github_issue_edit_raised_failure_keeps_partial_write_wording(
 ) -> None:
     """A re-raised error can arrive after a write landed, so stay non-committal."""
     mock_mgr = _make_manager()
-    mock_mgr.edit_issue.side_effect = GithubException(
-        403, {"message": "Resource not accessible by integration"}, None
+    mock_mgr.edit_issue.side_effect = _recording_edit_issue(
+        ["scalars"],
+        error=GithubException(
+            403, {"message": "Resource not accessible by integration"}, None
+        ),
     )
     mock_mgr.get_issue.return_value = create_empty_issue_data()
     mock_manager_cls.return_value = mock_mgr
@@ -281,6 +362,7 @@ def test_github_issue_edit_raised_failure_keeps_partial_write_wording(
     assert result.startswith("Error:")
     assert "could not be re-read" in result
     assert "no changes were made" not in result
+    assert "may or may not have been applied: scalars" in result
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
@@ -289,8 +371,11 @@ def test_github_issue_edit_failed_refetch_names_both_failures(
 ) -> None:
     """A raising refetch is reported alongside the original failure reason."""
     mock_mgr = _make_manager()
-    mock_mgr.edit_issue.side_effect = GithubException(
-        403, {"message": "Resource not accessible by integration"}, None
+    mock_mgr.edit_issue.side_effect = _recording_edit_issue(
+        ["scalars"],
+        error=GithubException(
+            403, {"message": "Resource not accessible by integration"}, None
+        ),
     )
     mock_mgr.get_issue.side_effect = GithubException(
         500, {"message": "Internal Server Error"}, None
@@ -303,6 +388,7 @@ def test_github_issue_edit_failed_refetch_names_both_failures(
     assert "Warning" not in result
     assert "403" in result
     assert "500" in result
+    assert "may or may not have been applied: scalars" in result
 
 
 # =============================================================================

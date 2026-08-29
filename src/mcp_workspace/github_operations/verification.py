@@ -376,7 +376,7 @@ def verify_github(project_dir: Path) -> dict[str, object]:
         )
 
     # ------------------------------------------------------------------
-    # Per-permission probes (6 fine-grained PAT read permissions + write).
+    # Per-permission read probes (6 fine-grained PAT permissions).
     # ------------------------------------------------------------------
     result.update(
         run_permission_probes(manager, repo if repo_is_ok else None)  # type: ignore[arg-type]

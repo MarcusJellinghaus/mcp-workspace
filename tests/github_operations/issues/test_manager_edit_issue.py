@@ -124,6 +124,69 @@ class TestIssueManagerEditIssue:
         issue.remove_from_labels.assert_not_called()
         assert result["number"] == 1
 
+    def test_edit_issue_remove_labels_matches_case_insensitively(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """Removing "Bug" detaches the repository's "bug" instead of doing nothing.
+
+        GitHub matches label names case-insensitively, and the tool-layer guard
+        accepts a differently-cased name, so an exact-match filter here would
+        silently skip the removal while the tool reported success.
+        """
+        issue = _make_editable_issue(labels=["bug"])
+        mock_issue_manager._repository.get_issue.return_value = issue
+
+        mock_issue_manager.edit_issue(1, remove_labels=["Bug"])
+
+        # Removed under the repository's own casing, not the caller's
+        issue.remove_from_labels.assert_called_once_with("bug")
+
+    def test_edit_issue_records_attempted_writes(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """Every write call is recorded, in order, for the caller to inspect."""
+        issue = _make_editable_issue(labels=["bug"])
+        mock_issue_manager._repository.get_issue.return_value = issue
+        attempted: List[str] = []
+
+        mock_issue_manager.edit_issue(
+            1,
+            title="New title",
+            add_labels=["enhancement"],
+            remove_labels=["bug"],
+            add_assignees=["alice"],
+            attempted_writes=attempted,
+        )
+
+        assert attempted == ["scalars", "add_labels", "remove_labels", "add_assignees"]
+
+    def test_edit_issue_records_nothing_when_opening_fetch_fails(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """A failed opening fetch leaves the log empty: nothing was written."""
+        mock_issue_manager._repository.get_issue.side_effect = GithubException(
+            422, {"message": "Unprocessable Entity"}, None
+        )
+        attempted: List[str] = []
+
+        mock_issue_manager.edit_issue(1, title="New title", attempted_writes=attempted)
+
+        assert attempted == []
+
+    def test_edit_issue_records_no_op_removal_as_no_write(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """A removal filtered out entirely issues no call, so it logs nothing."""
+        issue = _make_editable_issue(labels=["bug"])
+        mock_issue_manager._repository.get_issue.return_value = issue
+        attempted: List[str] = []
+
+        mock_issue_manager.edit_issue(
+            1, remove_labels=["absent"], attempted_writes=attempted
+        )
+
+        assert attempted == []
+
     def test_edit_issue_add_assignees(self, mock_issue_manager: IssueManager) -> None:
         """Assignees are added with a single varargs call."""
         issue = _make_editable_issue(assignees=["alice"])
