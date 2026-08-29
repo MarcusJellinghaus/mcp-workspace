@@ -5,7 +5,6 @@ argument-hint: "<issue-number>"
 allowed-tools:
   - mcp__mcp-workspace__github_issue_edit
   - mcp__mcp-workspace__github_issue_view
-  - mcp__mcp-workspace__save_file
   - mcp__mcp-workspace__read_file
   - mcp__mcp-workspace__list_directory
   - mcp__mcp-workspace__search_files

@@ -162,7 +162,7 @@ closed rather than removed.
 
 1. `github_label_list()` — expect one line per label with name, `#color` and description
 2. `github_label_list(search="bug")` — expect the filtered subset
-3. `github_issue_create(title="LLM test - safe to close", body="Created by tests/LLM_Test.md Section 4.")` — expect `Created issue #N — <url>`, then `Assignees: (none)`
+3. `github_issue_create(title="LLM test - safe to close", body="Created by tests/LLM_Test.md Section 4.")` — expect `Created issue #N — <url>`, then `Labels: (none)` and `Assignees: (none)`
 4. `github_issue_comment(number=<N from step 3>, body="Test comment.\nSecond line.")` — expect `Added comment to issue #N — <url>`
 5. `github_issue_edit(number=<N>, title="LLM test - edited", add_labels=["<a real label from step 1>"])` — expect `Updated issue #N`, then a `Labels:` line containing that label
 6. `github_issue_edit(number=<N>, remove_labels=["<a label NOT on the issue>"])` — expect success, not an error: the no-op removal is filtered out

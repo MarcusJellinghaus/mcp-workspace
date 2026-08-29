@@ -127,6 +127,18 @@ def _resolve_assignees(manager: Any, logins: List[str]) -> List[str]:
     return [_login_cache["login"] if name == "@me" else name for name in logins]
 
 
+def _normalize_newlines(text: Optional[str]) -> str:
+    """Return text with CRLF and CR line endings folded to LF.
+
+    Args:
+        text: Text to normalize, or None for an absent body.
+
+    Returns:
+        The text with "\\r\\n" and "\\r" replaced by "\\n"; "" when text is None.
+    """
+    return (text or "").replace("\r\n", "\n").replace("\r", "\n")
+
+
 def _edit_change_lines(
     issue: Any,
     title: Optional[str],
@@ -157,9 +169,18 @@ def _edit_change_lines(
     # _check_labels accepts a differently-cased name: requesting "Bug" lands
     # the repository's "bug", which is applied, not "Not applied".
     labels = {name.casefold() for name in issue["labels"]}
+    # Casefolded for the same reason: GitHub logins are case-insensitive and
+    # the refetch returns the canonical casing.
+    assigned = {name.casefold() for name in issue["assignees"]}
     checks = (
         ("title", title is not None, issue["title"] == title),
-        ("body", body is not None, issue["body"] == body),
+        # Newline-normalized because GitHub may store CRLF as LF, which would
+        # otherwise report a body edit that landed as "Not applied".
+        (
+            "body",
+            body is not None,
+            _normalize_newlines(issue["body"]) == _normalize_newlines(body),
+        ),
         ("state", state is not None, issue["state"] == state),
         (
             "add_labels",
@@ -174,7 +195,7 @@ def _edit_change_lines(
         (
             "add_assignees",
             bool(assignees),
-            all(a in issue["assignees"] for a in assignees),
+            all(a.casefold() in assigned for a in assignees),
         ),
     )
     applied = [name for name, requested, landed in checks if requested and landed]
@@ -1058,8 +1079,8 @@ def github_issue_create(
         assignees: GitHub usernames to assign; "@me" means the authenticated user
 
     Returns:
-        "Created issue #<number> — <url>" followed by the resulting assignees,
-        or error message string.
+        "Created issue #<number> — <url>" followed by the resulting labels and
+        assignees, or error message string.
     """
     # Lazy import: keeps PyGithub off the server startup import path
     from mcp_workspace.github_operations.issues import IssueManager
@@ -1079,10 +1100,11 @@ def github_issue_create(
         # Empty IssueData is the library's swallowed-failure sentinel
         if not issue["number"]:
             return "Error: issue creation failed - no issue was created"
-        # GitHub drops a non-assignable login silently, so the resulting list is
-        # the only way a caller sees that an assignee did not take
+        # GitHub drops a non-assignable login or an unusable label silently, so
+        # the resulting lists are the only way a caller sees what did not take
         return (
             f"Created issue #{issue['number']} — {issue['url']}\n"
+            f"Labels: {', '.join(issue['labels']) or '(none)'}\n"
             f"Assignees: {', '.join(issue['assignees']) or '(none)'}"
         )
     except Exception as e:
@@ -1136,6 +1158,8 @@ def github_issue_edit(
         # thing: the write sequence started and something after it failed.
         if number <= 0:
             return f"Error: invalid issue number: {number}"
+        if title is not None and not title.strip():
+            return "Error: Issue title cannot be empty"
         if state not in (None, "open", "closed"):
             return f"Error: state must be 'open' or 'closed', got: {state}"
 

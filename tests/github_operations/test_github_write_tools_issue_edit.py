@@ -298,6 +298,43 @@ def test_github_issue_edit_case_differing_label_counts_as_applied(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_edit_case_differing_assignee_counts_as_applied(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """An assignee that landed under GitHub's canonical casing is Applied.
+
+    GitHub matches logins case-insensitively and the refetch returns the
+    canonical spelling, so an exact-match comparison would report an assignment
+    that did land as "Not applied".
+    """
+    mock_mgr = _make_manager()
+    mock_mgr.edit_issue.side_effect = _recording_edit_issue(["add_assignees"])
+    mock_mgr.get_issue.return_value = _make_issue(assignees=["MarcusJellinghaus"])
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, add_assignees=["marcusjellinghaus"])
+
+    assert _line_starting(result, "Applied:") == "Applied: add_assignees"
+    assert _line_starting(result, "Not applied:") == "Not applied: (none)"
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_edit_body_differing_only_in_line_endings_is_applied(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A body GitHub stored with normalised newlines still counts as Applied."""
+    mock_mgr = _make_manager()
+    mock_mgr.edit_issue.side_effect = _recording_edit_issue(["scalars"])
+    mock_mgr.get_issue.return_value = _make_issue(body="line one\nline two\n")
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, body="line one\r\nline two\r\n")
+
+    assert _line_starting(result, "Applied:") == "Applied: body"
+    assert _line_starting(result, "Not applied:") == "Not applied: (none)"
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_unreadable_issue_reports_not_found(
     mock_manager_cls: MagicMock,
 ) -> None:
@@ -550,4 +587,21 @@ def test_github_issue_edit_rejects_invalid_number_before_writing(
 
     assert result.startswith("Error:")
     assert "Warning" not in result
+    mock_mgr.edit_issue.assert_not_called()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_edit_rejects_empty_title_before_writing(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """GitHub rejects an empty title, so catch it before anything is written.
+
+    Reaching the API would turn a caller mistake into a partial-write warning.
+    """
+    mock_mgr = _make_manager()
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, title="   ")
+
+    assert result == "Error: Issue title cannot be empty"
     mock_mgr.edit_issue.assert_not_called()

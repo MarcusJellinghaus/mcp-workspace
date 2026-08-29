@@ -279,7 +279,27 @@ def test_github_issue_create_reports_resulting_assignees(
 
     assert result.splitlines() == [
         "Created issue #42 — https://github.com/test/repo/issues/42",
+        "Labels: (none)",
         "Assignees: alice",
+    ]
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_reports_resulting_labels(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """GitHub can drop a label silently — the resulting set must be reported."""
+    mock_manager_cls.return_value = _make_manager(
+        issue=_make_issue(labels=["bug"]),
+        available_labels=[_label("bug"), _label("enhancement")],
+    )
+
+    result = github_issue_create(title="Test issue", labels=["bug", "enhancement"])
+
+    assert result.splitlines() == [
+        "Created issue #42 — https://github.com/test/repo/issues/42",
+        "Labels: bug",
+        "Assignees: (none)",
     ]
 
 
