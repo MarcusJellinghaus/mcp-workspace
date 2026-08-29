@@ -111,6 +111,57 @@ class TestIssueManagerCore:
             title=title, body=body, labels=labels
         )
 
+    def test_create_issue_with_assignees(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """Test issue creation with assignees."""
+        title = "Test Issue"
+        body = "Test body"
+        mock_assignee = MagicMock()
+        mock_assignee.login = "alice"
+        mock_issue = make_mock_issue(1)
+        mock_issue.assignees = [mock_assignee]
+
+        mock_issue_manager._repository.create_issue.return_value = mock_issue
+
+        result = mock_issue_manager.create_issue(title, body, assignees=["alice"])
+
+        assert result["assignees"] == ["alice"]
+        mock_issue_manager._repository.create_issue.assert_called_once_with(
+            title=title, body=body, assignees=["alice"]
+        )
+
+    def test_create_issue_with_labels_and_assignees(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """Test issue creation with both labels and assignees."""
+        title = "Test Issue"
+        body = "Test body"
+        mock_issue = make_mock_issue(1)
+
+        mock_issue_manager._repository.create_issue.return_value = mock_issue
+
+        result = mock_issue_manager.create_issue(
+            title, body, labels=["bug"], assignees=["alice"]
+        )
+
+        assert result["number"] == 1
+        mock_issue_manager._repository.create_issue.assert_called_once_with(
+            title=title, body=body, labels=["bug"], assignees=["alice"]
+        )
+
+    def test_create_issue_without_assignees_omits_kwarg(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """Test that assignees is not passed when not provided."""
+        mock_issue_manager._repository.create_issue.return_value = make_mock_issue(1)
+
+        mock_issue_manager.create_issue("Test Issue", "Test body")
+
+        kwargs = mock_issue_manager._repository.create_issue.call_args.kwargs
+        assert "assignees" not in kwargs
+        assert "labels" not in kwargs
+
     def test_create_issue_empty_title(self, mock_issue_manager: IssueManager) -> None:
         """Test that empty title raises ValueError."""
         with pytest.raises(ValueError, match="Issue title cannot be empty"):
@@ -213,6 +264,33 @@ class TestIssueManagerCore:
 
         with pytest.raises(GithubException):
             mock_issue_manager.get_available_labels()
+
+    def test_get_available_labels_api_error_raises(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """A swallowed API error must not masquerade as a repo with no labels."""
+        mock_issue_manager._repository.get_labels.side_effect = GithubException(
+            404, {"message": "Not Found"}, None
+        )
+
+        with pytest.raises(GithubException):
+            mock_issue_manager.get_available_labels()
+
+    def test_get_available_labels_no_repository_raises(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """An unavailable repository raises instead of returning an empty list."""
+        with patch.object(mock_issue_manager, "_get_repository", return_value=None):
+            with pytest.raises(ValueError, match="Could not access repository"):
+                mock_issue_manager.get_available_labels()
+
+    def test_get_available_labels_empty_repo_returns_empty(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """An empty list means exactly one thing: the repo has no labels."""
+        mock_issue_manager._repository.get_labels.return_value = []
+
+        assert mock_issue_manager.get_available_labels() == []
 
     def test_list_issues_default_parameters(
         self, mock_issue_manager: IssueManager

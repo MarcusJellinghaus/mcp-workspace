@@ -25,9 +25,11 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 Details: [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared: `Add create_issue assignees and stop get_available_labels swallowing errors`
+      (text drafted, but `pr_info/.commit_message.txt` is gitignored and the
+      workspace MCP server refuses to write gitignored paths — needs writing by hand)
 
 ### Step 2: `IssueManager.edit_issue` + `_issue_to_data`
 

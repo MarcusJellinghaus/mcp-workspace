@@ -61,7 +61,11 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
     @log_function_call
     @_handle_github_errors(default_return=create_empty_issue_data())
     def create_issue(
-        self, title: str, body: str = "", labels: Optional[List[str]] = None
+        self,
+        title: str,
+        body: str = "",
+        labels: Optional[List[str]] = None,
+        assignees: Optional[List[str]] = None,
     ) -> IssueData:
         """Create a new issue in the repository.
 
@@ -69,6 +73,7 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             title: Issue title (required, cannot be empty)
             body: Issue description (optional)
             labels: List of label names to apply (optional)
+            assignees: List of GitHub usernames to assign (optional)
 
         Returns:
             IssueData with created issue information, or empty IssueData on error
@@ -94,13 +99,14 @@ class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
             logger.error("Failed to get repository")
             return create_empty_issue_data()
 
-        # Create issue
+        # Create issue — optional collections are omitted rather than passed
+        # as empty, so the no-labels call stays identical to the previous one.
+        kwargs: dict[str, Any] = {"title": title.strip(), "body": body}
         if labels:
-            github_issue = repo.create_issue(
-                title=title.strip(), body=body, labels=labels
-            )
-        else:
-            github_issue = repo.create_issue(title=title.strip(), body=body)
+            kwargs["labels"] = labels
+        if assignees:
+            kwargs["assignees"] = assignees
+        github_issue = repo.create_issue(**kwargs)
 
         # Convert to IssueData
         return IssueData(
