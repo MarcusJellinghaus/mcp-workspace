@@ -482,6 +482,7 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
     ci_failing_job_names = report_data.get("ci_failing_job_names", [])
     pr_mergeable_state = report_data.get("pr_mergeable_state")
     merge_state_blocked = pr_mergeable_state in _BLOCKING_MERGE_STATES
+    linked_branch_blocking = report_data.get(_LINKED_BRANCH_BLOCKS_KEY, False)
 
     if ci_status == CIStatus.FAILED:
         if ci_failing_job_names:
@@ -524,6 +525,7 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
         and not pr_blocks
         and not merge_state_blocked
         and not rebase_needed
+        and not linked_branch_blocking
     ):
         if pr_mergeable is True:
             recommendations.append("Ready to merge (squash-merge safe)")

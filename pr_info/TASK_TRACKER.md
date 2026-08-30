@@ -56,9 +56,30 @@ Details: [step_2.md](./steps/step_2.md) — depends on Step 1
 
 Details: [step_3.md](./steps/step_3.md) — depends on Step 2. Parts (a) suppression, (b) render line, (c) review-gate header and (d) docs ship as **one commit on purpose**: splitting them would leave a commit rendering `Review Gate: clean` beside a suppressed `Ready to merge`.
 
-- [ ] Implementation: one `and not linked_branch_blocking` term in `_generate_recommendations`; `_format_linked_branch_line` called from both formatters; `Review Gate: BLOCKED (linked branch)` in `_review_gate_header`; relink row in `.claude/skills/check_branch_status/SKILL.md` and conditional `Linked Branch:` expectation in Test 3.2 of `tests/LLM_Test.md`. Tests first: the seven groups in step_3.md including the end-to-end suppression test through `collect_branch_status`, plus the suppression + default cases in `test_branch_status_recommendations.py`; verify `test_rebase_behind_but_mergeable_squash_safe` and `test_confirmed_no_pr_stays_clean_eligible` stay green via their patch decorator
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: one `and not linked_branch_blocking` term in `_generate_recommendations`; `_format_linked_branch_line` called from both formatters; `Review Gate: BLOCKED (linked branch)` in `_review_gate_header`; relink row in `.claude/skills/check_branch_status/SKILL.md` and conditional `Linked Branch:` expectation in Test 3.2 of `tests/LLM_Test.md`. Tests first: the seven groups in step_3.md including the end-to-end suppression test through `collect_branch_status`, plus the suppression + default cases in `test_branch_status_recommendations.py`; verify `test_rebase_behind_but_mergeable_squash_safe` and `test_confirmed_no_pr_stays_clean_eligible` stay green via their patch decorator — both already carried the step-2 decorator and needed no change; no other manager-patching test was exposed
+- [x] Quality checks: pylint, pytest, mypy — fix all issues (1765 passed, 1 skipped; pylint and mypy clean)
+- [x] Commit message prepared — as in steps 1 and 2, `pr_info/.commit_message.txt` could not be written (`.gitignore:48` excludes it; the workspace MCP refuses gitignored paths), so the text is recorded here instead:
+
+  ```
+  feat(checks): block the merge verdict on a non-OK linked branch
+
+  Add one `and not linked_branch_blocking` term to the recommendation chain so
+  a mismatched, ambiguous, unlinked or undeterminable linked branch suppresses
+  `Ready to merge`. Render the state as a `Linked Branch:` line in both
+  formatters and flip the review gate to `BLOCKED (linked branch)`, so the
+  report never shows a clean gate beside a suppressed merge verdict.
+
+  Suppression only — no new recommendation string; the message lives on the
+  render line. The wording stays repo-neutral (the GraphQL query returns a bare
+  `ref { name }`, which may be fork-hosted) and UNKNOWN stays neutral ("could
+  not determine"), since a branch numbered for a nonexistent issue reaches
+  UNKNOWN through the GraphQL-null path.
+
+  Docs ride along because their wording is the wording chosen here: a relink row
+  in the skill's Follow-Up Actions table, and a conditional `Linked Branch:`
+  expectation in Test 3.2 of tests/LLM_Test.md — the line is suppressed on
+  `main` and other non-issue branches, so it is not a fifth mandatory prefix.
+  ```
 
 ## Pull Request
 

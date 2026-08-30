@@ -14,6 +14,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Dict, List, Optional
 
+from mcp_workspace.git_operations.branch_queries import (
+    extract_issue_number_from_branch,
+)
 from mcp_workspace.github_operations.ci_log_parser import truncate_ci_details
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
@@ -172,6 +175,15 @@ def format_report_for_human(
             f"Task Tracker: {tasks_icon} {tasks_status_text} ({report.tasks_reason})",
             "",
             f"GitHub Status: {report.current_github_label}",
+        ]
+    )
+
+    linked_branch_line = _format_linked_branch_line(report)
+    if linked_branch_line is not None:
+        lines.append(linked_branch_line)
+
+    lines.extend(
+        [
             "",
             "Recommendations:",
         ]
@@ -235,12 +247,11 @@ def format_report_for_llm(
     wait_line = _format_wait_line(report, wait_context)
     if wait_line is not None:
         lines.append(wait_line)
-    lines.extend(
-        [
-            f"GitHub Label: {report.current_github_label}",
-            f"Recommendations: {recommendations_text}",
-        ]
-    )
+    lines.append(f"GitHub Label: {report.current_github_label}")
+    linked_branch_line = _format_linked_branch_line(report)
+    if linked_branch_line is not None:
+        lines.append(linked_branch_line)
+    lines.append(f"Recommendations: {recommendations_text}")
 
     if report.pr_feedback_text is not None:
         lines.append("")
@@ -271,11 +282,16 @@ def _review_gate_header(
 
     Pure function of ``report.ci_status``,
     ``report.pr_feedback_blocks_merge``, ``report.pr_feedback_undeterminable``,
-    and the flag. No token lookup — an undeterminable review state yields the
-    UNKNOWN verdict and takes precedence over the blocked/clean states. This
-    happens when the CI status is undeterminable (``UNAVAILABLE`` for a
-    missing token, ``UNKNOWN`` for a collection failure) or when a
-    blocking-relevant PR-feedback section was unavailable.
+    ``report.linked_branch_status`` and the flag. No token lookup — an
+    undeterminable review state yields the UNKNOWN verdict and takes precedence
+    over the blocked/clean states. This happens when the CI status is
+    undeterminable (``UNAVAILABLE`` for a missing token, ``UNKNOWN`` for a
+    collection failure) or when a blocking-relevant PR-feedback section was
+    unavailable.
+
+    A blocking linked-branch state is checked after those UNKNOWN causes, so a
+    linked-branch ``UNKNOWN`` renders BLOCKED rather than UNKNOWN — every
+    non-OK linked-branch state blocks.
 
     The parenthetical is truthful about the cause: ``(no token)`` only for the
     genuine missing-token case (``ci_status == UNAVAILABLE``); every other
@@ -291,9 +307,60 @@ def _review_gate_header(
         return "Review Gate: UNKNOWN (no token)"
     if report.ci_status == CIStatus.UNKNOWN or report.pr_feedback_undeterminable:
         return "Review Gate: UNKNOWN (undeterminable)"
+    if linked_branch_blocks(report.linked_branch_status):
+        return "Review Gate: BLOCKED (linked branch)"
     if report.pr_feedback_blocks_merge:
         return "Review Gate: BLOCKED (reviews)"
     return "Review Gate: clean"
+
+
+def _format_linked_branch_line(report: "BranchStatusReport") -> Optional[str]:
+    """Build the ``Linked Branch: ...`` line, or None when nothing to render.
+
+    The wording never claims the linked branch lives in this repository: the
+    GraphQL query selects only ``ref { name }``, so a fork-hosted branch comes
+    back as a bare name. ``UNKNOWN`` stays neutral ("could not determine")
+    because a branch numbered for a nonexistent issue reaches it through the
+    GraphQL-null path.
+
+    Returns:
+        The formatted ``Linked Branch: ...`` line, or None when the state was
+        not checked or the branch name yields no issue number.
+    """
+    status = report.linked_branch_status
+    if status == LinkedBranchStatus.NOT_CHECKED:
+        return None
+    issue_number = extract_issue_number_from_branch(report.branch_name)
+    if issue_number is None:
+        return None
+
+    current = report.branch_name
+    if status == LinkedBranchStatus.OK:
+        text = f"OK ('{current}')"
+    elif status == LinkedBranchStatus.MISMATCH:
+        linked = report.linked_branches[0] if report.linked_branches else ""
+        text = (
+            f"MISMATCH — issue #{issue_number} links '{linked}', "
+            f"not current branch '{current}' — relink in the Development panel"
+        )
+    elif status == LinkedBranchStatus.AMBIGUOUS:
+        names = ", ".join(f"'{name}'" for name in report.linked_branches)
+        text = (
+            f"AMBIGUOUS — issue #{issue_number} links "
+            f"{len(report.linked_branches)} branches ({names}) — unlink the "
+            "extra branches in the Development panel so exactly one remains"
+        )
+    elif status == LinkedBranchStatus.NOT_LINKED:
+        text = (
+            f"NOT_LINKED — issue #{issue_number} links no branch — "
+            f"link '{current}' in the Development panel"
+        )
+    else:
+        text = (
+            "UNKNOWN — could not determine the linked branch "
+            f"for issue #{issue_number}"
+        )
+    return f"Linked Branch: {text}"
 
 
 def _format_wait_line(
