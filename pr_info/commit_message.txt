@@ -1,25 +1,20 @@
-Split linked-branch code out of branch_manager and apply formatters
+Restore single-line set_reference_projects import in server.py
 
-Fixes the file-size, black and isort CI jobs.
+Fixes the isort CI job.
 
-File size (750-line limit):
-- Extract the linked-branch GraphQL operations from IssueBranchManager into
-  a new LinkedBranchesMixin (linked_branches_mixin.py), matching the existing
-  comments_mixin.py / labels_mixin.py convention. The mixin holds
-  get_linked_branches, get_linked_branches_or_none and delete_linked_branch,
-  plus the module-level _query_linked_branches helper and the shared
-  validate_issue_number_or_log validator that replaces the private
-  _validate_issue_number method. The public API and the default_return=[]
-  contract of get_linked_branches are unchanged, so the caller in
-  branch_status.py needs no edits. branch_manager.py: 767 -> 518 lines.
-- Move TestDeleteLinkedBranch into a sibling module
-  tests/github_operations/issues/test_branch_manager_unlink.py, matching the
-  existing test_branch_manager_create.py / _pr_fallback_a.py split.
-  test_branch_manager_linked.py: 765 -> 371 lines.
+Commit 6bbe609 ("docs(pr_info): fold step 4 docs into step 3") was intended to
+touch only pr_info/steps/*.md, but it also carried a stray reformatting of the
+set_reference_projects import in src/mcp_workspace/server.py, rewrapping it
+into a parenthesized multi-line form with a trailing comma. The isort job
+(isort --check --profile=black --float-to-top src tests) rejects that form and
+fails on this single file.
 
-Formatting:
-- Run isort and black over src and tests, which reformats
-  tests/checks/test_branch_status_linked_branch.py and the split test module.
-  Formatting-only changes.
+Revert that hunk so the import is one line again. This restores server.py to
+its exact pre-6bbe609 content (blob 454c9c9), the form that shipped through the
+preceding merged commits. server.py is listed under "Unchanged (deliberately)"
+in pr_info/steps/summary.md for issue #268 and appears in none of the three
+implementation steps, so this PR should leave it untouched.
 
-.large-files-allowlist is unchanged.
+No configuration change is needed: pyproject.toml's [tool.isort] settings
+(profile = "black", line_length = 88, float_to_top = true) already match both
+the CI invocation and tools/format_all.sh.
