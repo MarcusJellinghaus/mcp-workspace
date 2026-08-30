@@ -15,6 +15,7 @@ from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server import (
     github_issue_comment,
     github_issue_create,
+    github_issue_edit,
     github_label_list,
 )
 from mcp_workspace.server_reference_tools import set_reference_projects
@@ -89,6 +90,8 @@ def _make_manager() -> MagicMock:
     # genuinely truthy rather than opaquely truthy.
     mock_mgr.add_comment.return_value = _make_comment()
     mock_mgr.create_issue.return_value = _make_issue()
+    mock_mgr.edit_issue.return_value = _make_issue()
+    mock_mgr.get_issue.return_value = _make_issue()
     # pylint: disable-next=protected-access
     mock_mgr._github_client.get_user.return_value.login = "octocat"
     return mock_mgr
@@ -98,8 +101,9 @@ _TOOL_CASES: list[tuple[Callable[..., str], dict[str, Any]]] = [
     (github_label_list, {}),
     (github_issue_comment, {"number": 42, "body": "hi"}),
     (github_issue_create, {"title": "T"}),
+    (github_issue_edit, {"number": 42, "title": "T"}),
 ]
-_TOOL_IDS = ["label_list", "issue_comment", "issue_create"]
+_TOOL_IDS = ["label_list", "issue_comment", "issue_create", "issue_edit"]
 
 
 @pytest.mark.parametrize(("tool", "kwargs"), _TOOL_CASES, ids=_TOOL_IDS)
@@ -273,4 +277,75 @@ def test_create_failure_names_reference_project(
     assert result == (
         "Error: issue creation failed - no issue was created "
         "in reference project 'sibling'"
+    )
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_edit_status_guard_points_at_reference_checkout(
+    mock_manager_cls: MagicMock,
+    reference_projects: None,  # pylint: disable=unused-argument
+) -> None:
+    """The edit-side status-* guard says whose checkout can apply the label."""
+    mock_mgr = _make_manager()
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(
+        number=42, add_labels=["status-04:in-progress"], reference_name="sibling"
+    )
+
+    assert "sibling" in result
+    assert "own checkout" in result
+    mock_mgr.edit_issue.assert_not_called()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_edit_invalid_number_does_not_resolve_reference(
+    mock_manager_cls: MagicMock,
+    reference_projects: None,  # pylint: disable=unused-argument
+) -> None:
+    """Argument validation runs before the reference project is resolved."""
+    result = github_issue_edit(number=0, reference_name="nope")
+
+    assert result == "Error: invalid issue number: 0"
+    mock_manager_cls.assert_not_called()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_edit_not_found_names_reference_project(
+    mock_manager_cls: MagicMock,
+    reference_projects: None,  # pylint: disable=unused-argument
+) -> None:
+    """The nothing-was-written sentinel names the target project.
+
+    It carries no URL, and a wrong-but-valid reference_name pointing at a
+    repository without that issue number is its most likely cause.
+    """
+    mock_mgr = _make_manager()
+    mock_mgr.edit_issue.return_value = create_empty_issue_data()
+    mock_mgr.get_issue.return_value = create_empty_issue_data()
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, title="T", reference_name="sibling")
+
+    assert result == (
+        "Error: issue #42 not found or not accessible in reference project "
+        "'sibling' (swallowed API error) - no changes were made"
+    )
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_edit_not_found_without_reference_is_unchanged(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """The workspace sentinel stays byte-identical to today's."""
+    mock_mgr = _make_manager()
+    mock_mgr.edit_issue.return_value = create_empty_issue_data()
+    mock_mgr.get_issue.return_value = create_empty_issue_data()
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, title="T")
+
+    assert result == (
+        "Error: issue #42 not found or not accessible "
+        "(swallowed API error) - no changes were made"
     )

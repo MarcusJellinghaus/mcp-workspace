@@ -49,9 +49,9 @@ Details: [step_3.md](./steps/step_3.md)
 
 Details: [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: add the `github_issue_edit` case and the four tests, then add `reference_name`, swap the manager construction, pass the name to `_check_labels`, suffix the not-found sentinel, and keep the pre-write validations ahead of resolution
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add the `github_issue_edit` case and the four tests, then add `reference_name`, swap the manager construction, pass the name to `_check_labels`, suffix the not-found sentinel, and keep the pre-write validations ahead of resolution
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared — message is in the run output; `pr_info/.commit_message.txt` itself could not be written (gitignored, MCP write tools refuse it, no shell tool available)
 
 ### Step 5: Tool enumeration, documentation, skill and local allowlist
 

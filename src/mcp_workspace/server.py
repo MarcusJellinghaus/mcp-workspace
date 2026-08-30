@@ -1235,13 +1235,16 @@ def github_issue_edit(
     remove_labels: Optional[List[str]] = None,
     add_assignees: Optional[List[str]] = None,
     state: Optional[str] = None,
+    reference_name: Optional[str] = None,
 ) -> str:
-    """Modify a real GitHub issue in this repository. This writes to GitHub.
+    """Modify a real GitHub issue. This writes to GitHub.
 
-    Only the arguments you pass are changed. Label changes are additive and
-    subtractive, never a replacement of the whole set. Workflow status labels
-    (status-*) are rejected on the add and the remove side — use
-    `mcp-coder gh-tool set-status <label>` for those.
+    Targets the workspace repository, or a reference project's repository when
+    reference_name is given. Only the arguments you pass are changed. Label
+    changes are additive and subtractive, never a replacement of the whole set.
+    Workflow status labels (status-*) are rejected on the add and the remove
+    side — those are applied with `mcp-coder gh-tool set-status <label>` from
+    the target repository's own checkout.
 
     The edit is not a transaction: if a later part fails, the earlier part
     stays applied. The result then opens with a warning naming which requested
@@ -1252,10 +1255,14 @@ def github_issue_edit(
         number: Issue number to edit (must be positive)
         title: New issue title; surrounding whitespace is stripped
         body: New issue description in Markdown
-        add_labels: Label names to add — each must already exist in the repository
+        add_labels: Label names to add — each must already exist in the target
+            repository
         remove_labels: Label names to remove; labels already absent are ignored
         add_assignees: Usernames to assign; "@me" means the authenticated user
         state: New issue state — only "open" or "closed" are accepted
+        reference_name: Optional reference project name. When set, the issue is
+            edited in that project's GitHub repository instead of the workspace
+            repository.
 
     Returns:
         "Updated issue #<number> — <url> (state: <state>)" followed by the
@@ -1265,7 +1272,6 @@ def github_issue_edit(
     """
     # Lazy imports: keep PyGithub off the server startup import path
     from mcp_workspace.github_operations import GithubException
-    from mcp_workspace.github_operations.issues import IssueManager
     from mcp_workspace.github_operations.issues.types import create_empty_issue_data
 
     try:
@@ -1279,8 +1285,10 @@ def github_issue_edit(
         if state not in (None, "open", "closed"):
             return f"Error: state must be 'open' or 'closed', got: {state}"
 
-        manager = IssueManager(project_dir=_project_dir)
-        label_error = _check_labels(manager, add_labels or [], remove_labels or [])
+        manager = _issue_manager(reference_name)
+        label_error = _check_labels(
+            manager, add_labels or [], remove_labels or [], reference_name
+        )
         if label_error:
             return label_error
         resolved = _resolve_assignees(manager, add_assignees or [])
@@ -1323,7 +1331,8 @@ def github_issue_edit(
             if not issue["number"]:
                 if not attempted:
                     return (
-                        f"Error: issue #{number} not found or not accessible "
+                        f"Error: issue #{number} not found or not accessible"
+                        f"{_ref_suffix(reference_name)} "
                         f"({reason}){reread_error} - no changes were made"
                     )
                 return (
