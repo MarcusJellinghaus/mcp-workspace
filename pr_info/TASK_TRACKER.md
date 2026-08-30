@@ -21,6 +21,47 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: `github_label_list` gains `reference_name`
+
+Details: [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: create `tests/github_operations/test_github_write_tools_reference.py` (test-first) and add `reference_name` to `github_label_list` via `_issue_manager(reference_name)`, removing the local `IssueManager` import and updating the docstring
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: `github_issue_comment` gains `reference_name`, plus the `_ref_suffix` helper
+
+Details: [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: add the `github_issue_comment` case and failure-message tests, then add the `_ref_suffix` helper, the `reference_name` parameter, the `_issue_manager` swap and the suffixed failure sentinel
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: `github_issue_create` gains `reference_name`; `_check_labels` learns the name
+
+Details: [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation: add the `github_issue_create` case and the three message tests, then add `reference_name` to `_check_labels` and `github_issue_create`, making the `status-*` advice and unknown-label message conditional while keeping the workspace path byte-identical
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 4: `github_issue_edit` gains `reference_name`
+
+Details: [step_4.md](./steps/step_4.md)
+
+- [ ] Implementation: add the `github_issue_edit` case and the four tests, then add `reference_name`, swap the manager construction, pass the name to `_check_labels`, suffix the not-found sentinel, and keep the pre-write validations ahead of resolution
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 5: Tool enumeration, documentation, skill and local allowlist
+
+Details: [step_5.md](./steps/step_5.md)
+
+- [ ] Implementation: update the enumeration in `server_reference_tools.py` plus its two exact-equality assertions and the verbatim README quote, then the README/CLAUDE.md/SKILL.md prose, `.claude/settings.local.json` and the `tests/LLM_Test.md` Section 4 script
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: verify all steps implemented, checks green, and no unintended changes
+- [ ] PR summary prepared
