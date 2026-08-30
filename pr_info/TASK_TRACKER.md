@@ -35,7 +35,7 @@ Details: [step_2.md](./steps/step_2.md)
 
 - [x] Implementation: add the `github_issue_comment` case and failure-message tests, then add the `_ref_suffix` helper, the `reference_name` parameter, the `_issue_manager` swap and the suffixed failure sentinel
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Commit message prepared
 
 ### Step 3: `github_issue_create` gains `reference_name`; `_check_labels` learns the name
 
