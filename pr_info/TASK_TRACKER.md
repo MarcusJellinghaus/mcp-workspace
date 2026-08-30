@@ -177,5 +177,5 @@ Detail: [step_5.md](./steps/step_5.md)
 
 ## Pull Request
 
-- [ ] PR review: verify all steps implemented, check for regressions and leftover defects
+- [x] PR review: verify all steps implemented, check for regressions and leftover defects (see [implementation_review_log_2.md](./implementation_review_log_2.md))
 - [ ] PR summary prepared
