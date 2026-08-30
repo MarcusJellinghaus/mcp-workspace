@@ -23,7 +23,7 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 - [x] [Step 1 — `extract_graphql_errors` parser](./steps/step_1.md)
 - [x] [Step 2 — Renderer GraphQL branch](./steps/step_2.md)
-- [ ] [Step 3 — Fix the `fetch_code_scanning_alerts` tuple unpack](./steps/step_3.md)
+- [x] [Step 3 — Fix the `fetch_code_scanning_alerts` tuple unpack](./steps/step_3.md)
 - [ ] [Step 4 — Tolerant fetch, retry re-key, explicit WARNING log](./steps/step_4.md)
 
 ## Pull Request

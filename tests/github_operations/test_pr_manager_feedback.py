@@ -10,6 +10,7 @@ from github.GithubException import GithubException
 
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations._pr_feedback_sources import (
+    fetch_code_scanning_alerts,
     fetch_conversation_comments,
 )
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
@@ -80,7 +81,7 @@ class TestGetPRFeedback:
             mock_requester.requestJsonAndCheck = Mock(side_effect=alerts_raises)
         else:
             mock_requester.requestJsonAndCheck = Mock(
-                return_value=(200, {}, alerts_response or [])
+                return_value=({}, alerts_response or [])
             )
 
         return mock_repo
@@ -289,6 +290,32 @@ class TestGetPRFeedback:
         assert result["alerts"] == []
         assert "alerts" in result["unavailable"]
         assert isinstance(result["unavailable"]["alerts"], GithubException)
+
+    def test_code_scanning_alerts_unpacks_two_tuple(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """requestJsonAndCheck returns (headers, data) — a 2-tuple, not a 3-tuple."""
+        alerts_response = [
+            {
+                "rule": {"description": "SQL injection"},
+                "most_recent_instance": {
+                    "message": {"text": "potential SQLi"},
+                    "location": {"path": "src/foo.py", "start_line": 42},
+                },
+            }
+        ]
+        self._setup_mocks(mock_manager, alerts_response=alerts_response)
+        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
+        requester.requestJsonAndCheck = Mock(return_value=({}, alerts_response))
+
+        alerts = fetch_code_scanning_alerts(mock_manager, 42)
+
+        assert alerts is not None
+        assert len(alerts) == 1
+        assert alerts[0]["rule_description"] == "SQL injection"
+        assert alerts[0]["message"] == "potential SQLi"
+        assert alerts[0]["path"] == "src/foo.py"
+        assert alerts[0]["line"] == 42
 
     def test_graphql_failure(self, mock_manager: PullRequestManager) -> None:
         """GraphQL raises → 'threads' in unavailable, threads/changes_requested empty."""

@@ -167,7 +167,7 @@ def fetch_code_scanning_alerts(
     owner, repo_name = repo.owner.login, repo.name
 
     try:
-        _, _, data = manager._github_client._Github__requester.requestJsonAndCheck(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public alerts API in PyGithub
+        _, data = manager._github_client._Github__requester.requestJsonAndCheck(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public alerts API in PyGithub
             "GET",
             f"/repos/{owner}/{repo_name}/code-scanning/alerts",
             parameters={"ref": f"refs/pull/{pr_number}/head"},
