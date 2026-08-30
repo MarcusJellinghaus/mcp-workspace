@@ -1,16 +1,23 @@
 fix(server): restore single-line set_reference_projects import
 
-Commit ed434f3 ("docs(pr_info): fold step 4 docs into step 3") accidentally
+Commit 6bbe609 ("docs(pr_info): fold step 4 docs into step 3") accidentally
 rewrote the one-line
 
     from mcp_workspace.server_reference_tools import set_reference_projects
 
 in src/mcp_workspace/server.py into a parenthesized multi-line form. The
-statement is 76 characters, so under --profile=black (line length 88) isort
-requires the collapsed one-line form, and the CI isort job failed with
-"Imports are incorrectly sorted and/or formatted".
+statement is 76 characters, so under --profile=black (line length 88,
+force_grid_wrap = 0) isort collapses a wrapper that is not needed for line
+length, and the CI isort job failed with "Imports are incorrectly sorted
+and/or formatted".
 
 Collapse the statement back to its origin/main form. No functional change:
 import ordering, the wrapped get_reference_project_path /
-get_reference_repo_url group, and the function-local lazy github_operations
-imports are all unaffected.
+get_reference_repo_url group, the separate "register as" statement, and the
+TYPE_CHECKING-guarded and function-local lazy github_operations imports are
+all unaffected.
+
+Note: the locally installed isort disagrees with CI here and rewrites the
+statement back to the multi-line form. CI pins isort>=9.0.1; the local
+environment must be upgraded to match before running ./tools/format_all.sh
+on this file, otherwise the formatter reintroduces the failure.
