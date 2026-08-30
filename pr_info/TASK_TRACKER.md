@@ -40,9 +40,17 @@ Details: [step_1.md](./steps/step_1.md)
 
 Details: [step_2.md](./steps/step_2.md) — depends on Step 1
 
-- [ ] Implementation: add `LinkedBranchStatus` + `linked_branch_blocks` to `branch_status_rendering.py`; add `_collect_linked_branch_status`, the two trailing defaulted report fields, `_LINKED_BRANCH_BLOCKS_KEY` and the `collect_branch_status` wiring to `branch_status.py`; write `tests/checks/test_branch_status_linked_branch.py` (six cases) first and add the `_collect_linked_branch_status` patch decorator to the seven manager-patching tests in `test_branch_status.py`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add `LinkedBranchStatus` + `linked_branch_blocks` to `branch_status_rendering.py`; add `_collect_linked_branch_status`, the two trailing defaulted report fields, `_LINKED_BRANCH_BLOCKS_KEY` and the `collect_branch_status` wiring to `branch_status.py`; write `tests/checks/test_branch_status_linked_branch.py` (six cases) first and add the `_collect_linked_branch_status` patch decorator to the seven manager-patching tests in `test_branch_status.py`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared — as in step 1, `pr_info/.commit_message.txt` could not be written (`.gitignore:48` excludes it; the workspace MCP refuses gitignored paths), so the text is recorded here instead:
+
+  ```
+  feat(checks): record the issue's linked-branch state on the report
+
+  Add LinkedBranchStatus and the linked_branch_blocks predicate, collect the
+  state via _collect_linked_branch_status and carry it on BranchStatusReport
+  as two trailing defaulted fields. Nothing renders and nothing blocks yet.
+  ```
 
 ### Step 3: Block the merge verdict and surface the state
 

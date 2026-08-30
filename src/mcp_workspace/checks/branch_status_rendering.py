@@ -34,6 +34,29 @@ class CIStatus(str, Enum):
     UNKNOWN = "UNKNOWN"  # status undeterminable (collection failed); not token-specific
 
 
+class LinkedBranchStatus(str, Enum):
+    """Whether the issue's linked branch matches the current branch."""
+
+    OK = "OK"  # exactly one linked branch, equals current
+    MISMATCH = "MISMATCH"  # exactly one linked branch, differs
+    AMBIGUOUS = "AMBIGUOUS"  # more than one linked branch
+    NOT_LINKED = "NOT_LINKED"  # queried fine, no linked branch
+    UNKNOWN = "UNKNOWN"  # lookup could not be completed
+    NOT_CHECKED = "NOT_CHECKED"  # branch name yields no issue number
+
+
+def linked_branch_blocks(status: LinkedBranchStatus) -> bool:
+    """Return True when the state must block the merge verdict.
+
+    Args:
+        status: The collected linked-branch state.
+
+    Returns:
+        True for every state other than ``OK`` and ``NOT_CHECKED``.
+    """
+    return status not in (LinkedBranchStatus.OK, LinkedBranchStatus.NOT_CHECKED)
+
+
 @dataclass(frozen=True)
 class WaitContext:
     """Describes how long the orchestrator waited on CI/PR polling."""

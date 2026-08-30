@@ -13,9 +13,11 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 from mcp_workspace.checks.branch_status_rendering import (
     GITHUB_TOKEN_HINT,
     CIStatus,
+    LinkedBranchStatus,
     WaitContext,
     format_report_for_human,
     format_report_for_llm,
+    linked_branch_blocks,
 )
 from mcp_workspace.checks.pr_feedback import collect_pr_feedback
 from mcp_workspace.config import get_github_token
@@ -35,7 +37,11 @@ from mcp_workspace.github_operations.ci_log_parser import (
     truncate_ci_details,
 )
 from mcp_workspace.github_operations.ci_results_manager import CIResultsManager
-from mcp_workspace.github_operations.issues import IssueData, IssueManager
+from mcp_workspace.github_operations.issues import (
+    IssueBranchManager,
+    IssueData,
+    IssueManager,
+)
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
 from mcp_workspace.workflows.task_tracker import (
     TaskTrackerFileNotFoundError,
@@ -55,6 +61,10 @@ __all__ = [
 
 DEFAULT_LABEL = "unknown"
 EMPTY_RECOMMENDATIONS: List[str] = []
+
+# Written by collect_branch_status, read by _generate_recommendations. Named
+# once so the two sides cannot drift.
+_LINKED_BRANCH_BLOCKS_KEY = "linked_branch_blocks"
 
 _JOB_FAIL_CONCLUSIONS: frozenset[str] = frozenset({"failure", "cancelled", "timed_out"})
 _BLOCKING_MERGE_STATES: frozenset[str] = frozenset({"unstable", "blocked", "dirty"})
@@ -83,6 +93,8 @@ class BranchStatusReport:
     pr_feedback_text: Optional[str] = None
     pr_feedback_blocks_merge: bool = False
     pr_feedback_undeterminable: bool = False
+    linked_branch_status: LinkedBranchStatus = LinkedBranchStatus.NOT_CHECKED
+    linked_branches: tuple[str, ...] = ()
 
     def format_for_human(
         self,
@@ -379,6 +391,51 @@ def _collect_pr_info(
         return (None, None, None, None, None)
 
 
+def _collect_linked_branch_status(
+    project_dir: Path, branch_name: str
+) -> tuple[LinkedBranchStatus, tuple[str, ...]]:
+    """Compare the issue's linked branches against the current branch.
+
+    The issue number is re-extracted from the branch name so the helper is
+    self-contained, and every failure is absorbed into ``UNKNOWN``: the outer
+    handler in :func:`collect_branch_status` would otherwise discard the whole
+    report. ``IssueBranchManager(...)`` itself raises ``ValueError`` when no
+    token is configured.
+
+    Args:
+        project_dir: Path to the project directory.
+        branch_name: The current branch name.
+
+    Returns:
+        Tuple of (state, linked branch names). The names tuple is empty for
+        NOT_CHECKED, UNKNOWN and NOT_LINKED.
+    """
+    issue_number = extract_issue_number_from_branch(branch_name)
+    if issue_number is None:
+        return (LinkedBranchStatus.NOT_CHECKED, ())
+
+    try:
+        manager = IssueBranchManager(project_dir=project_dir)
+        branches = manager.get_linked_branches_or_none(issue_number)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.debug("Linked branch lookup failed", exc_info=True)
+        return (LinkedBranchStatus.UNKNOWN, ())
+
+    if branches is None:
+        return (LinkedBranchStatus.UNKNOWN, ())
+    if len(branches) > 1:
+        return (LinkedBranchStatus.AMBIGUOUS, tuple(branches))
+    if not branches:
+        return (LinkedBranchStatus.NOT_LINKED, ())
+
+    state = (
+        LinkedBranchStatus.OK
+        if branches[0] == branch_name
+        else LinkedBranchStatus.MISMATCH
+    )
+    return (state, tuple(branches))
+
+
 def _apply_pr_merge_override(
     rebase_needed: bool,
     rebase_reason: str,
@@ -530,35 +587,40 @@ def collect_branch_status(
         )
         base_branch = base_branch_result if base_branch_result else "unknown"
 
-        # 4. Collect CI status
+        # 4. Check the issue's linked branch (owns all of its error handling)
+        linked_branch_status, linked_branches = _collect_linked_branch_status(
+            project_dir, branch_name
+        )
+
+        # 5. Collect CI status
         ci_status, ci_details, ci_failing_job_names = _collect_ci_status(
             project_dir, branch_name, max_log_lines
         )
 
-        # 5. Check rebase status
+        # 6. Check rebase status
         rebase_needed, rebase_reason = _collect_rebase_status(project_dir, base_branch)
 
-        # 6. Check task tracker
+        # 7. Check task tracker
         tasks_status, tasks_reason, tasks_is_blocking = _collect_task_status(
             project_dir
         )
 
-        # 7. Collect GitHub label
+        # 8. Collect GitHub label
         current_github_label = _collect_github_label(issue_data)
 
-        # 8. Collect PR info
+        # 9. Collect PR info
         pr_number, pr_url, pr_found, pr_mergeable, pr_mergeable_state = (
             _collect_pr_info(pr_manager, branch_name)
             if pr_manager
             else (None, None, None, None, None)
         )
 
-        # 9. Apply PR merge override
+        # 10. Apply PR merge override
         rebase_needed, rebase_reason = _apply_pr_merge_override(
             rebase_needed, rebase_reason, pr_mergeable if pr_found else None
         )
 
-        # 10. Collect PR feedback
+        # 11. Collect PR feedback
         if pr_manager and pr_found and pr_number is not None:
             (
                 pr_feedback_text,
@@ -573,7 +635,7 @@ def collect_branch_status(
             pr_feedback_text, pr_feedback_blocks_merge = None, False
             pr_feedback_undeterminable = pr_found is None
 
-        # 11. Generate recommendations
+        # 12. Generate recommendations
         default_branch_name = get_default_branch_name(project_dir)
         report_data: Dict[str, Any] = {
             "ci_status": ci_status,
@@ -588,6 +650,7 @@ def collect_branch_status(
             "pr_feedback_blocks_merge": pr_feedback_blocks_merge,
             "is_default_branch": branch_name == default_branch_name,
             "default_branch_name": default_branch_name,
+            _LINKED_BRANCH_BLOCKS_KEY: linked_branch_blocks(linked_branch_status),
         }
         recommendations = _generate_recommendations(report_data)
 
@@ -611,6 +674,8 @@ def collect_branch_status(
             pr_feedback_text=pr_feedback_text,
             pr_feedback_blocks_merge=pr_feedback_blocks_merge,
             pr_feedback_undeterminable=pr_feedback_undeterminable,
+            linked_branch_status=linked_branch_status,
+            linked_branches=linked_branches,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error collecting branch status: {e}")

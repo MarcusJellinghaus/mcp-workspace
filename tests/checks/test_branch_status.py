@@ -17,7 +17,7 @@ from mcp_workspace.checks.branch_status import (
     create_empty_report,
     get_failed_jobs_summary,
 )
-from mcp_workspace.checks.branch_status_rendering import CIStatus
+from mcp_workspace.checks.branch_status_rendering import CIStatus, LinkedBranchStatus
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import IssueData
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
@@ -491,8 +491,13 @@ class TestCollectBranchStatus:
     @patch("mcp_workspace.checks.branch_status.IssueManager")
     @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    @patch(
+        "mcp_workspace.checks.branch_status._collect_linked_branch_status",
+        return_value=(LinkedBranchStatus.OK, ("123-feature",)),
+    )
     def test_full_collection(
         self,
+        mock_linked: MagicMock,
         mock_branch: MagicMock,
         mock_extract: MagicMock,
         mock_issue_mgr_cls: MagicMock,
@@ -536,8 +541,13 @@ class TestCollectBranchStatus:
     @patch("mcp_workspace.checks.branch_status.IssueManager")
     @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    @patch(
+        "mcp_workspace.checks.branch_status._collect_linked_branch_status",
+        return_value=(LinkedBranchStatus.OK, ("123-feature",)),
+    )
     def test_github_init_failure(
         self,
+        mock_linked: MagicMock,
         mock_branch: MagicMock,
         mock_extract: MagicMock,
         mock_issue_mgr_cls: MagicMock,
@@ -579,8 +589,13 @@ class TestCollectBranchStatus:
     @patch("mcp_workspace.checks.branch_status.IssueManager")
     @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    @patch(
+        "mcp_workspace.checks.branch_status._collect_linked_branch_status",
+        return_value=(LinkedBranchStatus.OK, ("123-feature",)),
+    )
     def test_rebase_behind_but_mergeable_squash_safe(
         self,
+        mock_linked: MagicMock,
         mock_branch: MagicMock,
         mock_extract: MagicMock,
         mock_issue_mgr_cls: MagicMock,
@@ -626,8 +641,13 @@ class TestCollectBranchStatus:
     @patch("mcp_workspace.checks.branch_status.IssueManager")
     @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    @patch(
+        "mcp_workspace.checks.branch_status._collect_linked_branch_status",
+        return_value=(LinkedBranchStatus.OK, ("123-feature",)),
+    )
     def test_transferred_issue_logs_warning(
         self,
+        mock_linked: MagicMock,
         mock_branch: MagicMock,
         mock_extract: MagicMock,
         mock_issue_mgr_cls: MagicMock,
@@ -691,8 +711,13 @@ class TestCollectBranchStatusRegressions:
     @patch("mcp_workspace.checks.branch_status.IssueManager")
     @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    @patch(
+        "mcp_workspace.checks.branch_status._collect_linked_branch_status",
+        return_value=(LinkedBranchStatus.OK, ("123-feature",)),
+    )
     def test_issue_207_continue_on_error_scenario(
         self,
+        mock_linked: MagicMock,
         mock_branch: MagicMock,
         mock_extract: MagicMock,
         mock_issue_mgr_cls: MagicMock,
@@ -755,8 +780,13 @@ class TestCollectBranchStatusRegressions:
     @patch("mcp_workspace.checks.branch_status.IssueManager")
     @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    @patch(
+        "mcp_workspace.checks.branch_status._collect_linked_branch_status",
+        return_value=(LinkedBranchStatus.OK, ("123-feature",)),
+    )
     def test_pr_lookup_failure_threads_undeterminable(
         self,
+        mock_linked: MagicMock,
         mock_branch: MagicMock,
         mock_extract: MagicMock,
         mock_issue_mgr_cls: MagicMock,
@@ -809,8 +839,13 @@ class TestCollectBranchStatusRegressions:
     @patch("mcp_workspace.checks.branch_status.IssueManager")
     @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    @patch(
+        "mcp_workspace.checks.branch_status._collect_linked_branch_status",
+        return_value=(LinkedBranchStatus.OK, ("123-feature",)),
+    )
     def test_confirmed_no_pr_stays_clean_eligible(
         self,
+        mock_linked: MagicMock,
         mock_branch: MagicMock,
         mock_extract: MagicMock,
         mock_issue_mgr_cls: MagicMock,
