@@ -13,7 +13,7 @@ tool now does is exactly the stale-guidance failure that produced this issue.
 - `src/mcp_workspace/server_reference_tools.py` — `usage` string (`:77-81`) and
   `get_reference_projects` docstring (`:47-49`)
 - `tests/test_reference_projects_mcp_tools.py` — `:51-64` and `:87-96`
-- `README.md` — `:35`, `:88`, `:374`, `:383`, `:454-460`
+- `README.md` — `:35`, `:84`, `:88`, `:374`, `:383`, `:454-460`
 - `.claude/CLAUDE.md` — the intro line (`:3`), the sibling-repos line (`:61`) and the Bash
   allowlist (`:102-103`)
 - `.claude/skills/issue_approve/SKILL.md` — `:26-32` and `:51-59`
@@ -40,6 +40,10 @@ refactor the list into a shared constant — the exact-equality assertions are d
 
 - `:35` — the feature bullet stops being "Cross-repo GitHub reads"; name the read tools and the
   three write tools plus `github_label_list`.
+- `:84` — the Reference Projects intro sentence ("read-only access to additional codebases …
+  while maintaining write access only to the main project directory") is the same half-truth as
+  `:88` and `.claude/CLAUDE.md:3`: still true of *files*, false of the sibling's issues. Qualify
+  it the same way, scoping the read-only claim to file access.
 - `:88` — "Reference projects can only be browsed and read from, never modified" is still true
   of *files* and misleading once sibling issues are writable; qualify it to file access and
   point at the cross-repo GitHub section.
@@ -126,7 +130,7 @@ Optional but cheap sanity check: `mcp-coder check file-size --max-lines 750` if 
 > exact-equality assertions in `tests/test_reference_projects_mcp_tools.py` and the verbatim
 > quote in `README.md` so all four sites match byte-for-byte. Do not extract the list into a
 > shared constant. Then make the documentation edits listed in the step: `README.md` lines 35,
-> 88, 374 and the `454-460` section rewritten as one block, including a bullet recording that
+> 84, 88, 374 and the `454-460` section rewritten as one block, including a bullet recording that
 > `status-*` labels can only be set from the target repository's own checkout; the intro line
 > (`:3`) and the sibling-repos line in `.claude/CLAUDE.md` plus removal of the two stale
 > `gh issue view` / `gh issue comment` allowlist entries (leave the tool-mapping table alone);
