@@ -12,6 +12,7 @@ from mcp_workspace.checks.branch_status import (
     _collect_pr_info,
     _collect_rebase_status,
     _collect_task_status,
+    _generate_recommendations,
     collect_branch_status,
     create_empty_report,
     get_failed_jobs_summary,
@@ -846,3 +847,53 @@ class TestCollectBranchStatusRegressions:
         assert report.pr_feedback_undeterminable is False
         # Nothing to review + CI PASSED → gate renders clean.
         assert "Review Gate: clean" in report.format_for_llm(fail_on_reviews=True)
+
+    @patch("mcp_workspace.checks.branch_status._collect_pr_info")
+    @patch("mcp_workspace.checks.branch_status._collect_github_label")
+    @patch("mcp_workspace.checks.branch_status._collect_task_status")
+    @patch("mcp_workspace.checks.branch_status._collect_rebase_status")
+    @patch("mcp_workspace.checks.branch_status._collect_ci_status")
+    @patch("mcp_workspace.checks.branch_status.detect_base_branch")
+    @patch("mcp_workspace.checks.branch_status.PullRequestManager")
+    @patch("mcp_workspace.checks.branch_status.IssueManager")
+    @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
+    @patch("mcp_workspace.checks.branch_status.get_default_branch_name")
+    @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    def test_on_default_branch_recommends_pull(
+        self,
+        mock_branch: MagicMock,
+        mock_default: MagicMock,
+        mock_extract: MagicMock,
+        mock_issue_mgr_cls: MagicMock,
+        mock_pr_mgr_cls: MagicMock,
+        mock_detect: MagicMock,
+        mock_ci: MagicMock,
+        mock_rebase: MagicMock,
+        mock_tasks: MagicMock,
+        mock_label: MagicMock,
+        mock_pr_info: MagicMock,
+    ) -> None:
+        """On the default branch the report says pull, not rebase (issue #265)."""
+        mock_branch.return_value = "main"
+        mock_default.return_value = "main"
+        mock_extract.return_value = None
+        mock_issue_mgr_cls.return_value = MagicMock()
+        mock_pr_mgr_cls.return_value = MagicMock()
+        mock_detect.return_value = "main"
+        mock_ci.return_value = (CIStatus.PASSED, None, [])
+        mock_rebase.return_value = (True, "1 commit behind")
+        mock_tasks.return_value = (TaskTrackerStatus.N_A, "N/A", False)
+        mock_label.return_value = "unknown"
+        mock_pr_info.return_value = (None, None, False, None, None)
+
+        with patch(
+            "mcp_workspace.checks.branch_status._generate_recommendations",
+            wraps=_generate_recommendations,
+        ) as spy:
+            report = collect_branch_status(Path("/tmp"))
+
+        # The flag is plumbed through report_data, not just readable by the
+        # pure function when a test hands it in.
+        assert spy.call_args.args[0]["is_default_branch"] is True
+        assert "Pull origin/main" in report.recommendations
+        assert "Rebase onto origin/main" not in report.recommendations

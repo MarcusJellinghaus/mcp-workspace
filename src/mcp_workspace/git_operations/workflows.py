@@ -141,6 +141,13 @@ def needs_rebase(
         (needs_rebase, reason) where:
         - needs_rebase: True if rebase is needed, False otherwise
         - reason: Description of status ("up-to-date", "3 commits behind", "error: <reason>")
+
+        The count is always measured against origin/<target_branch>, including
+        when target_branch is the current branch: a local branch behind its own
+        remote reports its real behind-count rather than "up-to-date". Only a
+        missing origin/<target_branch> yields "up-to-date" without comparing
+        commits, and only when it is the current branch (an unpushed branch has
+        nothing to be behind); for any other target it is an error.
     """
     logger.debug("Checking if rebase needed in %s", project_dir)
 
@@ -172,16 +179,16 @@ def needs_rebase(
                     logger.debug("Could not determine default branch")
                     return False, f"error: {error_msg}"
 
-            # Don't check rebase against self
-            if current_branch == target_branch:
-                logger.debug("Current branch is the target branch")
-                return False, "up-to-date"
-
             # Check if origin/target_branch exists
             origin_target = f"origin/{target_branch}"
             try:
                 repo.git.rev_parse("--verify", origin_target)
             except GitCommandError:
+                if current_branch == target_branch:
+                    # Current branch was never pushed - nothing to compare
+                    # against, so it cannot be behind.
+                    logger.debug("No %s found - treating as up-to-date", origin_target)
+                    return False, "up-to-date"
                 error_msg = f"target branch '{origin_target}' not found"
                 logger.debug("Target branch not found: %s", origin_target)
                 return False, f"error: {error_msg}"

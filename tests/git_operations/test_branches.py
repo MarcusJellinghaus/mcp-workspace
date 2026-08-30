@@ -194,3 +194,34 @@ class TestNeedsRebase:
         assert needs_rebase_result is False
         assert "error:" in reason
         assert "does not exist" in reason.lower() or "not found" in reason.lower()
+
+    def test_needs_rebase_on_default_branch_behind_origin(
+        self, git_repo_with_remote: tuple[Repo, Path, Path]
+    ) -> None:
+        """A stale local 'main' reports its real behind-count."""
+        repo, project_dir, _bare_remote = git_repo_with_remote
+
+        sha_a = str(repo.head.commit.hexsha)
+        repo.git.push("-u", "origin", "main")
+
+        (project_dir / "new_file.txt").write_text("new content")
+        repo.index.add(["new_file.txt"])
+        repo.index.commit("New commit on main")
+        repo.git.push("origin", "main")  # origin/main is now ahead by one
+
+        repo.git.reset("--hard", sha_a)  # local main falls behind
+
+        needs_rebase_result, reason = needs_rebase(project_dir, "main")
+        assert needs_rebase_result is True
+        assert reason == "1 commit behind"
+
+    def test_needs_rebase_current_branch_never_pushed(
+        self, git_repo_with_remote: tuple[Repo, Path, Path]
+    ) -> None:
+        """No origin/<current branch> means up-to-date, not an error."""
+        _repo, project_dir, _bare_remote = git_repo_with_remote
+
+        # 'main' exists locally only; the bare origin has no refs at all.
+        needs_rebase_result, reason = needs_rebase(project_dir, "main")
+        assert needs_rebase_result is False
+        assert reason == "up-to-date"

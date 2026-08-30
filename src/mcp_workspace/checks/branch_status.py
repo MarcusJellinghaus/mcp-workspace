@@ -23,6 +23,7 @@ from mcp_workspace.git_operations.base_branch import detect_base_branch
 from mcp_workspace.git_operations.branch_queries import (
     extract_issue_number_from_branch,
     get_current_branch_name,
+    get_default_branch_name,
 )
 from mcp_workspace.git_operations.workflows import needs_rebase
 from mcp_workspace.github_operations import IssueIdentityMismatchError
@@ -417,6 +418,8 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
     tasks_reason = report_data.get("tasks_reason", "")
     tasks_is_blocking = report_data.get("tasks_is_blocking", False)
     tasks_ok = not tasks_is_blocking
+    is_default_branch = report_data.get("is_default_branch", False)
+    default_branch_name = report_data.get("default_branch_name") or "main"
     pr_mergeable = report_data.get("pr_mergeable")
     pr_blocks = report_data.get("pr_feedback_blocks_merge", False)
     ci_failing_job_names = report_data.get("ci_failing_job_names", [])
@@ -447,7 +450,8 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
         recommendations.append(f"Fix task tracker error: {tasks_reason}")
 
     if rebase_needed and tasks_ok and ci_status != CIStatus.FAILED:
-        recommendations.append("Rebase onto origin/main")
+        action = "Pull" if is_default_branch else "Rebase onto"
+        recommendations.append(f"{action} origin/{default_branch_name}")
 
     if pr_blocks:
         recommendations.append("Address review comments")
@@ -570,6 +574,7 @@ def collect_branch_status(
             pr_feedback_undeterminable = pr_found is None
 
         # 11. Generate recommendations
+        default_branch_name = get_default_branch_name(project_dir)
         report_data: Dict[str, Any] = {
             "ci_status": ci_status,
             "ci_details": ci_details,
@@ -581,6 +586,8 @@ def collect_branch_status(
             "pr_mergeable": pr_mergeable,
             "pr_mergeable_state": pr_mergeable_state,
             "pr_feedback_blocks_merge": pr_feedback_blocks_merge,
+            "is_default_branch": branch_name == default_branch_name,
+            "default_branch_name": default_branch_name,
         }
         recommendations = _generate_recommendations(report_data)
 
