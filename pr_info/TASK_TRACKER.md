@@ -41,9 +41,9 @@ Details: [step_2.md](./steps/step_2.md)
 
 Details: [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: add the `github_issue_create` case and the three message tests, then add `reference_name` to `_check_labels` and `github_issue_create`, making the `status-*` advice and unknown-label message conditional while keeping the workspace path byte-identical
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add the `github_issue_create` case and the three message tests, then add `reference_name` to `_check_labels` and `github_issue_create`, making the `status-*` advice and unknown-label message conditional while keeping the workspace path byte-identical
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared — blocked: `pr_info/.commit_message.txt` is gitignored, so the MCP workspace write tools refuse it and no shell tool is available this session; message text is in the run output
 
 ### Step 4: `github_issue_edit` gains `reference_name`
 

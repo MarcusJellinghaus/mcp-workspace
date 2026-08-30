@@ -6,9 +6,17 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mcp_workspace.github_operations.issues.types import CommentData
+from mcp_workspace.github_operations.issues.types import (
+    CommentData,
+    IssueData,
+    create_empty_issue_data,
+)
 from mcp_workspace.reference_projects import ReferenceProject
-from mcp_workspace.server import github_issue_comment, github_label_list
+from mcp_workspace.server import (
+    github_issue_comment,
+    github_issue_create,
+    github_label_list,
+)
 from mcp_workspace.server_reference_tools import set_reference_projects
 
 pytestmark = pytest.mark.usefixtures("setup_server")
@@ -49,6 +57,23 @@ def _make_comment(comment_id: int = 1) -> CommentData:
     )
 
 
+def _make_issue() -> IssueData:
+    """Build a created-issue IssueData with a non-zero number."""
+    return IssueData(
+        number=42,
+        title="T",
+        body="",
+        state="open",
+        labels=[],
+        assignees=[],
+        user="octocat",
+        created_at="2024-01-01T00:00:00",
+        updated_at=None,
+        url="https://github.com/owner/sibling/issues/42",
+        locked=False,
+    )
+
+
 def _make_manager() -> MagicMock:
     """Create a mock IssueManager that satisfies the covered tools."""
     mock_mgr = MagicMock()
@@ -60,17 +85,21 @@ def _make_manager() -> MagicMock:
             "url": "https://api.github.com/repos/owner/sibling/labels/bug",
         }
     ]
-    # A real CommentData, not a MagicMock: comment["id"] must be genuinely
-    # truthy rather than opaquely truthy.
+    # Real TypedDicts, not MagicMocks: comment["id"] and issue["number"] must be
+    # genuinely truthy rather than opaquely truthy.
     mock_mgr.add_comment.return_value = _make_comment()
+    mock_mgr.create_issue.return_value = _make_issue()
+    # pylint: disable-next=protected-access
+    mock_mgr._github_client.get_user.return_value.login = "octocat"
     return mock_mgr
 
 
 _TOOL_CASES: list[tuple[Callable[..., str], dict[str, Any]]] = [
     (github_label_list, {}),
     (github_issue_comment, {"number": 42, "body": "hi"}),
+    (github_issue_create, {"title": "T"}),
 ]
-_TOOL_IDS = ["label_list", "issue_comment"]
+_TOOL_IDS = ["label_list", "issue_comment", "issue_create"]
 
 
 @pytest.mark.parametrize(("tool", "kwargs"), _TOOL_CASES, ids=_TOOL_IDS)
@@ -178,3 +207,70 @@ def test_comment_failure_without_reference_is_unchanged(
     result = github_issue_comment(number=42, body="hi")
 
     assert result == "Error: failed to add comment to issue #42"
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_status_guard_points_at_reference_checkout(
+    mock_manager_cls: MagicMock,
+    reference_projects: None,  # pylint: disable=unused-argument
+) -> None:
+    """The status-* guard says whose checkout can apply the label."""
+    mock_mgr = _make_manager()
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_create(
+        title="T", labels=["status-01:created"], reference_name="sibling"
+    )
+
+    assert "sibling" in result
+    assert "own checkout" in result
+    mock_mgr.get_available_labels.assert_not_called()
+    mock_mgr.create_issue.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("labels", "expected"),
+    [
+        (["bugg"], "Error: unknown label(s) in reference project 'sibling': bugg"),
+        (
+            ["bugg", "bugz"],
+            "Error: unknown label(s) in reference project 'sibling': bugg, bugz",
+        ),
+    ],
+    ids=["one", "two"],
+)
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_unknown_label_names_reference_project(
+    mock_manager_cls: MagicMock,
+    labels: list[str],
+    expected: str,
+    reference_projects: None,  # pylint: disable=unused-argument
+) -> None:
+    """Unknown labels name the reference project before the label list.
+
+    The two-label case is the point: with the suffix ahead of the colon the
+    list stays terminal, so 'sibling' cannot be misread as a third label.
+    """
+    mock_manager_cls.return_value = _make_manager()
+
+    result = github_issue_create(title="T", labels=labels, reference_name="sibling")
+
+    assert result == expected
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_create_failure_names_reference_project(
+    mock_manager_cls: MagicMock,
+    reference_projects: None,  # pylint: disable=unused-argument
+) -> None:
+    """A swallowed cross-repo creation failure names the target project."""
+    mock_mgr = _make_manager()
+    mock_mgr.create_issue.return_value = create_empty_issue_data()
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_create(title="T", reference_name="sibling")
+
+    assert result == (
+        "Error: issue creation failed - no issue was created "
+        "in reference project 'sibling'"
+    )

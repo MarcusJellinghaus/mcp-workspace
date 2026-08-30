@@ -83,7 +83,12 @@ def _ref_suffix(reference_name: Optional[str]) -> str:
     return "" if reference_name is None else f" in reference project '{reference_name}'"
 
 
-def _check_labels(manager: Any, add: List[str], remove: List[str]) -> Optional[str]:
+def _check_labels(
+    manager: Any,
+    add: List[str],
+    remove: List[str],
+    reference_name: Optional[str] = None,
+) -> Optional[str]:
     """Reject status-* labels on both sides, then unknown add-side names.
 
     Both checks are case-insensitive, because GitHub label names are: adding
@@ -99,6 +104,9 @@ def _check_labels(manager: Any, add: List[str], remove: List[str]) -> Optional[s
         manager: An IssueManager instance used to read the repository labels.
         add: Label names about to be added.
         remove: Label names about to be removed.
+        reference_name: Reference project the labels belong to, or None for the
+            workspace repository. Only used to compose the error messages; the
+            labels themselves are read from ``manager``.
 
     Returns:
         An error string, or None when the labels are acceptable.
@@ -112,9 +120,14 @@ def _check_labels(manager: Any, add: List[str], remove: List[str]) -> Optional[s
         n for n in (*add, *remove) if n.casefold().startswith(_STATUS_LABEL_PREFIX)
     ]
     if offenders:
+        # `set-status` operates on the current checkout, so a reference
+        # project's labels can only be advanced from that project's own clone.
+        advice = "Use: mcp-coder gh-tool set-status <label>"
+        if reference_name is not None:
+            advice += f" from the '{reference_name}' project's own checkout"
         return (
             "Error: these tools do not modify status-* labels "
-            f"({', '.join(offenders)}). Use: mcp-coder gh-tool set-status <label>"
+            f"({', '.join(offenders)}). {advice}"
         )
     if not add:
         return None
@@ -123,7 +136,12 @@ def _check_labels(manager: Any, add: List[str], remove: List[str]) -> Optional[s
     known = {label["name"].casefold() for label in manager.get_available_labels()}
     unknown = [n for n in add if n.casefold() not in known]
     if unknown:
-        return f"Error: unknown label(s): {', '.join(unknown)}"
+        # Suffix before the colon, so the label list stays terminal and a
+        # multi-label message cannot read the project as another label.
+        return (
+            f"Error: unknown label(s){_ref_suffix(reference_name)}: "
+            f"{', '.join(unknown)}"
+        )
     return None
 
 
@@ -1153,30 +1171,34 @@ def github_issue_create(
     body: str = "",
     labels: Optional[List[str]] = None,
     assignees: Optional[List[str]] = None,
+    reference_name: Optional[str] = None,
 ) -> str:
-    """Create a real GitHub issue in this repository. This writes to GitHub.
+    """Create a real GitHub issue. This writes to GitHub.
 
-    Workflow status labels (status-*) are rejected — use
-    `mcp-coder gh-tool set-status <label>` for those. Other label names are
-    validated against the repository's labels before writing, so a typo cannot
-    silently create a new label.
+    Targets the workspace repository, or a reference project's repository when
+    reference_name is given. Workflow status labels (status-*) are rejected —
+    those are applied with `mcp-coder gh-tool set-status <label>` from the
+    target repository's own checkout. Other label names are validated against
+    the target repository's labels before writing, so a typo cannot silently
+    create a new label.
 
     Args:
         title: Issue title (required, cannot be empty)
         body: Issue description in Markdown (default: empty)
-        labels: Label names to apply — each must already exist in the repository
+        labels: Label names to apply — each must already exist in the target
+            repository
         assignees: GitHub usernames to assign; "@me" means the authenticated user
+        reference_name: Optional reference project name. When set, the issue is
+            created in that project's GitHub repository instead of the workspace
+            repository.
 
     Returns:
         "Created issue #<number> — <url>" followed by the resulting labels and
         assignees, or error message string.
     """
-    # Lazy import: keeps PyGithub off the server startup import path
-    from mcp_workspace.github_operations.issues import IssueManager
-
     try:
-        manager = IssueManager(project_dir=_project_dir)
-        label_error = _check_labels(manager, labels or [], [])
+        manager = _issue_manager(reference_name)
+        label_error = _check_labels(manager, labels or [], [], reference_name)
         if label_error:
             return label_error
         resolved = _resolve_assignees(manager, assignees or [])
@@ -1188,7 +1210,10 @@ def github_issue_create(
         )
         # Empty IssueData is the library's swallowed-failure sentinel
         if not issue["number"]:
-            return "Error: issue creation failed - no issue was created"
+            return (
+                "Error: issue creation failed - no issue was created"
+                f"{_ref_suffix(reference_name)}"
+            )
         # GitHub drops a non-assignable login or an unusable label silently, so
         # the resulting lists are the only way a caller sees what did not take
         return (
