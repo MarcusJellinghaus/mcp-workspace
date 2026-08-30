@@ -70,6 +70,19 @@ _STATUS_LABEL_PREFIX = "status-"
 _login_cache: Dict[str, str] = {}
 
 
+def _ref_suffix(reference_name: Optional[str]) -> str:
+    """Return the clause naming a reference project, or "" for the workspace.
+
+    Args:
+        reference_name: Reference project name, or None for the workspace.
+
+    Returns:
+        " in reference project '<name>'", or "" when no name is given — the
+        empty string keeps every workspace-path message byte-identical.
+    """
+    return "" if reference_name is None else f" in reference project '{reference_name}'"
+
+
 def _check_labels(manager: Any, add: List[str], remove: List[str]) -> Optional[str]:
     """Reject status-* labels on both sides, then unknown add-side names.
 
@@ -1327,7 +1340,11 @@ def github_issue_edit(
 
 @mcp.tool()
 @log_function_call
-def github_issue_comment(number: int, body: str) -> str:
+def github_issue_comment(
+    number: int,
+    body: str,
+    reference_name: Optional[str] = None,
+) -> str:
     """Post a real comment on a GitHub issue. This writes to GitHub.
 
     The comment text is passed inline — no temporary file is needed, and
@@ -1336,19 +1353,22 @@ def github_issue_comment(number: int, body: str) -> str:
     Args:
         number: Issue number to comment on (must be positive)
         body: Comment text in Markdown (required, cannot be empty)
+        reference_name: Optional reference project name. When set, the comment is
+            posted to that project's GitHub repository instead of the workspace
+            repository.
 
     Returns:
         "Added comment to issue #<number> — <url>", or error message string.
     """
-    # Lazy import: keeps PyGithub off the server startup import path
-    from mcp_workspace.github_operations.issues import IssueManager
-
     try:
-        manager = IssueManager(project_dir=_project_dir)
+        manager = _issue_manager(reference_name)
         comment = manager.add_comment(number, body)
         # Empty CommentData carries id == 0, not number == 0 as issues do
         if not comment["id"]:
-            return f"Error: failed to add comment to issue #{number}"
+            return (
+                f"Error: failed to add comment to issue #{number}"
+                f"{_ref_suffix(reference_name)}"
+            )
         return f"Added comment to issue #{number} — {comment['url']}"
     except Exception as e:
         return f"Error: {e}"

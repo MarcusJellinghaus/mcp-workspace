@@ -6,8 +6,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from mcp_workspace.github_operations.issues.types import CommentData
 from mcp_workspace.reference_projects import ReferenceProject
-from mcp_workspace.server import github_label_list
+from mcp_workspace.server import github_issue_comment, github_label_list
 from mcp_workspace.server_reference_tools import set_reference_projects
 
 pytestmark = pytest.mark.usefixtures("setup_server")
@@ -36,6 +37,18 @@ def reference_projects() -> Generator[None, None, None]:
     set_reference_projects({})
 
 
+def _make_comment(comment_id: int = 1) -> CommentData:
+    """Build a CommentData; ``comment_id=0`` is the empty-comment sentinel."""
+    return CommentData(
+        id=comment_id,
+        body="hi",
+        user="octocat",
+        created_at="2024-01-01T00:00:00",
+        updated_at=None,
+        url="https://github.com/owner/sibling/issues/42#issuecomment-1",
+    )
+
+
 def _make_manager() -> MagicMock:
     """Create a mock IssueManager that satisfies the covered tools."""
     mock_mgr = MagicMock()
@@ -47,13 +60,17 @@ def _make_manager() -> MagicMock:
             "url": "https://api.github.com/repos/owner/sibling/labels/bug",
         }
     ]
+    # A real CommentData, not a MagicMock: comment["id"] must be genuinely
+    # truthy rather than opaquely truthy.
+    mock_mgr.add_comment.return_value = _make_comment()
     return mock_mgr
 
 
 _TOOL_CASES: list[tuple[Callable[..., str], dict[str, Any]]] = [
     (github_label_list, {}),
+    (github_issue_comment, {"number": 42, "body": "hi"}),
 ]
-_TOOL_IDS = ["label_list"]
+_TOOL_IDS = ["label_list", "issue_comment"]
 
 
 @pytest.mark.parametrize(("tool", "kwargs"), _TOOL_CASES, ids=_TOOL_IDS)
@@ -130,3 +147,34 @@ def test_reference_access_does_not_clone(
     github_label_list(reference_name="sibling")
 
     mock_ensure_available.assert_not_called()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_comment_failure_names_reference_project(
+    mock_manager_cls: MagicMock,
+    reference_projects: None,  # pylint: disable=unused-argument
+) -> None:
+    """A failed cross-repo comment says which reference project it targeted."""
+    mock_mgr = _make_manager()
+    mock_mgr.add_comment.return_value = _make_comment(comment_id=0)
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_comment(number=42, body="hi", reference_name="sibling")
+
+    assert result == (
+        "Error: failed to add comment to issue #42 in reference project 'sibling'"
+    )
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_comment_failure_without_reference_is_unchanged(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """The workspace failure message stays byte-identical to today's."""
+    mock_mgr = _make_manager()
+    mock_mgr.add_comment.return_value = _make_comment(comment_id=0)
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_comment(number=42, body="hi")
+
+    assert result == "Error: failed to add comment to issue #42"
