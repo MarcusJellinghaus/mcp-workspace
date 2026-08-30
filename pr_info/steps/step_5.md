@@ -13,7 +13,7 @@ tool now does is exactly the stale-guidance failure that produced this issue.
 - `src/mcp_workspace/server_reference_tools.py` — `usage` string (`:77-81`) and
   `get_reference_projects` docstring (`:47-49`)
 - `tests/test_reference_projects_mcp_tools.py` — `:51-64` and `:87-96`
-- `README.md` — `:35`, `:84`, `:88`, `:374`, `:383`, `:454-460`
+- `README.md` — `:35`, `:84`, `:88`, `:149`, `:374`, `:383`, `:454-460`, `:473`
 - `.claude/CLAUDE.md` — the intro line (`:3`), the sibling-repos line (`:61`) and the Bash
   allowlist (`:102-103`)
 - `.claude/skills/issue_approve/SKILL.md` — `:26-32` and `:51-59`
@@ -47,6 +47,11 @@ refactor the list into a shared constant — the exact-equality assertions are d
 - `:88` — "Reference projects can only be browsed and read from, never modified" is still true
   of *files* and misleading once sibling issues are writable; qualify it to file access and
   point at the cross-repo GitHub section.
+- `:149` — the Security Notes bullet "Reference projects are **strictly read-only** - no write,
+  edit, or delete operations are possible" is the strongest-worded member of this set and is
+  flatly false of the sibling's issues after step 4; qualify it to file access the same way as
+  `:84` and `:88`. Leave the other three Security Notes bullets (`:150-152`, path validation,
+  gitignore filtering, path scoping) unchanged — they are about paths and stay true.
 - `:374` — "tells a caller whether the project supports the GitHub read tools"; drop "read".
 - `:383` — verbatim usage-string quote, must match byte-for-byte.
 - `:454-460` — rewrite the section as one block rather than four separate line edits: retitle
@@ -60,6 +65,13 @@ refactor the list into a shared constant — the exact-equality assertions are d
   the current checkout, so a sibling repo's issue can only be advanced through its status
   workflow from that repo's own checkout. Keep the Error Handling block as-is; both strings are
   still exact.
+- `:473` — the Security Features bullet "Reference projects are strictly read-only to prevent
+  accidental modifications" is the same claim as `:149` in the document's other security
+  section; qualify it to file access identically, so the two sections cannot contradict each
+  other or the cross-repo write capability. The surrounding bullets (path normalization,
+  traversal prevention, atomic writes, delete scoping) are unchanged.
+- `:443` — **not** changed: "Read-only access (no modification possible)" sits under
+  `read_reference_file`'s *Features*, so it is correctly scoped to file reads already.
 
 **`.claude/CLAUDE.md`.**
 
@@ -130,7 +142,9 @@ Optional but cheap sanity check: `mcp-coder check file-size --max-lines 750` if 
 > exact-equality assertions in `tests/test_reference_projects_mcp_tools.py` and the verbatim
 > quote in `README.md` so all four sites match byte-for-byte. Do not extract the list into a
 > shared constant. Then make the documentation edits listed in the step: `README.md` lines 35,
-> 84, 88, 374 and the `454-460` section rewritten as one block, including a bullet recording that
+> 84, 88, 149, 374 and 473 (the two security sections' blanket read-only claims scoped to file
+> access, leaving line 443 alone) and the `454-460` section rewritten as one block, including a
+> bullet recording that
 > `status-*` labels can only be set from the target repository's own checkout; the intro line
 > (`:3`) and the sibling-repos line in `.claude/CLAUDE.md` plus removal of the two stale
 > `gh issue view` / `gh issue comment` allowlist entries (leave the tool-mapping table alone);

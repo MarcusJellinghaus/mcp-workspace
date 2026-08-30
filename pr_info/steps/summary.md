@@ -119,7 +119,7 @@ an unused parameter behind.
 | `src/mcp_workspace/server_reference_tools.py` | 5 | Tool enumeration in the `usage` string (`:77-81`) and in `get_reference_projects`'s docstring (`:47-49`) |
 | `tests/github_operations/test_github_write_tools_reference.py` | 1-4 | New module, grown one tool per step |
 | `tests/test_reference_projects_mcp_tools.py` | 5 | Two exact-equality assertions on the `usage` string (`:51-64`, `:87-96`) |
-| `README.md` | 5 | `:35`, `:84`, `:88`, `:374`, `:383` (verbatim usage-string quote), and the `:454-460` cross-repo section |
+| `README.md` | 5 | `:35`, `:84`, `:88`, `:149`, `:374`, `:383` (verbatim usage-string quote), the `:454-460` cross-repo section, and `:473` — the `:149`/`:473` security bullets scoped to file access like `:84`/`:88`; `:443` stays as is |
 | `.claude/CLAUDE.md` | 5 | Intro line (`:3`, read-only claim scoped to files); "Sibling repos are readable in full…" line; remove two stale Bash allowlist entries |
 | `.claude/skills/issue_approve/SKILL.md` | 5 | Reference-project branch uses `github_issue_comment(reference_name=…)`; `gh` fallback retained |
 | `.claude/settings.local.json` | 5 | Add `mcp__mcp-workspace__github_label_list` |
