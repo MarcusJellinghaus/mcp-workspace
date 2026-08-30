@@ -43,7 +43,7 @@ Details: [step_3.md](./steps/step_3.md)
 
 - [x] Implementation: add the `github_issue_create` case and the three message tests, then add `reference_name` to `_check_labels` and `github_issue_create`, making the `status-*` advice and unknown-label message conditional while keeping the workspace path byte-identical
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared — blocked: `pr_info/.commit_message.txt` is gitignored, so the MCP workspace write tools refuse it and no shell tool is available this session; message text is in the run output
+- [x] Commit message prepared — message is in commit `a0fc547`; `pr_info/.commit_message.txt` itself could not be written (gitignored, MCP write tools refuse it, no shell tool available)
 
 ### Step 4: `github_issue_edit` gains `reference_name`
 
