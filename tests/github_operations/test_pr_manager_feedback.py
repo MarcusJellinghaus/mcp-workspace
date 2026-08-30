@@ -10,6 +10,7 @@ import pytest
 from github.GithubException import GithubException, UnknownObjectException
 from github.Requester import Requester
 
+from mcp_workspace.checks.pr_feedback import collect_pr_feedback
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations._pr_feedback_sources import (
     fetch_code_scanning_alerts,
@@ -373,6 +374,51 @@ class TestGetPRFeedback:
         assert alerts[0]["message"] == "potential SQLi"
         assert alerts[0]["path"] == "src/foo.py"
         assert alerts[0]["line"] == 42
+
+    def test_graphql_request_shape(self, mock_manager: PullRequestManager) -> None:
+        """The direct call must reproduce `graphql_query`'s URL and payload.
+
+        Every other test mocks `requestJsonAndCheck` and would pass against a
+        wrong wrapper, so the request shape needs its own assertion.
+        """
+        self._setup_mocks(mock_manager, comments=[], alerts_response=[])
+
+        mock_manager.get_pr_feedback(42)
+
+        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
+        post = next(
+            c
+            for c in requester.requestJsonAndCheck.call_args_list
+            if c.args[0] == "POST"
+        )
+        assert post.args[1] == requester.graphql_url
+        payload = post.kwargs["input"]
+        assert set(payload) == {"query", "variables"}
+        assert payload["variables"] == {
+            "owner": "test",
+            "repo": "repo",
+            "prNumber": 42,
+        }
+        assert "pullRequest(number: $prNumber)" in payload["query"]
+
+    def test_repository_unavailable_fails_closed(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Repository not accessible → flagged, not rendered as clean."""
+        self._setup_mocks(mock_manager, comments=[], alerts_response=[])
+
+        with patch.object(mock_manager, "_get_repository", return_value=None):
+            result = mock_manager.get_pr_feedback(42)
+            _, _, undeterminable = collect_pr_feedback(mock_manager, 42)
+
+        assert _post_call_count(mock_manager) == 0
+        exc = result["unavailable"]["threads"]
+        assert isinstance(exc, ValueError)
+        assert (
+            render_exception_for_display(exc)
+            == "ValueError — Repository not accessible"
+        )
+        assert undeterminable is True
 
     def test_graphql_http_failure(self, mock_manager: PullRequestManager) -> None:
         """GraphQL HTTP failure raises → 'threads' unavailable, not retried."""

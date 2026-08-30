@@ -100,10 +100,15 @@ def fetch_review_data(
         GithubException: Propagated from `requestJsonAndCheck` on a genuine HTTP
             failure. GraphQL-level errors are returned as the 4th tuple element,
             not raised, and are not retried by this loop.
+        ValueError: If the repository is not accessible. `_get_repository`
+            swallows the underlying failure, so there is no status to report —
+            but returning an empty result would render an unreachable
+            repository or an invalid token as "Reviews: clean", the same
+            fail-open this function avoids for a null `pullRequest`.
     """  # noqa: DOC502  # GithubException propagates from requestJsonAndCheck
     repo = manager._get_repository()  # pylint: disable=protected-access
     if repo is None:
-        return ([], 0, [], None)
+        raise ValueError("Repository not accessible")
 
     owner, repo_name = repo.owner.login, repo.name
 
