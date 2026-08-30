@@ -58,7 +58,9 @@ class TestReferenceProjectMCPTools:
             "usage": (
                 "Use these 3 projects with list_reference_directory(), "
                 "read_reference_file(), search_reference_files(), git(), "
-                "github_issue_view(), github_issue_list(), github_pr_view(), and github_search()"
+                "github_issue_view(), github_issue_list(), github_pr_view(), "
+                "github_search(), github_label_list(), github_issue_create(), "
+                "github_issue_edit(), and github_issue_comment()"
             ),
         }
         assert result == expected
@@ -90,7 +92,9 @@ class TestReferenceProjectMCPTools:
                 "usage": (
                     "Use these 1 projects with list_reference_directory(), "
                     "read_reference_file(), search_reference_files(), git(), "
-                    "github_issue_view(), github_issue_list(), github_pr_view(), and github_search()"
+                    "github_issue_view(), github_issue_list(), github_pr_view(), "
+                    "github_search(), github_label_list(), github_issue_create(), "
+                    "github_issue_edit(), and github_issue_comment()"
                 ),
             }
             assert result == expected

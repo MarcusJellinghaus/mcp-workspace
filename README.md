@@ -32,7 +32,7 @@ By connecting your AI assistant to your filesystem, you can transform your workf
 - `get_reference_projects`: Discover available reference projects
 - `list_reference_directory`: List files in reference projects
 - `read_reference_file`: Read a reference-project file, or a line slice via start_line/end_line.
-- Cross-repo GitHub reads: `github_issue_view`, `github_issue_list`, `github_pr_view` and `github_search` accept `reference_name`
+- Cross-repo GitHub access: `github_issue_view`, `github_issue_list`, `github_pr_view`, `github_search`, `github_label_list`, `github_issue_create`, `github_issue_edit` and `github_issue_comment` accept `reference_name`
 - `Structured Logging`: Comprehensive logging system with both human-readable and JSON formats
 
 ## Installation
@@ -81,11 +81,11 @@ The server provides flexible logging options:
 
 ## Reference Projects
 
-Reference projects allow you to provide AI assistants with read-only access to additional codebases or directories for context and reference. This feature enables the LLM to browse and read files from multiple projects while maintaining write access only to the main project directory.
+Reference projects allow you to provide AI assistants with read-only *file* access to additional codebases or directories for context and reference. This feature enables the LLM to browse and read files from multiple projects while keeping file writes restricted to the main project directory. A reference project with a configured repository URL can also be reached through the GitHub tools — see [Cross-Repo GitHub Access](#cross-repo-github-access).
 
 ### Features
 
-- **Read-only access**: Reference projects can only be browsed and read from, never modified
+- **Read-only file access**: Reference project *files* can only be browsed and read from, never modified. Their GitHub issues are a separate matter — see [Cross-Repo GitHub Access](#cross-repo-github-access)
 - **Multiple projects**: Configure multiple reference projects simultaneously
 - **Auto-discovery**: LLM can discover available reference projects
 - **Security**: Same path validation and gitignore filtering as main project
@@ -146,7 +146,7 @@ The server validates reference projects at startup:
 
 ### Security Notes
 
-- Reference projects are **strictly read-only** - no write, edit, or delete operations are possible
+- Reference project *files* are **strictly read-only** - no write, edit, or delete file operations are possible. This does not extend to their GitHub issues — see [Cross-Repo GitHub Access](#cross-repo-github-access)
 - All paths are validated to prevent directory traversal attacks
 - Gitignore filtering is automatically applied to hide irrelevant files
 - Path access is restricted to the specified reference project directories
@@ -371,7 +371,7 @@ Discovery tool for LLMs to find available reference projects.
 
 **Returns:** Dictionary containing:
 - `count`: Number of available projects
-- `projects`: List of `{"name": ..., "url": ...}` objects. `url` is the configured repository URL, and tells a caller whether the project supports the GitHub read tools — a project with `url: null` cannot be used with `reference_name`.
+- `projects`: List of `{"name": ..., "url": ...}` objects. `url` is the configured repository URL, and tells a caller whether the project supports the GitHub tools — a project with `url: null` cannot be used with `reference_name`.
 - `usage`: Instructions for next steps
 
 **Example:**
@@ -380,7 +380,7 @@ get_reference_projects()
 # Returns: {
 #   "count": 3,
 #   "projects": [{"name": "docs", "url": "https://github.com/org/docs"}, ...],
-#   "usage": "Use these 3 projects with list_reference_directory(), read_reference_file(), search_reference_files(), git(), github_issue_view(), github_issue_list(), github_pr_view(), and github_search()"
+#   "usage": "Use these 3 projects with list_reference_directory(), read_reference_file(), search_reference_files(), git(), github_issue_view(), github_issue_list(), github_pr_view(), github_search(), github_label_list(), github_issue_create(), github_issue_edit(), and github_issue_comment()"
 # }
 ```
 
@@ -451,13 +451,14 @@ read_reference_file("config", "settings/production.yml")
 - "Invalid path" - for security violations or path traversal attempts
 - "Permission denied" - for access issues
 
-#### Cross-Repo GitHub Reads
-`github_issue_view`, `github_issue_list`, `github_pr_view` and `github_search` take an optional `reference_name`. Without it they read the workspace repository; with it they read the named reference project instead.
+#### Cross-Repo GitHub Access
+`github_issue_view`, `github_issue_list`, `github_pr_view`, `github_search` and `github_label_list` read, and `github_issue_create`, `github_issue_edit` and `github_issue_comment` write, taking an optional `reference_name`. Without it they act on the workspace repository; with it they act on the named reference project instead.
 
 **Features:**
 - The repository is resolved from the reference project's configured URL — no clone is performed, so a URL-only reference project works
 - Only names listed by `get_reference_projects()` are accepted; arbitrary `owner/repo` strings are not
-- Reads only — `reference_name` is accepted by these four tools alone; every other GitHub tool, the write tools included, targets the workspace repository
+- `reference_name` is accepted by these eight tools alone; `github_pr_create` and every other GitHub tool targets the workspace repository
+- Workflow `status-*` labels are rejected on both sides, for every repository, and `mcp-coder gh-tool set-status` acts on the current checkout — so a sibling repo's issue can only be advanced through its status workflow from that repo's own checkout
 
 **Error Handling:** returned as `"Error: ..."` strings rather than raised:
 - `"Error: Reference project '<name>' not found"` - when the name is not a reference project
@@ -470,7 +471,7 @@ read_reference_file("config", "settings/production.yml")
 - Path traversal attacks are prevented for both main project and reference projects
 - Files are written atomically to prevent data corruption
 - Delete operations are restricted to the project directory for safety
-- Reference projects are strictly read-only to prevent accidental modifications
+- Reference project *files* are strictly read-only to prevent accidental modifications (their GitHub issues are writable via `reference_name` — see [Cross-Repo GitHub Access](#cross-repo-github-access))
 
 ### MCP Configuration Management Tool
 

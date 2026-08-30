@@ -57,9 +57,9 @@ Details: [step_4.md](./steps/step_4.md)
 
 Details: [step_5.md](./steps/step_5.md)
 
-- [ ] Implementation: update the enumeration in `server_reference_tools.py` plus its two exact-equality assertions and the verbatim README quote, then the README/CLAUDE.md/SKILL.md prose, `.claude/settings.local.json` and the `tests/LLM_Test.md` Section 4 script
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: update the enumeration in `server_reference_tools.py` plus its two exact-equality assertions and the verbatim README quote, then the README/CLAUDE.md/SKILL.md prose, `.claude/settings.local.json` and the `tests/LLM_Test.md` Section 4 script
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared — message is in the run output; `pr_info/.commit_message.txt` itself could not be written (gitignored, MCP write tools refuse it, no shell tool available)
 
 ## Pull Request
 

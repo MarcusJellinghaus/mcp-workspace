@@ -1,6 +1,6 @@
 ## About this repo
 
-`mcp-workspace` is an MCP server providing workspace file operations (read, write, edit, list, search) and read-only access to reference projects. Source code is in `src/mcp_workspace/`, tests in `tests/`. Python 3.11+ required.
+`mcp-workspace` is an MCP server providing workspace file operations (read, write, edit, list, search) and read-only file access to reference projects (whose GitHub issues are writable — see below). Source code is in `src/mcp_workspace/`, tests in `tests/`. Python 3.11+ required.
 
 ## MCP Tools — mandatory
 
@@ -58,7 +58,7 @@ If you can't name the gap, use the MCP tool. Exempt: the approved git/gh command
 | Create GitHub PR | `mcp__mcp-workspace__github_pr_create` |
 | List GitHub labels | `mcp__mcp-workspace__github_label_list` |
 
-Sibling repos are readable in full via the reference tools, `git` with `reference_name`, and the GitHub read tools (`github_issue_view`, `github_issue_list`, `github_pr_view`, `github_search`) with `reference_name` (`get_reference_projects` lists them). Check there before asking about another repo.
+Sibling repos are readable in full via the reference tools, `git` with `reference_name`, and the GitHub read tools (`github_issue_view`, `github_issue_list`, `github_pr_view`, `github_search`, `github_label_list`) with `reference_name` (`get_reference_projects` lists them). Their issues are also writable with `reference_name` via `github_issue_create`, `github_issue_edit` and `github_issue_comment`. Check there before asking about another repo.
 
 ## Code quality checks
 
@@ -99,8 +99,6 @@ Never use `python -c` via Bash. If you reason instead of running, label the conc
 
 ```
 git commit / add / rebase / push / checkout -b / branch
-gh issue comment (cross-repo only — otherwise use the MCP tool)
-gh issue view (cross-repo only — otherwise use the MCP tool)
 gh run view
 mcp-coder gh-tool set-status <label>
 ```

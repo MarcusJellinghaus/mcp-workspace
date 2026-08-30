@@ -174,7 +174,19 @@ closed rather than removed.
 8. `github_issue_edit(number=<N>, add_labels=["definitely-not-a-real-label"])` — expect an error naming the unknown label
 9. `github_issue_edit(number=<N>, state="closed")` — expect `(state: closed)`
 
-### Test 4.2: PR creation guards (no PR is created)
+### Test 4.2: Cross-repo issue create → comment → edit → close
+
+**Writes to a sibling repository.** Skip the whole test if `get_reference_projects()` returns
+`count: 0` or no project has a non-null `url`.
+
+1. Pick a reference project `<name>` with a non-null `url`.
+2. `github_label_list(reference_name=<name>)` — expect that repo's labels, one per line
+3. `github_issue_create(title="LLM test - safe to close", body="Created by tests/LLM_Test.md Section 4.", reference_name=<name>)` — expect `Created issue #N — <url>`, with the URL pointing at the sibling repo
+4. `github_issue_comment(number=<N from step 3>, body="Test comment.", reference_name=<name>)` — expect `Added comment to issue #N — <url>`
+5. `github_issue_edit(number=<N>, add_labels=["status-01:created"], reference_name=<name>)` — expect an error naming `mcp-coder gh-tool set-status` and that project's own checkout, and no change to the issue
+6. `github_issue_edit(number=<N>, state="closed", reference_name=<name>)` — expect `(state: closed)`
+
+### Test 4.3: PR creation guards (no PR is created)
 
 Only the rejection paths are scripted — creating a real PR needs a real branch.
 
