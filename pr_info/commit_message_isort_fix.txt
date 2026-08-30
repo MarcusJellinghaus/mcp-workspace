@@ -11,7 +11,8 @@ force_grid_wrap = 0) isort collapses a wrapper that is not needed for line
 length, and the CI isort job failed with "Imports are incorrectly sorted
 and/or formatted".
 
-Collapse the statement back to its origin/main form. No functional change:
+Collapse the statement back to its origin/main form; src/mcp_workspace/server.py
+is now byte-identical to origin/main. No functional change:
 import ordering, the wrapped get_reference_project_path /
 get_reference_repo_url group, the separate "register as" statement, and the
 TYPE_CHECKING-guarded and function-local lazy github_operations imports are
