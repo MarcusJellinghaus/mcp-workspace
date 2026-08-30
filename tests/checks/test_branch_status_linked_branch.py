@@ -58,9 +58,7 @@ def _make_report(
 
 def _linked_lines(rendered: str) -> List[str]:
     """Return every ``Linked Branch:`` line in a rendered report."""
-    return [
-        line for line in rendered.splitlines() if line.startswith("Linked Branch:")
-    ]
+    return [line for line in rendered.splitlines() if line.startswith("Linked Branch:")]
 
 
 class TestCollectLinkedBranchStatus:

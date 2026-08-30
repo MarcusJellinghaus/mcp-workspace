@@ -1,0 +1,25 @@
+Split linked-branch code out of branch_manager and apply formatters
+
+Fixes the file-size, black and isort CI jobs.
+
+File size (750-line limit):
+- Extract the linked-branch GraphQL operations from IssueBranchManager into
+  a new LinkedBranchesMixin (linked_branches_mixin.py), matching the existing
+  comments_mixin.py / labels_mixin.py convention. The mixin holds
+  get_linked_branches, get_linked_branches_or_none and delete_linked_branch,
+  plus the module-level _query_linked_branches helper and the shared
+  validate_issue_number_or_log validator that replaces the private
+  _validate_issue_number method. The public API and the default_return=[]
+  contract of get_linked_branches are unchanged, so the caller in
+  branch_status.py needs no edits. branch_manager.py: 767 -> 518 lines.
+- Move TestDeleteLinkedBranch into a sibling module
+  tests/github_operations/issues/test_branch_manager_unlink.py, matching the
+  existing test_branch_manager_create.py / _pr_fallback_a.py split.
+  test_branch_manager_linked.py: 765 -> 371 lines.
+
+Formatting:
+- Run isort and black over src and tests, which reformats
+  tests/checks/test_branch_status_linked_branch.py and the split test module.
+  Formatting-only changes.
+
+.large-files-allowlist is unchanged.
