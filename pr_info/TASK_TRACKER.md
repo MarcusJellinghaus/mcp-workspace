@@ -85,3 +85,56 @@ Details: [step_3.md](./steps/step_3.md) — depends on Step 2. Parts (a) suppres
 
 - [ ] PR review: verify all steps implemented as specified, no unresolved review comments
 - [ ] PR summary: write title and description covering the change and its rationale
+
+### CI fix: isort import formatting in server.py
+
+- [x] Implementation: collapse the parenthesized single-name import at
+  `src/mcp_workspace/server.py:37` back to one line, restoring the file
+  byte-for-byte to `origin/main` (`git diff origin/main -- src/mcp_workspace/server.py`
+  is empty)
+- [x] Quality checks: pylint, mypy and black clean. pytest passes; the only
+  failure was `tests/test_startup_performance.py::test_server_startup_under_two_seconds`
+  (median 2.142s vs a 2.0s threshold) under `-n auto` CPU contention — it passes
+  consistently with `-n 0`, and import formatting cannot affect runtime.
+- [x] Commit message prepared — as in steps 1-3, `pr_info/.commit_message.txt`
+  could not be written (`.gitignore:48` excludes it; the workspace MCP refuses
+  gitignored paths for both `save_file` and `move_file`, and no shell tool is
+  available in this session), so the text is recorded here instead:
+
+  ```
+  fix(server): restore single-line import to satisfy isort in CI
+
+  The isort CI job failed on src/mcp_workspace/server.py:
+
+    isort --check --profile=black --float-to-top src tests
+    ERROR: src/mcp_workspace/server.py Imports are incorrectly sorted
+           and/or formatted.
+
+  A single-name import had been rewritten into a parenthesized multi-line
+  form:
+
+      from mcp_workspace.server_reference_tools import (
+          set_reference_projects,
+      )
+
+  isort 9.0.1 (the version used in CI) normalizes a lone import that fits
+  within line_length = 88 back to a single line without parentheses, so the
+  file no longer matched isort's canonical output.
+
+  Collapse it back to the single-line form, restoring the file byte-for-byte
+  to its origin/main state, where this same CI step passes. This import block
+  is outside the scope of the implementation plan, which lists server.py under
+  "Unchanged (deliberately)", so no feature work depends on it.
+
+  No other source or test file is affected. The surrounding
+  server_reference_tools statements (the parenthesized
+  get_reference_project_path / get_reference_repo_url block and the aliased
+  register import) were already in isort's expected form.
+
+  NOTE: the isort installed in the local dev environment disagrees with CI on
+  this construct and actively rewrites the single-line import back into the
+  parenthesized form. Running the local isort (tools/format_all.sh or
+  run_format_code) will reintroduce this CI failure. Verify instead with the CI
+  invocation itself, or by confirming that
+  "git diff origin/main -- src/mcp_workspace/server.py" is empty.
+  ```
