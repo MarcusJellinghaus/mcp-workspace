@@ -26,3 +26,11 @@ src/mcp_workspace/server.py:37 — low — isort-only reformat of a single-name 
 Verdict(decision='tasks', tasks=['Add the `@log_function_call` decorator to `get_linked_branches_or_none` in `src/mcp_workspace/github_operations/issues/linked_branches_mixin.py:147` so it matches the observability of its siblings `get_linked_branches` and `delete_linked_branch`.', 'Add direct unit tests for `validate_issue_number_or_log` in `tests/github_operations/issues/test_base.py`, covering both the valid-input and the invalid-input/logging paths, alongside the existing `validate_issue_number` tests.'], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 3 — 2026-08-30
+**Findings**:
+I'll start by loading the tools I need and gathering context.`src/mcp_workspace/server.py:37` — critical — Unrelated cosmetic reformat of `from mcp_workspace.server_reference_tools import set_reference_projects` into a parenthesized multi-line import; isort (`--check --profile=black --float-to-top`) rejects it, and it is the sole failing CI job (run 33303570761). Revert to the single-line form — the edit is outside issue #268's scope and has no behavioural effect.
+**Decisions**:
+Verdict(decision='tasks', tasks=['Revert the import at `src/mcp_workspace/server.py:37` back to the single-line form `from mcp_workspace.server_reference_tools import set_reference_projects`, removing the unrelated parenthesized multi-line reformat, then confirm isort (`--check --profile=black --float-to-top`) passes.'], escalate_reason=None)
+**Changes**:
+applied
