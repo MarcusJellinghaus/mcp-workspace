@@ -118,7 +118,16 @@ class TestGetPRFeedback:
                 if graphql_raises is not None:
                     raise graphql_raises
                 if post_bodies is not None:
-                    return ({}, next(post_bodies))
+                    try:
+                        return ({}, next(post_bodies))
+                    except StopIteration:
+                        # BaseException, so get_pr_feedback's broad `except
+                        # Exception` cannot turn a short harness into a
+                        # plausible-looking "threads unavailable" pass.
+                        pytest.fail(
+                            "graphql_responses exhausted: the code under test "
+                            "made more POSTs than bodies were supplied for"
+                        )
                 return ({}, graphql_response or _EMPTY_REVIEW_DATA)
             if alerts_raises is not None:
                 raise alerts_raises
@@ -470,6 +479,26 @@ class TestGetPRFeedback:
             graphql_response=_null_pr_body(
                 {"type": "FORBIDDEN", "message": "Resource not accessible"}
             ),
+            comments=[],
+            alerts_response=[],
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            result = mock_manager.get_pr_feedback(42)
+
+        assert _post_call_count(mock_manager) == 1
+        sleep.assert_not_called()
+        assert "threads" in result["unavailable"]
+
+    def test_message_less_permanent_error_not_retried(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """A permanent error type with no message still stops the retry loop."""
+        self._setup_mocks(
+            mock_manager,
+            graphql_response=_null_pr_body({"type": "RATE_LIMITED"}),
             comments=[],
             alerts_response=[],
         )

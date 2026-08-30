@@ -17,11 +17,13 @@ def _cap(text: str) -> str:
     return text
 
 
-def _render_graphql_errors(pairs: list[tuple[str | None, str]]) -> str:
+def _render_graphql_errors(pairs: list[tuple[str | None, str]], total: int) -> str:
     """Return (type, message) pairs rendered as a single line, status omitted.
 
     The cap applies per message rather than to the whole line, so the trailing
-    '(+N more)' count always survives.
+    '(+N more)' count always survives. `total` is how many entries GitHub
+    returned, which exceeds `len(pairs)` when some were unparseable; counting
+    those keeps the suffix an honest total rather than under-reporting.
     """
     parts = []
     for err_type, message in pairs[:_MAX_GRAPHQL_ERRORS_SHOWN]:
@@ -30,7 +32,7 @@ def _render_graphql_errors(pairs: list[tuple[str | None, str]]) -> str:
             f"GraphQL {err_type} — {msg}" if err_type else f"GraphQL error — {msg}"
         )
     rendered = "; ".join(parts)
-    extra = len(pairs) - _MAX_GRAPHQL_ERRORS_SHOWN
+    extra = total - len(parts)
     return rendered + (f" (+{extra} more)" if extra > 0 else "")
 
 
@@ -53,7 +55,9 @@ def render_exception_for_display(exc: Exception) -> str:
         if data and "errors" in data and "message" not in data:
             pairs = extract_graphql_errors(data)
             if pairs:
-                return _render_graphql_errors(pairs)
+                # Non-empty pairs prove `errors` parsed as a list, so its full
+                # length is the count of entries GitHub actually sent.
+                return _render_graphql_errors(pairs, len(data["errors"]))
         raw = data.get("message") if data else None
         msg = re.sub(r"\s+", " ", raw).strip() if raw else ""
         rendered = f"{type_name} {exc.status}" + (f" — {msg}" if msg else "")

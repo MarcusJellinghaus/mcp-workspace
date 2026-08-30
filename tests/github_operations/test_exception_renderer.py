@@ -142,6 +142,31 @@ class TestGraphqlErrors:
         )
         assert result.endswith("(+1 more)")
 
+    def test_unparseable_entries_are_still_counted(self) -> None:
+        result = render_exception_for_display(
+            _graphql_exc(
+                [
+                    {"type": "A", "message": "a"},
+                    {"type": "B"},
+                    "not a dict",
+                    {"message": "   "},
+                ]
+            )
+        )
+        assert result == "GraphQL A — a (+3 more)"
+
+    def test_more_suffix_counts_total_not_rendered_pairs(self) -> None:
+        result = render_exception_for_display(
+            _graphql_exc(
+                [
+                    {"type": "A", "message": "a"},
+                    {"type": "B", "message": "b"},
+                    {"type": "C"},
+                ]
+            )
+        )
+        assert result == "GraphQL A — a; GraphQL B — b (+1 more)"
+
     def test_unknown_object_exception_uses_graphql_arm(self) -> None:
         exc = UnknownObjectException(
             404,

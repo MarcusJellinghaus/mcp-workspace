@@ -14,8 +14,6 @@ from typing import TYPE_CHECKING, Any, Optional, Tuple
 from github.GithubException import GithubException, UnknownObjectException
 from github.Requester import Requester
 
-from ._diagnostics import extract_graphql_errors
-
 if TYPE_CHECKING:
     from .pr_manager import PullRequestManager
 
@@ -33,6 +31,26 @@ _REVIEW_DATA_RETRY_BASE_DELAY_SECONDS = 1.0
 _PERMANENT_GRAPHQL_ERROR_TYPES = frozenset(
     {"FORBIDDEN", "INSUFFICIENT_SCOPES", "RATE_LIMITED"}
 )
+
+
+def _has_permanent_error(result: dict[str, Any]) -> bool:
+    """Return True when any `errors` entry names a permanently-failing type.
+
+    Keys on the raw `errors` list rather than on `extract_graphql_errors`
+    output: the parser drops entries lacking a usable message, so a type-only
+    `{"type": "RATE_LIMITED"}` would otherwise be retried against an API that
+    is already refusing.
+
+    Returns:
+        True if the retry loop should give up immediately.
+    """
+    errors = result.get("errors")
+    if not isinstance(errors, list):
+        return False
+    return any(
+        isinstance(entry, dict) and entry.get("type") in _PERMANENT_GRAPHQL_ERROR_TYPES
+        for entry in errors
+    )
 
 
 def _build_graphql_exception(
@@ -131,10 +149,7 @@ def fetch_review_data(
         )
         if pr_data is not None:
             break
-        if any(
-            err_type in _PERMANENT_GRAPHQL_ERROR_TYPES
-            for err_type, _ in extract_graphql_errors(result)
-        ):
+        if _has_permanent_error(result):
             break
         if attempt == _REVIEW_DATA_MAX_ATTEMPTS - 1:
             break
