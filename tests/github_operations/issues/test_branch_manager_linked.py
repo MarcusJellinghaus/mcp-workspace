@@ -1,5 +1,6 @@
 """Unit tests for IssueBranchManager linked-branch query methods."""
 
+import logging
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock, patch
@@ -323,13 +324,38 @@ class TestGetLinkedBranchesOrNone:
 
         assert mock_manager.get_linked_branches_or_none(999) is None
 
-    def test_malformed_response_returns_none(
-        self, mock_manager: IssueBranchManager
+    def test_parse_error_returns_none_from_the_in_body_handler(
+        self,
+        mock_manager: IssueBranchManager,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """A malformed payload returns None rather than []."""
-        self._set_graphql_response(mock_manager, {"data": None})
+        """A malformed node returns None from `_query_linked_branches` itself.
 
-        assert mock_manager.get_linked_branches_or_none(123) is None
+        The ref node is present but carries no ``name``, so ``node["ref"]["name"]``
+        raises ``KeyError`` inside the ``except (KeyError, TypeError)`` handler.
+        The log messages pin which handler ran: the in-body parse-error branch,
+        not the broad catch in ``get_linked_branches_or_none``.
+        """
+        self._set_graphql_response(
+            mock_manager,
+            {
+                "data": {
+                    "repository": {
+                        "issue": {
+                            "linkedBranches": {
+                                "nodes": [{"ref": {"oid": "abc123"}}],
+                            }
+                        }
+                    }
+                }
+            },
+        )
+
+        with caplog.at_level(logging.ERROR):
+            assert mock_manager.get_linked_branches_or_none(123) is None
+
+        assert "Error parsing GraphQL response" in caplog.text
+        assert "Failed to query linked branches" not in caplog.text
 
     def test_graphql_server_error_returns_none(
         self, mock_manager: IssueBranchManager

@@ -10,8 +10,9 @@ from github import GithubException
 from mcp_coder_utils.log_utils import log_function_call
 
 from ..base_manager import BaseGitHubManager, _handle_github_errors
+from .base import validate_issue_number_or_log
 from .branch_naming import BranchCreationResult, generate_branch_name_from_issue
-from .linked_branches_mixin import LinkedBranchesMixin, validate_issue_number_or_log
+from .linked_branches_mixin import LinkedBranchesMixin
 
 # Configure logger for GitHub operations
 logger = logging.getLogger(__name__)

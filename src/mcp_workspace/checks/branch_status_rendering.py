@@ -14,9 +14,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Dict, List, Optional
 
-from mcp_workspace.git_operations.branch_queries import (
-    extract_issue_number_from_branch,
-)
 from mcp_workspace.github_operations.ci_log_parser import truncate_ci_details
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
@@ -323,43 +320,47 @@ def _format_linked_branch_line(report: "BranchStatusReport") -> Optional[str]:
     because a branch numbered for a nonexistent issue reaches it through the
     GraphQL-null path.
 
+    The issue number is read from the report rather than re-derived from the
+    branch name, so every state other than ``NOT_CHECKED`` renders a line —
+    ``Review Gate: BLOCKED (linked branch)`` can never appear without its
+    reason.
+
     Returns:
         The formatted ``Linked Branch: ...`` line, or None when the state was
-        not checked or the branch name yields no issue number.
+        not checked.
     """
     status = report.linked_branch_status
     if status == LinkedBranchStatus.NOT_CHECKED:
         return None
-    issue_number = extract_issue_number_from_branch(report.branch_name)
-    if issue_number is None:
-        return None
 
     current = report.branch_name
+    issue = (
+        f"issue #{report.linked_branch_issue_number}"
+        if report.linked_branch_issue_number is not None
+        else "the issue"
+    )
     if status == LinkedBranchStatus.OK:
         text = f"OK ('{current}')"
     elif status == LinkedBranchStatus.MISMATCH:
         linked = report.linked_branches[0] if report.linked_branches else ""
         text = (
-            f"MISMATCH — issue #{issue_number} links '{linked}', "
+            f"MISMATCH — {issue} links '{linked}', "
             f"not current branch '{current}' — relink in the Development panel"
         )
     elif status == LinkedBranchStatus.AMBIGUOUS:
         names = ", ".join(f"'{name}'" for name in report.linked_branches)
         text = (
-            f"AMBIGUOUS — issue #{issue_number} links "
+            f"AMBIGUOUS — {issue} links "
             f"{len(report.linked_branches)} branches ({names}) — unlink the "
             "extra branches in the Development panel so exactly one remains"
         )
     elif status == LinkedBranchStatus.NOT_LINKED:
         text = (
-            f"NOT_LINKED — issue #{issue_number} links no branch — "
+            f"NOT_LINKED — {issue} links no branch — "
             f"link '{current}' in the Development panel"
         )
     else:
-        text = (
-            "UNKNOWN — could not determine the linked branch "
-            f"for issue #{issue_number}"
-        )
+        text = f"UNKNOWN — could not determine the linked branch for {issue}"
     return f"Linked Branch: {text}"
 
 

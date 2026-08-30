@@ -13,10 +13,11 @@ from typing import List, Optional, cast
 from mcp_coder_utils.log_utils import log_function_call
 
 from ..base_manager import BaseGitHubManager, _handle_github_errors
+from .base import validate_issue_number_or_log
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["LinkedBranchesMixin", "validate_issue_number_or_log"]
+__all__ = ["LinkedBranchesMixin"]
 
 # GraphQL query returning the ref names of an issue's linked branches.
 _LINKED_BRANCHES_QUERY = """
@@ -52,23 +53,6 @@ query($owner: String!, $repo: String!, $issueNumber: Int!) {
   }
 }
 """
-
-
-def validate_issue_number_or_log(issue_number: int) -> bool:
-    """Validate issue number, logging instead of raising when it is invalid.
-
-    Args:
-        issue_number: Issue number to validate
-
-    Returns:
-        True if valid, False otherwise
-    """
-    if not isinstance(issue_number, int) or issue_number <= 0:
-        logger.error(
-            f"Invalid issue number: {issue_number}. Must be a positive integer."
-        )
-        return False
-    return True
 
 
 def _query_linked_branches(

@@ -493,7 +493,7 @@ class TestCollectBranchStatus:
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
     @patch(
         "mcp_workspace.checks.branch_status._collect_linked_branch_status",
-        return_value=(LinkedBranchStatus.OK, ("123-feature",)),
+        return_value=(LinkedBranchStatus.OK, ("123-feature",), 123),
     )
     def test_full_collection(
         self,
@@ -543,7 +543,7 @@ class TestCollectBranchStatus:
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
     @patch(
         "mcp_workspace.checks.branch_status._collect_linked_branch_status",
-        return_value=(LinkedBranchStatus.OK, ("123-feature",)),
+        return_value=(LinkedBranchStatus.OK, ("123-feature",), 123),
     )
     def test_github_init_failure(
         self,
@@ -591,7 +591,7 @@ class TestCollectBranchStatus:
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
     @patch(
         "mcp_workspace.checks.branch_status._collect_linked_branch_status",
-        return_value=(LinkedBranchStatus.OK, ("123-feature",)),
+        return_value=(LinkedBranchStatus.OK, ("123-feature",), 123),
     )
     def test_rebase_behind_but_mergeable_squash_safe(
         self,
@@ -643,7 +643,7 @@ class TestCollectBranchStatus:
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
     @patch(
         "mcp_workspace.checks.branch_status._collect_linked_branch_status",
-        return_value=(LinkedBranchStatus.OK, ("123-feature",)),
+        return_value=(LinkedBranchStatus.OK, ("123-feature",), 123),
     )
     def test_transferred_issue_logs_warning(
         self,
@@ -713,7 +713,7 @@ class TestCollectBranchStatusRegressions:
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
     @patch(
         "mcp_workspace.checks.branch_status._collect_linked_branch_status",
-        return_value=(LinkedBranchStatus.OK, ("123-feature",)),
+        return_value=(LinkedBranchStatus.OK, ("123-feature",), 123),
     )
     def test_issue_207_continue_on_error_scenario(
         self,
@@ -782,7 +782,7 @@ class TestCollectBranchStatusRegressions:
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
     @patch(
         "mcp_workspace.checks.branch_status._collect_linked_branch_status",
-        return_value=(LinkedBranchStatus.OK, ("123-feature",)),
+        return_value=(LinkedBranchStatus.OK, ("123-feature",), 123),
     )
     def test_pr_lookup_failure_threads_undeterminable(
         self,
@@ -841,7 +841,7 @@ class TestCollectBranchStatusRegressions:
     @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
     @patch(
         "mcp_workspace.checks.branch_status._collect_linked_branch_status",
-        return_value=(LinkedBranchStatus.OK, ("123-feature",)),
+        return_value=(LinkedBranchStatus.OK, ("123-feature",), 123),
     )
     def test_confirmed_no_pr_stays_clean_eligible(
         self,

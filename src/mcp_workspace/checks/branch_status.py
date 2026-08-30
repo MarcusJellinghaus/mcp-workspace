@@ -95,6 +95,7 @@ class BranchStatusReport:
     pr_feedback_undeterminable: bool = False
     linked_branch_status: LinkedBranchStatus = LinkedBranchStatus.NOT_CHECKED
     linked_branches: tuple[str, ...] = ()
+    linked_branch_issue_number: Optional[int] = None
 
     def format_for_human(
         self,
@@ -393,47 +394,49 @@ def _collect_pr_info(
 
 def _collect_linked_branch_status(
     project_dir: Path, branch_name: str
-) -> tuple[LinkedBranchStatus, tuple[str, ...]]:
+) -> tuple[LinkedBranchStatus, tuple[str, ...], Optional[int]]:
     """Compare the issue's linked branches against the current branch.
 
-    The issue number is re-extracted from the branch name so the helper is
-    self-contained, and every failure is absorbed into ``UNKNOWN``: the outer
-    handler in :func:`collect_branch_status` would otherwise discard the whole
-    report. ``IssueBranchManager(...)`` itself raises ``ValueError`` when no
-    token is configured.
+    The issue number is extracted from the branch name here and returned to
+    the caller, so it is derived once and the renderer never has to re-derive
+    it. Every failure is absorbed into ``UNKNOWN``: the outer handler in
+    :func:`collect_branch_status` would otherwise discard the whole report.
+    ``IssueBranchManager(...)`` itself raises ``ValueError`` when no token is
+    configured.
 
     Args:
         project_dir: Path to the project directory.
         branch_name: The current branch name.
 
     Returns:
-        Tuple of (state, linked branch names). The names tuple is empty for
-        NOT_CHECKED, UNKNOWN and NOT_LINKED.
+        Tuple of (state, linked branch names, issue number). The names tuple is
+        empty for NOT_CHECKED, UNKNOWN and NOT_LINKED; the issue number is None
+        only for NOT_CHECKED.
     """
     issue_number = extract_issue_number_from_branch(branch_name)
     if issue_number is None:
-        return (LinkedBranchStatus.NOT_CHECKED, ())
+        return (LinkedBranchStatus.NOT_CHECKED, (), None)
 
     try:
         manager = IssueBranchManager(project_dir=project_dir)
         branches = manager.get_linked_branches_or_none(issue_number)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.debug("Linked branch lookup failed", exc_info=True)
-        return (LinkedBranchStatus.UNKNOWN, ())
+        return (LinkedBranchStatus.UNKNOWN, (), issue_number)
 
     if branches is None:
-        return (LinkedBranchStatus.UNKNOWN, ())
+        return (LinkedBranchStatus.UNKNOWN, (), issue_number)
     if len(branches) > 1:
-        return (LinkedBranchStatus.AMBIGUOUS, tuple(branches))
+        return (LinkedBranchStatus.AMBIGUOUS, tuple(branches), issue_number)
     if not branches:
-        return (LinkedBranchStatus.NOT_LINKED, ())
+        return (LinkedBranchStatus.NOT_LINKED, (), issue_number)
 
     state = (
         LinkedBranchStatus.OK
         if branches[0] == branch_name
         else LinkedBranchStatus.MISMATCH
     )
-    return (state, tuple(branches))
+    return (state, tuple(branches), issue_number)
 
 
 def _apply_pr_merge_override(
@@ -590,9 +593,11 @@ def collect_branch_status(
         base_branch = base_branch_result if base_branch_result else "unknown"
 
         # 4. Check the issue's linked branch (owns all of its error handling)
-        linked_branch_status, linked_branches = _collect_linked_branch_status(
-            project_dir, branch_name
-        )
+        (
+            linked_branch_status,
+            linked_branches,
+            linked_branch_issue_number,
+        ) = _collect_linked_branch_status(project_dir, branch_name)
 
         # 5. Collect CI status
         ci_status, ci_details, ci_failing_job_names = _collect_ci_status(
@@ -678,6 +683,7 @@ def collect_branch_status(
             pr_feedback_undeterminable=pr_feedback_undeterminable,
             linked_branch_status=linked_branch_status,
             linked_branches=linked_branches,
+            linked_branch_issue_number=linked_branch_issue_number,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error collecting branch status: {e}")
