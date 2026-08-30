@@ -21,3 +21,24 @@ I'll gather context first — loading the tools I need.`src/mcp_workspace/github
 Verdict(decision='tasks', tasks=['In src/mcp_workspace/github_operations/_pr_feedback_sources.py around line 106, make the `repo is None` path fail closed consistently with the null `pullRequest` handling at lines 159-166: return an undeterminable result (or raise the same exception type) instead of `([], 0, [], None)`, so an unreachable repository or invalid token can no longer render as `Reviews: clean (0 unresolved threads, 0 alerts)`; add a test asserting `undeterminable=True` (or the raised error) when `repo` resolves to None.', 'Add a request-shape test for the direct `requestJsonAndCheck` call in src/mcp_workspace/github_operations/_pr_feedback_sources.py around line 140: assert the call uses `requester.graphql_url` as the URL and passes `input={"query": ..., "variables": ...}`, not just that the method is POST, so a wrong payload wrapper fails in tests rather than only against real GitHub.'], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 3 — 2026-08-30
+**Findings**:
+I'll start by loading the tools I need and gathering context.I'll gather context in parallel: knowledge base files, the issue, and the branch state.Now let me read the knowledge base, plan files, and compute the diff.There are real implementation changes. Let me read the source diffs.`src/mcp_workspace/github_operations/_pr_feedback_sources.py:177` — high — Partial-data tolerance stops at the connection level: `thread_nodes`/`comment_nodes` elements are themselves nullable in GitHub's schema (`nodes: [PullRequestReviewThread]`), and a per-node error nulls the element. `thread.get("isResolved")` (177), `thread.get("comments")` (180) and `first.get("author")` (183-184) then raise `AttributeError`, which propagates out of `fetch_review_data` and renders as `[unavailable] threads: AttributeError — 'NoneType' object has no attribute 'get'` — discarding the GraphQL reason and all sibling threads. This is the exact shape the issue names as its leading Bug 3 hypothesis ("one erroring node inside `reviewThreads`"), and no test covers a null list element.
+
+`src/mcp_workspace/github_operations/_pr_feedback_sources.py:198` — high — Same defect in the reviews loop: a null element in `reviews.nodes` makes `review.get("state")` raise `AttributeError`, losing the recovered threads and the GraphQL reason; untested.
+
+`src/mcp_workspace/server.py:37` — low — Unrelated import-formatting churn (`set_reference_projects` split across lines) outside the scope of issue #250.
+**Decisions**:
+Verdict(decision='tasks', tasks=['In src/mcp_workspace/github_operations/_pr_feedback_sources.py around line 177, guard against null elements in `thread_nodes`: skip (or treat as partial/undeterminable) any `thread` that is None before calling `thread.get("isResolved")`/`thread.get("comments")`, and likewise guard a None `first` comment before `first.get("author")` at lines 183-184, so a per-node GraphQL error nulls only that element instead of raising AttributeError out of `fetch_review_data`; add a test with a null element in `reviewThreads.nodes` (and a null first comment) asserting sibling threads are still returned and the GraphQL reason is preserved.', 'In src/mcp_workspace/github_operations/_pr_feedback_sources.py around line 198, apply the same null-element guard in the reviews loop: skip None entries in `reviews.nodes` before calling `review.get("state")`, so a nulled review node does not discard already-recovered threads and the GraphQL reason; add a test with a null element in `reviews.nodes` asserting the surrounding data and error reason survive.'], escalate_reason=None)
+**Changes**:
+applied
+
+## Round 4 — 2026-08-30
+**Findings**:
+I'll start by loading the tools I need and gathering context.NO FINDINGS
+**Decisions**:
+Verdict(decision='dismiss', tasks=[], escalate_reason=None)
+**Changes**:
+rebase-needed
+**Escalate reason**: rebase
