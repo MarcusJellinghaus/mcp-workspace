@@ -53,11 +53,12 @@ the established home for pulling diagnostics out of failure payloads. The module
 widens: it previously described extraction *from a `GithubException`*, and this parser
 takes a raw response body.
 
-**It has two consumers, not the three the issue anticipated.** The renderer and the retry
-classifier use it. Exception *construction* must not: the parser drops entries lacking a
-usable `message`, so `{"errors": [{"type": "NOT_FOUND", "message": "x"}, {"type": "OTHER"}]}`
-would parse to one pair and yield a 404 where PyGithub yields a 400. Construction keys on
-the raw `errors` list, which is what the issue's own class-preservation decision requires.
+**It has one consumer, not the three the issue anticipated.** Only the renderer uses it.
+The retry classifier and exception *construction* must not: the parser drops entries
+carrying neither a usable `type` nor a usable `message`, so
+`{"errors": [{"type": "NOT_FOUND", "message": "x"}, {"path": ["repository"]}]}` would parse
+to one pair and yield a 404 where PyGithub yields a 400. Both key on the raw `errors` list,
+which is what the issue's own class-preservation decision requires.
 
 ### 2. Renderer gains a third dispatch arm
 

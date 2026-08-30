@@ -17,20 +17,26 @@ def _cap(text: str) -> str:
     return text
 
 
-def _render_graphql_errors(pairs: list[tuple[str | None, str]], total: int) -> str:
+def _render_graphql_errors(
+    pairs: list[tuple[str | None, str | None]], total: int
+) -> str:
     """Return (type, message) pairs rendered as a single line, status omitted.
 
-    The cap applies per message rather than to the whole line, so the trailing
+    An entry with no message renders as its type alone ('GraphQL RATE_LIMITED'),
+    which is still more than the bare status this branch replaces. The cap
+    applies per message rather than to the whole line, so the trailing
     '(+N more)' count always survives. `total` is how many entries GitHub
     returned, which exceeds `len(pairs)` when some were unparseable; counting
     those keeps the suffix an honest total rather than under-reporting.
     """
     parts = []
     for err_type, message in pairs[:_MAX_GRAPHQL_ERRORS_SHOWN]:
+        label = f"GraphQL {err_type}" if err_type else "GraphQL error"
+        if message is None:
+            parts.append(label)
+            continue
         msg = _cap(re.sub(r"\s+", " ", message).strip())
-        parts.append(
-            f"GraphQL {err_type} — {msg}" if err_type else f"GraphQL error — {msg}"
-        )
+        parts.append(f"{label} — {msg}")
     rendered = "; ".join(parts)
     extra = total - len(parts)
     return rendered + (f" (+{extra} more)" if extra > 0 else "")

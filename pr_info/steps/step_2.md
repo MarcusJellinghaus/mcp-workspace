@@ -22,7 +22,7 @@ _MAX_GRAPHQL_ERRORS_SHOWN = 2
 def _cap(text: str) -> str:
     """Return `text` capped at _MAX_RENDERED_CHARS, with '...' appended if cut."""
 
-def _render_graphql_errors(pairs: list[tuple[str | None, str]]) -> str:
+def _render_graphql_errors(pairs: list[tuple[str | None, str | None]], total: int) -> str:
     """Return (type, message) pairs rendered as a single line, status omitted."""
 
 def render_exception_for_display(exc: Exception) -> str:   # signature unchanged
@@ -59,7 +59,7 @@ if isinstance(exc, GithubException):
     if data and "errors" in data and "message" not in data:
         pairs = extract_graphql_errors(data)
         if pairs:
-            return _render_graphql_errors(pairs)   # early return: no final _cap
+            return _render_graphql_errors(pairs, len(data["errors"]))  # no final _cap
     raw = data.get("message") if data else None    # existing REST path, unchanged
     msg = re.sub(r"\s+", " ", raw).strip() if raw else ""
     rendered = f"{type_name} {exc.status}" + (f" — {msg}" if msg else "")
@@ -89,12 +89,19 @@ Two independent reasons for that rule:
 
 ```
 for (err_type, message) in pairs[:_MAX_GRAPHQL_ERRORS_SHOWN]:
-    msg = _cap(collapse_whitespace(message))                # re.sub(r"\s+", " ").strip()
-    part = f"GraphQL {err_type} — {msg}" if err_type else f"GraphQL error — {msg}"
+    label = f"GraphQL {err_type}" if err_type else "GraphQL error"
+    if message is None:                                     # type-only entry
+        part = label
+    else:
+        msg = _cap(collapse_whitespace(message))            # re.sub(r"\s+", " ").strip()
+        part = f"{label} — {msg}"
 rendered = "; ".join(parts)
-extra = len(pairs) - _MAX_GRAPHQL_ERRORS_SHOWN
+extra = total - len(parts)                                  # `total` counts unparseable entries too
 return rendered + (f" (+{extra} more)" if extra > 0 else "")
 ```
+
+A type-only entry renders as its type alone (`GraphQL RATE_LIMITED`) — still more than the
+bare `GithubException 400` this arm replaces.
 
 Newlines are collapsed to spaces because `format_pr_feedback` joins sections with `\n`
 (`checks/pr_feedback.py:125,133`) — an embedded newline would corrupt the block. The

@@ -179,15 +179,31 @@ class TestExtractGraphqlErrors:
     @pytest.mark.parametrize(
         "entry",
         [
-            {"type": "FORBIDDEN"},
+            {},
             {"message": 42},
             {"message": None},
             {"message": "   "},
             {"message": ""},
+            {"type": 42},
+            {"type": "   "},
+            {"type": None, "message": ""},
+            {"path": ["repository"]},
         ],
     )
-    def test_entries_without_usable_message_are_skipped(self, entry: Any) -> None:
+    def test_entries_without_type_or_message_are_skipped(self, entry: Any) -> None:
         assert extract_graphql_errors({"errors": [entry]}) == []
+
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            {"type": "RATE_LIMITED"},
+            {"type": "RATE_LIMITED", "message": None},
+            {"type": "RATE_LIMITED", "message": "   "},
+            {"type": "RATE_LIMITED", "message": 42},
+        ],
+    )
+    def test_type_without_usable_message_is_kept(self, entry: Any) -> None:
+        assert extract_graphql_errors({"errors": [entry]}) == [("RATE_LIMITED", None)]
 
     def test_non_str_type_becomes_none(self) -> None:
         body = {"errors": [{"type": 42, "message": "x"}]}
@@ -204,7 +220,8 @@ class TestExtractGraphqlErrors:
             ]
         }
         assert extract_graphql_errors(body) == [
-            ("NOT_FOUND", "Could not resolve to a PullRequest")
+            ("FORBIDDEN", None),
+            ("NOT_FOUND", "Could not resolve to a PullRequest"),
         ]
 
     def test_multiline_message_returned_verbatim(self) -> None:

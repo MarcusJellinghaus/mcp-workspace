@@ -34,9 +34,7 @@ from mcp_workspace.server_reference_tools import (
     get_reference_repo_url,
 )
 from mcp_workspace.server_reference_tools import register as register_reference_tools
-from mcp_workspace.server_reference_tools import (
-    set_reference_projects,
-)
+from mcp_workspace.server_reference_tools import set_reference_projects
 
 if TYPE_CHECKING:
     # Type-only: does not execute, so PyGithub stays off the startup import path

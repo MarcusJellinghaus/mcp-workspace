@@ -147,13 +147,12 @@ class TestGraphqlErrors:
             _graphql_exc(
                 [
                     {"type": "A", "message": "a"},
-                    {"type": "B"},
                     "not a dict",
                     {"message": "   "},
                 ]
             )
         )
-        assert result == "GraphQL A — a (+3 more)"
+        assert result == "GraphQL A — a (+2 more)"
 
     def test_more_suffix_counts_total_not_rendered_pairs(self) -> None:
         result = render_exception_for_display(
@@ -166,6 +165,30 @@ class TestGraphqlErrors:
             )
         )
         assert result == "GraphQL A — a; GraphQL B — b (+1 more)"
+
+    def test_type_without_message_renders_type_alone(self) -> None:
+        result = render_exception_for_display(_graphql_exc([{"type": "RATE_LIMITED"}]))
+        assert result == "GraphQL RATE_LIMITED"
+        assert "GithubException" not in result
+        assert "400" not in result
+
+    def test_type_only_and_full_entry_render_together(self) -> None:
+        result = render_exception_for_display(
+            _graphql_exc(
+                [
+                    {"type": "RATE_LIMITED"},
+                    {"type": "FORBIDDEN", "message": "Resource not accessible"},
+                ]
+            )
+        )
+        assert result == (
+            "GraphQL RATE_LIMITED; GraphQL FORBIDDEN — Resource not accessible"
+        )
+
+    def test_entry_with_neither_type_nor_message_falls_through_to_rest(self) -> None:
+        result = render_exception_for_display(_graphql_exc([{"path": ["repository"]}]))
+        assert result == "GithubException 400"
+        assert "GraphQL" not in result
 
     def test_unknown_object_exception_uses_graphql_arm(self) -> None:
         exc = UnknownObjectException(

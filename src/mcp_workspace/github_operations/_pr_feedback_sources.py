@@ -36,10 +36,9 @@ _PERMANENT_GRAPHQL_ERROR_TYPES = frozenset(
 def _has_permanent_error(result: dict[str, Any]) -> bool:
     """Return True when any `errors` entry names a permanently-failing type.
 
-    Keys on the raw `errors` list rather than on `extract_graphql_errors`
-    output: the parser drops entries lacking a usable message, so a type-only
-    `{"type": "RATE_LIMITED"}` would otherwise be retried against an API that
-    is already refusing.
+    Reads the raw `errors` list rather than going through
+    `extract_graphql_errors`: only the `type` field matters for this decision,
+    so the classifier stays independent of a parser shaped for display.
 
     Returns:
         True if the retry loop should give up immediately.
@@ -59,9 +58,9 @@ def _build_graphql_exception(
     """Return the exception PyGithub's `graphql_query` would have raised, or None.
 
     Keys on the raw `errors` list rather than on `extract_graphql_errors`
-    output: the parser drops entries lacking a usable message, which would turn
-    a multi-error body into a lone `NOT_FOUND` and flip the exception class that
-    callers observe.
+    output: the parser drops entries carrying neither a usable `type` nor a
+    usable `message`, which would turn a multi-error body into a lone
+    `NOT_FOUND` and flip the exception class that callers observe.
 
     Returns:
         `UnknownObjectException` for a single `NOT_FOUND` entry, the exception

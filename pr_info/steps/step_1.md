@@ -18,7 +18,7 @@ The module is package-private and deliberately **not** re-exported via
 ## WHAT
 
 ```python
-def extract_graphql_errors(body: Any) -> list[tuple[str | None, str]]:
+def extract_graphql_errors(body: Any) -> list[tuple[str | None, str | None]]:
     """Return (type, message) pairs from a GraphQL response body's `errors` array."""
 ```
 
@@ -40,8 +40,9 @@ errors = body.get("errors")
 if errors is not a list:                        return []
 for entry in errors:
     skip if entry is not a dict
-    message = entry.get("message"); skip if not a str or message.strip() is empty
-    err_type = entry.get("type") if it is a str else None
+    err_type = entry.get("type") if it is a non-blank str else None
+    message = entry.get("message") if it is a non-blank str else None
+    skip if err_type is None and message is None
     append (err_type, message)
 return pairs
 ```
@@ -52,10 +53,14 @@ renderer owns presentation (step 2). Return messages verbatim.
 
 ## DATA
 
-- **Returns:** `list[tuple[str | None, str]]`, source order preserved. Empty list for any
-  unusable input — never raises.
+- **Returns:** `list[tuple[str | None, str | None]]`, source order preserved. Empty list for
+  any unusable input — never raises.
 - `type` is `None` for GraphQL validation errors, which carry no `type` at all. **A missing
   `type` does not mean transient** — step 4 depends on this.
+- `message` is `None` for entries that carry only a `type`. An entry is kept when **either**
+  element is usable; only entries with neither are dropped. A type-only
+  `{"type": "RATE_LIMITED"}` names a real failure, and dropping it would put the renderer
+  back on the bare-`GithubException 400` path this issue exists to remove.
 
 ## TDD — write these first (`TestExtractGraphqlErrors`)
 
@@ -74,10 +79,12 @@ Defensive input — each returns `[]` or skips, never raises:
 7. `errors` is not a list (`"nope"`, `{"message": "x"}`, `None`) → `[]`
 8. `errors` is `[]` → `[]`
 9. Entries are not dicts (`["a", None, 42]`) → `[]`
-10. `message` missing / non-str (`{"message": 42}`) / blank (`{"message": "   "}`) → skipped
+10. Neither `type` nor `message` usable (`{}`, `{"message": 42}`, `{"message": "   "}`,
+    `{"type": 42}`) → skipped
 11. `type` is non-str (`{"type": 42, "message": "x"}`) → `[(None, "x")]`
-12. Mixed valid + invalid entries → only the valid pair returned
-13. Multi-line message is returned **verbatim**, newline intact (proves the parser does not
+12. Usable `type`, no usable `message` (`{"type": "RATE_LIMITED"}`) → `[("RATE_LIMITED", None)]`
+13. Mixed valid + invalid entries → only the usable pairs returned
+14. Multi-line message is returned **verbatim**, newline intact (proves the parser does not
     format)
 
 Use `pytest.mark.parametrize` for the `[]`-returning cases (5-9); they are one-line

@@ -98,9 +98,9 @@ return requester.createException(400, headers, result)
 ```
 
 **Key on the raw `errors` list, never on `extract_graphql_errors` output.** The parser drops
-entries lacking a usable `message`, so `[{"type": "NOT_FOUND", "message": "x"}, {"type": "OTHER"}]`
-would parse to one pair and yield a 404 where PyGithub yields a 400. The exception *class* is
-observable to callers.
+entries carrying neither a usable `type` nor a usable `message`, so
+`[{"type": "NOT_FOUND", "message": "x"}, {"path": ["repository"]}]` would parse to one pair
+and yield a 404 where PyGithub yields a 400. The exception *class* is observable to callers.
 
 The `NOT_FOUND` case is constructed **directly**; only the other branch goes through
 `createException`. `graphql_query` does the same — and `createException(404, headers, graphql_body)`
@@ -118,7 +118,7 @@ for attempt in range(_REVIEW_DATA_MAX_ATTEMPTS):
     headers, result = requester.requestJsonAndCheck("POST", requester.graphql_url, input=...)
     pr_data = ((result.get("data") or {}).get("repository") or {}).get("pullRequest")
     if pr_data is not None: break                                   # usable data
-    if any(t in _PERMANENT_GRAPHQL_ERROR_TYPES for t, _ in extract_graphql_errors(result)): break
+    if _has_permanent_error(result): break          # reads the raw `errors` list
     if attempt == _REVIEW_DATA_MAX_ATTEMPTS - 1: break
     time.sleep(_REVIEW_DATA_RETRY_BASE_DELAY_SECONDS * 2**attempt)
 error = _build_graphql_exception(requester, headers, result)
@@ -387,8 +387,8 @@ than raised, get_pr_feedback logs it explicitly.
 >
 > Six things that are easy to get wrong; the step file explains each:
 > - `_build_graphql_exception` keys on the **raw `errors` list**, never on
->   `extract_graphql_errors` output — the parser drops message-less entries and would flip a
->   400 into a 404.
+>   `extract_graphql_errors` output — the parser drops entries with neither a usable `type`
+>   nor a usable `message`, and would flip a 400 into a 404.
 > - Use `(x.get(k) or {})`, not `.get(k, {})` — **at every level**, not just `data`. GraphQL
 >   error bodies carry `"data": null`, and a partial response nulls the field that errored, so
 >   the existing `reviewThreads` / `comments` / `reviews` lookups must be converted too. Test 5

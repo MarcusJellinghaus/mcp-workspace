@@ -557,6 +557,10 @@ class TestGetPRFeedback:
         assert _post_call_count(mock_manager) == 1
         sleep.assert_not_called()
         assert "threads" in result["unavailable"]
+        assert (
+            render_exception_for_display(result["unavailable"]["threads"])
+            == "GraphQL RATE_LIMITED"
+        )
 
     def test_usable_data_with_errors_not_retried(
         self, mock_manager: PullRequestManager
