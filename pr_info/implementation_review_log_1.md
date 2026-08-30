@@ -1,0 +1,14 @@
+# review-implementation review log 1
+
+## Round 1 — 2026-08-30
+**Findings**:
+I'll gather context first — loading the tools I need.All checks pass locally (pylint clean, mypy clean, 1765 passed / 1 skipped, lint-imports 9/9 contracts kept). The diff contains real implementation changes across `branch_manager`/`linked_branches_mixin`, `checks/branch_status*`, tests and docs, and covers every element the issue specifies.
+
+src/mcp_workspace/github_operations/issues/linked_branches_mixin.py:57 — low — `validate_issue_number_or_log` lives in the linked-branches mixin, but `issues/base.py` is the documented home for standalone validators shared by "the mixin classes and manager" and already holds a `validate_issue_number` sibling; `branch_manager.py` now imports a general-purpose validator from an unrelated feature module.
+src/mcp_workspace/checks/branch_status_rendering.py:333 — low — `_format_linked_branch_line` re-derives the issue number from `report.branch_name` instead of the report carrying it; when that guard returns None for a blocking state the report renders `Review Gate: BLOCKED (linked branch)` with no explanatory line, the disagreeing double verdict the design set out to prevent.
+tests/github_operations/issues/test_branch_manager_linked.py:326 — low — `test_malformed_response_returns_none` does not exercise the parse-error path it names: `{"data": None}` raises `AttributeError`, which `_query_linked_branches`' `except (KeyError, TypeError)` does not catch, so the test passes only via the broad catch in `get_linked_branches_or_none` and the in-body parse-error → `None` branch stays uncovered.
+src/mcp_workspace/server.py:37 — low — isort-only reformat of a single-name import, unrelated to issue #268.
+**Decisions**:
+Verdict(decision='tasks', tasks=['Move `validate_issue_number_or_log` out of `src/mcp_workspace/github_operations/issues/linked_branches_mixin.py` into `src/mcp_workspace/github_operations/issues/base.py` alongside the existing `validate_issue_number`, and update `branch_manager.py` and any other importers to reference the new location.', 'In `src/mcp_workspace/checks/branch_status_rendering.py`, stop re-deriving the issue number from `report.branch_name` in `_format_linked_branch_line`: carry the issue number on the report object itself, and ensure a blocking linked-branch state always renders an explanatory line so `Review Gate: BLOCKED (linked branch)` can never appear without a reason.', 'Fix `tests/github_operations/issues/test_branch_manager_linked.py:326` `test_malformed_response_returns_none` so it actually exercises the parse-error branch inside `_query_linked_branches`: use a payload that triggers the `except (KeyError, TypeError)` handler (not `{"data": None}`, which raises `AttributeError` caught only by the broad handler in `get_linked_branches_or_none`), and assert the in-body parse-error → `None` path is taken.'], escalate_reason=None)
+**Changes**:
+applied

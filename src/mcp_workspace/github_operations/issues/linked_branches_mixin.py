@@ -144,6 +144,7 @@ class LinkedBranchesMixin:
         branch_names = _query_linked_branches(self, issue_number)
         return [] if branch_names is None else branch_names
 
+    @log_function_call
     def get_linked_branches_or_none(self, issue_number: int) -> Optional[List[str]]:
         """Query linked branches for an issue, distinguishing failure from none.
 
