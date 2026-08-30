@@ -104,9 +104,10 @@ New tests for `get_linked_branches_or_none`:
 8. `graphql_query` raises `GithubException(401, ...)` → `None` (documents that
    the sibling does not re-raise auth errors)
 
-**Do not modify the nine existing `assert result == []` tests.** They cover all
-four failure paths of `get_linked_branches` and are the regression harness
-proving the refactor changed nothing for existing callers.
+**Do not modify the five existing `assert result == []` tests** (six assertions,
+at `test_branch_manager_linked.py:73,77,96,117,170,180`). They cover all four
+failure paths of `get_linked_branches` and are the regression harness proving
+the refactor changed nothing for existing callers.
 
 ## Definition of done
 

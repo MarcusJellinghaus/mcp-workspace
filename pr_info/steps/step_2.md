@@ -69,8 +69,12 @@ linked_branches: tuple[str, ...] = ()
   following comment markers (`# 4.` → `# 5.` …) or leave the numbering to the
   implementer's judgement; keep it consistent.
 - Pass both new values to the `BranchStatusReport(...)` constructor, and add
-  one key to `report_data`:
-  `"linked_branch_blocks": linked_branch_blocks(linked_branch_status)`.
+  one key to `report_data`. Both the write (here) and the read (step 3, in
+  `_generate_recommendations`) live in `branch_status.py`, so the key string
+  must exist **once**: define a module-level constant beside `DEFAULT_LABEL`,
+  `_LINKED_BRANCH_BLOCKS_KEY = "linked_branch_blocks"`, and write
+  `_LINKED_BRANCH_BLOCKS_KEY: linked_branch_blocks(linked_branch_status)`.
+  Step 3 reads through the same constant, so the two sides cannot drift.
   `_generate_recommendations` does not read it yet — step 3 adds that. Adding
   it here keeps `linked_branch_blocks` from being an unused symbol.
 - `tuple[str, ...] = ()` rather than `List[str] = field(default_factory=list)`:
@@ -86,6 +90,18 @@ linked_branches: tuple[str, ...] = ()
   manager in as a parameter. A fresh `IssueBranchManager` inside the helper is
   the deliberate choice (see summary section 3): single patch point, helper owns
   its error handling, two requests accepted.
+- **Patch the new step in every existing test that reaches it.** The wiring is
+  unconditional, so the seven tests in `tests/checks/test_branch_status.py`
+  that patch `IssueManager` / `PullRequestManager` and run through to the end
+  of `collect_branch_status` would otherwise construct a **real**
+  `IssueBranchManager` with `Path("/tmp")`. Do not rely on
+  `BaseGitHubManager.__init__` raising `ValueError` on its git-repo check to
+  keep them offline — that is environment-dependent (a `/tmp` that happens to
+  sit inside a git repo, plus a token, would let a unit test reach the
+  network). Add
+  `@patch("mcp_workspace.checks.branch_status._collect_linked_branch_status")`
+  with `return_value=(LinkedBranchStatus.OK, ("123-feature",))` to each of the
+  seven. Decorator-only change: no existing assertion is touched.
 
 ## ALGORITHM
 
@@ -149,9 +165,12 @@ New file `tests/checks/test_branch_status_linked_branch.py`. Patch
 
 ## Definition of done
 
-- New tests pass; **all existing `tests/checks/` tests still pass unmodified**.
-  Nothing blocks yet, so no existing recommendation assertion can break in this
-  step. If one does, stop — the wiring is in the wrong place.
+- New tests pass; all existing `tests/checks/` tests still pass. The only
+  change to existing tests is the `_collect_linked_branch_status` patch
+  decorator on the seven manager-patching tests in
+  `tests/checks/test_branch_status.py` — **no existing assertion is
+  modified**. Nothing blocks yet, so no existing recommendation assertion can
+  break in this step. If one does, stop — the wiring is in the wrong place.
 - Pylint / pytest / mypy via the MCP tools all pass.
 - One commit.
 
@@ -176,9 +195,15 @@ New file `tests/checks/test_branch_status_linked_branch.py`. Patch
 > the whole report.
 >
 > Nothing renders and nothing blocks in this step: do **not** touch
-> `_generate_recommendations`, `_review_gate_header` or either formatter, and do
-> not modify any existing test. Add `"linked_branch_blocks"` to the
-> `report_data` dict (step 3 consumes it).
+> `_generate_recommendations`, `_review_gate_header` or either formatter. Add
+> the `_LINKED_BRANCH_BLOCKS_KEY` entry to the `report_data` dict (step 3
+> consumes it through the same constant).
+>
+> The only permitted change to existing tests is adding
+> `@patch("mcp_workspace.checks.branch_status._collect_linked_branch_status")`
+> with `return_value=(LinkedBranchStatus.OK, ("123-feature",))` to the seven
+> manager-patching tests in `tests/checks/test_branch_status.py`, so they never
+> construct a real `IssueBranchManager`. Do not change any existing assertion.
 >
 > Use the MCP tools per `.claude/CLAUDE.md`: `mcp__workspace__*` for file
 > operations, and `mcp__tools-py__run_pylint_check`, `run_pytest_check`

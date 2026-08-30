@@ -15,9 +15,11 @@ a commit where the report shows `Review Gate: clean` next to a suppressed
 |---|---|
 | `src/mcp_workspace/checks/branch_status.py` | One term in `_generate_recommendations` |
 | `src/mcp_workspace/checks/branch_status_rendering.py` | `_format_linked_branch_line`, a call in each formatter, one branch in `_review_gate_header` |
-| `tests/checks/test_branch_status_linked_branch.py` | Rendering + gate tests (extend the step-2 file) |
+| `tests/checks/test_branch_status_linked_branch.py` | Rendering + gate tests, plus the end-to-end suppression test (extend the step-2 file) |
 | `tests/checks/test_branch_status_recommendations.py` | One suppression case |
-| `tests/checks/test_branch_status.py` | Fix the one test the block breaks |
+| `tests/checks/test_branch_status.py` | Verify the two tests that depend on a clean verdict |
+| `.claude/skills/check_branch_status/SKILL.md` | Relink row in the *Follow-Up Actions* table |
+| `tests/LLM_Test.md` | Conditional expectation for the new line in Test 3.2 |
 
 ## WHAT
 
@@ -30,10 +32,12 @@ def _format_linked_branch_line(report: "BranchStatusReport") -> Optional[str]:
 
 ### a. Suppression — `_generate_recommendations`
 
-Read the flag near the other `report_data.get(...)` reads:
+Read the flag near the other `report_data.get(...)` reads, through the same
+`_LINKED_BRANCH_BLOCKS_KEY` constant step 2 used to write it (both sides live
+in `branch_status.py`, so the literal exists exactly once and cannot drift):
 
 ```python
-linked_branch_blocking = report_data.get("linked_branch_blocks", False)
+linked_branch_blocking = report_data.get(_LINKED_BRANCH_BLOCKS_KEY, False)
 ```
 
 and add **one term** to the existing `and` chain at `branch_status.py:460-466`:
@@ -63,7 +67,7 @@ emoji, so the LLM format stays emoji-free as it is today):
 |---|---|
 | `OK` | `Linked Branch: OK ('{current}')` |
 | `MISMATCH` | `Linked Branch: MISMATCH — issue #{n} links '{linked}', not current branch '{current}' — relink in the Development panel` |
-| `AMBIGUOUS` | `Linked Branch: AMBIGUOUS — issue #{n} links {k} branches ({names}) — leave only '{current}' linked in the Development panel` |
+| `AMBIGUOUS` | `Linked Branch: AMBIGUOUS — issue #{n} links {k} branches ({names}) — unlink the extra branches in the Development panel so exactly one remains` |
 | `NOT_LINKED` | `Linked Branch: NOT_LINKED — issue #{n} links no branch — link '{current}' in the Development panel` |
 | `UNKNOWN` | `Linked Branch: UNKNOWN — could not determine the linked branch for issue #{n}` |
 
@@ -96,6 +100,38 @@ UNKNOWN — which is what "all non-OK states block" asks for. Pin it with a test
 The existing `if not fail_on_reviews: return None` guard stays first, so the
 whole header remains suppressed when the gate is off. Display-only: no exit code
 changes from this step.
+
+### d. Documentation
+
+Two non-code files describe this output. They ship in **this** commit because
+their wording is the wording chosen above — split into their own commit they
+would either restate text that does not exist yet or drift from it.
+
+- `.claude/skills/check_branch_status/SKILL.md` — one row in the *Follow-Up
+  Actions* table, keeping the two-column format and terse style:
+
+  ```
+  | Linked branch not OK | Relink the branch in the issue's Development panel |
+  ```
+
+  Place it with the other blocking rows, above the two "ready" rows at the
+  bottom of the table. Do not touch the frontmatter (`description`,
+  `allowed-tools`).
+- `tests/LLM_Test.md` — Test 3.2 (`:149-155`) lists the line prefixes a live
+  `check_branch_status(ci_timeout=0, pr_timeout=0)` call must produce. The four
+  existing prefixes are unconditional; `Linked Branch:` is **not** — the state
+  is `NOT_CHECKED` and the line is suppressed entirely on `main` and on any
+  branch whose name does not start with `<digits>-`. Add it as a conditional
+  expectation after the existing list, not as a fifth mandatory bullet:
+
+  ```
+     Additionally, when run on an issue-numbered branch (`<number>-...`), expect a
+     `"Linked Branch:"` line; it is absent on `main` and other non-issue branches.
+  ```
+
+  Keep the existing four bullets exactly as they are.
+
+Check both against what `_format_linked_branch_line` actually renders.
 
 ## ALGORITHM
 
@@ -137,38 +173,67 @@ In `tests/checks/test_branch_status_linked_branch.py`:
 6. `OK` and `NOT_CHECKED` with an otherwise clean report → `"Review Gate:
    clean"`.
 
+7. **End-to-end suppression through `collect_branch_status`.** The dict cases
+   below only exercise `_generate_recommendations` with hand-built dicts, so
+   nothing else pins that the value `collect_branch_status` writes actually
+   reaches the read. Patch `get_current_branch_name` (`"255-feature"`),
+   `detect_base_branch`, `IssueManager`, `PullRequestManager`,
+   `_collect_ci_status` → `(CIStatus.PASSED, None, [])`,
+   `_collect_rebase_status` → `(False, "up-to-date")`, `_collect_task_status`
+   → `(TaskTrackerStatus.COMPLETE, "done", False)`, `_collect_pr_info` and
+   `_collect_linked_branch_status` → `(MISMATCH, ("255-old",))`; assert
+   neither `"Ready to merge"` nor `"Ready to merge (squash-merge safe)"` is in
+   `report.recommendations`. Add the mirror case with the helper returning
+   `(OK, ("255-feature",))`, which must still yield `Ready to merge`.
+   Both sides of the join share `_LINKED_BRANCH_BLOCKS_KEY` (defined once in
+   `branch_status.py`, step 2), and this test is what proves the write reaches
+   the read — without it a key mismatch would silently disable the whole
+   feature with every other planned test still green.
+
 In `tests/checks/test_branch_status_recommendations.py`, beside the existing
 `Ready to merge` cases: an otherwise-clean `report_data` plus
-`"linked_branch_blocks": True` → neither `"Ready to merge"` nor `"Ready to
+`_LINKED_BRANCH_BLOCKS_KEY: True` → neither `"Ready to merge"` nor `"Ready to
 merge (squash-merge safe)"` in the result. Add a matching case asserting the
 default (`key absent`) still yields `Ready to merge`, so the
 `.get(..., False)` default is pinned.
 
-## Fixing the one existing test that breaks
+## The two existing tests that depend on a clean verdict
 
-`test_rebase_behind_but_mergeable_squash_safe`
-(`tests/checks/test_branch_status.py:581`, assertion at `:616`) asserts
-`"squash-merge safe"` appears in the recommendations. It patches `IssueManager`
-and `PullRequestManager` but not the new step, so the real
-`IssueBranchManager` is constructed with `Path("/tmp")`,
-`BaseGitHubManager.__init__` raises `ValueError` on the git-repo check, the
-helper returns `UNKNOWN`, and the recommendation is now suppressed.
+Two tests in `tests/checks/test_branch_status.py` assert an outcome that a
+blocking linked-branch state destroys. Both patch `IssueManager` and
+`PullRequestManager` but nothing that would otherwise stop the new step, and
+both run on branch `"123-feature"`:
 
-Fix it by adding
+| Test | Assertion | What the block breaks |
+|---|---|---|
+| `test_rebase_behind_but_mergeable_squash_safe` (`:581`, assertion `:616`) | `"squash-merge safe"` is in the recommendations | `Ready to merge (squash-merge safe)` is suppressed |
+| `test_confirmed_no_pr_stays_clean_eligible` (`:811`, assertion `:848`) | `"Review Gate: clean"` is in `format_for_llm(fail_on_reviews=True)` | the header renders `Review Gate: BLOCKED (linked branch)` |
+
+Step 2 already added
 `@patch("mcp_workspace.checks.branch_status._collect_linked_branch_status")`
-returning `(LinkedBranchStatus.OK, ("...",))` to that test.
-
-Sweep the other six manager-patching tests in the same file for the same
-exposure. The rest assert `"Ready to merge" not in ...`, which stays true, so
-this should be the only fix — but verify rather than assume, and patch any
-other test whose assertion depends on a clean merge verdict.
+with `return_value=(LinkedBranchStatus.OK, ("123-feature",))` to the seven
+manager-patching tests in that file, which covers both of these. Verify both
+are green here, and add the decorator to either one that is missing it. **A
+second adjusted test is expected — it is not a sign that the implementation is
+wrong.** The remaining manager-patching tests assert `"Ready to merge" not in
+...`, which stays true either way — but check rather than assume, and fix any
+exposure with a patch decorator, never by weakening an assertion.
 
 ## Definition of done
 
 - The new and amended tests pass; the whole `tests/checks/` and
   `tests/github_operations/` suites pass.
-- Exactly one existing test file assertion was adjusted, and the adjustment is
-  a patch decorator, not a weakened assertion.
+- **Two** existing tests depend on a clean merge verdict —
+  `test_rebase_behind_but_mergeable_squash_safe` and
+  `test_confirmed_no_pr_stays_clean_eligible`. Both must be green through
+  their `_collect_linked_branch_status` patch (added in step 2; add it here if
+  either lacks it). Two adjusted tests is the expected outcome, not a defect.
+  Every adjustment is a patch decorator, never a weakened assertion.
+- The end-to-end suppression test through `collect_branch_status` exists and
+  fails if the `report_data` key is not shared between the write and the read.
+- `SKILL.md` and `tests/LLM_Test.md` updated, and their wording matches what
+  `_format_linked_branch_line` renders. `SKILL.md`'s table still renders as
+  valid Markdown.
 - Pylint / pytest / mypy via the MCP tools all pass.
 - One commit.
 
@@ -186,17 +251,26 @@ other test whose assertion depends on a clean merge verdict.
 > step_3.md, called from both `format_report_for_human` and
 > `format_report_for_llm` at the placements given; (c) a
 > `"Review Gate: BLOCKED (linked branch)"` branch in `_review_gate_header`,
-> inserted after the CI UNAVAILABLE/UNKNOWN checks and before the reviews check.
+> inserted after the CI UNAVAILABLE/UNKNOWN checks and before the reviews check;
+> (d) the two documentation edits described in step_3.md — a relink row in
+> `.claude/skills/check_branch_status/SKILL.md` and a **conditional** expectation
+> for the `Linked Branch:` line in Test 3.2 of `tests/LLM_Test.md` (the line is
+> suppressed on `main` and other non-issue branches, so it must not join the four
+> unconditional prefixes). They belong in this commit because their wording is
+> the wording you choose in (b).
 >
-> Write the tests first — the six groups listed in step_3.md, plus the
+> Write the tests first — the seven groups listed in step_3.md, including the
+> end-to-end suppression test through `collect_branch_status`, plus the
 > suppression case in `tests/checks/test_branch_status_recommendations.py`.
 > Assert explicitly that a linked-branch `UNKNOWN` renders BLOCKED, not UNKNOWN.
 >
-> Then fix `test_rebase_behind_but_mergeable_squash_safe` in
-> `tests/checks/test_branch_status.py` by adding a
-> `_collect_linked_branch_status` patch returning `OK`; check the other six
-> manager-patching tests in that file for the same exposure. Fix them with patch
-> decorators, never by weakening an assertion.
+> Then verify the two tests in `tests/checks/test_branch_status.py` that depend
+> on a clean verdict — `test_rebase_behind_but_mergeable_squash_safe` and
+> `test_confirmed_no_pr_stays_clean_eligible`. Both should already carry the
+> `_collect_linked_branch_status` patch from step 2; add it (returning `OK`) to
+> either one that does not. Two affected tests is expected. Check the other
+> manager-patching tests in that file for the same exposure, and fix any with a
+> patch decorator, never by weakening an assertion.
 >
 > Keep the message wording repo-neutral and keep `UNKNOWN` phrased as "could not
 > determine", per step_3.md.

@@ -169,14 +169,14 @@ nonexistent issue reaches `UNKNOWN` via the GraphQL-null path.
 |---|---|
 | `tests/github_operations/issues/test_branch_manager_linked.py` | New cases for `get_linked_branches_or_none`; existing `assert result == []` cases stay untouched as the regression harness |
 | `tests/checks/test_branch_status_recommendations.py` | One case: `linked_branch_blocks=True` suppresses `Ready to merge` |
-| `tests/checks/test_branch_status.py` | Fix `test_rebase_behind_but_mergeable_squash_safe` — the only existing test the block breaks |
+| `tests/checks/test_branch_status.py` | `_collect_linked_branch_status` patch decorator on the seven manager-patching tests (step 2), so none constructs a real `IssueBranchManager`. Two of them assert a clean verdict and would otherwise fail: `test_rebase_behind_but_mergeable_squash_safe` (`squash-merge safe` recommendation) and `test_confirmed_no_pr_stays_clean_eligible` (`Review Gate: clean`) |
 
 ### Modified — docs
 
 | Path | Change |
 |---|---|
-| `.claude/skills/check_branch_status/SKILL.md` | Relink row in the status→action table |
-| `tests/LLM_Test.md` | Conditional expectation for the new line in Test 3.2 |
+| `.claude/skills/check_branch_status/SKILL.md` | Relink row in the status→action table (step 3) |
+| `tests/LLM_Test.md` | Conditional expectation for the new line in Test 3.2 (step 3) |
 
 ### Unchanged (deliberately)
 
@@ -193,10 +193,12 @@ nonexistent issue reaches `UNKNOWN` via the GraphQL-null path.
 |---|---|
 | [step_1.md](./step_1.md) | Non-swallowing linked-branch lookup on `IssueBranchManager` |
 | [step_2.md](./step_2.md) | Collect and record linked-branch state on the report (silent) |
-| [step_3.md](./step_3.md) | Act on it: suppress `Ready to merge`, gate header, render line |
-| [step_4.md](./step_4.md) | Documentation |
+| [step_3.md](./step_3.md) | Act on it: suppress `Ready to merge`, gate header, render line, docs |
 
-Steps 2 and 3 are split as "observe" then "act". Step 3's three parts stay in
-one commit on purpose: splitting them would leave a commit where the report
-shows `Review Gate: clean` next to a suppressed `Ready to merge` — precisely
-the disagreeing double verdict the issue rules out.
+Steps 2 and 3 are split as "observe" then "act". Step 3's parts stay in one
+commit on purpose: splitting them would leave a commit where the report shows
+`Review Gate: clean` next to a suppressed `Ready to merge` — precisely the
+disagreeing double verdict the issue rules out. The two documentation edits
+ride along in step 3 rather than forming a step of their own: they are two
+lines of prose that only restate the wording chosen there, and a separate
+commit for them would be verification-only.
