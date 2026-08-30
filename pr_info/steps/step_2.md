@@ -20,10 +20,10 @@ _MAX_RENDERED_CHARS = 200
 _MAX_GRAPHQL_ERRORS_SHOWN = 2
 
 def _cap(text: str) -> str:
-    """Truncate at _MAX_RENDERED_CHARS with '...' appended if exceeded."""
+    """Return `text` capped at _MAX_RENDERED_CHARS, with '...' appended if cut."""
 
 def _render_graphql_errors(pairs: list[tuple[str | None, str]]) -> str:
-    """Render (type, message) pairs as a single line, status omitted."""
+    """Return (type, message) pairs rendered as a single line, status omitted."""
 
 def render_exception_for_display(exc: Exception) -> str:   # signature unchanged
 ```
@@ -33,6 +33,12 @@ def render_exception_for_display(exc: Exception) -> str:   # signature unchanged
 - Import: `from ._diagnostics import extract_graphql_errors`.
 - Python is `>=3.11`, so `str | None` in annotations needs no `__future__` import.
 - `_cap` replaces the duplicated truncation idiom and is used by **both** arms.
+- **Both helper docstrings must start with "Return".** Ruff's `DOC201` (`select = ["D", "DOC"]`,
+  `preview = true`) requires a `Returns:` section on any value-returning function whose summary
+  line does not — compare `checks/pr_feedback.py:36` and `ci_results_manager.py:162` (explicit
+  `Returns:`) against `utils/repo_identifier.py:148` (one-liner, exempt because it starts with
+  "Return"). Adding a full `Returns:` section to each helper is the equally acceptable
+  alternative; a one-line `"""Truncate ..."""` / `"""Render ..."""` is **not**.
 - Update the `render_exception_for_display` docstring: *"Truncated at 200 chars"* stops
   being true for the GraphQL arm, where the cap applies **per message** so the `(+N more)`
   suffix always survives.
@@ -41,15 +47,25 @@ def render_exception_for_display(exc: Exception) -> str:   # signature unchanged
 
 ## ALGORITHM
 
-Dispatch — hoist the dict check into a local so it cannot be forgotten:
+Dispatch — hoist the dict check into a local so it cannot be forgotten. Shown in its
+enclosing context: the new code lives **inside** the existing
+`if isinstance(exc, GithubException):` branch, because `exc.data` only exists there — the
+`else` branch (`TestGenericException`) must keep using `str(exc)` untouched:
 
 ```python
-data = exc.data if isinstance(exc.data, dict) else None
-if data and "errors" in data and "message" not in data:
-    pairs = extract_graphql_errors(data)
-    if pairs:
-        return _render_graphql_errors(pairs)      # early return: no final _cap
-raw = data.get("message") if data else None       # existing REST path, unchanged
+type_name = type(exc).__name__
+if isinstance(exc, GithubException):
+    data = exc.data if isinstance(exc.data, dict) else None
+    if data and "errors" in data and "message" not in data:
+        pairs = extract_graphql_errors(data)
+        if pairs:
+            return _render_graphql_errors(pairs)   # early return: no final _cap
+    raw = data.get("message") if data else None    # existing REST path, unchanged
+    msg = re.sub(r"\s+", " ", raw).strip() if raw else ""
+    rendered = f"{type_name} {exc.status}" + (f" — {msg}" if msg else "")
+else:
+    ...                                            # unchanged generic-exception path
+return _cap(rendered)
 ```
 
 **The dispatch rule, stated explicitly:** take the GraphQL arm when `exc.data` is a dict that

@@ -26,7 +26,7 @@ Splitting leaves the tree red.
 _PERMANENT_GRAPHQL_ERROR_TYPES = frozenset({"FORBIDDEN", "INSUFFICIENT_SCOPES", "RATE_LIMITED"})
 
 def _build_graphql_exception(
-    requester: Any, headers: dict[str, Any], result: dict[str, Any]
+    requester: Requester, headers: dict[str, Any], result: dict[str, Any]
 ) -> Optional[GithubException]:
     """Return the exception PyGithub's graphql_query would have raised, or None."""
 
@@ -40,8 +40,17 @@ def fetch_review_data(
 
 ## HOW
 
-- Imports: add `from github.GithubException import GithubException, UnknownObjectException`
-  and `from ._diagnostics import extract_graphql_errors`.
+- Imports: add `from github.GithubException import GithubException, UnknownObjectException`,
+  `from github.Requester import Requester`, and
+  `from ._diagnostics import extract_graphql_errors`.
+- **`requester` must be annotated `Requester`, not `Any`.** `Requester.createException` is a
+  `@classmethod` returning `GithubException`, so the annotated parameter makes
+  `return requester.createException(...)` well-typed. With `requester: Any` the call result is
+  `Any` and mypy's `warn_return_any = true` (`pyproject.toml`) reports `no-any-return` against
+  the declared `Optional[GithubException]`. Assigning to an annotated local
+  (`exc: GithubException = requester.createException(...)`) is the acceptable alternative.
+  Passing the call site's value stays fine: `manager._github_client._Github__requester` is
+  `Any` behind its `# type: ignore[attr-defined]`.
 - Replace the `graphql_query` call with
   `requester.requestJsonAndCheck("POST", requester.graphql_url, input={"query": query, "variables": variables})`.
   The GraphQL query string itself is unchanged.
@@ -188,13 +197,23 @@ evidence of permanence — validation errors carry none.
 ## Test harness rewrite (`_setup_mocks`)
 
 Both fetches now call `requestJsonAndCheck`, so the single mock must dispatch.
-**All 11 tests routing through the helper are affected.**
+**All 11 pre-existing tests routing through the helper are affected**, plus
+`test_code_scanning_alerts_unpacks_two_tuple` if step 3 wired it through `_setup_mocks`.
 
 Dispatch on **`verb`** — GraphQL is the only `POST`, alerts the only `GET`. Simpler than URL
 matching and needs no string parsing.
 
 ```python
 from github.Requester import Requester   # new import
+
+# Module-level in the test file: an empty-but-valid GraphQL body. The POST default
+# MUST resolve `data.repository.pullRequest` to a dict — see the fifth harness point.
+_EMPTY_REVIEW_DATA: dict[str, Any] = {
+    "data": {"repository": {"pullRequest": {
+        "reviewThreads": {"nodes": []},
+        "reviews": {"nodes": []},
+    }}}
+}
 
 # in _setup_mocks, replacing the graphql_query and requestJsonAndCheck setup:
 mock_requester.graphql_url = "https://api.github.com/graphql"
@@ -208,7 +227,7 @@ def _request(verb: str, url: str, **kwargs: Any) -> tuple[dict[str, Any], Any]:
             raise graphql_raises
         if post_bodies is not None:
             return ({}, next(post_bodies))
-        return ({}, graphql_response or {"data": {}})
+        return ({}, graphql_response or _EMPTY_REVIEW_DATA)
     if alerts_raises is not None:
         raise alerts_raises
     return ({}, alerts_response or [])
@@ -216,7 +235,7 @@ def _request(verb: str, url: str, **kwargs: Any) -> tuple[dict[str, Any], Any]:
 mock_requester.requestJsonAndCheck = Mock(side_effect=_request)
 ```
 
-Four harness points:
+Five harness points:
 
 - **`graphql_url` must be a concrete string.** `mock_requester` is a bare `Mock()`
   (`:59`), so the attribute would auto-create a `Mock` and call-arg assertions become
@@ -230,6 +249,14 @@ Four harness points:
   hits it first and would wrongly flag `threads` unavailable too — this is why
   `test_code_scanning_403_silent_skip` (`:240`) and `test_code_scanning_500_unavailable`
   (`:266`) are in scope.
+- **The POST default must be a valid `data.repository.pullRequest` body, not `{"data": {}}`.**
+  Under the re-keyed retry, `pullRequest is None` is precisely the retry trigger, so a
+  `{"data": {}}` default would make every test that omits `graphql_response` run 3 attempts
+  and sleep for a real 1s + 2s (these tests do not patch `time.sleep`) — and end up with
+  `threads` flagged, which is not what they are asserting.
+  `test_conversation_comments_transferred_raises` (`:445`) calls `_setup_mocks` bare today.
+  Patching `time.sleep` inside the helper is the acceptable alternative, but the valid-body
+  default is preferable: it keeps the retry path exercised only by the tests that mean to.
 
 Call-count assertions at `:308, 364, 387, 409` no longer apply to `graphql_query`. Add a helper:
 
@@ -306,8 +333,12 @@ HTTP failure (semantics unchanged):
     `graphql_raises=GithubException(500, {"message": "boom"}, None)` → 1 POST, no sleep,
     `"threads"` in unavailable
 
-Regression: `test_happy_path`, `test_clean_state`, both code-scanning tests, both
-conversation-comment tests, and `test_invalid_pr_number` stay green through the new harness.
+Regression: `test_happy_path`, `test_clean_state`, all three code-scanning tests —
+`test_code_scanning_403_silent_skip`, `test_code_scanning_500_unavailable`, and
+`test_code_scanning_alerts_unpacks_two_tuple` (added in step 3; if it obtains its requester
+from `_setup_mocks` it is affected by the rewrite too, so the verb-dispatching `side_effect`
+must keep the 2-tuple GET shape intact) — both conversation-comment tests, and
+`test_invalid_pr_number` stay green through the new harness.
 
 ## Verification
 
