@@ -344,6 +344,29 @@ def test_github_issue_create_caches_me_lookup(mock_manager_cls: MagicMock) -> No
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_me_lookup_is_per_host(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A second GitHub host resolves '@me' itself, not from the first's cache.
+
+    The same token names a different user on each host, so a reference project
+    elsewhere must not inherit the workspace host's login.
+    """
+    workspace = _make_manager(login="marcus")
+    workspace._repo_identifier.api_base_url = "https://api.github.com"
+    other_host = _make_manager(login="marcus-ghe")
+    other_host._repo_identifier.api_base_url = "https://ghe.example.com/api/v3"
+
+    mock_manager_cls.return_value = workspace
+    github_issue_create(title="First", assignees=["@me"])
+    mock_manager_cls.return_value = other_host
+    github_issue_create(title="Second", assignees=["@me"])
+
+    assert workspace.create_issue.call_args.kwargs["assignees"] == ["marcus"]
+    assert other_host.create_issue.call_args.kwargs["assignees"] == ["marcus-ghe"]
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_create_explicit_assignee_skips_lookup(
     mock_manager_cls: MagicMock,
 ) -> None:

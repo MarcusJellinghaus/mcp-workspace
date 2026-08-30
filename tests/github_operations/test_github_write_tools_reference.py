@@ -183,6 +183,21 @@ def test_reference_access_does_not_clone(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_no_labels_names_reference_project(
+    mock_manager_cls: MagicMock,
+    reference_projects: None,  # pylint: disable=unused-argument
+) -> None:
+    """An empty cross-repo label set says which repository was queried."""
+    mock_mgr = _make_manager()
+    mock_mgr.get_available_labels.return_value = []
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_label_list(reference_name="sibling")
+
+    assert result == "No labels found in reference project 'sibling'."
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_comment_failure_names_reference_project(
     mock_manager_cls: MagicMock,
     reference_projects: None,  # pylint: disable=unused-argument
