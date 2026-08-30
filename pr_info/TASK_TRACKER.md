@@ -27,7 +27,14 @@ Details: [step_1.md](./steps/step_1.md)
 
 - [x] Implementation: split `get_linked_branches` into undecorated `_query_linked_branches` (`Optional[List[str]]`, `None` on the four in-body failure paths), a decorated `get_linked_branches` wrapper keeping the `[]` contract, and a new `get_linked_branches_or_none`; write the eight new cases in `tests/github_operations/issues/test_branch_manager_linked.py` first, leaving the existing `assert result == []` tests untouched
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared — text drafted, but `pr_info/.commit_message.txt` could not be written: the workspace MCP server refuses gitignored paths and no other write tool is available in this session
+- [x] Commit message prepared — applied as commit `39a3594`. The file `pr_info/.commit_message.txt` could not be written (`.gitignore:48` excludes it; the workspace MCP refuses gitignored paths and no shell tool is available in this session), so the text is recorded here instead:
+
+  ```
+  feat(github_operations/issues): add get_linked_branches_or_none
+
+  Extract the GraphQL lookup into an undecorated helper that signals failure
+  with None, so callers can distinguish "no linked branch" from "lookup failed".
+  ```
 
 ### Step 2: Collect and record linked-branch state on the report
 
