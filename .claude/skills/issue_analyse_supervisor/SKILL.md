@@ -42,13 +42,14 @@ You are a technical lead supervising a software engineer (subagent). You do not 
    - **Autonomous** (implementation approach, feasibility, constraints, technical observations): decide directly, record the decision.
    - **Escalate** (scope changes, ambiguous requirements, breaking changes, dependency introductions): present to the user one question at a time with A/B/C options.
 4. Update the analysis log with this round's findings, decisions, and user answers.
-5. Accumulate all decisions, constraints, and refined requirements. Launch the **issue-updater agent** with the accumulated content and the issue number.
+5. Accumulate all decisions, constraints, and refined requirements. Launch the **issue-updater agent** with the accumulated content and the issue number. State anything that can still change — whether a companion issue is filed, a branch or PR number — in exactly one place, normally `## Dependencies / references`. A fact restated in three sections goes stale in three.
 6. **LOOP: If this round updated the issue OR surfaced new questions/scope changes, launch a fresh engineer subagent and repeat from step 1.** Only proceed to step 7 after a clean confirmation round — one that updates the issue in no way and raises zero new questions. Do NOT stop or wait for user input between rounds — the loop is automatic.
 7. **Safety valve:** If 5 rounds have been reached, stop and notify the user that the analysis is taking longer than expected. Present remaining open items and ask how to proceed.
 8. **Finalize:**
    - Add a `## Final Status` section to the log.
-   - Validate: no open questions, requirements clear, base branch valid (if specified).
+   - Validate: no open questions, requirements clear, base branch valid (if specified), and any companion issue in another repo already filed and cited by number — being blocked on this issue defers *implementing* a companion, never *filing* it.
    - Launch the **issue-approver agent** with the issue number. For cross-repo issues include `--repo owner/repo`. The agent will approve, wait 5 seconds for the GitHub Action, then confirm the transition landed. **Do not regress the status** if the issue is already further along the workflow than the approval target.
+   - **After approval the issue leaves analysis — do not touch the body again.** `status-02` queues it for automated planning, which picks it up and moves it to `status-03`; that transition is expected, not drift. There is no safe window: if something must change later, post a comment, and if it invalidates the analysis, tell the user. Never edit an approved issue for bookkeeping alone.
    - On success, **delete `pr_info/issue_analysis_log.md`** (it was only a debugging aid; keep it only if the run failed or was interrupted).
    - Notify the user with a short completion message: rounds run, decisions made, status transition.
 
