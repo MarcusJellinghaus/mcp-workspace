@@ -333,6 +333,55 @@ def test_edit_not_found_names_reference_project(
     )
 
 
+def _recording_edit(*_args: Any, **kwargs: Any) -> IssueData:
+    """Log one issued write, then return the swallowed-failure sentinel."""
+    kwargs["attempted_writes"].append("scalars")
+    return create_empty_issue_data()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_edit_indeterminate_names_reference_project(
+    mock_manager_cls: MagicMock,
+    reference_projects: None,  # pylint: disable=unused-argument
+) -> None:
+    """The may-or-may-not-have-landed sentinel names the target project.
+
+    A write went out and the refetch failed, so this message carries no URL
+    either — cross-repo it is the only hint which repository was written to.
+    """
+    mock_mgr = _make_manager()
+    mock_mgr.edit_issue.side_effect = _recording_edit
+    mock_mgr.get_issue.return_value = create_empty_issue_data()
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, title="T", reference_name="sibling")
+
+    assert result == (
+        "Error: edit of issue #42 failed in reference project 'sibling' "
+        "(swallowed API error) and the issue could not be re-read - these "
+        "changes may or may not have been applied: scalars"
+    )
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_edit_indeterminate_without_reference_is_unchanged(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """The workspace variant of that sentinel stays byte-identical to today's."""
+    mock_mgr = _make_manager()
+    mock_mgr.edit_issue.side_effect = _recording_edit
+    mock_mgr.get_issue.return_value = create_empty_issue_data()
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, title="T")
+
+    assert result == (
+        "Error: edit of issue #42 failed (swallowed API error) and the issue "
+        "could not be re-read - these changes may or may not have been "
+        "applied: scalars"
+    )
+
+
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_edit_not_found_without_reference_is_unchanged(
     mock_manager_cls: MagicMock,

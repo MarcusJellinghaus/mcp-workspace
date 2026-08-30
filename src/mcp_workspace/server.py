@@ -1336,7 +1336,8 @@ def github_issue_edit(
                         f"({reason}){reread_error} - no changes were made"
                     )
                 return (
-                    f"Error: edit of issue #{number} failed ({reason}) and the "
+                    f"Error: edit of issue #{number} failed"
+                    f"{_ref_suffix(reference_name)} ({reason}) and the "
                     f"issue could not be re-read{reread_error} - these changes "
                     f"may or may not have been applied: {', '.join(attempted)}"
                 )

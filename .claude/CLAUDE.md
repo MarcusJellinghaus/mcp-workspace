@@ -99,6 +99,8 @@ Never use `python -c` via Bash. If you reason instead of running, label the conc
 
 ```
 git commit / add / rebase / push / checkout -b / branch
+gh issue comment --repo owner/repo (only for a repo that is not a configured reference project — otherwise use the MCP tool with reference_name)
+gh issue view --repo owner/repo (only for a repo that is not a configured reference project — otherwise use the MCP tool with reference_name)
 gh run view
 mcp-coder gh-tool set-status <label>
 ```
