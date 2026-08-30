@@ -1,21 +1,57 @@
 """Unit tests for PullRequestManager.get_pr_feedback() and mergeable_state field."""
 
+import logging
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import git
 import pytest
-from github.GithubException import GithubException
+from github.GithubException import GithubException, UnknownObjectException
+from github.Requester import Requester
 
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations._pr_feedback_sources import (
     fetch_code_scanning_alerts,
     fetch_conversation_comments,
 )
+from mcp_workspace.github_operations.exception_renderer import (
+    render_exception_for_display,
+)
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
 
 from ._issue_test_helpers import make_mock_issue
+
+# An empty-but-valid GraphQL body used as the default POST response. It must
+# resolve data.repository.pullRequest to a dict: a null pullRequest is exactly
+# the retry trigger, so a thinner default would make every test that omits
+# graphql_response run 3 attempts and sleep for real.
+_EMPTY_REVIEW_DATA: dict[str, Any] = {
+    "data": {
+        "repository": {
+            "pullRequest": {
+                "reviewThreads": {"nodes": []},
+                "reviews": {"nodes": []},
+            }
+        }
+    }
+}
+
+
+def _null_pr_body(*errors: dict[str, Any]) -> dict[str, Any]:
+    """Build a GraphQL body with a null pullRequest plus optional errors."""
+    body: dict[str, Any] = {"data": {"repository": {"pullRequest": None}}}
+    if errors:
+        body["errors"] = list(errors)
+    return body
+
+
+def _post_call_count(manager: PullRequestManager) -> int:
+    """Count GraphQL (POST) calls made through the mocked requester."""
+    requester = manager._github_client._Github__requester  # type: ignore[attr-defined]
+    return sum(
+        1 for c in requester.requestJsonAndCheck.call_args_list if c.args[0] == "POST"
+    )
 
 
 @pytest.mark.git_integration
@@ -41,6 +77,7 @@ class TestGetPRFeedback:
         self,
         manager: PullRequestManager,
         graphql_response: Any = None,
+        graphql_responses: Any = None,
         graphql_raises: Any = None,
         comments: Any = None,
         comments_raises: Any = None,
@@ -48,6 +85,14 @@ class TestGetPRFeedback:
         alerts_raises: Any = None,
     ) -> Mock:
         """Set up requester and repository mocks on manager.
+
+        Both review data and code-scanning alerts now go through
+        `requestJsonAndCheck`, so the single mock dispatches on the verb:
+        GraphQL is the only POST, alerts the only GET.
+
+        `graphql_responses` supplies one body per successive POST (retry tests);
+        `graphql_response` supplies one body for every POST. `graphql_raises`
+        means an HTTP-level failure of the GraphQL request.
 
         Returns the mocked repository for additional configuration.
         """
@@ -60,13 +105,26 @@ class TestGetPRFeedback:
         mock_requester = Mock()
         manager._github_client._Github__requester = mock_requester  # type: ignore[attr-defined]
 
-        # GraphQL setup
-        if graphql_raises is not None:
-            mock_requester.graphql_query = Mock(side_effect=graphql_raises)
-        else:
-            mock_requester.graphql_query = Mock(
-                return_value=({}, graphql_response or {"data": {}})
-            )
+        # Concrete string, not an auto-created Mock, so call-arg assertions read
+        # cleanly; the real classmethod, so isinstance(..., GithubException)
+        # assertions cannot pass vacuously against a Mock.
+        mock_requester.graphql_url = "https://api.github.com/graphql"
+        mock_requester.createException = Requester.createException
+
+        post_bodies = iter(graphql_responses) if graphql_responses is not None else None
+
+        def _request(verb: str, url: str, **kwargs: Any) -> tuple[dict[str, Any], Any]:
+            if verb == "POST":
+                if graphql_raises is not None:
+                    raise graphql_raises
+                if post_bodies is not None:
+                    return ({}, next(post_bodies))
+                return ({}, graphql_response or _EMPTY_REVIEW_DATA)
+            if alerts_raises is not None:
+                raise alerts_raises
+            return ({}, alerts_response or [])
+
+        mock_requester.requestJsonAndCheck = Mock(side_effect=_request)
 
         # REST conversation comments via repo.get_issue(...).get_comments()
         mock_issue = make_mock_issue(42)
@@ -75,14 +133,6 @@ class TestGetPRFeedback:
         else:
             mock_issue.get_comments = Mock(return_value=comments or [])
         mock_repo.get_issue = Mock(return_value=mock_issue)
-
-        # REST code-scanning alerts via raw requester
-        if alerts_raises is not None:
-            mock_requester.requestJsonAndCheck = Mock(side_effect=alerts_raises)
-        else:
-            mock_requester.requestJsonAndCheck = Mock(
-                return_value=({}, alerts_response or [])
-            )
 
         return mock_repo
 
@@ -305,8 +355,6 @@ class TestGetPRFeedback:
             }
         ]
         self._setup_mocks(mock_manager, alerts_response=alerts_response)
-        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
-        requester.requestJsonAndCheck = Mock(return_value=({}, alerts_response))
 
         alerts = fetch_code_scanning_alerts(mock_manager, 42)
 
@@ -317,8 +365,8 @@ class TestGetPRFeedback:
         assert alerts[0]["path"] == "src/foo.py"
         assert alerts[0]["line"] == 42
 
-    def test_graphql_failure(self, mock_manager: PullRequestManager) -> None:
-        """GraphQL raises → 'threads' in unavailable, threads/changes_requested empty."""
+    def test_graphql_http_failure(self, mock_manager: PullRequestManager) -> None:
+        """GraphQL HTTP failure raises → 'threads' unavailable, not retried."""
         self._setup_mocks(
             mock_manager,
             graphql_raises=GithubException(500, {"message": "boom"}, None),
@@ -331,8 +379,7 @@ class TestGetPRFeedback:
         ) as sleep:
             result = mock_manager.get_pr_feedback(42)
 
-        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
-        assert requester.graphql_query.call_count == 1
+        assert _post_call_count(mock_manager) == 1
         sleep.assert_not_called()
         assert result["unresolved_threads"] == []
         assert result["resolved_thread_count"] == 0
@@ -343,7 +390,7 @@ class TestGetPRFeedback:
     def test_review_data_retry_then_success(
         self, mock_manager: PullRequestManager
     ) -> None:
-        """Transient 400 then success → retried once, threads populated."""
+        """Null PR + non-permanent error, then success → retried once."""
         valid_response = {
             "data": {
                 "repository": {
@@ -374,9 +421,9 @@ class TestGetPRFeedback:
         }
         self._setup_mocks(
             mock_manager,
-            graphql_raises=[
-                GithubException(400, {"message": "not found yet"}, None),
-                ({}, valid_response),
+            graphql_responses=[
+                _null_pr_body({"message": "Could not resolve to a PullRequest"}),
+                valid_response,
             ],
             comments=[],
             alerts_response=[],
@@ -387,8 +434,7 @@ class TestGetPRFeedback:
         ) as sleep:
             result = mock_manager.get_pr_feedback(42)
 
-        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
-        assert requester.graphql_query.call_count == 2
+        assert _post_call_count(mock_manager) == 2
         assert len(result["unresolved_threads"]) == 1
         assert result["unresolved_threads"][0]["author"] == "alice"
         assert "threads" not in result["unavailable"]
@@ -397,10 +443,10 @@ class TestGetPRFeedback:
     def test_review_data_retry_exhausted_unavailable(
         self, mock_manager: PullRequestManager
     ) -> None:
-        """Persistent 400 → exhausts 3 attempts, 'threads' unavailable."""
+        """Persistent null PR + non-permanent error → 3 attempts, then flagged."""
         self._setup_mocks(
             mock_manager,
-            graphql_raises=GithubException(400, {"message": "not found yet"}, None),
+            graphql_response=_null_pr_body({"message": "Could not resolve"}),
             comments=[],
             alerts_response=[],
         )
@@ -410,19 +456,20 @@ class TestGetPRFeedback:
         ) as sleep:
             result = mock_manager.get_pr_feedback(42)
 
-        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
-        assert requester.graphql_query.call_count == 3
+        assert _post_call_count(mock_manager) == 3
         assert "threads" in result["unavailable"]
         assert isinstance(result["unavailable"]["threads"], GithubException)
         assert sleep.call_count == 2
 
-    def test_review_data_retry_exhausted_404(
+    def test_permanent_error_not_retried(
         self, mock_manager: PullRequestManager
     ) -> None:
-        """Persistent 404 → exhausts 3 attempts, 'threads' unavailable."""
+        """A permanent error type gives up after one attempt."""
         self._setup_mocks(
             mock_manager,
-            graphql_raises=GithubException(404, {"message": "not found yet"}, None),
+            graphql_response=_null_pr_body(
+                {"type": "FORBIDDEN", "message": "Resource not accessible"}
+            ),
             comments=[],
             alerts_response=[],
         )
@@ -432,11 +479,255 @@ class TestGetPRFeedback:
         ) as sleep:
             result = mock_manager.get_pr_feedback(42)
 
-        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
-        assert requester.graphql_query.call_count == 3
+        assert _post_call_count(mock_manager) == 1
+        sleep.assert_not_called()
         assert "threads" in result["unavailable"]
-        assert isinstance(result["unavailable"]["threads"], GithubException)
+
+    def test_usable_data_with_errors_not_retried(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Data came back alongside errors → no retry, but still flagged."""
+        body: dict[str, Any] = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {"nodes": []},
+                        "reviews": {"nodes": []},
+                    }
+                }
+            },
+            "errors": [{"message": "something partial"}],
+        }
+        self._setup_mocks(
+            mock_manager,
+            graphql_response=body,
+            comments=[],
+            alerts_response=[],
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            result = mock_manager.get_pr_feedback(42)
+
+        assert _post_call_count(mock_manager) == 1
+        sleep.assert_not_called()
+        assert "threads" in result["unavailable"]
+
+    def test_partial_data_threads_nulled_still_recovers_reviews(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """reviewThreads errored → reviews still recovered, threads flagged."""
+        body: dict[str, Any] = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": None,
+                        "reviews": {
+                            "nodes": [
+                                {
+                                    "state": "CHANGES_REQUESTED",
+                                    "author": {"login": "alice"},
+                                    "body": "fix",
+                                }
+                            ]
+                        },
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "type": "FORBIDDEN",
+                    "message": "Resource not accessible",
+                    "path": ["repository", "pullRequest", "reviewThreads"],
+                }
+            ],
+        }
+        self._setup_mocks(
+            mock_manager, graphql_response=body, comments=[], alerts_response=[]
+        )
+
+        result = mock_manager.get_pr_feedback(42)
+
+        assert len(result["changes_requested"]) == 1
+        assert result["changes_requested"][0]["author"] == "alice"
+        assert "threads" in result["unavailable"]
+        assert (
+            render_exception_for_display(result["unavailable"]["threads"])
+            == "GraphQL FORBIDDEN — Resource not accessible"
+        )
+
+    def test_partial_data_reviews_nulled_still_recovers_threads(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """reviews errored → unresolved threads still recovered, threads flagged."""
+        body: dict[str, Any] = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "nodes": [
+                                {
+                                    "isResolved": False,
+                                    "comments": {
+                                        "nodes": [
+                                            {
+                                                "author": {"login": "bob"},
+                                                "body": "issue here",
+                                                "path": "src/foo.py",
+                                                "line": 10,
+                                                "diffSide": "RIGHT",
+                                                "diffHunk": "@@ ... @@",
+                                            }
+                                        ]
+                                    },
+                                }
+                            ]
+                        },
+                        "reviews": None,
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "type": "FORBIDDEN",
+                    "message": "Resource not accessible",
+                    "path": ["repository", "pullRequest", "reviews"],
+                }
+            ],
+        }
+        self._setup_mocks(
+            mock_manager, graphql_response=body, comments=[], alerts_response=[]
+        )
+
+        result = mock_manager.get_pr_feedback(42)
+
+        assert len(result["unresolved_threads"]) == 1
+        assert result["unresolved_threads"][0]["author"] == "bob"
+        assert result["changes_requested"] == []
+        assert "threads" in result["unavailable"]
+        assert (
+            render_exception_for_display(result["unavailable"]["threads"])
+            == "GraphQL FORBIDDEN — Resource not accessible"
+        )
+
+    def test_single_not_found_yields_unknown_object_exception(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """A lone NOT_FOUND is retried and surfaces as UnknownObjectException."""
+        self._setup_mocks(
+            mock_manager,
+            graphql_response=_null_pr_body(
+                {"type": "NOT_FOUND", "message": "Could not resolve to a PullRequest"}
+            ),
+            comments=[],
+            alerts_response=[],
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            result = mock_manager.get_pr_feedback(42)
+
+        assert _post_call_count(mock_manager) == 3
         assert sleep.call_count == 2
+        exc = result["unavailable"]["threads"]
+        assert isinstance(exc, UnknownObjectException)
+        assert exc.status == 404
+        assert exc.message == "Could not resolve to a PullRequest"
+
+    def test_multiple_errors_yield_plain_github_exception(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Two errors → plain GithubException 400 with no message."""
+        self._setup_mocks(
+            mock_manager,
+            graphql_response=_null_pr_body(
+                {"type": "NOT_FOUND", "message": "first"},
+                {"type": "NOT_FOUND", "message": "second"},
+            ),
+            comments=[],
+            alerts_response=[],
+        )
+
+        with patch("mcp_workspace.github_operations._pr_feedback_sources.time.sleep"):
+            result = mock_manager.get_pr_feedback(42)
+
+        exc = result["unavailable"]["threads"]
+        assert type(exc) is GithubException  # pylint: disable=unidiomatic-typecheck
+        assert exc.status == 400
+        assert exc.message is None
+
+    def test_null_pull_request_no_errors_flagged(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Null pullRequest with no errors → synthesized status-200 exception."""
+        self._setup_mocks(
+            mock_manager,
+            graphql_response=_null_pr_body(),
+            comments=[],
+            alerts_response=[],
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            result = mock_manager.get_pr_feedback(42)
+
+        assert _post_call_count(mock_manager) == 3
+        assert sleep.call_count == 2
+        exc = result["unavailable"]["threads"]
+        assert isinstance(exc, GithubException)
+        assert exc.status == 200
+        assert (
+            render_exception_for_display(exc)
+            == "GraphQL error — pullRequest not returned"
+        )
+
+    def test_null_pull_request_with_error_flagged(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """A real GraphQL error wins over the synthesized 'not returned' one."""
+        self._setup_mocks(
+            mock_manager,
+            graphql_response=_null_pr_body(
+                {"message": "Field 'x' doesn't exist on type 'Y'"}
+            ),
+            comments=[],
+            alerts_response=[],
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            result = mock_manager.get_pr_feedback(42)
+
+        assert _post_call_count(mock_manager) == 3
+        assert sleep.call_count == 2
+        assert (
+            render_exception_for_display(result["unavailable"]["threads"])
+            == "GraphQL error — Field 'x' doesn't exist on type 'Y'"
+        )
+
+    def test_returned_graphql_error_logged_at_warning(
+        self, mock_manager: PullRequestManager, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The returned (not raised) exception still gets its own WARNING log."""
+        self._setup_mocks(
+            mock_manager,
+            graphql_response=_null_pr_body(
+                {"type": "FORBIDDEN", "message": "Resource not accessible"}
+            ),
+            comments=[],
+            alerts_response=[],
+        )
+
+        with caplog.at_level(
+            logging.WARNING, logger="mcp_workspace.github_operations.pr_manager"
+        ):
+            mock_manager.get_pr_feedback(42)
+
+        assert "Failed to fetch review data for PR #42" in caplog.text
 
     def test_conversation_comments_failure(
         self, mock_manager: PullRequestManager
