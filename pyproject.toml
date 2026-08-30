@@ -52,9 +52,6 @@ architecture = [
     "pycycle>=0.0.8",
     "vulture>=2.14",
 ]
-config = [
-    "mcp-config",
-]
 
 [project.scripts]
 mcp-workspace = "mcp_workspace.main:main"
