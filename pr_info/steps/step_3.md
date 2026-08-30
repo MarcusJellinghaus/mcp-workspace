@@ -91,7 +91,9 @@ harness being edited.
 
 ## Verification
 
-All three MCP checks green.
+All four MCP checks green — `run_pylint_check`, `run_pytest_check`, `run_mypy_check`, and
+`run_ruff_check` (the repo selects `["D", "DOC"]`, so ruff is an exit criterion for every
+step even when this one touches no docstring).
 
 **`TestGetPRFeedback` is marked `git_integration`**, so the fast-unit exclusion pattern skips
 this entire file. Run both:
@@ -133,5 +135,5 @@ add a test that exercises the real shape.
 > Run pytest **twice**: once with the exclusion pattern and once with
 > `markers=["git_integration"]`.
 >
-> Use MCP tools exclusively. Run `run_pylint_check`, `run_pytest_check`, and `run_mypy_check`
-> and fix everything before reporting done.
+> Use MCP tools exclusively. Run `run_pylint_check`, `run_pytest_check`, `run_mypy_check`,
+> and `run_ruff_check` and fix everything before reporting done.

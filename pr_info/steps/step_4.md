@@ -51,6 +51,24 @@ def fetch_review_data(
 
   Rewrite both to describe the usability-keyed retry, and note that genuine HTTP failures
   still raise out of `requestJsonAndCheck` and are not retried here.
+
+- **Ruff `DOC502` on the rewritten `Raises:` section.** `pyproject.toml` selects `["D", "DOC"]`
+  and `_pr_feedback_sources.py` is **not** in `[tool.ruff.lint.per-file-ignores]`. After this
+  step the function body contains **no `raise` statement** — `requestJsonAndCheck` propagates
+  and nothing is re-raised — so a documented `Raises:` trips `DOC502`. Keep the section (the
+  propagation is worth documenting) and suppress it exactly as this file already does at
+  `:133`:
+
+  ```python
+      Raises:
+          GithubException: Propagated from `requestJsonAndCheck` on a genuine HTTP
+              failure. GraphQL-level errors are returned as the 4th tuple element,
+              not raised, and are not retried by this loop.
+      """  # noqa: DOC502  # GithubException propagates from requestJsonAndCheck
+  ```
+
+  Dropping the `Raises:` section entirely is the acceptable alternative; do **not** leave it
+  unsuppressed.
 - `pr_manager.get_pr_feedback` docstring says *"the raised exception"* — widen to *"raised or
   returned"*.
 - Keep `get_pr_feedback`'s existing broad `except` — genuine HTTP failures still raise.
@@ -98,15 +116,28 @@ error = _build_graphql_exception(requester, headers, result)
 if error is None and pr_data is None:
     error = GithubException(200, {"errors": [{"message": "pullRequest not returned"}]}, headers)
 if pr_data is None: return ([], 0, [], error)
-<existing thread / review parsing, unchanged>
+
+# thread / review parsing — logic unchanged, but every nested lookup is coerced
+thread_nodes  = (pr_data.get("reviewThreads") or {}).get("nodes") or []
+    ...
+    comment_nodes = (thread.get("comments") or {}).get("nodes") or []
+review_nodes  = (pr_data.get("reviews") or {}).get("nodes") or []
+
 return (unresolved_threads, resolved_count, changes_requested, error)
 ```
 
-Four things that are easy to get wrong:
+Five things that are easy to get wrong:
 
-- **`(result.get("data") or {})`, not `.get("data", {})`.** GraphQL error bodies carry
-  `"data": null`, where the default-arg form returns `None` and the next `.get` raises
-  `AttributeError` — on exactly the bodies this change starts handling.
+- **`(x.get(k) or {})`, not `.get(k, {})` — at *every* level, not just `data`.** GraphQL
+  error bodies carry `"data": null`, and a **partial** response nulls exactly the field that
+  errored: `{"data": {"repository": {"pullRequest": {"reviewThreads": null, "reviews": {...}}}},
+  "errors": [...]}`. The default-arg form returns `None` for a present-but-null key and the
+  next `.get` raises `AttributeError`. The three existing lookups at
+  `_pr_feedback_sources.py:90, 95, 111` (`reviewThreads`, `comments`, `reviews`) all use the
+  default-arg form and **must** be converted to `or {}` — otherwise the one shape this step
+  exists to recover crashes, `get_pr_feedback`'s broad `except` swallows it, and `threads`
+  renders as `AttributeError — 'NoneType' object has no attribute 'get'` instead of the
+  GraphQL reason. Same for the `.get("nodes", [])` calls on those objects.
 - **Do not zero the threads when `error` is not `None`.** Recovered partial data still
   renders; the flag is additive information. Letting it clear the flag is a fail-open
   regression.
@@ -225,8 +256,33 @@ Retry:
 4. `test_usable_data_with_errors_not_retried` — data + errors → 1 POST, 0 sleeps
 
 Partial data (the core fail-closed guarantee):
-5. `test_partial_data_flagged_and_rendered` — valid `reviewThreads` **and** an `errors` array
-   → threads populated **and** `"threads"` in unavailable. Assert **both**.
+5. `test_partial_data_flagged_and_rendered` — use the **realistic** partial shape: the errored
+   field is explicitly `null` while a sibling survives, plus an `errors` array naming it:
+
+   ```python
+   {
+     "data": {"repository": {"pullRequest": {
+         "reviewThreads": None,
+         "reviews": {"nodes": [{"state": "CHANGES_REQUESTED",
+                                "author": {"login": "alice"}, "body": "fix"}]},
+     }}},
+     "errors": [{"type": "FORBIDDEN", "message": "Resource not accessible",
+                 "path": ["repository", "pullRequest", "reviewThreads"]}],
+   }
+   ```
+
+   Assert **all three**: the surviving sibling is recovered
+   (`len(result["changes_requested"]) == 1`), `"threads"` **is** in unavailable, and the
+   flagged exception renders the GraphQL reason —
+   `render_exception_for_display(result["unavailable"]["threads"])
+   == "GraphQL FORBIDDEN — Resource not accessible"`. That last assertion is what proves no
+   `AttributeError` was raised and swallowed: a nulled `reviewThreads` parsed with
+   `.get("reviewThreads", {})` surfaces as `AttributeError — 'NoneType' object has no
+   attribute 'get'` instead. Do **not** use a fully-populated `reviewThreads` block here —
+   that shape cannot fail and defeats the test.
+
+   Companion case (parametrize or a second test): `reviews` nulled and `reviewThreads`
+   populated → unresolved threads recovered, `"threads"` still flagged.
 
 Exception shape:
 6. `test_single_not_found_yields_unknown_object_exception` — one `NOT_FOUND` error →
@@ -255,8 +311,11 @@ conversation-comment tests, and `test_invalid_pr_number` stay green through the 
 
 ## Verification
 
-- All three MCP checks green, pytest run **twice** (fast-unit exclusion, then
-  `markers=["git_integration"]`).
+- All four MCP checks green — `run_pylint_check`, `run_pytest_check`, `run_mypy_check`, and
+  `run_ruff_check` — with pytest run **twice** (fast-unit exclusion, then
+  `markers=["git_integration"]`). Ruff is not optional here: this step rewrites
+  `fetch_review_data`'s `Raises:` section and the `get_pr_feedback` docstring, and
+  `_pr_feedback_sources.py` is not exempt from `DOC502`.
 - **`tests/checks/test_branch_status_pr_feedback.py:228-268`** asserts on rendered
   `[unavailable]` lines using REST-shaped payloads, so it should stay green.
   **Confirm by running it — do not assume, and do not edit it.**
@@ -299,8 +358,10 @@ than raised, get_pr_feedback logs it explicitly.
 > - `_build_graphql_exception` keys on the **raw `errors` list**, never on
 >   `extract_graphql_errors` output — the parser drops message-less entries and would flip a
 >   400 into a 404.
-> - Use `(result.get("data") or {})`, not `.get("data", {})` — GraphQL error bodies carry
->   `"data": null`.
+> - Use `(x.get(k) or {})`, not `.get(k, {})` — **at every level**, not just `data`. GraphQL
+>   error bodies carry `"data": null`, and a partial response nulls the field that errored, so
+>   the existing `reviewThreads` / `comments` / `reviews` lookups must be converted too. Test 5
+>   exists to catch this.
 > - Do **not** zero recovered threads when an error is present. Any error keeps `threads`
 >   flagged **and** the recovered items render. This fail-closed rule is the point.
 > - The synthesized null-`pullRequest` exception carries status **200**, not 400.
@@ -319,5 +380,6 @@ than raised, get_pr_feedback logs it explicitly.
 > edit it. Run pytest twice — with the fast-unit exclusion pattern and with
 > `markers=["git_integration"]`, since `TestGetPRFeedback` is marked `git_integration`.
 >
-> Use MCP tools exclusively. Run `run_pylint_check`, `run_pytest_check`, and `run_mypy_check`
-> and fix everything before reporting done.
+> Use MCP tools exclusively. Run `run_pylint_check`, `run_pytest_check`, `run_mypy_check`,
+> and `run_ruff_check` and fix everything before reporting done. Ruff's `DOC502` will fire on
+> the rewritten `Raises:` section unless you add the `# noqa: DOC502` the step file specifies.

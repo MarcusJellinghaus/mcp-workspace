@@ -85,8 +85,12 @@ input/output pairs.
 
 ## Verification
 
-All three MCP checks green. `run_pytest_check` with the fast-unit exclusion pattern is
-sufficient for this step — `test_diagnostics.py` carries no integration marker.
+All four MCP checks green — `run_pylint_check`, `run_pytest_check`, `run_mypy_check`, and
+`run_ruff_check`. Ruff matters here: `pyproject.toml` selects `["D", "DOC"]`, and this step
+rewrites the `_diagnostics.py` module docstring and adds a new public function docstring.
+
+`run_pytest_check` with the fast-unit exclusion pattern is sufficient for this step —
+`test_diagnostics.py` carries no integration marker.
 
 ## Commit message
 
@@ -115,5 +119,5 @@ not be a list, entries may not be dicts.
 > parser — the renderer owns presentation.
 >
 > Use MCP tools exclusively (`mcp__workspace__*` for files, `mcp__tools-py__*` for checks).
-> Run `run_pylint_check`, `run_pytest_check`, and `run_mypy_check` and fix everything before
-> reporting done.
+> Run `run_pylint_check`, `run_pytest_check`, `run_mypy_check`, and `run_ruff_check` and fix
+> everything before reporting done. Ruff enforces `D`/`DOC` docstring rules repo-wide.

@@ -72,11 +72,27 @@ survives. A single `_cap()` helper serves both arms.
 The `isinstance(exc.data, dict)` guard is hoisted into a local so the dict check cannot be
 forgotten — on a string body, `"errors" in exc.data` is a substring test.
 
+**Dispatch is narrowed beyond the issue's wording.** The issue says "GraphQL branch when
+`exc.data` is a dict containing `errors`". That alone is wrong: GitHub REST 422 bodies are
+`{"message": "Validation Failed", "errors": [{..., "message": "..."}]}` — an `errors` array
+whose entries carry parseable messages — and would render as `GraphQL error — <msg>` with the
+real HTTP status thrown away. The rule is therefore `errors` present **and no top-level
+`message`**, which is exactly what distinguishes the two shapes. The synthesized
+null-`pullRequest` body has no top-level `message` either, so it still takes the GraphQL arm.
+
 ### 3. `fetch_review_data` becomes tolerant; the return contract widens
 
 It calls `requestJsonAndCheck` directly instead of `graphql_query`, so `data` and `errors`
 arrive **together** and partial results survive. It returns a 4-tuple; the 4th element is
 the `GithubException` PyGithub *would* have raised, or `None`.
+
+Surviving partial data also requires the **parsing** to tolerate it. A partial GraphQL
+response sets the errored field to `null`, and the existing lookups
+(`_pr_feedback_sources.py:84, 90, 95, 111`) use `.get(key, {})`, which returns `None` for a
+present-but-null key and raises `AttributeError` on the next `.get`. All of them move to
+`.get(key) or {}` — otherwise the recovery path crashes on exactly the shape it exists for
+and the `[unavailable]` line degrades to an internal `AttributeError` instead of the GraphQL
+reason.
 
 **This is scoped to `fetch_review_data` only.** The other four `graphql_query` call sites
 (`issues/branch_manager.py:220,530,676`, `pr_manager.py:615`) keep raise-on-error semantics.
@@ -161,7 +177,8 @@ No new folders or modules. No new public API.
 
 ## Steps
 
-Each step is exactly one commit: tests + implementation + all three checks green.
+Each step is exactly one commit: tests + implementation + all four checks green
+(pylint, pytest, mypy, ruff).
 
 | Step | Scope | Depends on |
 |------|-------|------------|
@@ -181,7 +198,17 @@ without its `pr_manager` unpack.
 mcp__tools-py__run_pylint_check
 mcp__tools-py__run_pytest_check   extra_args=["-n","auto"]  (git_integration needed here)
 mcp__tools-py__run_mypy_check
+mcp__tools-py__run_ruff_check
 ```
+
+**`run_ruff_check` is an exit criterion for every step, not an optional extra.**
+`pyproject.toml` sets `[tool.ruff.lint] select = ["D", "DOC"]` with `preview = true`, so the
+pydocstyle **and** pydoclint rules are enforced across `src/`. Every step in this plan edits
+docstrings — the `_diagnostics.py` module docstring (1), `render_exception_for_display` plus
+two new private helpers (2), and `fetch_review_data`'s `Raises:` section plus the
+`get_pr_feedback` docstring (4) — and `_pr_feedback_sources.py` is **not** in
+`[tool.ruff.lint.per-file-ignores]`, so `DOC502` applies to it (see step 4's `# noqa`
+requirement). Neither pylint nor mypy catches these.
 
 `TestGetPRFeedback` is marked `git_integration`, so the usual fast-unit exclusion pattern
 skips the tests that matter for steps 3 and 4. Run those with `markers=["git_integration"]`

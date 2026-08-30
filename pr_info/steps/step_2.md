@@ -45,16 +45,29 @@ Dispatch — hoist the dict check into a local so it cannot be forgotten:
 
 ```python
 data = exc.data if isinstance(exc.data, dict) else None
-if data and "errors" in data:
+if data and "errors" in data and "message" not in data:
     pairs = extract_graphql_errors(data)
     if pairs:
         return _render_graphql_errors(pairs)      # early return: no final _cap
 raw = data.get("message") if data else None       # existing REST path, unchanged
 ```
 
-**The `isinstance` guard must precede the `in` test** — on a string body, `in` is a
-substring test. The existing `test_non_dict_data_omits_message_segment` uses `"raw text"`,
-which contains no `errors`, so it will not catch a missing guard. Test 9 below does.
+**The dispatch rule, stated explicitly:** take the GraphQL arm when `exc.data` is a dict that
+has an `errors` key **and no top-level `message` key**, and the parser yields at least one
+pair. Anything else takes the REST arm.
+
+Two independent reasons for that rule:
+
+- **The `isinstance` guard must precede the `in` test** — on a string body, `in` is a
+  substring test. The existing `test_non_dict_data_omits_message_segment` uses `"raw text"`,
+  which contains no `errors`, so it will not catch a missing guard. Test 9 below does.
+- **`errors` alone does not mean GraphQL.** GitHub REST validation failures (422) send
+  `{"message": "Validation Failed", "errors": [{"resource": ..., "code": "custom",
+  "message": "No commits between main and topic"}]}`. Those entries *do* carry a `message`,
+  so `extract_graphql_errors` parses them and the body would render as
+  `GraphQL error — No commits between main and topic` — mislabelled, with the real HTTP 422
+  discarded. A GraphQL body has **no** top-level `message` (that is the whole premise of this
+  issue), so `"message" not in data` separates the two shapes exactly. Test 14 below covers it.
 
 `_render_graphql_errors`:
 
@@ -114,15 +127,26 @@ Fall-through (unparseable `errors` → REST rendering, no crash):
 11. `errors` not a list: `{"message": "boom", "errors": "nope"}` → `GithubException 400 — boom`
 12. Entries not dicts: `{"errors": ["a", "b"]}` → `GithubException 400`
 13. `errors` present but empty: `{"errors": []}` → REST path
+14. **REST 422 with a message-bearing `errors` array is not misclassified** —
+    `GithubException(422, {"message": "Validation Failed", "errors": [{"resource": "PullRequest",
+    "code": "custom", "message": "No commits between main and topic"}]}, None)` →
+    `GithubException 422 — Validation Failed`. Assert `"GraphQL" not in result` and that the
+    status `422` is present. This is the test for the `"message" not in data` half of the
+    dispatch rule; without it the body renders as `GraphQL error — No commits between main
+    and topic` with the status dropped.
 
 Regression: **every existing test in the file must stay green unchanged**, including
 `test_truncation_at_200_chars` (203 chars) — the REST arm keeps the whole-line cap.
 
 ## Verification
 
-All three MCP checks green. Fast-unit exclusion pattern is sufficient; this file carries no
-integration marker. Confirm the pre-existing `TestGithubException` and `TestGenericException`
-classes pass without edits.
+All four MCP checks green — `run_pylint_check`, `run_pytest_check`, `run_mypy_check`, and
+`run_ruff_check`. Ruff matters here: this step rewrites `render_exception_for_display`'s
+docstring and adds two private helpers, all of which the repo-wide `["D", "DOC"]` selection
+covers.
+
+Fast-unit exclusion pattern is sufficient; this file carries no integration marker. Confirm
+the pre-existing `TestGithubException` and `TestGenericException` classes pass without edits.
 
 ## Commit message
 
@@ -148,9 +172,13 @@ message on this arm so the "(+N more)" suffix always survives.
 > Follow TDD — write the `TestGraphqlErrors` cases in
 > `tests/github_operations/test_exception_renderer.py` first, watch them fail, then implement.
 >
-> Two things that are easy to get wrong:
+> Three things that are easy to get wrong:
 > - Hoist `isinstance(exc.data, dict)` into a local **before** testing `"errors" in ...`, or a
 >   string body turns it into a substring test. Test 9 exists to catch this.
+> - The GraphQL arm requires `"message" not in data` as well as `"errors" in data`. REST 422
+>   bodies carry **both** keys and their `errors` entries have `message` fields, so keying on
+>   `errors` alone mislabels them `GraphQL error — ...` and throws away the HTTP status. Test
+>   14 exists to catch this.
 > - The GraphQL arm returns **early**, bypassing the final whole-line `_cap`, so `(+N more)`
 >   is never truncated away. Test 7 exists to catch this.
 >
@@ -158,5 +186,6 @@ message on this arm so the "(+N more)" suffix always survives.
 > `checks/pr_feedback.py`. Do not touch `_pr_feedback_sources.py` or `pr_manager.py` — step 4.
 > All pre-existing tests in the renderer test file must stay green **without edits**.
 >
-> Use MCP tools exclusively. Run `run_pylint_check`, `run_pytest_check`, and
-> `run_mypy_check` and fix everything before reporting done.
+> Use MCP tools exclusively. Run `run_pylint_check`, `run_pytest_check`, `run_mypy_check`,
+> and `run_ruff_check` and fix everything before reporting done. Ruff enforces `D`/`DOC`
+> docstring rules repo-wide.
