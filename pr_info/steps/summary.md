@@ -45,10 +45,13 @@ Three design points are worth recording:
    not `async def`).
 
 2. **Every message change is one uniform pattern: an existing string plus a conditional
-   suffix.** Four messages must name the target repository or change their advice
+   suffix.** Five messages must name the target repository or change their advice
    cross-repo. Rather than branching message construction, a three-line helper
    `_ref_suffix(reference_name)` returns `""` or `" in reference project '<name>'"` and is
-   appended at `server.py:111`, `:1176` and `:1349`; the `status-*` guard appends its own
+   inserted at `server.py:111` (before the colon, so the label list stays terminal and a
+   multi-label message cannot read the project as another label), `:1176`, `:1285` (after
+   "not found or not accessible", the one edit-path message that carries no URL) and
+   `:1349`; the `status-*` guard appends its own
    clause `" from the '<name>' project's own checkout"`. When `reference_name` is `None`
    every message is byte-identical to today, which is what keeps the existing exact-equality
    assertion (`test_github_write_tools_issues.py:233`) and the five `"set-status" in result`
@@ -77,7 +80,8 @@ Deliberately **rejected** simplifications, recorded so they are not re-proposed:
 - `mcp-coder gh-tool set-status` operates on the current checkout, so a sibling repo's issue
   cannot be advanced through its status workflow from here — only from that repo's checkout.
   A newly filed issue belongs in `status-01:created` anyway, which is where the sibling
-  repo's own `label-new-issues.yml` puts it.
+  repo's own `label-new-issues.yml` puts it. Step 5 records this in README's cross-repo
+  section, since this file does not survive the PR.
 - The `perm_write` startup probe reads `repo.permissions["push"]` on the workspace repo
   only, so a cross-repo write can fail on a permission the probe reported green.
 - A wrong-but-valid `reference_name` on `github_issue_edit` with `state="closed"` can close
@@ -116,7 +120,7 @@ an unused parameter behind.
 | `tests/github_operations/test_github_write_tools_reference.py` | 1-4 | New module, grown one tool per step |
 | `tests/test_reference_projects_mcp_tools.py` | 5 | Two exact-equality assertions on the `usage` string (`:51-64`, `:87-96`) |
 | `README.md` | 5 | `:35`, `:88`, `:374`, `:383` (verbatim usage-string quote), and the `:454-460` cross-repo section |
-| `.claude/CLAUDE.md` | 5 | "Sibling repos are readable in full…" line; remove two stale Bash allowlist entries |
+| `.claude/CLAUDE.md` | 5 | Intro line (`:3`, read-only claim scoped to files); "Sibling repos are readable in full…" line; remove two stale Bash allowlist entries |
 | `.claude/skills/issue_approve/SKILL.md` | 5 | Reference-project branch uses `github_issue_comment(reference_name=…)`; `gh` fallback retained |
 | `.claude/settings.local.json` | 5 | Add `mcp__mcp-workspace__github_label_list` |
 | `tests/LLM_Test.md` | 5 | Cross-repo write script in the mutating Section 4 |

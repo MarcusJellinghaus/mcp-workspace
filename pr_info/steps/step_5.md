@@ -14,7 +14,8 @@ tool now does is exactly the stale-guidance failure that produced this issue.
   `get_reference_projects` docstring (`:47-49`)
 - `tests/test_reference_projects_mcp_tools.py` — `:51-64` and `:87-96`
 - `README.md` — `:35`, `:88`, `:374`, `:383`, `:454-460`
-- `.claude/CLAUDE.md` — the sibling-repos line (`:63`) and the Bash allowlist (`:102-103`)
+- `.claude/CLAUDE.md` — the intro line (`:3`), the sibling-repos line (`:61`) and the Bash
+  allowlist (`:102-103`)
 - `.claude/skills/issue_approve/SKILL.md` — `:26-32` and `:51-59`
 - `.claude/settings.local.json` — `permissions.allow`
 - `tests/LLM_Test.md` — Section 4
@@ -22,7 +23,7 @@ tool now does is exactly the stale-guidance failure that produced this issue.
 ## WHAT
 
 One enumeration, written identically in the `usage` string and in the docstring, now listing all
-eight tools that accept `reference_name`: `git()`, `github_issue_view()`,
+nine tools that accept `reference_name`: `git()`, `github_issue_view()`,
 `github_issue_list()`, `github_pr_view()`, `github_search()`, `github_label_list()`,
 `github_issue_create()`, `github_issue_edit()`, `github_issue_comment()` — alongside the three
 file tools already named.
@@ -49,10 +50,18 @@ refactor the list into a shared constant — the exact-equality assertions are d
   tools, keep the first two feature bullets (URL resolution without cloning; allowlist-only
   names), and replace the reads-only bullet at `:460` — which is flatly false after step 4 —
   with one stating that `github_pr_create` and every other GitHub tool remain workspace-only.
-  Keep the Error Handling block as-is; both strings are still exact.
+  Add one further bullet recording the status-label limitation, so it survives the PR (the
+  summary's *Accepted limitations* list goes away with `pr_info/`): workflow `status-*` labels
+  are rejected on both sides for every repository, and `mcp-coder gh-tool set-status` acts on
+  the current checkout, so a sibling repo's issue can only be advanced through its status
+  workflow from that repo's own checkout. Keep the Error Handling block as-is; both strings are
+  still exact.
 
 **`.claude/CLAUDE.md`.**
 
+- The intro line (`:3`) — "read-only access to reference projects" is now the same half-truth as
+  `README.md:88`: still true of *files*, false of the sibling's issues. Qualify it the same way,
+  scoping the read-only claim to file access.
 - The "Sibling repos are readable in full…" line: sibling repos are now also writable through
   the issue tools; list them. The tool-mapping table above it does **not** change — this issue
   adds no tool and renames none, and the table lists names only.
@@ -117,9 +126,11 @@ Optional but cheap sanity check: `mcp-coder check file-size --max-lines 750` if 
 > exact-equality assertions in `tests/test_reference_projects_mcp_tools.py` and the verbatim
 > quote in `README.md` so all four sites match byte-for-byte. Do not extract the list into a
 > shared constant. Then make the documentation edits listed in the step: `README.md` lines 35,
-> 88, 374 and the `454-460` section rewritten as one block; the sibling-repos line in
-> `.claude/CLAUDE.md` plus removal of the two stale `gh issue view` / `gh issue comment`
-> allowlist entries (leave the tool-mapping table alone); the reference-project branch of
+> 88, 374 and the `454-460` section rewritten as one block, including a bullet recording that
+> `status-*` labels can only be set from the target repository's own checkout; the intro line
+> (`:3`) and the sibling-repos line in `.claude/CLAUDE.md` plus removal of the two stale
+> `gh issue view` / `gh issue comment` allowlist entries (leave the tool-mapping table alone);
+> the reference-project branch of
 > `.claude/skills/issue_approve/SKILL.md` switched to
 > `github_issue_comment(reference_name=…)` while keeping the `gh` fallback and its
 > `allowed-tools` entry; `"mcp__mcp-workspace__github_label_list"` added to

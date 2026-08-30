@@ -41,7 +41,11 @@ def github_issue_create(
   points at the target repository automatically.
 - The `status-*` rejection itself is unchanged — only its advice clause. Compose it as
   existing-text-plus-suffix, never as two alternative sentences.
-- Unknown-label message (`:111`) appends `_ref_suffix(reference_name)`.
+- Unknown-label message (`:111`) takes `_ref_suffix(reference_name)` **before the colon**, not
+  at the end: appended, `"unknown label(s): a, b in reference project 'x'"` reads as though the
+  suffix were part of the label list. Placed before the colon the list stays terminal and
+  unambiguous for one label or many, and the `None` path is still byte-identical because the
+  suffix is empty.
 - Add `reference_name` to `_check_labels`'s docstring `Args:` (the repo's docstring lint
   requires it; keep the existing `# noqa: DOC502` on the closing quotes).
 - `github_issue_create`: delete the local `IssueManager` import (`:1159-1160`, comment
@@ -75,7 +79,7 @@ _check_labels(manager, add, remove, reference_name):
     if not add: return None
     known = {label["name"].casefold() for label in manager.get_available_labels()}
     unknown = [n for n in add if n.casefold() not in known]
-    if unknown: return f"Error: unknown label(s): {', '.join(unknown)}{_ref_suffix(reference_name)}"
+    if unknown: return f"Error: unknown label(s){_ref_suffix(reference_name)}: {', '.join(unknown)}"
     return None
 ```
 
@@ -88,12 +92,15 @@ Messages, workspace path (`reference_name=None`) — **byte-identical to today**
 
 - `"Error: these tools do not modify status-* labels (status-01:created). Use: mcp-coder gh-tool set-status <label>"`
 - `"Error: unknown label(s): bugg"`
+- `"Error: unknown label(s): bugg, bugz"` (multi-label, unchanged)
 - `"Error: issue creation failed - no issue was created"`
 
 Cross-repo (`reference_name="sibling"`):
 
 - `"… set-status <label> from the 'sibling' project's own checkout"`
-- `"Error: unknown label(s): bugg in reference project 'sibling'"`
+- `"Error: unknown label(s) in reference project 'sibling': bugg"`
+- `"Error: unknown label(s) in reference project 'sibling': bugg, bugz"` — the label list stays
+  terminal, so the reference project cannot be misread as a third label
 - `"Error: issue creation failed - no issue was created in reference project 'sibling'"`
 
 Success output is unchanged and needs no suffix — it returns a URL.
@@ -109,8 +116,10 @@ In `test_github_write_tools_reference.py`:
 3. `test_status_guard_points_at_reference_checkout` — `github_issue_create(title="T",
    labels=["status-01:created"], reference_name="sibling")` mentions `"sibling"` and
    `"own checkout"`, and `create_issue` / `get_available_labels` are not called.
-4. `test_unknown_label_names_reference_project` — result is exactly
-   `"Error: unknown label(s): bugg in reference project 'sibling'"`.
+4. `test_unknown_label_names_reference_project` — parametrized over one and two unknown labels;
+   results are exactly `"Error: unknown label(s) in reference project 'sibling': bugg"` and
+   `"Error: unknown label(s) in reference project 'sibling': bugg, bugz"`, so the multi-label
+   case proves the suffix is not readable as another label.
 5. `test_create_failure_names_reference_project` — `create_issue` returns
    `create_empty_issue_data()`; result ends with `" in reference project 'sibling'"`.
 
@@ -125,8 +134,9 @@ In `test_github_write_tools_reference.py`:
 > Work test-first: extend `tests/github_operations/test_github_write_tools_reference.py` with
 > the `github_issue_create` case and the three message tests described in the step, then add
 > `reference_name: Optional[str] = None` to `_check_labels` and to `github_issue_create` in
-> `src/mcp_workspace/server.py`, make the `status-*` advice and the unknown-label message
-> conditional by *appending* a clause (never by rewriting the message), swap the manager
+> `src/mcp_workspace/server.py`, make the `status-*` advice conditional by *appending* a clause
+> and the unknown-label message conditional by inserting `_ref_suffix(reference_name)` before
+> its colon so the label list stays terminal (never by rewriting either message), swap the manager
 > construction to `_issue_manager(reference_name)`, pass `reference_name` into `_check_labels`,
 > append `_ref_suffix(reference_name)` to the creation-failure sentinel, delete the now-unused
 > local `IssueManager` import, and update the docstrings. The workspace path
