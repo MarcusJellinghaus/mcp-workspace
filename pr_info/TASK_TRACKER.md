@@ -25,9 +25,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 Details: [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: split `get_linked_branches` into undecorated `_query_linked_branches` (`Optional[List[str]]`, `None` on the four in-body failure paths), a decorated `get_linked_branches` wrapper keeping the `[]` contract, and a new `get_linked_branches_or_none`; write the eight new cases in `tests/github_operations/issues/test_branch_manager_linked.py` first, leaving the existing `assert result == []` tests untouched
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: split `get_linked_branches` into undecorated `_query_linked_branches` (`Optional[List[str]]`, `None` on the four in-body failure paths), a decorated `get_linked_branches` wrapper keeping the `[]` contract, and a new `get_linked_branches_or_none`; write the eight new cases in `tests/github_operations/issues/test_branch_manager_linked.py` first, leaving the existing `assert result == []` tests untouched
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared — text drafted, but `pr_info/.commit_message.txt` could not be written: the workspace MCP server refuses gitignored paths and no other write tool is available in this session
 
 ### Step 2: Collect and record linked-branch state on the report
 

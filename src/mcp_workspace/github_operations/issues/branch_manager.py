@@ -161,32 +161,31 @@ class IssueBranchManager(BaseGitHubManager):
 
         return None
 
-    @log_function_call
-    @_handle_github_errors(default_return=[])
-    def get_linked_branches(self, issue_number: int) -> List[str]:
-        """Query linked branches for an issue via GraphQL.
+    def _query_linked_branches(self, issue_number: int) -> Optional[List[str]]:
+        """Query linked branches for an issue via GraphQL, undecorated.
+
+        Failure is signalled with a None sentinel rather than an exception, so
+        that the decorated get_linked_branches() wrapper keeps its exact
+        behaviour and logging (a ValueError would be re-raised by
+        _handle_github_errors, and any other type would add a spurious
+        "Unexpected error" log line to the invalid-issue-number path).
 
         Args:
             issue_number: Issue number to query linked branches for
 
         Returns:
-            List of branch names linked to the issue, or empty list on error
-
-        Example:
-            >>> manager = IssueBranchManager(Path.cwd())
-            >>> branches = manager.get_linked_branches(123)
-            >>> print(f"Linked branches: {branches}")
-            ['123-feature-branch', '123-hotfix']
+            List of branch names on success (possibly empty), or None when the
+            lookup could not be completed
         """
         # Validate issue number
         if not self._validate_issue_number(issue_number):
-            return []
+            return None
 
         # Get repository
         repo = self._get_repository()
         if repo is None:
             logger.error("Failed to get repository")
-            return []
+            return None
 
         # Extract owner and repo name
         owner, repo_name = repo.owner.login, repo.name
@@ -226,7 +225,7 @@ class IssueBranchManager(BaseGitHubManager):
             issue_data = result.get("data", {}).get("repository", {}).get("issue")
             if issue_data is None:
                 logger.warning(f"Issue #{issue_number} not found")
-                return []
+                return None
 
             linked_branches = issue_data.get("linkedBranches", {}).get("nodes", [])
             branch_names = [
@@ -238,7 +237,56 @@ class IssueBranchManager(BaseGitHubManager):
 
         except (KeyError, TypeError) as e:
             logger.error(f"Error parsing GraphQL response: {e}")
-            return []
+            return None
+
+    @log_function_call
+    @_handle_github_errors(default_return=[])
+    def get_linked_branches(self, issue_number: int) -> List[str]:
+        """Query linked branches for an issue via GraphQL.
+
+        Args:
+            issue_number: Issue number to query linked branches for
+
+        Returns:
+            List of branch names linked to the issue, or empty list on error
+
+        Example:
+            >>> manager = IssueBranchManager(Path.cwd())
+            >>> branches = manager.get_linked_branches(123)
+            >>> print(f"Linked branches: {branches}")
+            ['123-feature-branch', '123-hotfix']
+        """
+        branch_names = self._query_linked_branches(issue_number)
+        return [] if branch_names is None else branch_names
+
+    def get_linked_branches_or_none(self, issue_number: int) -> Optional[List[str]]:
+        """Query linked branches for an issue, distinguishing failure from none.
+
+        Unlike get_linked_branches(), a failed lookup returns None instead of
+        an empty list, so callers can tell "this issue has no linked branch"
+        ([]) apart from "the linked branch could not be determined" (None).
+
+        Auth errors (401/403) are reported as None rather than re-raised: for
+        callers of this method an auth failure is simply an undeterminable
+        lookup.
+
+        Args:
+            issue_number: Issue number to query linked branches for
+
+        Returns:
+            List of branch names on success (possibly empty), or None when the
+            lookup could not be completed
+
+        Example:
+            >>> manager = IssueBranchManager(Path.cwd())
+            >>> manager.get_linked_branches_or_none(123)
+            ['123-feature-branch']
+        """
+        try:
+            return self._query_linked_branches(issue_number)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(f"Failed to query linked branches for #{issue_number}: {e}")
+            return None
 
     @log_function_call
     @_handle_github_errors(
