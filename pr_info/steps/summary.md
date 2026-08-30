@@ -199,7 +199,15 @@ mcp__tools-py__run_pylint_check
 mcp__tools-py__run_pytest_check   extra_args=["-n","auto"]  (git_integration needed here)
 mcp__tools-py__run_mypy_check
 mcp__tools-py__run_ruff_check
+mcp__tools-py__run_format_code    steps=["isort","black"]
 ```
+
+**`run_format_code` is an exit criterion too.** CI runs `isort --check --profile=black
+--float-to-top src tests` and `black --check` as separate jobs, so a formatting drift turns
+the pipeline red even when the four checks above are green. Note that `pyproject.toml`
+declares `isort>=9.0.1` unpinned and CI installs without a lockfile, so CI may resolve a
+newer isort than the local environment; a green local `run_format_code` is necessary but not
+always sufficient.
 
 **`run_ruff_check` is an exit criterion for every step, not an optional extra.**
 `pyproject.toml` sets `[tool.ruff.lint] select = ["D", "DOC"]` with `preview = true`, so the
