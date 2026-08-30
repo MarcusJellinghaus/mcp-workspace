@@ -174,13 +174,18 @@ def fetch_review_data(
     resolved_count = 0
     thread_nodes = (pr_data.get("reviewThreads") or {}).get("nodes") or []
     for thread in thread_nodes:
+        # `nodes` elements are nullable: a per-node error nulls that element
+        # only, so skipping it keeps the sibling threads and the error reason
+        # instead of raising AttributeError out of this function.
+        if thread is None:
+            continue
         if thread.get("isResolved"):
             resolved_count += 1
             continue
         comment_nodes = (thread.get("comments") or {}).get("nodes") or []
-        if not comment_nodes:
+        first = next((c for c in comment_nodes if c is not None), None)
+        if first is None:
             continue
-        first = comment_nodes[0]
         author = (first.get("author") or {}).get("login") or ""
         unresolved_threads.append(
             {
@@ -195,6 +200,8 @@ def fetch_review_data(
     changes_requested: list[dict[str, Any]] = []
     review_nodes = (pr_data.get("reviews") or {}).get("nodes") or []
     for review in review_nodes:
+        if review is None:  # nullable node, as above
+            continue
         if review.get("state") != "CHANGES_REQUESTED":
             continue
         author = (review.get("author") or {}).get("login") or ""

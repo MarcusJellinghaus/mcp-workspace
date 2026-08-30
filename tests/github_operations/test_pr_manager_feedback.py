@@ -686,6 +686,126 @@ class TestGetPRFeedback:
             == "GraphQL FORBIDDEN — Resource not accessible"
         )
 
+    def test_null_thread_nodes_skipped_siblings_recovered(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """A nulled thread node and a nulled comment skip only themselves."""
+        body: dict[str, Any] = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "nodes": [
+                                None,
+                                {
+                                    "isResolved": False,
+                                    "comments": {"nodes": [None]},
+                                },
+                                {
+                                    "isResolved": False,
+                                    "comments": {
+                                        "nodes": [
+                                            {
+                                                "author": {"login": "bob"},
+                                                "body": "issue here",
+                                                "path": "src/foo.py",
+                                                "line": 10,
+                                                "diffSide": "RIGHT",
+                                                "diffHunk": "@@ ... @@",
+                                            }
+                                        ]
+                                    },
+                                },
+                            ]
+                        },
+                        "reviews": {"nodes": []},
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "type": "FORBIDDEN",
+                    "message": "Resource not accessible",
+                    "path": ["repository", "pullRequest", "reviewThreads", "nodes", 0],
+                }
+            ],
+        }
+        self._setup_mocks(
+            mock_manager, graphql_response=body, comments=[], alerts_response=[]
+        )
+
+        result = mock_manager.get_pr_feedback(42)
+
+        assert len(result["unresolved_threads"]) == 1
+        assert result["unresolved_threads"][0]["author"] == "bob"
+        assert (
+            render_exception_for_display(result["unavailable"]["threads"])
+            == "GraphQL FORBIDDEN — Resource not accessible"
+        )
+
+    def test_null_review_nodes_skipped_threads_recovered(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """A nulled review node does not discard already-recovered threads."""
+        body: dict[str, Any] = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "nodes": [
+                                {
+                                    "isResolved": False,
+                                    "comments": {
+                                        "nodes": [
+                                            {
+                                                "author": {"login": "bob"},
+                                                "body": "issue here",
+                                                "path": "src/foo.py",
+                                                "line": 10,
+                                                "diffSide": "RIGHT",
+                                                "diffHunk": "@@ ... @@",
+                                            }
+                                        ]
+                                    },
+                                }
+                            ]
+                        },
+                        "reviews": {
+                            "nodes": [
+                                None,
+                                {
+                                    "state": "CHANGES_REQUESTED",
+                                    "author": {"login": "alice"},
+                                    "body": "fix",
+                                },
+                            ]
+                        },
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "type": "FORBIDDEN",
+                    "message": "Resource not accessible",
+                    "path": ["repository", "pullRequest", "reviews", "nodes", 0],
+                }
+            ],
+        }
+        self._setup_mocks(
+            mock_manager, graphql_response=body, comments=[], alerts_response=[]
+        )
+
+        result = mock_manager.get_pr_feedback(42)
+
+        assert len(result["unresolved_threads"]) == 1
+        assert result["unresolved_threads"][0]["author"] == "bob"
+        assert len(result["changes_requested"]) == 1
+        assert result["changes_requested"][0]["author"] == "alice"
+        assert (
+            render_exception_for_display(result["unavailable"]["threads"])
+            == "GraphQL FORBIDDEN — Resource not accessible"
+        )
+
     def test_single_not_found_yields_unknown_object_exception(
         self, mock_manager: PullRequestManager
     ) -> None:
