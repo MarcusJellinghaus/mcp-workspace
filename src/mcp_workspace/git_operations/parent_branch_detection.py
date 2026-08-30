@@ -71,7 +71,9 @@ def detect_parent_branch_via_merge_base(
     Returns:
         Branch name (unprefixed) if a single parent can be determined, None if:
         - no candidate is within the distance threshold
-        - the current branch is the default branch (nothing to detect)
+        - the current branch is the default branch (nothing to detect); when no
+          default branch can be resolved, this check is skipped and a candidate
+          may be returned even on the trunk
         - two or more distinct non-default branches tie at the minimum distance
           (ambiguous), unless no default branch can be resolved at all, in
           which case the first tied name is returned rather than leaving the
