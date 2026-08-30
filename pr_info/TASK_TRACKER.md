@@ -25,8 +25,8 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 Details: [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: create `tests/github_operations/test_github_write_tools_reference.py` (test-first) and add `reference_name` to `github_label_list` via `_issue_manager(reference_name)`, removing the local `IssueManager` import and updating the docstring
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Implementation: create `tests/github_operations/test_github_write_tools_reference.py` (test-first) and add `reference_name` to `github_label_list` via `_issue_manager(reference_name)`, removing the local `IssueManager` import and updating the docstring
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 
 ### Step 2: `github_issue_comment` gains `reference_name`, plus the `_ref_suffix` helper

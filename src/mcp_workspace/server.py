@@ -1356,23 +1356,27 @@ def github_issue_comment(number: int, body: str) -> str:
 
 @mcp.tool()
 @log_function_call
-def github_label_list(search: Optional[str] = None) -> str:
-    """List the labels defined in the repository. This only reads from GitHub.
+def github_label_list(
+    search: Optional[str] = None,
+    reference_name: Optional[str] = None,
+) -> str:
+    """List the labels defined in the workspace repository or a reference project.
+
+    This only reads from GitHub.
 
     Args:
         search: Optional filter — case-insensitive substring matched against
             the label name or its description, as ``gh label list --search``
             does. Omit it to list every label.
+        reference_name: Optional reference project name. When set, lists the labels
+            of that project's GitHub repository instead of the workspace repository.
 
     Returns:
         One line per label, ``<name>  #<color>  <description>``, or
         "No labels found." when nothing matches, or error message string.
     """
-    # Lazy import: keeps PyGithub off the server startup import path
-    from mcp_workspace.github_operations.issues import IssueManager
-
     try:
-        manager = IssueManager(project_dir=_project_dir)
+        manager = _issue_manager(reference_name)
         # Raises rather than returning [] on API failure, so an empty list here
         # means the repository really has no labels
         labels = manager.get_available_labels()
