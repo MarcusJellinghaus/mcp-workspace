@@ -1,20 +1,38 @@
-Restore single-line set_reference_projects import in server.py
+fix(server): restore single-line import to satisfy isort in CI
 
-Fixes the isort CI job.
+The isort CI job failed on src/mcp_workspace/server.py:
 
-Commit 6bbe609 ("docs(pr_info): fold step 4 docs into step 3") was intended to
-touch only pr_info/steps/*.md, but it also carried a stray reformatting of the
-set_reference_projects import in src/mcp_workspace/server.py, rewrapping it
-into a parenthesized multi-line form with a trailing comma. The isort job
-(isort --check --profile=black --float-to-top src tests) rejects that form and
-fails on this single file.
+    isort --check --profile=black --float-to-top src tests
+    ERROR: src/mcp_workspace/server.py Imports are incorrectly sorted
+           and/or formatted.
 
-Revert that hunk so the import is one line again. This restores server.py to
-its exact pre-6bbe609 content (blob 454c9c9), the form that shipped through the
-preceding merged commits. server.py is listed under "Unchanged (deliberately)"
-in pr_info/steps/summary.md for issue #268 and appears in none of the three
-implementation steps, so this PR should leave it untouched.
+A single-name import had been rewritten into a parenthesized multi-line form:
 
-No configuration change is needed: pyproject.toml's [tool.isort] settings
-(profile = "black", line_length = 88, float_to_top = true) already match both
-the CI invocation and tools/format_all.sh.
+    from mcp_workspace.server_reference_tools import (
+        set_reference_projects,
+    )
+
+Under the CI isort, a "from ... import <single name>" statement that fits
+within line_length = 88 (this one is ~71 characters) is normalized back to one
+line without parentheses, so the file no longer matched isort's canonical
+output.
+
+Collapse it back to the single-line form, restoring the file byte-for-byte to
+its origin/main state, where this same CI step passes
+("git diff origin/main -- src/mcp_workspace/server.py" is empty). This import
+block is outside the scope of the implementation plan, which lists server.py
+under "Unchanged (deliberately)" in pr_info/steps/summary.md, so no feature
+work depends on it.
+
+No other source or test file is affected. The surrounding
+server_reference_tools statements (the parenthesized get_reference_project_path
+/ get_reference_repo_url block, which wraps two names that exceed the line
+limit, and the aliased register import) were already in isort's expected form.
+
+NOTE: the isort installed in the local dev environment disagrees with CI on
+this construct and actively rewrites the single-line import back into the
+parenthesized form. Running the local isort (tools/format_all.sh,
+tools/iSort.bat or run_format_code) will silently reintroduce this CI failure --
+which is how the earlier attempts at this fix were lost. Verify instead with the
+CI invocation itself, or by confirming that
+"git diff origin/main -- src/mcp_workspace/server.py" is empty.
