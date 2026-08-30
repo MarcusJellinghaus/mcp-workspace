@@ -53,3 +53,33 @@ Continues from `implementation_review_log_1.md` (4 rounds, ended on a rebase han
 (`git_integration`); mypy clean; ruff clean; `run_format_code` no changes.
 
 **Status**: committed
+
+## Round 2 — 2026-08-30
+
+**Findings**:
+- `src/mcp_workspace/github_operations/pr_manager.py:658-660` — low — the explicit WARNING log is
+  the only remaining carrier of the HTTP status and the raw GraphQL body once the renderer drops
+  the synthetic status (issue #250's "WARNING log for GraphQL errors" decision row and its "the
+  number stays reachable in the WARNING log" constraint). Its test
+  (`test_pr_manager_feedback.py:929`) asserted only the prefix
+  `"Failed to fetch review data for PR #42"`, so deleting `{review_error}` from the f-string
+  would leave the test green while silently falsifying that constraint.
+
+**Decisions**:
+- Accept — test-only, one bounded change, and it guards a documented Decisions-table invariant
+  that nothing else pins.
+
+**Changes**:
+- `tests/github_operations/test_pr_manager_feedback.py` — `test_returned_graphql_error_logged_at_warning`
+  now also asserts `"400"`, `"FORBIDDEN"` and `"Resource not accessible"` appear in `caplog.text`.
+  The values come from the fixture the test already builds
+  (`_null_pr_body({"type": "FORBIDDEN", "message": "Resource not accessible"})` →
+  `createException(400, ...)`); substring checks, so rewording the prefix will not break them.
+- Mutation-verified: reducing the log to `f"Failed to fetch review data for PR #{pr_number}"`
+  makes the test fail (`assert '400' in ...`), where the old prefix-only assertion passed.
+  `pr_manager.py` restored verbatim — `git diff` on it is empty. No source files changed.
+
+**Checks**: pylint clean; pytest 381 passed / 1 skipped (`git_integration`, `-n auto`); mypy
+clean; ruff clean; `run_format_code` no changes.
+
+**Status**: committed

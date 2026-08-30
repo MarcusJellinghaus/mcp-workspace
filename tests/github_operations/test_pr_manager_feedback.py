@@ -926,7 +926,13 @@ class TestGetPRFeedback:
         ):
             mock_manager.get_pr_feedback(42)
 
+        # The interpolated exception is the only surviving carrier of the HTTP
+        # status and the raw GraphQL body — the renderer drops both — so pin
+        # the detail, not just the prefix.
         assert "Failed to fetch review data for PR #42" in caplog.text
+        assert "400" in caplog.text
+        assert "FORBIDDEN" in caplog.text
+        assert "Resource not accessible" in caplog.text
 
     def test_conversation_comments_failure(
         self, mock_manager: PullRequestManager
