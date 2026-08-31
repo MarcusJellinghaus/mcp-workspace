@@ -11,7 +11,8 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any, Optional, Tuple
 
-from github.GithubException import GithubException
+from github.GithubException import GithubException, UnknownObjectException
+from github.Requester import Requester
 
 if TYPE_CHECKING:
     from .pr_manager import PullRequestManager
@@ -19,29 +20,94 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # reviewThreads GraphQL retry config — handles GitHub's eventual-consistency
-# flake where querying a brand-new PR node raises GithubException 400/404.
-# Note: a genuinely-missing PR (404) now costs ~3s (1s + 2s backoff) before
-# falling through to [unavailable]; 404 is included defensively — only 400 was
-# reproduced.
+# flake where a brand-new PR node is not yet visible. GitHub answers HTTP 200
+# with a null `pullRequest` for that case, so the retry keys on usability
+# ("nothing usable came back and no error type is permanent"), not on a status
+# code that PyGithub only synthesises. Genuine HTTP failures raise out of
+# `requestJsonAndCheck` and are not retried here; `build_github_client`'s
+# `GithubRetry` already covers 403/5xx.
 _REVIEW_DATA_MAX_ATTEMPTS = 3
 _REVIEW_DATA_RETRY_BASE_DELAY_SECONDS = 1.0
+_PERMANENT_GRAPHQL_ERROR_TYPES = frozenset(
+    {"FORBIDDEN", "INSUFFICIENT_SCOPES", "RATE_LIMITED"}
+)
+
+
+def _has_permanent_error(result: dict[str, Any]) -> bool:
+    """Return True when any `errors` entry names a permanently-failing type.
+
+    Reads the raw `errors` list rather than going through
+    `extract_graphql_errors`: only the `type` field matters for this decision,
+    so the classifier stays independent of a parser shaped for display.
+
+    Returns:
+        True if the retry loop should give up immediately.
+    """
+    errors = result.get("errors")
+    if not isinstance(errors, list):
+        return False
+    return any(
+        isinstance(entry, dict) and entry.get("type") in _PERMANENT_GRAPHQL_ERROR_TYPES
+        for entry in errors
+    )
+
+
+def _build_graphql_exception(
+    requester: Requester, headers: dict[str, Any], result: dict[str, Any]
+) -> Optional[GithubException]:
+    """Return the exception PyGithub's `graphql_query` would have raised, or None.
+
+    Keys on the raw `errors` list rather than on `extract_graphql_errors`
+    output: the parser drops entries carrying neither a usable `type` nor a
+    usable `message`, which would turn a multi-error body into a lone
+    `NOT_FOUND` and flip the exception class that callers observe.
+
+    Returns:
+        `UnknownObjectException` for a single `NOT_FOUND` entry, the exception
+        `Requester.createException` builds for status 400 otherwise, or None
+        when the body carries no errors.
+    """
+    errors = result.get("errors")
+    if not errors:
+        return None
+    if (
+        isinstance(errors, list)
+        and len(errors) == 1
+        and isinstance(errors[0], dict)
+        and errors[0].get("type") == "NOT_FOUND"
+    ):
+        return UnknownObjectException(404, result, headers, errors[0].get("message"))
+    return requester.createException(400, headers, result)
 
 
 def fetch_review_data(
     manager: "PullRequestManager", pr_number: int
-) -> Tuple[list[dict[str, Any]], int, list[dict[str, Any]]]:
-    """Fetch review threads + reviews via single GraphQL call.
+) -> Tuple[list[dict[str, Any]], int, list[dict[str, Any]], Optional[GithubException]]:
+    """Fetch review threads + reviews via a single tolerant GraphQL call.
+
+    Calls `requestJsonAndCheck` directly rather than `graphql_query`, so `data`
+    and `errors` arrive together and partial results survive instead of being
+    discarded with the exception. Retries while nothing usable came back and no
+    error type is permanent.
 
     Returns:
-        Tuple of (unresolved_threads, resolved_count, changes_requested_reviews)
+        Tuple of (unresolved_threads, resolved_count, changes_requested_reviews,
+        error), where `error` is the `GithubException` `graphql_query` would
+        have raised or None. Recovered data is returned alongside it.
 
     Raises:
-        GithubException: On a permanent GraphQL error (status other than
-            400/404) or once the eventual-consistency retries are exhausted.
-    """
+        GithubException: Propagated from `requestJsonAndCheck` on a genuine HTTP
+            failure. GraphQL-level errors are returned as the 4th tuple element,
+            not raised, and are not retried by this loop.
+        ValueError: If the repository is not accessible. `_get_repository`
+            swallows the underlying failure, so there is no status to report —
+            but returning an empty result would render an unreachable
+            repository or an invalid token as "Reviews: clean", the same
+            fail-open this function avoids for a null `pullRequest`.
+    """  # noqa: DOC502  # GithubException propagates from requestJsonAndCheck
     repo = manager._get_repository()  # pylint: disable=protected-access
     if repo is None:
-        return ([], 0, [])
+        raise ValueError("Repository not accessible")
 
     owner, repo_name = repo.owner.login, repo.name
 
@@ -67,35 +133,58 @@ def fetch_review_data(
 
     variables = {"owner": owner, "repo": repo_name, "prNumber": pr_number}
 
-    # Default overwritten on success; unused if every attempt raises (satisfies possibly-unbound).
-    result: dict[str, Any] = {}
-    for attempt in range(_REVIEW_DATA_MAX_ATTEMPTS):
-        try:
-            _, result = manager._github_client._Github__requester.graphql_query(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public GraphQL API in PyGithub
-                query=query, variables=variables
-            )
-            break
-        except GithubException as e:
-            # permanent error, or retries exhausted -> give up (caller renders unavailable)
-            if e.status not in (400, 404) or attempt == _REVIEW_DATA_MAX_ATTEMPTS - 1:
-                raise
-            time.sleep(_REVIEW_DATA_RETRY_BASE_DELAY_SECONDS * 2**attempt)
+    requester = manager._github_client._Github__requester  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public GraphQL API in PyGithub
 
-    pr_data = result.get("data", {}).get("repository", {}).get("pullRequest")
+    # Pre-initialised so they are never possibly-unbound after the loop.
+    headers: dict[str, Any] = {}
+    result: dict[str, Any] = {}
+    pr_data: Optional[dict[str, Any]] = None
+    for attempt in range(_REVIEW_DATA_MAX_ATTEMPTS):
+        # Outside any try: a genuine HTTP failure must propagate unretried.
+        headers, result = requester.requestJsonAndCheck(
+            "POST",
+            requester.graphql_url,
+            input={"query": query, "variables": variables},
+        )
+        # `or {}` at every level: a partial response nulls exactly the field
+        # that errored, and `.get(key, {})` would return None for it.
+        pr_data = ((result.get("data") or {}).get("repository") or {}).get(
+            "pullRequest"
+        )
+        if pr_data is not None:
+            break
+        if _has_permanent_error(result):
+            break
+        if attempt == _REVIEW_DATA_MAX_ATTEMPTS - 1:
+            break
+        time.sleep(_REVIEW_DATA_RETRY_BASE_DELAY_SECONDS * 2**attempt)
+
+    error = _build_graphql_exception(requester, headers, result)
+    if error is None and pr_data is None:
+        # Status 200 is the truth here: GitHub answered successfully and simply
+        # did not return the node. Fabricating a 400 would repeat the bug.
+        error = GithubException(
+            200, {"errors": [{"message": "pullRequest not returned"}]}, headers
+        )
     if pr_data is None:
-        return ([], 0, [])
+        return ([], 0, [], error)
 
     unresolved_threads: list[dict[str, Any]] = []
     resolved_count = 0
-    thread_nodes = pr_data.get("reviewThreads", {}).get("nodes", []) or []
+    thread_nodes = (pr_data.get("reviewThreads") or {}).get("nodes") or []
     for thread in thread_nodes:
+        # `nodes` elements are nullable: a per-node error nulls that element
+        # only, so skipping it keeps the sibling threads and the error reason
+        # instead of raising AttributeError out of this function.
+        if thread is None:
+            continue
         if thread.get("isResolved"):
             resolved_count += 1
             continue
-        comment_nodes = thread.get("comments", {}).get("nodes", []) or []
-        if not comment_nodes:
+        comment_nodes = (thread.get("comments") or {}).get("nodes") or []
+        first = next((c for c in comment_nodes if c is not None), None)
+        if first is None:
             continue
-        first = comment_nodes[0]
         author = (first.get("author") or {}).get("login") or ""
         unresolved_threads.append(
             {
@@ -108,14 +197,19 @@ def fetch_review_data(
         )
 
     changes_requested: list[dict[str, Any]] = []
-    review_nodes = pr_data.get("reviews", {}).get("nodes", []) or []
+    review_nodes = (pr_data.get("reviews") or {}).get("nodes") or []
     for review in review_nodes:
+        if review is None:  # nullable node, as above
+            continue
         if review.get("state") != "CHANGES_REQUESTED":
             continue
         author = (review.get("author") or {}).get("login") or ""
         changes_requested.append({"author": author, "body": review.get("body") or ""})
 
-    return (unresolved_threads, resolved_count, changes_requested)
+    # `error` is returned alongside recovered data, never instead of it: any
+    # GraphQL error keeps `threads` flagged so a hidden blocking thread cannot
+    # be reported as clean.
+    return (unresolved_threads, resolved_count, changes_requested, error)
 
 
 def fetch_conversation_comments(
@@ -167,7 +261,7 @@ def fetch_code_scanning_alerts(
     owner, repo_name = repo.owner.login, repo.name
 
     try:
-        _, _, data = manager._github_client._Github__requester.requestJsonAndCheck(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public alerts API in PyGithub
+        _, data = manager._github_client._Github__requester.requestJsonAndCheck(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public alerts API in PyGithub
             "GET",
             f"/repos/{owner}/{repo_name}/code-scanning/alerts",
             parameters={"ref": f"refs/pull/{pr_number}/head"},

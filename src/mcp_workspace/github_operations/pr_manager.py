@@ -640,8 +640,8 @@ class PullRequestManager(BaseGitHubManager):
         Returns:
             PRFeedback dict containing unresolved threads, resolved thread count,
             CHANGES_REQUESTED reviews, conversation comments, code-scanning alerts,
-            and a dict mapping failed section names to the raised exception
-            (excluding 403 on alerts, which is silently skipped).
+            and a dict mapping failed section names to the raised or returned
+            exception (excluding 403 on alerts, which is silently skipped).
         """
         if not self._validate_pr_number(pr_number):
             return _empty_pr_feedback()
@@ -649,9 +649,16 @@ class PullRequestManager(BaseGitHubManager):
         unavailable: dict[str, Exception] = {}
 
         try:
-            threads, resolved_count, changes_requested = (
+            threads, resolved_count, changes_requested, review_error = (
                 _pr_feedback_sources.fetch_review_data(self, pr_number)
             )
+            if review_error is not None:
+                # Returned, not raised — the except below never sees it, so the
+                # WARNING has to be logged explicitly here.
+                logger.warning(
+                    f"Failed to fetch review data for PR #{pr_number}: {review_error}"
+                )
+                unavailable["threads"] = review_error
         except (
             Exception
         ) as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort

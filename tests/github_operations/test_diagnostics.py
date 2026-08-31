@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 from github.GithubException import GithubException
 
 from mcp_workspace.github_operations._diagnostics import (
     DIAGNOSTIC_HEADERS,
     extract_diagnostic_headers,
+    extract_graphql_errors,
 )
 
 
@@ -106,3 +108,123 @@ class TestExtractDiagnosticHeaders:
         exc = _make_exception(headers)
         result = extract_diagnostic_headers(exc)
         assert result == {}
+
+
+class TestExtractGraphqlErrors:
+    """Tests for extract_graphql_errors()."""
+
+    def test_single_error_with_type(self) -> None:
+        body = {
+            "errors": [
+                {"type": "FORBIDDEN", "message": "Resource not accessible"},
+            ]
+        }
+        assert extract_graphql_errors(body) == [
+            ("FORBIDDEN", "Resource not accessible")
+        ]
+
+    def test_single_error_without_type(self) -> None:
+        body = {"errors": [{"message": "Field 'x' doesn't exist on type 'Y'"}]}
+        assert extract_graphql_errors(body) == [
+            (None, "Field 'x' doesn't exist on type 'Y'")
+        ]
+
+    def test_three_errors_preserve_source_order(self) -> None:
+        body = {
+            "errors": [
+                {"type": "FORBIDDEN", "message": "first"},
+                {"message": "second"},
+                {"type": "RATE_LIMITED", "message": "third"},
+            ]
+        }
+        assert extract_graphql_errors(body) == [
+            ("FORBIDDEN", "first"),
+            (None, "second"),
+            ("RATE_LIMITED", "third"),
+        ]
+
+    def test_partial_data_body_errors_parsed_and_data_ignored(self) -> None:
+        body = {
+            "data": {"repository": {"pullRequest": None}},
+            "errors": [
+                {
+                    "type": "FORBIDDEN",
+                    "path": ["repository", "pullRequest"],
+                    "message": "Resource not accessible by integration",
+                }
+            ],
+        }
+        assert extract_graphql_errors(body) == [
+            ("FORBIDDEN", "Resource not accessible by integration")
+        ]
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "raw text",
+            None,
+            [],
+            42,
+            {"message": "boom"},
+            {"errors": "nope"},
+            {"errors": {"message": "x"}},
+            {"errors": None},
+            {"errors": []},
+            {"errors": ["a", None, 42]},
+        ],
+    )
+    def test_unusable_input_returns_empty_list(self, body: Any) -> None:
+        assert extract_graphql_errors(body) == []
+
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            {},
+            {"message": 42},
+            {"message": None},
+            {"message": "   "},
+            {"message": ""},
+            {"type": 42},
+            {"type": "   "},
+            {"type": None, "message": ""},
+            {"path": ["repository"]},
+        ],
+    )
+    def test_entries_without_type_or_message_are_skipped(self, entry: Any) -> None:
+        assert extract_graphql_errors({"errors": [entry]}) == []
+
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            {"type": "RATE_LIMITED"},
+            {"type": "RATE_LIMITED", "message": None},
+            {"type": "RATE_LIMITED", "message": "   "},
+            {"type": "RATE_LIMITED", "message": 42},
+        ],
+    )
+    def test_type_without_usable_message_is_kept(self, entry: Any) -> None:
+        assert extract_graphql_errors({"errors": [entry]}) == [("RATE_LIMITED", None)]
+
+    def test_non_str_type_becomes_none(self) -> None:
+        body = {"errors": [{"type": 42, "message": "x"}]}
+        assert extract_graphql_errors(body) == [(None, "x")]
+
+    def test_mixed_valid_and_invalid_entries_returns_only_valid(self) -> None:
+        body = {
+            "errors": [
+                "not a dict",
+                {"type": "FORBIDDEN"},
+                {"type": "NOT_FOUND", "message": "Could not resolve to a PullRequest"},
+                {"message": "   "},
+                None,
+            ]
+        }
+        assert extract_graphql_errors(body) == [
+            ("FORBIDDEN", None),
+            ("NOT_FOUND", "Could not resolve to a PullRequest"),
+        ]
+
+    def test_multiline_message_returned_verbatim(self) -> None:
+        message = "line one\nline two    with   spaces"
+        body = {"errors": [{"message": message}]}
+        assert extract_graphql_errors(body) == [(None, message)]
