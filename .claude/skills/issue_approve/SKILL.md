@@ -9,6 +9,7 @@ allowed-tools:
   - "Bash(MSYS_NO_PATHCONV=1 gh issue comment *)"
   - mcp__mcp-tools-py__sleep
   - mcp__mcp-workspace__read_file
+  - mcp__mcp-workspace__get_reference_projects
 ---
 
 # Approve Issue
@@ -25,11 +26,13 @@ If no issue number is provided:
 
 ## Cross-Repo Issues
 
-If a `--repo owner/repo` flag was given, append it to every `gh` command below. Fetch the
-issue with `mcp__mcp-workspace__github_issue_view(<issue_number>, reference_name=<name>)`
-when that repo is a configured reference project — match `owner/repo` against the `url` of
-each entry `get_reference_projects()` returns, and pass that entry's `name`. Otherwise fall
-back to `gh issue view <issue_number> --repo owner/repo` via Bash.
+If a `--repo owner/repo` flag was given, first check whether that repo is a configured
+reference project — match `owner/repo` against the `url` of each entry
+`get_reference_projects()` returns. If it is, use the MCP tools with that entry's `name` as
+`reference_name`: `mcp__mcp-workspace__github_issue_view` and
+`mcp__mcp-workspace__github_issue_comment` both reach it. Only when the repo is not a
+configured reference project, fall back to the `gh` commands below, appending
+`--repo owner/repo` to each.
 
 ## Instructions
 
@@ -51,8 +54,15 @@ back to `gh issue view <issue_number> --repo owner/repo` via Bash.
 mcp__mcp-workspace__github_issue_comment(number=<issue_number>, body="/approve")
 ```
 
-For a cross-repo issue (`--repo owner/repo`), use Bash instead — the MCP tool only
-reaches the current repository. `MSYS_NO_PATHCONV=1` prevents Windows Git Bash from
+For a cross-repo issue (`--repo owner/repo`) that *is* a configured reference project, pass
+its `reference_name`:
+
+```python
+mcp__mcp-workspace__github_issue_comment(number=<issue_number>, body="/approve", reference_name=<name>)
+```
+
+For any other repo, use Bash instead — the MCP tool only reaches the workspace repository
+and its configured reference projects. `MSYS_NO_PATHCONV=1` prevents Windows Git Bash from
 rewriting the leading `/` and is needed only for this Bash form:
 
 ```bash

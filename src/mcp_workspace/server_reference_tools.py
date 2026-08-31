@@ -46,7 +46,8 @@ def get_reference_projects() -> Dict[str, Any]:
 
     Use the returned project names with list_reference_directory(), read_reference_file(),
     search_reference_files(), git(), github_issue_view(), github_issue_list(),
-    github_pr_view(), and github_search()
+    github_pr_view(), github_search(), github_label_list(), github_issue_create(),
+    github_issue_edit(), and github_issue_comment()
     """
     try:
         # Return structured dict instead of simple list because MCP tool responses
@@ -77,7 +78,9 @@ def get_reference_projects() -> Dict[str, Any]:
             "usage": (
                 f"Use these {len(projects)} projects with list_reference_directory(), "
                 f"read_reference_file(), search_reference_files(), git(), "
-                f"github_issue_view(), github_issue_list(), github_pr_view(), and github_search()"
+                f"github_issue_view(), github_issue_list(), github_pr_view(), "
+                f"github_search(), github_label_list(), github_issue_create(), "
+                f"github_issue_edit(), and github_issue_comment()"
             ),
         }
 
