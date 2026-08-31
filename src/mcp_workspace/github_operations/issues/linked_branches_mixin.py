@@ -113,7 +113,9 @@ def _query_linked_branches(
         ]
         return branch_names
 
-    except (KeyError, TypeError) as e:
+    # AttributeError covers a GraphQL error response ({"data": None, "errors": [...]}),
+    # where the walk above calls .get() on None.
+    except (AttributeError, KeyError, TypeError) as e:
         logger.error(f"Error parsing GraphQL response: {e}")
         return None
 

@@ -357,6 +357,32 @@ class TestGetLinkedBranchesOrNone:
         assert "Error parsing GraphQL response" in caplog.text
         assert "Failed to query linked branches" not in caplog.text
 
+    def test_graphql_error_response_returns_none_from_the_in_body_handler(
+        self,
+        mock_manager: IssueBranchManager,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """A GraphQL error response is handled by the in-body parse-error branch.
+
+        ``{"data": None, "errors": [...]}`` makes the response walk call
+        ``.get()`` on ``None``, raising ``AttributeError``. The log messages pin
+        which handler ran: the in-body parse-error branch, not the broad catch
+        in ``get_linked_branches_or_none``.
+        """
+        self._set_graphql_response(
+            mock_manager,
+            {
+                "data": None,
+                "errors": [{"message": "Something went wrong executing your query."}],
+            },
+        )
+
+        with caplog.at_level(logging.ERROR):
+            assert mock_manager.get_linked_branches_or_none(123) is None
+
+        assert "Error parsing GraphQL response" in caplog.text
+        assert "Failed to query linked branches" not in caplog.text
+
     def test_graphql_server_error_returns_none(
         self, mock_manager: IssueBranchManager
     ) -> None:

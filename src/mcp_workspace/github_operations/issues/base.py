@@ -44,12 +44,13 @@ def validate_issue_number_or_log(issue_number: int) -> bool:
     Returns:
         True if valid, False otherwise
     """
-    if not isinstance(issue_number, int) or issue_number <= 0:
+    try:
+        return validate_issue_number(issue_number)
+    except ValueError:
         logger.error(
             f"Invalid issue number: {issue_number}. Must be a positive integer."
         )
         return False
-    return True
 
 
 def validate_comment_id(comment_id: int) -> bool:
