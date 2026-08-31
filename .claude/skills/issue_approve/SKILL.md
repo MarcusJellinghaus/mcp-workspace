@@ -9,6 +9,7 @@ allowed-tools:
   - "Bash(MSYS_NO_PATHCONV=1 gh issue comment *)"
   - mcp__mcp-tools-py__sleep
   - mcp__mcp-workspace__read_file
+  - mcp__mcp-workspace__get_reference_projects
 ---
 
 # Approve Issue
@@ -25,11 +26,13 @@ If no issue number is provided:
 
 ## Cross-Repo Issues
 
-If a `--repo owner/repo` flag was given, append it to every `gh` command below. When that
-repo is a configured reference project — match `owner/repo` against the `url` of each entry
-`get_reference_projects()` returns — pass that entry's `name` as `reference_name` to the MCP
-tools: `mcp__mcp-workspace__github_issue_view` and `mcp__mcp-workspace__github_issue_comment`
-both reach it. Otherwise fall back to the `gh ... --repo owner/repo` Bash forms.
+If a `--repo owner/repo` flag was given, first check whether that repo is a configured
+reference project — match `owner/repo` against the `url` of each entry
+`get_reference_projects()` returns. If it is, use the MCP tools with that entry's `name` as
+`reference_name`: `mcp__mcp-workspace__github_issue_view` and
+`mcp__mcp-workspace__github_issue_comment` both reach it. Only when the repo is not a
+configured reference project, fall back to the `gh` commands below, appending
+`--repo owner/repo` to each.
 
 ## Instructions
 
