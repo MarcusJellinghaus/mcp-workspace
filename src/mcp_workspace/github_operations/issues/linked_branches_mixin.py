@@ -8,7 +8,7 @@ issue, plus the issue-number validation helper they share with the manager.
 from __future__ import annotations
 
 import logging
-from typing import List, Optional, cast
+from typing import List, Optional
 
 from mcp_coder_utils.log_utils import log_function_call
 
@@ -145,7 +145,9 @@ class LinkedBranchesMixin:
         return [] if branch_names is None else branch_names
 
     @log_function_call
-    def get_linked_branches_or_none(self, issue_number: int) -> Optional[List[str]]:
+    def get_linked_branches_or_none(
+        self: "BaseGitHubManager", issue_number: int
+    ) -> Optional[List[str]]:
         """Query linked branches for an issue, distinguishing failure from none.
 
         Unlike get_linked_branches(), a failed lookup returns None instead of
@@ -169,7 +171,7 @@ class LinkedBranchesMixin:
             ['123-feature-branch']
         """
         try:
-            return _query_linked_branches(cast("BaseGitHubManager", self), issue_number)
+            return _query_linked_branches(self, issue_number)
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"Failed to query linked branches for #{issue_number}: {e}")
             return None
