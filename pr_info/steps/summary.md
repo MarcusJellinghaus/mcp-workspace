@@ -37,10 +37,12 @@ field.
 discoverability (an agent grepping descriptions for `github_label_list` won't find it
 in the instructions block) for a list that cannot drift. The per-tool reference tables
 stay the place where every tool is named: the `.claude/CLAUDE.md` tool mapping table
-already lists all of them, and `README.md:223-229` gains the four rows it is missing
-(`github_label_list`, `github_issue_create`, `github_issue_edit`,
-`github_issue_comment`), which otherwise appear in `README.md` only in the passages
-steps 2 and 3 remove.
+already lists all of them, and `README.md:223-229` gains the seven rows it is missing.
+Four are from the prose enumeration — `github_label_list`, `github_issue_create`,
+`github_issue_edit`, `github_issue_comment` — and three are not: `search_reference_files`
+and `git` appear in `README.md` only inside the quoted `usage` string at line 383, and
+`github_pr_create` only in the bullet at line 460. All seven otherwise appear in
+`README.md` only in the passages steps 2 and 3 remove.
 
 **3. No new runtime state or code path.** The instructions text is a literal argument
 at construction. `mcp` is built at import time, before `run_server()` learns the
@@ -101,7 +103,7 @@ No new folders or modules. No new files outside `pr_info/`.
 | `tests/test_reference_projects_mcp_tools.py` | 2 | Lines 58-64 and 92-98: both `usage` expectations |
 | `README.md` | 2 | Line 383: quoted `usage` example |
 | `README.md` | 3 | Lines 35, 455, 460: prose enumerations and the count |
-| `README.md` | 3 | Lines 223-229: four rows added to the per-tool table |
+| `README.md` | 3 | Lines 223-229: seven rows added to the per-tool table |
 | `.claude/CLAUDE.md` | 3 | Line 61: prose enumeration |
 
 Unchanged on purpose: the existing rows of `README.md:223-229`, the `.claude/CLAUDE.md`
