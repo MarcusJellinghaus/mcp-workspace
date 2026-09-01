@@ -220,6 +220,7 @@ The server exposes the following MCP tools:
 | `delete_directory` | Deletes a directory (empty, or a whole tree with recursive) | "Delete the pr_info directory and its contents" |
 | `edit_file` | Makes selective edits using exact string matching | "Fix the bug in the fetch function" |
 | `move_file` | Moves or renames files/directories (git-aware: uses git mv for tracked files, else filesystem move) | "Rename config.js to settings.js" |
+| `search_files` | Searches file contents by regex and/or finds files by glob | "Find where retries are configured" |
 | `get_reference_projects` | Lists available reference projects | "What reference projects are available?" |
 | `list_reference_directory` | Lists files in a reference project | "List files in the docs reference project" |
 | `read_reference_file` | Reads files from reference projects | "Show me the README from the examples project" |

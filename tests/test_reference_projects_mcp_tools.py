@@ -66,6 +66,19 @@ class TestReferenceProjectMCPTools:
         assert result["projects"][0]["name"] == "alpha"
         assert result["projects"][2]["name"] == "zebra"
 
+    def test_readme_usage_example_matches_source(self) -> None:
+        """README's quoted usage example stays byte-identical to the source literal."""
+        import mcp_workspace.server_reference_tools as server_module
+        from mcp_workspace.server_reference_tools import get_reference_projects
+
+        server_module._reference_projects = {
+            "alpha": ReferenceProject(name="alpha", path=Path("/path/to/alpha")),
+        }
+        usage = get_reference_projects()["usage"]
+
+        readme = Path(__file__).parent.parent / "README.md"
+        assert f'"usage": "{usage}"' in readme.read_text(encoding="utf-8")
+
     def test_get_reference_projects_logging(self) -> None:
         """Test INFO level logging for discovery operations."""
         from unittest.mock import patch

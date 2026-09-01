@@ -36,7 +36,7 @@ def set_reference_projects(reference_projects: Dict[str, ReferenceProject]) -> N
 
 @log_function_call
 def get_reference_projects() -> Dict[str, Any]:
-    """Get available reference project names.
+    """Get the available reference projects as {"name", "url"} entries.
 
     Returns:
         Dictionary containing:
