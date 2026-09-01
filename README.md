@@ -32,7 +32,7 @@ By connecting your AI assistant to your filesystem, you can transform your workf
 - `get_reference_projects`: Discover available reference projects
 - `list_reference_directory`: List files in reference projects
 - `read_reference_file`: Read a reference-project file, or a line slice via start_line/end_line.
-- Cross-repo GitHub access: `github_issue_view`, `github_issue_list`, `github_pr_view`, `github_search`, `github_label_list`, `github_issue_create`, `github_issue_edit` and `github_issue_comment` accept `reference_name`
+- Cross-repo GitHub access: the GitHub issue, pull request, search and label read tools accept `reference_name`; issues can also be created, edited and commented on
 - `Structured Logging`: Comprehensive logging system with both human-readable and JSON formats
 
 ## Installation
@@ -146,7 +146,7 @@ The server validates reference projects at startup:
 
 ### Security Notes
 
-- Reference project *files* are **strictly read-only** - no write, edit, or delete file operations are possible. This does not extend to their GitHub issues — see [Cross-Repo GitHub Access](#cross-repo-github-access)
+- Reference project *files* are **strictly read-only** - no write, edit, or delete file operations are possible
 - All paths are validated to prevent directory traversal attacks
 - Gitignore filtering is automatically applied to hide irrelevant files
 - Path access is restricted to the specified reference project directories
@@ -220,6 +220,7 @@ The server exposes the following MCP tools:
 | `delete_directory` | Deletes a directory (empty, or a whole tree with recursive) | "Delete the pr_info directory and its contents" |
 | `edit_file` | Makes selective edits using exact string matching | "Fix the bug in the fetch function" |
 | `move_file` | Moves or renames files/directories (git-aware: uses git mv for tracked files, else filesystem move) | "Rename config.js to settings.js" |
+| `search_files` | Searches file contents by regex and/or finds files by glob | "Find where retries are configured" |
 | `get_reference_projects` | Lists available reference projects | "What reference projects are available?" |
 | `list_reference_directory` | Lists files in a reference project | "List files in the docs reference project" |
 | `read_reference_file` | Reads files from reference projects | "Show me the README from the examples project" |
@@ -227,6 +228,13 @@ The server exposes the following MCP tools:
 | `github_issue_list` | Lists GitHub issues with optional filters | "List the open issues assigned to me" |
 | `github_pr_view` | Shows a GitHub pull request with its reviews and comments | "Show me pull request 42" |
 | `github_search` | Searches issues and pull requests in one repository | "Find issues mentioning the reference cache" |
+| `github_label_list` | Lists the labels defined in a repository | "What labels does this repo use?" |
+| `github_issue_create` | Creates a GitHub issue | "Open an issue for the failing import check" |
+| `github_issue_edit` | Edits a GitHub issue's title, body or labels | "Retitle issue 12" |
+| `github_issue_comment` | Adds a comment to a GitHub issue | "Comment on issue 12 with the repro steps" |
+| `github_pr_create` | Creates a GitHub pull request | "Open a PR for this branch" |
+| `search_reference_files` | Searches file contents or finds files in a reference project | "Find where the docs project configures logging" |
+| `git` | Runs a read-only git command (log, diff, status, show, branch, ...) | "Show the last five commits" |
 
 ### Tool Details
 
@@ -371,7 +379,7 @@ Discovery tool for LLMs to find available reference projects.
 
 **Returns:** Dictionary containing:
 - `count`: Number of available projects
-- `projects`: List of `{"name": ..., "url": ...}` objects. `url` is the configured repository URL, and tells a caller whether the project supports the GitHub tools — a project with `url: null` cannot be used with `reference_name`.
+- `projects`: List of `{"name": ..., "url": ...}` objects. `url` is the configured repository URL — a project with `url: null` still works with the reference file tools, but not with the GitHub tools.
 - `usage`: Instructions for next steps
 
 **Example:**
@@ -380,7 +388,7 @@ get_reference_projects()
 # Returns: {
 #   "count": 3,
 #   "projects": [{"name": "docs", "url": "https://github.com/org/docs"}, ...],
-#   "usage": "Use these 3 projects with list_reference_directory(), read_reference_file(), search_reference_files(), git(), github_issue_view(), github_issue_list(), github_pr_view(), github_search(), github_label_list(), github_issue_create(), github_issue_edit(), and github_issue_comment()"
+#   "usage": "Pass a name as reference_name to the reference file tools, git(), and the GitHub read tools; issues can also be created, edited and commented on"
 # }
 ```
 
@@ -452,12 +460,12 @@ read_reference_file("config", "settings/production.yml")
 - "Permission denied" - for access issues
 
 #### Cross-Repo GitHub Access
-`github_issue_view`, `github_issue_list`, `github_pr_view`, `github_search` and `github_label_list` read, and `github_issue_create`, `github_issue_edit` and `github_issue_comment` write, taking an optional `reference_name`. Without it they act on the workspace repository; with it they act on the named reference project instead.
+The GitHub tools that take an optional `reference_name` act on the workspace repository without it, and on the named reference project with it. Issues, pull requests, searches and labels can be read there; issues can also be created, edited and commented on.
 
 **Features:**
 - The repository is resolved from the reference project's configured URL — no clone is performed, so a URL-only reference project works
 - Only names listed by `get_reference_projects()` are accepted; arbitrary `owner/repo` strings are not
-- `reference_name` is accepted by these eight tools alone; `github_pr_create` and every other GitHub tool targets the workspace repository
+- Any GitHub tool without a `reference_name` parameter targets the workspace repository
 - Workflow `status-*` labels are rejected on both sides, for every repository, and `mcp-coder gh-tool set-status` acts on the current checkout — so a sibling repo's issue can only be advanced through its status workflow from that repo's own checkout
 
 **Error Handling:** returned as `"Error: ..."` strings rather than raised:
@@ -471,7 +479,7 @@ read_reference_file("config", "settings/production.yml")
 - Path traversal attacks are prevented for both main project and reference projects
 - Files are written atomically to prevent data corruption
 - Delete operations are restricted to the project directory for safety
-- Reference project *files* are strictly read-only to prevent accidental modifications (their GitHub issues are writable via `reference_name` — see [Cross-Repo GitHub Access](#cross-repo-github-access))
+- Reference project *files* are strictly read-only to prevent accidental modifications
 
 ### MCP Configuration Management Tool
 

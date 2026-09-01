@@ -56,17 +56,28 @@ class TestReferenceProjectMCPTools:
                 {"name": "zebra", "url": None},
             ],
             "usage": (
-                "Use these 3 projects with list_reference_directory(), "
-                "read_reference_file(), search_reference_files(), git(), "
-                "github_issue_view(), github_issue_list(), github_pr_view(), "
-                "github_search(), github_label_list(), github_issue_create(), "
-                "github_issue_edit(), and github_issue_comment()"
+                "Pass a name as reference_name to the reference file tools, git(), "
+                "and the GitHub read tools; issues can also be created, edited and "
+                "commented on"
             ),
         }
         assert result == expected
         assert isinstance(result, dict)
         assert result["projects"][0]["name"] == "alpha"
         assert result["projects"][2]["name"] == "zebra"
+
+    def test_readme_usage_example_matches_source(self) -> None:
+        """README's quoted usage example stays byte-identical to the source literal."""
+        import mcp_workspace.server_reference_tools as server_module
+        from mcp_workspace.server_reference_tools import get_reference_projects
+
+        server_module._reference_projects = {
+            "alpha": ReferenceProject(name="alpha", path=Path("/path/to/alpha")),
+        }
+        usage = get_reference_projects()["usage"]
+
+        readme = Path(__file__).parent.parent / "README.md"
+        assert f'"usage": "{usage}"' in readme.read_text(encoding="utf-8")
 
     def test_get_reference_projects_logging(self) -> None:
         """Test INFO level logging for discovery operations."""
@@ -90,11 +101,9 @@ class TestReferenceProjectMCPTools:
                 "count": 1,
                 "projects": [{"name": "proj1", "url": None}],
                 "usage": (
-                    "Use these 1 projects with list_reference_directory(), "
-                    "read_reference_file(), search_reference_files(), git(), "
-                    "github_issue_view(), github_issue_list(), github_pr_view(), "
-                    "github_search(), github_label_list(), github_issue_create(), "
-                    "github_issue_edit(), and github_issue_comment()"
+                    "Pass a name as reference_name to the reference file tools, git(), "
+                    "and the GitHub read tools; issues can also be created, edited and "
+                    "commented on"
                 ),
             }
             assert result == expected
