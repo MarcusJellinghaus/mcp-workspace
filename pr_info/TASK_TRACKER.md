@@ -23,9 +23,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: Pin current glob semantics (tests only) — [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: add `TestSearchFilesGlobSemantics` to `tests/file_tools/test_search.py` (trailing slash, character-class negation, `**`, POSIX case sensitivity); no production code changes
-- [ ] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
-- [ ] Commit message prepared: `test(search): pin gitignore glob semantics`
+- [x] Implementation: add `TestSearchFilesGlobSemantics` to `tests/file_tools/test_search.py` (trailing slash, character-class negation, `**`, POSIX case sensitivity); no production code changes
+- [x] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
+- [x] Commit message prepared: `test(search): pin gitignore glob semantics`
 
 ### Step 2: Raise on globs that match nothing by construction — [step_2.md](./steps/step_2.md)
 

@@ -145,6 +145,66 @@ class TestSearchFilesGlobOnly:
         assert "debug.log" not in matched_names
 
 
+class TestSearchFilesGlobSemantics:
+    """Pins gitignore/wildmatch glob semantics that callers rely on."""
+
+    def test_trailing_slash_matches_files_beneath(self, project_dir: Path) -> None:
+        """``src/`` matches files under the directory, not siblings of it."""
+        src = project_dir / "src"
+        src.mkdir()
+        (src / "a.py").write_text("x = 1\n")
+        (project_dir / "root.py").write_text("z = 3\n")
+
+        result = search_files(project_dir, glob="src/")
+
+        matched_basenames = {Path(f).name for f in result["files"]}
+        assert "a.py" in matched_basenames
+        assert "root.py" not in matched_basenames
+
+    @pytest.mark.parametrize("glob", ["[!a]*.py", "[^a]*.py"])
+    def test_character_class_negation(self, project_dir: Path, glob: str) -> None:
+        """Both ``[!a]`` and ``[^a]`` negate the character class."""
+        (project_dir / "a.py").write_text("x = 1\n")
+        (project_dir / "b.py").write_text("y = 2\n")
+
+        result = search_files(project_dir, glob=glob)
+
+        matched_basenames = {Path(f).name for f in result["files"]}
+        assert "b.py" in matched_basenames
+        assert "a.py" not in matched_basenames
+
+    def test_double_star_matches_everything_below_prefix(
+        self, project_dir: Path
+    ) -> None:
+        """``src/**`` matches at every depth below ``src``, and nothing outside it."""
+        deep = project_dir / "src" / "deep"
+        deep.mkdir(parents=True)
+        (project_dir / "src" / "a.py").write_text("x = 1\n")
+        (deep / "b.py").write_text("y = 2\n")
+        (project_dir / "root.py").write_text("z = 3\n")
+
+        result = search_files(project_dir, glob="src/**")
+
+        matched_basenames = {Path(f).name for f in result["files"]}
+        assert "a.py" in matched_basenames
+        assert "b.py" in matched_basenames
+        assert "root.py" not in matched_basenames
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX-only")
+    def test_glob_is_case_sensitive_on_posix(self, project_dir: Path) -> None:
+        """On POSIX, ``README.md`` does not match ``readme.md``.
+
+        Companion to ``test_windows_case_insensitive_match_preserved`` in
+        ``TestSearchFilesGlobOnly``: the same glob differs by platform.
+        """
+        (project_dir / "readme.md").write_text("# docs\n")
+
+        result = search_files(project_dir, glob="README.md")
+
+        assert result["files"] == []
+        assert result["total_files"] == 0
+
+
 class TestSearchFilesContentSearch:
     """Tests for content search (regex) and combined modes."""
 
