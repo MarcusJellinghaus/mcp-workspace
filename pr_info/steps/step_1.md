@@ -61,7 +61,9 @@ The text must satisfy, and each is checkable by reading it:
 
 ## Tests
 
-One test, in `tests/test_server.py`. `FastMCP` exposes `instructions` as a public
+One test, in its own module `tests/test_server_instructions.py` — `tests/test_server.py`
+is close to the 750-line file-size limit and this is a content assertion, not a
+file-operations API test. `FastMCP` exposes `instructions` as a public
 read-only property (`self._mcp_server.instructions`), so read `mcp.instructions` —
 never `mcp._mcp_server`. Assert the *content* rules the DATA section states, not mere
 non-emptiness:
@@ -107,8 +109,8 @@ the trap noted in the summary, not a code problem.
 
 > Read `pr_info/steps/summary.md` and `pr_info/steps/step_1.md`.
 >
-> Implement step 1 test-first: add the instructions-content test from the step to
-> `tests/test_server.py`, confirm it fails, then add the static `instructions=`
+> Implement step 1 test-first: add the instructions-content test from the step as a new
+> `tests/test_server_instructions.py`, confirm it fails, then add the static `instructions=`
 > argument to the `FastMCP(...)` constructor at `src/mcp_workspace/server.py:47`,
 > using the text and the inline implicit-concatenation style given in the step. No
 > module-level constant, no new imports in `server.py`, and read `mcp.instructions`
