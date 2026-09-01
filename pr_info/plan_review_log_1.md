@@ -1,0 +1,15 @@
+# review-plan review log 1
+
+## Round 1 — 2026-09-01
+**Findings**:
+I'll gather context first — knowledge base, the issue tree, and the plan files.`pr_info/steps/step_1.md:229` — high — Plan moves only four validation-message assertions to `test_search.py`; the issue's Decisions row ("Validation-error tests") requires all five, so `f"Invalid state: {state}. Expected 'open', 'closed' or 'all'."` gets no unit-level assertion. Its only coverage stays `test_github_search_invalid_state`, which passes `state="bogus"` (already lower-case), so a regression that interpolated the normalized state instead of the original would pass every test while the DATA block at `step_1.md:150-154` calls that distinction out explicitly.
+
+`pr_info/steps/step_1.md:264` — medium — Plan declines any assertion on `needs_type_default` / `has_inline_state`, contradicting the issue's "Flag computation" decision, whose stated reason for making them public fields is that they are "directly assertable in the pure tests". As planned, the two fields are public with no reader outside `to_query`; either add the direct assertions or record that the rationale is superseded.
+
+`pr_info/steps/step_1.md:241` — medium — The parametrized validation test specifies one real parameter tuple; the other three cases (blank labels, whitespace assignees, `type:pull-request`) exist only as prose comments without their `query` values or literal tuples. Since the binding invariant is byte-identical messages with per-case `{label!r}` / `{assignee!r}` interpolation, the implementer must reconstruct the data the step file is supposed to supply.
+
+`pr_info/steps/step_1.md:217` — low — Mapping row for `test_github_search_state_all_emits_no_token` omits its `search_issues.assert_called_once()` assertion (`test_github_search_tool.py:280`), which has no equivalent at `SearchSpec` level; the table implies the test moves verbatim minus nothing.
+**Decisions**:
+Verdict(decision='tasks', tasks=['In pr_info/steps/step_1.md around line 229, add the fifth validation-message assertion to the test_search.py migration list: assert the invalid-state message is f"Invalid state: {state}. Expected \'open\', \'closed\' or \'all\'." using a mixed-case input (e.g. state="Bogus") so the test pins interpolation of the original string rather than the normalized one, matching the DATA block at step_1.md:150-154.', "In pr_info/steps/step_1.md around line 264, either specify direct assertions on the public SearchSpec fields needs_type_default and has_inline_state as required by the issue's 'Flag computation' decision, or record explicitly in the step file that the rationale for making them public is superseded and change them to non-public.", 'In pr_info/steps/step_1.md around line 241, replace the prose comments for the remaining three parametrized validation cases (blank labels, whitespace assignees, type:pull-request) with their literal parameter tuples, including the query value and the exact expected message with per-case {label!r} / {assignee!r} interpolation.'], escalate_reason=None)
+**Changes**:
+applied

@@ -162,8 +162,8 @@ Keep the existing line wrapping so black at 88 columns produces the same joined 
 
 ## HOW — `server.py` integration
 
-Replace lines 1059–1128 of the current handler (everything from the lazy import down to and
-including the `kwargs: Dict[str, str] = {...}` assignment) with:
+Replace lines 1059–1132 of the current handler (everything from the lazy import down to and
+including the `if sort:` / `if order:` blocks) with:
 
 ```python
     # Lazy import: keeps PyGithub off the server startup import path
@@ -233,6 +233,9 @@ Flatten into **one** parametrized function. All five share the shape "bad input 
 message", and the per-case rationale now lives as comments next to the code in `search.py`:
 
 ```python
+from typing import Any
+
+
 @pytest.mark.parametrize(
     "kwargs, message",
     [
@@ -284,7 +287,7 @@ message", and the per-case rationale now lives as comments next to the code in `
     ],
 )
 def test_from_arguments_rejects_invalid_input(
-    kwargs: dict, message: str
+    kwargs: dict[str, Any], message: str
 ) -> None:
     with pytest.raises(ValueError) as excinfo:
         SearchSpec.from_arguments(**kwargs)
