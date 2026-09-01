@@ -72,6 +72,8 @@ mcp__mcp-tools-py__run_mypy_check
 
 All checks must pass before proceeding.
 
+**Ruff:** use `mcp__mcp-tools-py__run_ruff_check`. Do not call `ruff` directly.
+
 **Pytest:** always use `extra_args: ["-n", "auto"]` for parallel execution.
 
 When debugging test failures, add `"-v", "-s", "--tb=short"` to extra_args.
