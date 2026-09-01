@@ -379,7 +379,7 @@ Discovery tool for LLMs to find available reference projects.
 
 **Returns:** Dictionary containing:
 - `count`: Number of available projects
-- `projects`: List of `{"name": ..., "url": ...}` objects. `url` is the configured repository URL, and tells a caller whether the project supports the GitHub tools — a project with `url: null` cannot be used with `reference_name`.
+- `projects`: List of `{"name": ..., "url": ...}` objects. `url` is the configured repository URL — a project with `url: null` still works with the reference file tools and `git()`, but not with the GitHub tools.
 - `usage`: Instructions for next steps
 
 **Example:**
