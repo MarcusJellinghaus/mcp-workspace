@@ -49,9 +49,13 @@ The design decisions worth recording:
 
 **Cost:** one `ls-remote` per `get_base_branch` / `check_branch_status` call, and only when the
 winner is a non-default branch that has a local `origin/<name>` ref. `collect_branch_status` runs
-once after polling completes, not per poll interval. That call runs with credential prompts
-disabled and a stalled-transfer timeout (`_LS_REMOTE_ENV`, step_1) so an origin that wants
-authentication fails into the `None` path instead of blocking the tool.
+once after polling completes, not per poll interval. That call runs with `GIT_TERMINAL_PROMPT=0`
+(`_LS_REMOTE_ENV`, step_1), which suppresses git's *own* terminal credential prompt so the usual
+unauthenticated case errors out and falls into the `None` path. It is not a hard guarantee: an
+interactive credential helper such as Git Credential Manager on Windows is not disabled by it,
+and GitPython's `kill_after_timeout` does not work on Windows, so the call is not guaranteed to
+fail fast. `fetch_remote`, already reached from the same `check_branch_status` flow, makes an
+unhardened network call today, so this is the existing exposure rather than a new one.
 
 ## Files created / modified
 

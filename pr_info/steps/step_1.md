@@ -57,21 +57,16 @@ of the gate only passes when a local `origin/<name>` ref exists, which proves bo
 Module constant, next to the helper — the environment for the one network call:
 
 ```python
-# ls-remote must fail fast, never wait on a human. Passed per call via the
-# `env=` kwarg so nothing leaks into the shared Git object's environment.
-_LS_REMOTE_ENV = {
-    "GIT_TERMINAL_PROMPT": "0",   # no credential prompt on the terminal
-    "GIT_ASKPASS": "",            # and no GUI/askpass helper either
-    "SSH_ASKPASS": "",
-    "GIT_SSH_COMMAND": "ssh -oBatchMode=yes -oConnectTimeout=10",
-    # Abort a stalled HTTP transfer (config via env, git 2.31+).
-    "GIT_CONFIG_COUNT": "2",
-    "GIT_CONFIG_KEY_0": "http.lowSpeedLimit",
-    "GIT_CONFIG_VALUE_0": "1000",
-    "GIT_CONFIG_KEY_1": "http.lowSpeedTime",
-    "GIT_CONFIG_VALUE_1": "10",
-}
+# Suppress git's own terminal credential prompt so ls-remote does not wait on
+# a human. Passed per call via the `env=` kwarg so nothing leaks into the
+# shared Git object's environment.
+_LS_REMOTE_ENV = {"GIT_TERMINAL_PROMPT": "0"}
 ```
+
+Nothing else is set. In particular no `GIT_SSH_COMMAND`: it takes precedence
+over a user's `core.sshCommand`, so overriding it would break authentication for
+custom SSH setups (deploy keys, per-account identities) and turn every check into
+a silent `None` for exactly those users.
 
 Helper:
 
@@ -92,10 +87,14 @@ The pattern is the **full ref**, not the bare name. `ls-remote` matches a bare `
 against any ref whose path ends in `/feature-A`, so an unrelated `refs/heads/team/feature-A`
 would mask the deletion of `feature-A`. `refs/heads/<branch_name>` matches exactly one ref.
 
-Every hardening above turns a hang into an exception, which the `except` already maps to `None`
-— the winner is kept, matching the `ls-remote` failure rule. Do **not** use GitPython's
-`kill_after_timeout`: it is documented as having no effect on Windows, this project's primary
-platform. The env dict is not separately tested — without mocks a prompt that never happens is
+`GIT_TERMINAL_PROMPT=0` turns git's own credential prompt into an error, which the `except`
+maps to `None` — the winner is kept, matching the `ls-remote` failure rule. It is not a general
+timeout: an interactive credential helper (Git Credential Manager on Windows) or an ssh
+passphrase prompt is outside its reach, so the call is not guaranteed to fail fast. GitPython's
+`kill_after_timeout` is no answer either — it is documented as having no effect on Windows, this
+project's primary platform. The existing `fetch_remote` in the same `check_branch_status` flow
+already makes an unbounded network call with no hardening at all, so this is not a new class of
+exposure. The env dict is not separately tested — without mocks a prompt that never happens is
 unobservable, and `test_unreachable_origin_keeps_the_winner` already pins the failure path.
 
 Gate, appended to `_detect_from_merge_base` after the existing detection call:
