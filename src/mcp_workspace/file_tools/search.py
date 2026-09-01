@@ -15,6 +15,28 @@ from mcp_workspace.file_tools.path_utils import normalize_path
 # who need a full line read the file at the reported line number.
 _MAX_LINE_CHARS = 500
 
+# Braces are the one silent-zero case that cannot raise: gitwildmatch compiles
+# them to a valid regex matching them literally, and directories literally named
+# '{{cookiecutter.project_slug}}' are real. Detection is textual, so the caller
+# gets a note rather than an error.
+_BRACE_NOTE = (
+    "Glob matched no files and contains '{'. Brace expansion is not supported — "
+    "patterns use gitignore/wildmatch semantics, where braces are literal. "
+    "Issue one call per alternative, or widen to '*' and filter the results."
+)
+
+
+def _glob_note(glob: str) -> Optional[str]:
+    """Explain a zero-match glob when its braces are the likely cause.
+
+    Args:
+        glob: Glob pattern that matched no files.
+
+    Returns:
+        ``_BRACE_NOTE`` if the pattern contains a brace, else ``None``.
+    """
+    return _BRACE_NOTE if "{" in glob else None
+
 
 def _match_glob(glob: str, files: List[str]) -> List[str]:
     """Match project-relative paths against a gitignore-semantics glob.
@@ -161,6 +183,7 @@ def search_files(
     all_files = list_files(".", project_dir=project_dir, use_gitignore=True)
 
     matched = _match_glob(glob, all_files) if glob is not None else all_files
+    glob_note = _glob_note(glob) if glob is not None and not matched else None
 
     # Content search mode: pattern provided
     if pattern is not None:
@@ -185,6 +208,8 @@ def search_files(
 
         if note is not None:
             result["note"] = note
+        if glob_note is not None:
+            result["glob_note"] = glob_note
 
         return result
 
@@ -192,9 +217,13 @@ def search_files(
     total = len(matched)
     truncated = total > max_results
 
-    return {
+    file_result: Dict[str, Any] = {
         "mode": "file_search",
         "files": matched[:max_results],
         "total_files": total,
         "truncated": truncated,
     }
+    if glob_note is not None:
+        file_result["glob_note"] = glob_note
+
+    return file_result

@@ -236,6 +236,83 @@ class TestSearchFilesGlobValidation:
             search_files(project_dir, glob=glob)
 
 
+class TestSearchFilesGlobNote:
+    """Brace globs that match no files carry an explanatory ``glob_note``."""
+
+    def test_brace_glob_with_no_matches_returns_note(self, project_dir: Path) -> None:
+        """A brace glob matching nothing is flagged as unsupported expansion."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        result = search_files(project_dir, glob="{a,b}/f.py")
+
+        assert result["total_files"] == 0
+        assert "brace expansion" in result["glob_note"].lower()
+
+    def test_brace_glob_note_in_content_search_mode(self, project_dir: Path) -> None:
+        """The note is attached in content search mode too."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        result = search_files(project_dir, glob="**/*.{md,json}", pattern="x")
+
+        assert result["mode"] == "content_search"
+        assert "brace expansion" in result["glob_note"].lower()
+
+    def test_escaped_brace_also_returns_note(self, project_dir: Path) -> None:
+        """An escaped brace compiles identically and is flagged the same way."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        result = search_files(project_dir, glob="\\{a,b}/f.py")
+
+        assert result["total_files"] == 0
+        assert "brace expansion" in result["glob_note"].lower()
+
+    def test_brace_glob_that_matches_files_has_no_note(self, project_dir: Path) -> None:
+        """Braces that are real filename characters are left alone."""
+        braced = project_dir / "{a,b}"
+        braced.mkdir()
+        (braced / "f.py").write_text("x = 1\n")
+
+        result = search_files(project_dir, glob="{a,b}/f.py")
+
+        assert result["total_files"] == 1
+        assert "glob_note" not in result
+
+    def test_glob_note_absent_when_glob_matched_but_pattern_did_not(
+        self, project_dir: Path
+    ) -> None:
+        """A zero-match content search does not trigger the glob note."""
+        braced = project_dir / "{a,b}"
+        braced.mkdir()
+        (braced / "f.py").write_text("x = 1\n")
+
+        result = search_files(
+            project_dir, glob="{a,b}/f.py", pattern="zzz_no_match_zzz"
+        )
+
+        assert result["total_matches"] == 0
+        assert "glob_note" not in result
+
+    def test_plain_glob_with_no_matches_has_no_note(self, project_dir: Path) -> None:
+        """A brace-free glob with zero matches is a genuine absence."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        result = search_files(project_dir, glob="**/*.nonexistent_xyz")
+
+        assert result["total_files"] == 0
+        assert "glob_note" not in result
+
+    def test_closed_character_class_with_no_matches_has_no_note(
+        self, project_dir: Path
+    ) -> None:
+        """A well-formed character class works; its zero matches are genuine."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        result = search_files(project_dir, glob="[!a]*.nonexistent_xyz")
+
+        assert result["total_files"] == 0
+        assert "glob_note" not in result
+
+
 class TestSearchFilesContentSearch:
     """Tests for content search (regex) and combined modes."""
 

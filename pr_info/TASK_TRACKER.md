@@ -35,9 +35,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 3: `glob_note` for brace globs that match no files — [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: add `TestSearchFilesGlobNote` tests, add `_BRACE_NOTE` and `_glob_note`, attach `glob_note` to both file-search and content-search return paths; leave `note` and `_search_content`'s signature unchanged
-- [ ] Quality checks: pylint, pytest (`-n auto`), mypy, ruff — fix all issues
-- [ ] Commit message prepared: `feat(search): flag brace globs that match no files`
+- [x] Implementation: add `TestSearchFilesGlobNote` tests, add `_BRACE_NOTE` and `_glob_note`, attach `glob_note` to both file-search and content-search return paths; leave `note` and `_search_content`'s signature unchanged
+- [x] Quality checks: pylint, pytest (`-n auto`), mypy, ruff — fix all issues
+- [x] Commit message prepared: `feat(search): flag brace globs that match no files`
 
 ### Step 4: Document glob semantics in all three docstrings — [step_4.md](./steps/step_4.md)
 
