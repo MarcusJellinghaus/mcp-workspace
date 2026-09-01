@@ -146,7 +146,7 @@ The server validates reference projects at startup:
 
 ### Security Notes
 
-- Reference project *files* are **strictly read-only** - no write, edit, or delete file operations are possible. This does not extend to their GitHub issues — see [Cross-Repo GitHub Access](#cross-repo-github-access)
+- Reference project *files* are **strictly read-only** - no write, edit, or delete file operations are possible
 - All paths are validated to prevent directory traversal attacks
 - Gitignore filtering is automatically applied to hide irrelevant files
 - Path access is restricted to the specified reference project directories
@@ -479,7 +479,7 @@ The GitHub tools that take an optional `reference_name` act on the workspace rep
 - Path traversal attacks are prevented for both main project and reference projects
 - Files are written atomically to prevent data corruption
 - Delete operations are restricted to the project directory for safety
-- Reference project *files* are strictly read-only to prevent accidental modifications (their GitHub issues are writable via `reference_name` — see [Cross-Repo GitHub Access](#cross-repo-github-access))
+- Reference project *files* are strictly read-only to prevent accidental modifications
 
 ### MCP Configuration Management Tool
 
