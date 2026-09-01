@@ -31,5 +31,5 @@ Details: [step_1.md](./steps/step_1.md)
 
 ## Pull Request
 
-- [ ] PR review
+- [x] PR review
 - [ ] PR summary
