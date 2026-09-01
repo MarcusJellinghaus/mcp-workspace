@@ -82,15 +82,16 @@ glob: File path pattern with gitignore/wildmatch semantics — e.g. "**/*.py",
 `Returns:` text:
 
 ```
-Adds a "glob_note" key when the glob matched no files and contains a
-character wildmatch treats literally ("{" or an unterminated "["),
-distinguishing that from a genuine no-such-file result.
+Adds a "glob_note" key when the glob matched no files and contains "{",
+which wildmatch treats literally, distinguishing that from a genuine
+no-such-file result.
 ```
 
 `Raises:` additions:
 
 - `server.search_files` — extend the existing entry: project directory not set, **or** the
-  glob matches nothing by construction
+  glob matches nothing by construction (a comment, blank, negation-only, or unparseable
+  pattern such as an unterminated `[`)
 - `search_reference_files` — new `Raises:` block for the same glob `ValueError`; it
   propagates from the util through the async `log_function_call` wrapper, which
   logs-then-re-raises

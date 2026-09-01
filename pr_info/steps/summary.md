@@ -24,20 +24,24 @@ signals gitignore semantics.
 
 ## Solution
 
-Documentation plus a runtime signal, split by whether a false positive is possible:
+Documentation plus a runtime signal. Two separate families, split by whether a false
+positive is possible:
 
 | Input | Detection | Behaviour |
 |---|---|---|
-| comment, blank, negation-only, pattern pathspec rejects | no usable compiled pattern | raise `ValueError` |
-| `{` or an unterminated `[` present **and** zero files matched | textual | `glob_note` on the result |
-| `{` or an unterminated `[` present and files matched | — | nothing |
+| comment, blank, negation-only, unterminated `[` — every pattern pathspec leaves without a usable compiled regex | structural (`regex is None`, empty pattern list, or `include is False`) | raise `ValueError` |
+| `{` present **and** zero files matched | textual | `glob_note` on the result |
+| `{` present and files matched | — | nothing |
 
-Braces and unterminated brackets cannot raise, and cannot be detected structurally: pathspec
-compiles both to a valid regex with `include is True` that matches the character literally —
-`{a,b}` as a literal name, and `[` per *fnmatch(3)*, which treats invalid range notation as a
-literal. Both can also be real filenames (cookiecutter ships directories literally named
-`{{cookiecutter.project_slug}}`; brackets are legal filename characters) and no escape
-mechanism exists.
+Braces are the only family member with no structural signal: pathspec compiles `{a,b}` to a
+valid regex with `include is True` that matches the braces literally, and braces can be real
+filenames (cookiecutter ships directories literally named `{{cookiecutter.project_slug}}`),
+so raising would make real paths unsearchable with no escape mechanism available.
+
+Unterminated brackets are not in that family. On the installed pathspec (probed: 1.1.1) `[`,
+`[a-` and `a[b` compile to `regex is None`, so they are caught structurally and raise with
+everything else, as issue #249's decision table has them. A closed class such as `[!a]` or
+`[a-]` compiles normally and is untouched.
 
 Brace *expansion* is explicitly out of scope — it needs a cartesian product over multiple
 groups, nesting, and an escape mechanism. Not a small change.
@@ -66,8 +70,8 @@ to both return paths; `_search_content` needs no signature change.
 
 **Trigger is `len(matched) == 0`, evaluated before the content search** — the same condition
 in both modes. It does not fire when the glob matched files but the content search returned
-nothing: if a brace or bracket glob matched files, those characters were legitimate and there
-is no wrong conclusion to interrupt.
+nothing: if a brace glob matched files, the braces were legitimate and there is no wrong
+conclusion to interrupt.
 
 **Three docstring copies stay three copies.** MCP reads the literal docstring, so real
 deduplication would mean assigning `__doc__` post-definition. A guard test asserting key
@@ -99,7 +103,7 @@ cannot act on if the description never mentions it.
 |---|---|---|
 | [step_1](./step_1.md) | Pin current glob semantics (tests only) | `test(search): pin gitignore glob semantics` |
 | [step_2](./step_2.md) | `_match_glob` + raise on globs that match nothing by construction | `fix(search): raise on globs that match nothing by construction` |
-| [step_3](./step_3.md) | `glob_note` for brace / unterminated-bracket globs with zero matches | `feat(search): flag literal-only globs that match no files` |
+| [step_3](./step_3.md) | `glob_note` for brace globs with zero matches | `feat(search): flag brace globs that match no files` |
 | [step_4](./step_4.md) | Four documented behaviours + `glob_note` in three docstrings, guard test | `docs(search): document glob semantics in tool descriptions` |
 
 Step 1 comes first deliberately: it pins the behaviours that must survive both this change
@@ -122,9 +126,8 @@ and the follow-up matcher migration, before any production code moves.
   the size cap: `tests/test_server.py` is 738 lines and
   `tests/test_reference_projects_mcp_tools.py` is 739.
 
-**Conditionally modified**
-
-- `pyproject.toml` — only if ruff DOC502 fires on the new `Raises:` blocks (see step 4).
+- `pyproject.toml` — step 2 (`pathspec` floor `>=0.12.1` → `>=1.1.1`), and step 4 if ruff
+  DOC502 fires on the new `Raises:` blocks
 
 **Unchanged**
 
@@ -132,11 +135,15 @@ and the follow-up matcher migration, before any production code moves.
 
 ## Testing constraint
 
-`pathspec` is unpinned (`>=0.12.1`), and which malformed patterns raise versus compile to a
-null regex can shift between versions. Every new test asserts `search_files` behaviour —
-raises, or carries `glob_note` — and never `pathspec` internals. The `regex` and `include`
-attributes used for detection are public and stable, so the detection approach itself is
-safe.
+Which malformed patterns raise versus compile to a null regex can shift between `pathspec`
+versions, and only 1.1.1 has been probed. Step 2 therefore raises the floor in
+`pyproject.toml` from `pathspec>=0.12.1` to `pathspec>=1.1.1` — the version whose
+classification the unterminated-bracket assertions pin — rather than dropping those
+assertions.
+
+Every new test asserts `search_files` behaviour — raises, or carries `glob_note` — and never
+`pathspec` internals. The `regex` and `include` attributes used for detection are public and
+stable, so the detection approach itself is safe.
 
 ## Dependency
 
