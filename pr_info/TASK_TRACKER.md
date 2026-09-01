@@ -25,9 +25,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 Details: [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: write `tests/github_operations/test_search.py` first, create `src/mcp_workspace/github_operations/search.py`, rewrite the `github_search` handler body in `server.py` and drop `import re`, trim the 15 moved tests from `test_github_search_tool.py` and update its module docstring
-- [ ] Quality checks: pylint, pytest, mypy — plus vulture, ruff, lint-imports, tach — fix all issues
-- [ ] Commit message prepared: `refactor(github_search): extract SearchSpec into github_operations`
+- [x] Implementation: write `tests/github_operations/test_search.py` first, create `src/mcp_workspace/github_operations/search.py`, rewrite the `github_search` handler body in `server.py` and drop `import re`, trim the 15 moved tests from `test_github_search_tool.py` and update its module docstring
+- [x] Quality checks: pylint, pytest, mypy — plus vulture, ruff, lint-imports, tach — fix all issues
+- [x] Commit message prepared: `refactor(github_search): extract SearchSpec into github_operations`
 
 ### Step 2: Exclude `TYPE_CHECKING` imports in import-linter, drop the `base_branch` waivers
 
