@@ -25,6 +25,11 @@ def _origin_still_has_branch(project_dir: Path, branch_name: str) -> Optional[bo
 def _detect_from_merge_base(project_dir: Path, current_branch: str) -> Optional[str]:
 ```
 
+Its docstring `Returns:` section currently reads "Parent branch name, or None if not found
+within threshold", which no longer covers the new outcome. Extend it to name both `None` cases:
+no candidate within the threshold, **or** the winning candidate was rejected because origin no
+longer has that branch (the caller then falls back to the default branch).
+
 ## HOW — integration points
 
 Imports in `base_branch.py` (keep the file's absolute-import style; its siblings use relative):
@@ -49,16 +54,49 @@ of the gate only passes when a local `origin/<name>` ref exists, which proves bo
 
 ## ALGORITHM
 
+Module constant, next to the helper — the environment for the one network call:
+
+```python
+# ls-remote must fail fast, never wait on a human. Passed per call via the
+# `env=` kwarg so nothing leaks into the shared Git object's environment.
+_LS_REMOTE_ENV = {
+    "GIT_TERMINAL_PROMPT": "0",   # no credential prompt on the terminal
+    "GIT_ASKPASS": "",            # and no GUI/askpass helper either
+    "SSH_ASKPASS": "",
+    "GIT_SSH_COMMAND": "ssh -oBatchMode=yes -oConnectTimeout=10",
+    # Abort a stalled HTTP transfer (config via env, git 2.31+).
+    "GIT_CONFIG_COUNT": "2",
+    "GIT_CONFIG_KEY_0": "http.lowSpeedLimit",
+    "GIT_CONFIG_VALUE_0": "1000",
+    "GIT_CONFIG_KEY_1": "http.lowSpeedTime",
+    "GIT_CONFIG_VALUE_1": "10",
+}
+```
+
 Helper:
 
 ```
 try:
     with safe_repo_context(project_dir) as repo:
-        output = str(repo.git.ls_remote("--heads", "origin", branch_name))
+        output = str(
+            repo.git.ls_remote(
+                "--heads", "origin", f"refs/heads/{branch_name}", env=_LS_REMOTE_ENV
+            )
+        )
         return bool(output.strip())        # empty output means the branch is gone
 except Exception:                          # pylint: disable=broad-exception-caught
     log at debug; return None              # unknown, never "gone"
 ```
+
+The pattern is the **full ref**, not the bare name. `ls-remote` matches a bare `feature-A`
+against any ref whose path ends in `/feature-A`, so an unrelated `refs/heads/team/feature-A`
+would mask the deletion of `feature-A`. `refs/heads/<branch_name>` matches exactly one ref.
+
+Every hardening above turns a hang into an exception, which the `except` already maps to `None`
+— the winner is kept, matching the `ls-remote` failure rule. Do **not** use GitPython's
+`kill_after_timeout`: it is documented as having no effect on Windows, this project's primary
+platform. The env dict is not separately tested — without mocks a prompt that never happens is
+unobservable, and `test_unreachable_origin_keeps_the_winner` already pins the failure path.
 
 Gate, appended to `_detect_from_merge_base` after the existing detection call:
 
@@ -67,9 +105,18 @@ if result is None: return None
 if not remote_branch_exists(project_dir, result): return result   # never pushed
 default = get_default_branch_name(project_dir)
 if default is None or default == result: return result            # nothing better to fall back to
-if _origin_still_has_branch(project_dir, result) is False: return None   # gone upstream
+if _origin_still_has_branch(project_dir, result) is False:
+    logger.debug("Discarding merge-base winner '%s': deleted on origin", result)
+    return None                                                   # gone upstream
 return result
 ```
+
+**Logging.** The existing `logger.debug("Detected base branch from merge-base: '%s'", result)`
+(`base_branch.py:134`) fires before the gate, so after this change it can announce a branch that
+is then discarded — the misleading trace for exactly the bug being fixed. Reword it to
+`logger.debug("Merge-base elected candidate branch: '%s'", result)`, which stays true on every
+path, and let the new debug line above be the record of a rejection. No test asserts either
+message.
 
 `str(...)` around `ls_remote` matters for `mypy --strict` (GitPython returns `Any`), matching
 `str(repo.git.symbolic_ref(...))` at `branch_queries.py:204`. `remote_branch_exists` returns a
@@ -148,13 +195,15 @@ mcp__mcp-tools-py__run_pytest_check   extra_args: ["-n", "auto"]
 mcp__mcp-tools-py__run_mypy_check
 ```
 
-The full pytest run must confirm — by running, not by assuming — that the two existing mock
-tests still pass unchanged: `test_falls_back_to_merge_base`
-(`tests/git_operations/test_base_branch.py:306-317`, ends in `mock_default.assert_not_called()`)
-and `TestDetectFromMergeBase::test_returns_parent_branch` (`:183-187`). Both now traverse the
-gate; their `Path("/repo")` is not a repository, so `remote_branch_exists` is `False` and the
-gate returns at guard 1 before any default-branch lookup. If either fails, the gate order is
-what needs revisiting — do not edit those tests.
+The full pytest run must confirm — by running, not by assuming — that these three existing tests
+still pass unchanged. All three now traverse the gate, and each pins a different guard. If any
+fails, the gate is what needs revisiting — do not edit these tests.
+
+| Test | Why it now matters |
+|---|---|
+| `test_falls_back_to_merge_base` (`tests/git_operations/test_base_branch.py:306-317`) | Ends in `mock_default.assert_not_called()`. Its `Path("/repo")` is not a repository, so `remote_branch_exists` is `False` and the gate returns at guard 1 before any default-branch lookup. |
+| `TestDetectFromMergeBase::test_returns_parent_branch` (`test_base_branch.py:183-187`) | Same `Path("/repo")`, same guard-1 exit; asserts the winner still comes back. |
+| `test_tie_without_a_resolvable_default_branch_still_picks_a_candidate` (`tests/git_operations/test_parent_branch_detection_git.py:129-155`) | Its final assertion `detect_base_branch(project_dir, current_branch="feature") == "trunk"` runs on a real repo where `origin/trunk` exists but `get_default_branch_name` is `None` — the **only** coverage of guard 2's `default is None` path, and the cascade guard summary.md relies on. It is `git_integration`-marked, so a `-m 'not git_integration'` run will not show it. |
 
 Commit message:
 

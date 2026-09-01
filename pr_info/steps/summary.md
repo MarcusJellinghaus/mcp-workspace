@@ -49,13 +49,15 @@ The design decisions worth recording:
 
 **Cost:** one `ls-remote` per `get_base_branch` / `check_branch_status` call, and only when the
 winner is a non-default branch that has a local `origin/<name>` ref. `collect_branch_status` runs
-once after polling completes, not per poll interval.
+once after polling completes, not per poll interval. That call runs with credential prompts
+disabled and a stalled-transfer timeout (`_LS_REMOTE_ENV`, step_1) so an origin that wants
+authentication fails into the `None` path instead of blocking the tool.
 
 ## Files created / modified
 
 | Path | Action | Notes |
 |---|---|---|
-| `src/mcp_workspace/git_operations/base_branch.py` | modified | Add `_origin_still_has_branch`; add the gate to `_detect_from_merge_base`; extend the `branch_queries` import with `remote_branch_exists` and add `safe_repo_context` from `core`. ~35 lines. |
+| `src/mcp_workspace/git_operations/base_branch.py` | modified | Add `_origin_still_has_branch`; add the gate to `_detect_from_merge_base`; extend the `branch_queries` import with `remote_branch_exists` and add `safe_repo_context` from `core`; add the `_LS_REMOTE_ENV` constant that keeps the one network call non-interactive. ~50 lines. |
 | `tests/git_operations/test_base_branch_git.py` | created | Four real-git tests, `git_integration`-marked, no mocks. ~85 lines. |
 | `pr_info/steps/summary.md`, `pr_info/steps/step_1.md` | created | This plan. |
 
