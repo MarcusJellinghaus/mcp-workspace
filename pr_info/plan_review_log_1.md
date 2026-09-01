@@ -33,3 +33,13 @@ I'll gather context first.`pr_info/steps/step_3.md:51` — high — The "four mi
 Verdict(decision='tasks', tasks=['In pr_info/steps/step_3.md, extend the README per-tool table row set beyond the four GitHub tools: also add rows for search_reference_files, git and github_pr_create, which otherwise disappear from README once step 2 rewrites the usage string at README.md:383 and step 3 rewrites the bullet at README.md:460.', "In pr_info/steps/summary.md line 40, correct the premise sentence to cover all seven tools (the four GitHub write/label tools plus search_reference_files, git and github_pr_create) rather than only 'the four rows it is missing'."], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 3 — 2026-09-01
+**Findings**:
+I'll gather context first.`pr_info/steps/step_3.md:20` — high — The `README.md:35` replacement ("the GitHub issue, pull request, search and label tools accept `reference_name`") is false as a category claim: `github_pr_create` is a pull-request tool with no `reference_name` parameter (`src/mcp_workspace/server.py:1464`), and the same step adds a `github_pr_create` row to the tool table. The replacement must scope the claim to the read tools plus issue writes, e.g. "the GitHub issue, pull request, search and label read tools accept `reference_name`; issues can also be created, edited and commented on."
+
+`pr_info/steps/step_3.md:26` — high — The `README.md:455` replacement opens "The GitHub tools take an optional `reference_name`", which contradicts the bullet the same step writes at `README.md:460` ("Any GitHub tool without a `reference_name` parameter targets the workspace repository") and is wrong for `github_pr_create`; the section documenting exactly this boundary would state the rule incorrectly in its first sentence.
+**Decisions**:
+Verdict(decision='tasks', tasks=["In pr_info/steps/step_3.md line 20, correct the README.md:35 replacement text so it does not claim all GitHub pull-request tools accept reference_name: scope it to the read tools plus issue writes, e.g. 'the GitHub issue, pull request, search and label read tools accept reference_name; issues can also be created, edited and commented on.'", "In pr_info/steps/step_3.md line 26, fix the README.md:455 replacement's opening sentence so it does not state that all GitHub tools take an optional reference_name — github_pr_create has no such parameter — and make it consistent with the bullet the same step writes at README.md:460."], escalate_reason=None)
+**Changes**:
+applied

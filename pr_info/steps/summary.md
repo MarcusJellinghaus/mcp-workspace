@@ -33,7 +33,9 @@ docstring keeps a one-line pointer only as insurance against clients that drop t
 field.
 
 **2. Description by category replaces enumeration.** The twelve names collapse to
-"the reference file tools, `git()`, and the GitHub tools". This trades away literal-string
+"the reference file tools, `git()`, and the GitHub read tools; issues can also be
+created, edited and commented on" — scoped to the read tools plus issue writes because
+`github_pr_create` takes no `reference_name`. This trades away literal-string
 discoverability (an agent grepping descriptions for `github_label_list` won't find it
 in the instructions block) for a list that cannot drift. The per-tool reference tables
 stay the place where every tool is named: the `.claude/CLAUDE.md` tool mapping table

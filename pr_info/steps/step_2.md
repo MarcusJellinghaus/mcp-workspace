@@ -15,10 +15,14 @@ One commit, test-first. Read [summary.md](./summary.md) first.
 The new `usage` value, used verbatim in all four places:
 
 ```
-Pass a name as reference_name to the reference file tools, git(), and the GitHub tools
+Pass a name as reference_name to the reference file tools, git(), and the GitHub read tools; issues can also be created, edited and commented on
 ```
 
 No trailing period (matching the current value), no project count, no tool roster.
+The claim is scoped to the **read** tools plus issue writes: `github_pr_create` has no
+`reference_name` parameter (`src/mcp_workspace/server.py:1464`), so "the GitHub tools"
+without qualification would be false and would contradict the bullet step 3 writes at
+`README.md:460`.
 
 ### 1. Tests first
 
@@ -29,8 +33,9 @@ Replace the five-line parenthesised string in each:
 ```python
 # tests/test_reference_projects_mcp_tools.py:58-64 and 92-98
 "usage": (
-    "Pass a name as reference_name to the reference file tools, "
-    "git(), and the GitHub tools"
+    "Pass a name as reference_name to the reference file tools, git(), "
+    "and the GitHub read tools; issues can also be created, edited and "
+    "commented on"
 ),
 ```
 
@@ -54,7 +59,7 @@ def get_reference_projects() -> Dict[str, Any]:
         - usage: Instructions for next steps
 
     Pass a name as reference_name to the reference file tools, git(), and the
-    GitHub tools.
+    GitHub read tools; issues can also be created, edited and commented on.
     """
 ```
 
@@ -72,8 +77,9 @@ return {
     "count": len(projects),
     "projects": projects,
     "usage": (
-        "Pass a name as reference_name to the reference file tools, "
-        "git(), and the GitHub tools"
+        "Pass a name as reference_name to the reference file tools, git(), "
+        "and the GitHub read tools; issues can also be created, edited and "
+        "commented on"
     ),
 }
 ```
@@ -83,7 +89,7 @@ return {
 `README.md:383`, inside the `Get Reference Projects` example block:
 
 ```
-#   "usage": "Pass a name as reference_name to the reference file tools, git(), and the GitHub tools"
+#   "usage": "Pass a name as reference_name to the reference file tools, git(), and the GitHub read tools; issues can also be created, edited and commented on"
 ```
 
 `README.md:374` (the `projects` field description) and the surrounding `**Returns:**`
