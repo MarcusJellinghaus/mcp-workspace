@@ -4,15 +4,18 @@ Read [summary.md](./summary.md) first.
 
 The docstring in `search.py` is the only correct one today, and it is the one callers never
 see. The MCP tool descriptions do reach callers and say only `File path pattern`. All three
-get the same four points; a guard test fails CI on the next drift.
+get the same four points, plus the `glob_note` response key added in step 3 — a signal the
+caller cannot act on if the description never mentions it. A guard test fails CI on the next
+drift.
 
 ## WHERE
 
-- `src/mcp_workspace/server.py` — `search_files` docstring (`glob:` arg, `Raises:`)
+- `src/mcp_workspace/server.py` — `search_files` docstring (`glob:` arg, `Returns:`,
+  `Raises:`)
 - `src/mcp_workspace/server_reference_tools.py` — `search_reference_files` docstring
-  (`glob:` arg, plus a `Raises:` block it does not have at all today)
+  (`glob:` arg, `Returns:`, plus a `Raises:` block it does not have at all today)
 - `src/mcp_workspace/file_tools/search.py` — `search_files` docstring, aligned for
-  consistency
+  consistency (`glob:` arg, `Returns:`; `Raises:` already done in step 2)
 - `tests/test_tool_descriptions.py` — **new file**
 
 New file because both natural homes are at the size cap: `tests/test_server.py` is 738 lines
@@ -30,6 +33,7 @@ GLOB_DOC_PHRASES = [
     "any depth",
     "case-insensitive",
     "git ls-files",
+    "glob_note",
 ]
 
 @pytest.mark.parametrize("phrase", GLOB_DOC_PHRASES)
@@ -74,6 +78,15 @@ glob: File path pattern with gitignore/wildmatch semantics — e.g. "**/*.py",
     recorded in the index.
 ```
 
+`Returns:` addition — the same sentence in all three docstrings, appended to the existing
+`Returns:` text:
+
+```
+Adds a "glob_note" key when the glob matched no files and contains a
+character wildmatch treats literally ("{" or an unterminated "["),
+distinguishing that from a genuine no-such-file result.
+```
+
 `Raises:` additions:
 
 - `server.search_files` — extend the existing entry: project directory not set, **or** the
@@ -109,8 +122,8 @@ the test fails, restore it.
 > Create `tests/test_tool_descriptions.py` with the parametrized guard test, confirm it
 > fails, then write the four documented behaviours into the `glob:` argument of all three
 > docstrings — `server.search_files`, `server_reference_tools.search_reference_files`, and
-> `file_tools.search.search_files` — and add the `Raises:` entries. Only docstrings change in
-> `src/`; no logic.
+> `file_tools.search.search_files` — and add the `glob_note` sentence to each `Returns:`
+> block and the `Raises:` entries. Only docstrings change in `src/`; no logic.
 >
 > Then run `run_format_code`, `run_pylint_check`, `run_pytest_check` with
 > `extra_args: ["-n", "auto"]`, `run_mypy_check`, and `run_ruff_check`. If ruff reports

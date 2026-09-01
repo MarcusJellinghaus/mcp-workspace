@@ -28,12 +28,16 @@ Documentation plus a runtime signal, split by whether a false positive is possib
 
 | Input | Detection | Behaviour |
 |---|---|---|
-| comment, blank, unparseable, negation-only | no usable compiled pattern | raise `ValueError` |
-| `{` present **and** zero files matched | textual | `glob_note` on the result |
-| `{` present and files matched | — | nothing |
+| comment, blank, negation-only, pattern pathspec rejects | no usable compiled pattern | raise `ValueError` |
+| `{` or an unterminated `[` present **and** zero files matched | textual | `glob_note` on the result |
+| `{` or an unterminated `[` present and files matched | — | nothing |
 
-Braces cannot raise: they can be real filenames (cookiecutter ships directories literally
-named `{{cookiecutter.project_slug}}`) and no escape mechanism exists.
+Braces and unterminated brackets cannot raise, and cannot be detected structurally: pathspec
+compiles both to a valid regex with `include is True` that matches the character literally —
+`{a,b}` as a literal name, and `[` per *fnmatch(3)*, which treats invalid range notation as a
+literal. Both can also be real filenames (cookiecutter ships directories literally named
+`{{cookiecutter.project_slug}}`; brackets are legal filename characters) and no escape
+mechanism exists.
 
 Brace *expansion* is explicitly out of scope — it needs a cartesian product over multiple
 groups, nesting, and an escape mechanism. Not a small change.
@@ -62,8 +66,8 @@ to both return paths; `_search_content` needs no signature change.
 
 **Trigger is `len(matched) == 0`, evaluated before the content search** — the same condition
 in both modes. It does not fire when the glob matched files but the content search returned
-nothing: if a brace glob matched files, the braces were legitimate and there is no wrong
-conclusion to interrupt.
+nothing: if a brace or bracket glob matched files, those characters were legitimate and there
+is no wrong conclusion to interrupt.
 
 **Three docstring copies stay three copies.** MCP reads the literal docstring, so real
 deduplication would mean assigning `__doc__` post-definition. A guard test asserting key
@@ -86,14 +90,17 @@ lazy-import path changes.
    filename casing mismatch — use `git ls-files`, which reports the name as recorded in the
    index. This is a cross-platform inconsistency: the same glob differs on win32 and Linux.
 
+Each `Returns:` block also documents the `glob_note` key from step 3 — a signal the caller
+cannot act on if the description never mentions it.
+
 ## Steps
 
 | Step | Content | Commit |
 |---|---|---|
 | [step_1](./step_1.md) | Pin current glob semantics (tests only) | `test(search): pin gitignore glob semantics` |
 | [step_2](./step_2.md) | `_match_glob` + raise on globs that match nothing by construction | `fix(search): raise on globs that match nothing by construction` |
-| [step_3](./step_3.md) | `glob_note` for brace patterns with zero matches | `feat(search): flag brace patterns that match no files` |
-| [step_4](./step_4.md) | Four documented behaviours in three docstrings + guard test | `docs(search): document glob semantics in tool descriptions` |
+| [step_3](./step_3.md) | `glob_note` for brace / unterminated-bracket globs with zero matches | `feat(search): flag literal-only globs that match no files` |
+| [step_4](./step_4.md) | Four documented behaviours + `glob_note` in three docstrings, guard test | `docs(search): document glob semantics in tool descriptions` |
 
 Step 1 comes first deliberately: it pins the behaviours that must survive both this change
 and the follow-up matcher migration, before any production code moves.
@@ -103,7 +110,7 @@ and the follow-up matcher migration, before any production code moves.
 **Modified**
 
 - `src/mcp_workspace/file_tools/search.py` — steps 2, 3, 4 (helper, validation,
-  `glob_note`, `glob` arg docstring, `Raises:`)
+  `glob_note`, `glob` arg docstring, `Returns:`, `Raises:`)
 - `src/mcp_workspace/server.py` — step 4 (`search_files` docstring only)
 - `src/mcp_workspace/server_reference_tools.py` — step 4 (`search_reference_files`
   docstring only, including a `Raises:` block it does not have today)

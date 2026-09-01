@@ -8,8 +8,9 @@ scope: none of them exist in `tests/file_tools/test_search.py` today.
 
 ## WHERE
 
-`tests/file_tools/test_search.py` — new class `TestSearchFilesGlobSemantics`, appended
-after the existing `TestSearchFilesGlobOnly`.
+`tests/file_tools/test_search.py` — all four tests go into a new class
+`TestSearchFilesGlobSemantics`, appended after the existing `TestSearchFilesGlobOnly`,
+including the POSIX case-sensitivity test.
 
 Existing imports (`sys`, `Path`, `pytest`, `search_files`) already cover what is needed.
 The `project_dir` fixture comes from `tests/conftest.py` — an isolated `tmp_path` per test.
@@ -30,8 +31,10 @@ class TestSearchFilesGlobSemantics:
 
 The existing win32 companion is `test_windows_case_insensitive_match_preserved`
 (`skipif(sys.platform != "win32")`). Step 4 documents case-insensitivity as
-platform-specific behaviour, so the POSIX branch must be asserted too — put the new test
-directly beside the win32 one so the pair is obvious.
+platform-specific behaviour, so the POSIX branch must be asserted too. It stays in
+`TestSearchFilesGlobOnly`; the new POSIX test lives in `TestSearchFilesGlobSemantics` with
+the rest of this step. Name it alike and reference the win32 test in its docstring so the
+pairing survives the class boundary.
 
 ## ALGORITHM
 

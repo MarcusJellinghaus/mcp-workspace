@@ -14,7 +14,7 @@ TDD: write the failing tests, then extract `_match_glob` and add the validation.
 
 ```python
 class TestSearchFilesGlobValidation:
-    @pytest.mark.parametrize("glob", ["", "   ", "#*.py", "[", "[a-", "!*.py"])
+    @pytest.mark.parametrize("glob", ["", "   ", "#*.py", "!*.py"])
     def test_glob_matching_nothing_by_construction_raises(
         self, project_dir: Path, glob: str
     ) -> None
@@ -33,6 +33,11 @@ class TestSearchFilesGlobValidation:
 - Third: `pytest.raises(ValueError)` with **no** `match=`. These two already raise
   `GitIgnorePatternError` out of `PathSpec.from_lines` today; the test pins the exception
   *type* only, so it keeps passing whether pathspec raises or the new check does.
+
+Unterminated bracket expressions (`[`, `[a-`) are **not** in this parametrization. pathspec
+follows *fnmatch(3)* and compiles invalid range notation to a literal `[`, so such a pattern
+has a real `regex` and `include is True` — indistinguishable from a legitimate search for a
+filename containing a bracket. They are `glob_note` cases in step 3, not raises.
 
 ## WHAT — implementation
 
@@ -75,7 +80,7 @@ if not any(isinstance(p, RegexPattern) and p.regex is not None and p.include
 return [f for f in files if spec.match_file(_norm(f))]   # _norm: '\'->'/' , lower on win32
 ```
 
-One condition covers all five inputs, so the empty-pattern-list versus null-regex
+One condition covers all four inputs, so the empty-pattern-list versus null-regex
 distinction never reaches the caller. The message is keyed on the **effect**, not the
 cause — the same signal fires for inputs that are neither a comment nor blank.
 
@@ -92,9 +97,11 @@ cause — the same signal fires for inputs that are neither a comment nor blank.
 `run_format_code`, then pylint / pytest (`-n auto`) / mypy, plus `run_ruff_check` — the new
 helper needs a Google-style docstring with `Args:`, `Returns:`, and `Raises:`.
 
-If a `[` or `[a-` case fails, pathspec classified it differently than the issue's probe
-found: keep the same single condition and adjust which attribute it reads. Do not add a
-second raise site, and do not assert pathspec internals in the test.
+If one of the four parametrized inputs does not raise, pathspec classified it the way it
+classifies `[` — as a pattern with a usable regex — and no attribute can separate it from a
+legitimate literal search. Do not widen the condition to chase it: drop that input from this
+parametrization and add it to the step 3 `glob_note` cases instead. Do not add a second
+raise site, and do not assert pathspec internals in the test.
 
 ## Commit
 
