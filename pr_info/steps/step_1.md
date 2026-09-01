@@ -200,7 +200,8 @@ block are most of what remains; the win is layering and a testable unit, not lin
 ## WHAT — `tests/github_operations/test_search.py` (write this first)
 
 No `@patch`, no `MagicMock`, no `setup_server` fixture, no `FakeSearchResults`. Every test is
-`SearchSpec.from_arguments(...)` plus either `.to_query("owner/repo")` or `pytest.raises`.
+`SearchSpec.from_arguments(...)` plus one of `.to_query("owner/repo")`, `pytest.raises`, or a
+flag-field assertion.
 
 ### Query-string tests — the eleven moved from `test_github_search_tool.py`
 
@@ -226,30 +227,65 @@ a vestigial #254 marker against a removed auto-add block, and there is no `resul
 at this level. Keep every other secondary assertion (`"labels:bug,urgent" not in`,
 `"state:" not in`, `"is:all" not in`) — they are cheap and read on the query string.
 
-### Validation tests — the four moved
+### Validation tests — all five messages
 
-Flatten into **one** parametrized function. All four share the shape "bad input → exact
+Flatten into **one** parametrized function. All five share the shape "bad input → exact
 message", and the per-case rationale now lives as comments next to the code in `search.py`:
 
 ```python
 @pytest.mark.parametrize(
     "kwargs, message",
     [
-        ({"query": "x", "labels": ["bug", 'needs "review"']},
-         'Invalid label \'needs "review"\': '
-         "a label containing a double quote cannot be searched"),
-        # blank labels: "", "   ", "\t"  -> Invalid label {label!r}: a label cannot be
-        #                                   empty or whitespace-only
-        # whitespace assignees: "john doe", " alice", "alice\tb"
-        #                               -> Invalid assignee {assignee!r}: a GitHub
-        #                                  username cannot contain whitespace
-        # type:pull-request: "type:pull-request", "fix type:pull-request",
-        #                    "TYPE:PULL-REQUEST"
-        #                               -> Invalid qualifier 'type:pull-request': use
-        #                                  'is:pull-request' or 'is:pr'
+        (
+            {"query": "x", "labels": ["bug", 'needs "review"']},
+            'Invalid label \'needs "review"\': '
+            "a label containing a double quote cannot be searched",
+        ),
+        (
+            {"query": "x", "labels": [""]},
+            "Invalid label '': a label cannot be empty or whitespace-only",
+        ),
+        (
+            {"query": "x", "labels": ["   "]},
+            "Invalid label '   ': a label cannot be empty or whitespace-only",
+        ),
+        (
+            {"query": "x", "labels": ["\t"]},
+            "Invalid label '\\t': a label cannot be empty or whitespace-only",
+        ),
+        (
+            {"query": "bug", "assignee": "john doe"},
+            "Invalid assignee 'john doe': a GitHub username cannot contain whitespace",
+        ),
+        (
+            {"query": "bug", "assignee": " alice"},
+            "Invalid assignee ' alice': a GitHub username cannot contain whitespace",
+        ),
+        (
+            {"query": "bug", "assignee": "alice\tb"},
+            "Invalid assignee 'alice\\tb': a GitHub username cannot contain whitespace",
+        ),
+        (
+            {"query": "type:pull-request"},
+            "Invalid qualifier 'type:pull-request': use 'is:pull-request' or 'is:pr'",
+        ),
+        (
+            {"query": "fix type:pull-request"},
+            "Invalid qualifier 'type:pull-request': use 'is:pull-request' or 'is:pr'",
+        ),
+        (
+            {"query": "TYPE:PULL-REQUEST"},
+            "Invalid qualifier 'type:pull-request': use 'is:pull-request' or 'is:pr'",
+        ),
+        (
+            {"query": "bug", "state": "Bogus"},
+            "Invalid state: Bogus. Expected 'open', 'closed' or 'all'.",
+        ),
     ],
 )
-def test_from_arguments_rejects_invalid_input(kwargs, message) -> None:
+def test_from_arguments_rejects_invalid_input(
+    kwargs: dict, message: str
+) -> None:
     with pytest.raises(ValueError) as excinfo:
         SearchSpec.from_arguments(**kwargs)
     assert str(excinfo.value) == message
@@ -258,12 +294,39 @@ def test_from_arguments_rejects_invalid_input(kwargs, message) -> None:
 Use `str(excinfo.value) == message`, **not** `pytest.raises(match=...)` — `match` is a regex
 search and would not preserve the byte-identical guarantee.
 
-`test_github_search_invalid_state` does **not** move; it stays at handler level as the
-ordering guard (see below).
+The state case uses `"Bogus"`, not `"bogus"`: the message interpolates the **original**
+argument, not the lower-cased one (see DATA below), and only a mixed-case input pins that.
 
-No separate test for `needs_type_default` / `has_inline_state`: the eleven `to_query` tests
-already observe both flags, and asserting them directly would restate the same facts. The
-fields stay public as the issue specifies.
+`test_github_search_invalid_state` does **not** move — it stays at handler level as the
+ordering guard (see below), asserting the same message through the `Error: ` render. This is
+the one message asserted in both places: here for the interpolation, there for the rendering
+and the `_get_repository.assert_not_called()` guarantee.
+
+### Flag tests
+
+The issue's *Flag computation* decision makes `needs_type_default` and `has_inline_state`
+public so they are directly assertable. Assert them:
+
+```python
+@pytest.mark.parametrize(
+    "query, needs_type_default, has_inline_state",
+    [
+        ("bug", True, False),
+        ("bug is:pr", False, False),
+        ("bug IS:CLOSED", True, True),
+        ("bug state:open", True, True),
+    ],
+)
+def test_flags_are_precomputed(
+    query: str, needs_type_default: bool, has_inline_state: bool
+) -> None:
+    spec = SearchSpec.from_arguments(query)
+    assert spec.needs_type_default is needs_type_default
+    assert spec.has_inline_state is has_inline_state
+```
+
+The eleven `to_query` tests observe both flags through the query string; this one pins them
+where they are computed, which is what makes the two phases separately testable.
 
 ## HOW — trim `tests/github_operations/test_github_search_tool.py`
 
