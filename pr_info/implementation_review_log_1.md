@@ -17,3 +17,28 @@ I'll start by loading the tool schemas I need.I'll gather context in parallel: k
 Verdict(decision='tasks', tasks=['Add a test that reads the usage example quoted in README.md:390 and asserts it matches the usage literal in src/mcp_workspace/server_reference_tools.py:74 verbatim, so the documented copy cannot silently drift from the source.', 'Replace the blanket `assert "\\\\" not in text and "/" not in text` in tests/test_server_instructions.py:17 with an assertion that targets actual filesystem paths (e.g. drive letters, absolute POSIX paths, or the configured vault/project root strings), so legitimate slashes such as `owner/repo` or URLs do not fail the test.', 'Fix the docstring summary at src/mcp_workspace/server_reference_tools.py:38 to describe the real payload (reference projects as `{"name", "url"}` entries) instead of "Get available reference project names", matching the `Returns:` line corrected in this diff.', 'Add the workspace `search_files` tool to the per-tool table at README.md:235 so the table names every tool as step 3 requires.'], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 2 — 2026-09-01
+**Findings**:
+I'll gather context first.`src/mcp_workspace/server.py:52` — medium — Always-on instructions state unconditionally that a reference project's GitHub issues and pull requests are reachable, but a project configured without a URL (`url: null`) is rejected by the GitHub tools (`README.md:382`); the text gives no hint that GitHub access depends on the configured URL.
+`src/mcp_workspace/server_reference_tools.py:47` — low — The docstring pointer restates the `usage` literal at line 76 verbatim (only the trailing period differs); the new drift test guards the README copy only, so this in-file duplicate — the root cause the issue targets — remains unguarded.
+`tests/test_reference_projects_mcp_tools.py:79` — low — The README-drift test resolves `README.md` via `Path(__file__).parent.parent`, so it errors rather than skips when the suite runs outside a source checkout, and it lives in the MCP-tool behaviour class rather than with docs-consistency tests.
+**Decisions**:
+Verdict(decision='tasks', tasks=['Qualify the reference-project GitHub claim in the always-on instructions at src/mcp_workspace/server.py:52 so it states that issue and pull-request access requires the reference project to have a configured URL, matching the behaviour documented at README.md:382 where a `url: null` project is rejected by the GitHub tools.', 'Remove the verbatim restatement of the `usage` literal from the docstring at src/mcp_workspace/server_reference_tools.py:47 — have the docstring point at the literal defined at line 76 (or build the docstring text from it) instead of duplicating the string, so the in-file copy cannot drift the way the README copy did.'], escalate_reason=None)
+**Changes**:
+applied
+
+## Round 3 — 2026-09-01
+**Findings**:
+I'll gather context first.`src/mcp_workspace/server_reference_tools.py:76` — medium — No test asserts the `usage` string and docstring stay free of individual tool names (issue verification bullet 2); the drift the issue targets can silently reappear here, while only the instructions text and the README copy are guarded.
+
+`tests/test_reference_projects_mcp_tools.py:74` — low — `test_readme_usage_example_matches_source` mutates the module global `_reference_projects` without restoring it and resolves `README.md` via `Path(__file__).parent.parent`, so it errors rather than skips outside a source checkout.
+
+`src/mcp_workspace/server.py:54` — low — "Answer questions about another repo from its reference project instead of asking the user" ships unconditionally, including on servers with zero reference projects configured.
+
+No `critical` or `high` findings. Pytest (2274 passed, 2 skipped), pylint, mypy and ruff all pass on the branch.
+**Decisions**:
+Verdict(decision='dismiss', tasks=[], escalate_reason=None)
+**Changes**:
+rebase-needed
+**Escalate reason**: rebase
