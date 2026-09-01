@@ -33,9 +33,9 @@ Details: [step_1.md](./steps/step_1.md)
 
 Details: [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: add `exclude_type_checking_imports = True` with the trade-off comment to the `[importlinter]` block and delete the `ignore_imports` key with both `base_branch` entries from the layered contract — both edits in one commit
-- [ ] Quality checks: pylint, pytest, mypy — plus lint-imports and tach — fix all issues
-- [ ] Commit message prepared: `chore(importlinter): exclude TYPE_CHECKING imports, drop base_branch waivers`
+- [x] Implementation: add `exclude_type_checking_imports = True` with the trade-off comment to the `[importlinter]` block and delete the `ignore_imports` key with both `base_branch` entries from the layered contract — both edits in one commit
+- [x] Quality checks: pylint, pytest, mypy — plus lint-imports and tach — fix all issues
+- [x] Commit message prepared: `chore(importlinter): exclude TYPE_CHECKING imports, drop base_branch waivers`
 
 ## Pull Request
 
