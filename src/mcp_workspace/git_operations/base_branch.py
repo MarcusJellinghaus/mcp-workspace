@@ -141,8 +141,8 @@ def _origin_still_has_branch(project_dir: Path, branch_name: str) -> Optional[bo
                 )
             )
             return bool(output.strip())
-    except Exception:  # pylint: disable=broad-exception-caught
-        logger.debug("Could not ask origin about branch '%s'", branch_name)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.debug("Could not ask origin about branch '%s': %s", branch_name, e)
         return None
 
 
