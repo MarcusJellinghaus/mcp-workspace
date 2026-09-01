@@ -6,11 +6,15 @@ gone. The topology involved is ref state, which mocks cannot express.
 """
 
 from pathlib import Path
+from typing import Optional
 
 import pytest
 from git import Repo
 
-from mcp_workspace.git_operations.base_branch import detect_base_branch
+from mcp_workspace.git_operations.base_branch import (
+    _detect_from_merge_base,
+    detect_base_branch,
+)
 
 pytestmark = pytest.mark.git_integration
 
@@ -62,6 +66,35 @@ def test_winner_still_on_origin_is_kept(
     _stack_on_feature_a(repo, project_dir)
 
     assert detect_base_branch(project_dir, current_branch="feature-B") == "feature-A"
+
+
+def test_default_branch_winner_skips_the_remote_check(
+    git_repo_with_remote: tuple[Repo, Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A winner that is already the default branch is kept without asking origin."""
+    repo, project_dir, _bare_remote_dir = git_repo_with_remote
+
+    repo.git.push("-u", "origin", "main")
+    repo.git.checkout("-b", "feature-B")
+    _commit(repo, project_dir, "b1.txt")
+
+    asked: list[str] = []
+
+    def _record(_project_dir: Path, branch_name: str) -> Optional[bool]:
+        asked.append(branch_name)
+        return None
+
+    monkeypatch.setattr(
+        "mcp_workspace.git_operations.base_branch._origin_still_has_branch", _record
+    )
+
+    # Asserting on _detect_from_merge_base too: only that function returning
+    # 'main' proves merge-base elected the default branch and the gate kept it,
+    # rather than detect_base_branch's step 5 supplying 'main' after a discard.
+    assert _detect_from_merge_base(project_dir, "feature-B") == "main"
+    assert detect_base_branch(project_dir, current_branch="feature-B") == "main"
+    assert asked == []
 
 
 def test_never_pushed_winner_is_kept(

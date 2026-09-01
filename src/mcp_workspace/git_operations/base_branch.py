@@ -167,10 +167,9 @@ def _detect_from_merge_base(
         current_branch,
         distance_threshold=MERGE_BASE_DISTANCE_THRESHOLD,
     )
-    if result:
-        logger.debug("Merge-base elected candidate branch: '%s'", result)
-    if result is None:
+    if not result:
         return None
+    logger.debug("Merge-base elected candidate branch: '%s'", result)
 
     # Never pushed: an empty ls-remote answer would be ambiguous, so don't ask.
     if not remote_branch_exists(project_dir, result):
