@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "validate_issue_number",
+    "validate_issue_number_or_log",
     "validate_comment_id",
     "parse_base_branch",
 ]
@@ -32,6 +33,24 @@ def validate_issue_number(issue_number: int) -> bool:
     if not isinstance(issue_number, int) or issue_number <= 0:
         raise ValueError("Issue number must be a positive integer")
     return True
+
+
+def validate_issue_number_or_log(issue_number: int) -> bool:
+    """Validate issue number, logging instead of raising when it is invalid.
+
+    Args:
+        issue_number: Issue number to validate
+
+    Returns:
+        True if valid, False otherwise
+    """
+    try:
+        return validate_issue_number(issue_number)
+    except ValueError:
+        logger.error(
+            f"Invalid issue number: {issue_number}. Must be a positive integer."
+        )
+        return False
 
 
 def validate_comment_id(comment_id: int) -> bool:

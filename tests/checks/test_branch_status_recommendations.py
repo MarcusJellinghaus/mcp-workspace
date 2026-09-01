@@ -1,6 +1,7 @@
 """Tests for branch_status recommendation and PR merge override logic."""
 
 from mcp_workspace.checks.branch_status import (
+    _LINKED_BRANCH_BLOCKS_KEY,
     _apply_pr_merge_override,
     _generate_recommendations,
 )
@@ -181,6 +182,39 @@ class TestGenerateRecommendations:
         )
         assert "Ready to merge" in recs
         assert "Ready to merge (squash-merge safe)" not in recs
+
+    def test_linked_branch_block_suppresses_ready_to_merge(self) -> None:
+        """A blocking linked-branch state suppresses the merge verdict.
+
+        Suppression only — no new recommendation string; the message lives on
+        the ``Linked Branch:`` render line.
+        """
+        recs = _generate_recommendations(
+            {
+                "ci_status": CIStatus.PASSED,
+                "rebase_needed": False,
+                "tasks_status": TaskTrackerStatus.COMPLETE,
+                "tasks_reason": "All done",
+                "tasks_is_blocking": False,
+                "pr_mergeable": True,
+                _LINKED_BRANCH_BLOCKS_KEY: True,
+            }
+        )
+        assert "Ready to merge" not in recs
+        assert "Ready to merge (squash-merge safe)" not in recs
+
+    def test_linked_branch_key_absent_defaults_to_not_blocking(self) -> None:
+        """The `.get(..., False)` default keeps callers without the key clean."""
+        recs = _generate_recommendations(
+            {
+                "ci_status": CIStatus.PASSED,
+                "rebase_needed": False,
+                "tasks_status": TaskTrackerStatus.COMPLETE,
+                "tasks_reason": "All done",
+                "tasks_is_blocking": False,
+            }
+        )
+        assert "Ready to merge" in recs
 
     def test_rebase_suppressed_when_ci_failed(self) -> None:
         """Rebase recommendation is suppressed when CI is failed."""

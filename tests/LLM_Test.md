@@ -154,6 +154,9 @@ These hit live APIs. Run only when needed.
    - `"GitHub Label:"`
    - `"Recommendations:"`
 
+   Additionally, when run on an issue-numbered branch (`<number>-...`), expect a
+   `"Linked Branch:"` line; it is absent on `main` and other non-issue branches.
+
 ---
 
 ## Section 4: GitHub write tools (MUTATING — opt-in)

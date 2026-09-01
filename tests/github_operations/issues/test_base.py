@@ -1,11 +1,14 @@
 """Unit tests for issues/base.py validation and parsing helpers."""
 
+import logging
+
 import pytest
 
 from mcp_workspace.github_operations.issues.base import (
     parse_base_branch,
     validate_comment_id,
     validate_issue_number,
+    validate_issue_number_or_log,
 )
 
 
@@ -24,6 +27,24 @@ def test_validate_issue_number() -> None:
         validate_issue_number(999)
     except ValueError:
         pytest.fail("Valid issue numbers should not raise ValueError")
+
+
+def test_validate_issue_number_or_log_valid() -> None:
+    """Test that valid issue numbers return True without logging an error."""
+    assert validate_issue_number_or_log(1) is True
+    assert validate_issue_number_or_log(999) is True
+
+
+def test_validate_issue_number_or_log_invalid(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that invalid issue numbers return False and log instead of raising."""
+    with caplog.at_level(logging.ERROR):
+        assert validate_issue_number_or_log(0) is False
+        assert validate_issue_number_or_log(-1) is False
+
+    assert "Invalid issue number: 0" in caplog.text
+    assert "Invalid issue number: -1" in caplog.text
 
 
 def test_validate_comment_id() -> None:
