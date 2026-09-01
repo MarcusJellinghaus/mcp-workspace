@@ -21,6 +21,23 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Extract `SearchSpec` into `github_operations/search.py`
+
+Details: [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: write `tests/github_operations/test_search.py` first, create `src/mcp_workspace/github_operations/search.py`, rewrite the `github_search` handler body in `server.py` and drop `import re`, trim the 15 moved tests from `test_github_search_tool.py` and update its module docstring
+- [ ] Quality checks: pylint, pytest, mypy — plus vulture, ruff, lint-imports, tach — fix all issues
+- [ ] Commit message prepared: `refactor(github_search): extract SearchSpec into github_operations`
+
+### Step 2: Exclude `TYPE_CHECKING` imports in import-linter, drop the `base_branch` waivers
+
+Details: [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: add `exclude_type_checking_imports = True` with the trade-off comment to the `[importlinter]` block and delete the `ignore_imports` key with both `base_branch` entries from the layered contract — both edits in one commit
+- [ ] Quality checks: pylint, pytest, mypy — plus lint-imports and tach — fix all issues
+- [ ] Commit message prepared: `chore(importlinter): exclude TYPE_CHECKING imports, drop base_branch waivers`
 
 ## Pull Request
+
+- [ ] PR review: verify the refactor is behaviour-preserving — query strings and error messages byte-identical, validation still ahead of `_issue_manager`, lazy import intact
+- [ ] PR summary prepared
