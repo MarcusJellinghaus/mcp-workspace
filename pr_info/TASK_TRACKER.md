@@ -35,9 +35,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 3: Prose enumerations become category descriptions — [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: replace the prose enumerations in `README.md` and `.claude/CLAUDE.md` with category descriptions, and add the seven missing rows to the per-tool table
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: replace the prose enumerations in `README.md` and `.claude/CLAUDE.md` with category descriptions, and add the seven missing rows to the per-tool table
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 
