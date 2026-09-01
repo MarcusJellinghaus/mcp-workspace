@@ -42,10 +42,9 @@ def get_reference_projects() -> Dict[str, Any]:
         Dictionary containing:
         - count: Number of available projects
         - projects: List of {"name", "url"} dicts, sorted by name
-        - usage: Instructions for next steps
+        - usage: Which tools accept a returned name as reference_name
 
-    Pass a name as reference_name to the reference file tools, git(), and the
-    GitHub read tools; issues can also be created, edited and commented on.
+    Read the returned usage value for how to use the names.
     """
     try:
         # Return structured dict instead of simple list because MCP tool responses
