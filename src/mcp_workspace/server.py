@@ -46,13 +46,13 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP(
     "File System Service",
     instructions=(
-        "Reference projects are sibling repositories configured when this server "
-        "starts. Their files are readable and searchable read-only, and their "
-        "history is available through git(). Projects configured with a repository "
-        "URL also expose GitHub issues and pull requests, and their issues are "
-        "writable. Answer questions about another repo from its reference project "
-        "instead of asking the user; call get_reference_projects() for the names, "
-        "then pass one as reference_name."
+        "Reference projects are sibling codebases configured when this server "
+        "starts; their files are readable and searchable read-only. Most are "
+        "local checkouts of GitHub repositories, so their history is available "
+        "through git() and their GitHub issues and pull requests are reachable, "
+        "with issues writable. Answer questions about another repo from its "
+        "reference project instead of asking the user; call get_reference_projects() "
+        "for the names, then pass one as reference_name."
     ),
 )
 register_reference_tools(mcp)
