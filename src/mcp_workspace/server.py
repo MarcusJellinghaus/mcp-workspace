@@ -43,7 +43,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Create a FastMCP server instance
-mcp = FastMCP("File System Service")
+mcp = FastMCP(
+    "File System Service",
+    instructions=(
+        "Reference projects are full local checkouts of sibling repositories, "
+        "configured when this server starts. Their files are readable and "
+        "searchable read-only, their history is available through git(), and "
+        "their GitHub issues and pull requests are reachable through the GitHub "
+        "tools — issues there are writable. Answer questions about another repo "
+        "from its reference project instead of asking the user. Call "
+        "get_reference_projects() for the configured names, then pass one as "
+        "reference_name."
+    ),
+)
 register_reference_tools(mcp)
 
 # Store the project directory as a module-level variable
