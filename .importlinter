@@ -13,6 +13,16 @@ root_package_paths =
     src
     .
 include_external_packages = True
+# Match tach's ignore_type_checking_imports, so an annotation-only import is not
+# reported as a dependency. The flag applies at graph-build time, so it governs
+# all nine contracts - including the six library-isolation ones and the
+# subprocess ban, which depend on external edges (include_external_packages).
+# Trade-off: a forbidden library import hidden inside a TYPE_CHECKING guard
+# would no longer be flagged. Nothing changes today - the only upward
+# TYPE_CHECKING imports in src/ are base_branch's two, and no module
+# type-checking-imports github/git/mcp/requests/subprocess outside its allowed
+# home.
+exclude_type_checking_imports = True
 
 # -----------------------------------------------------------------------------
 # Contract: Layered Architecture
@@ -37,9 +47,6 @@ layers =
     mcp_workspace.file_tools | mcp_workspace.github_operations | mcp_workspace.reference_projects
     mcp_workspace.git_operations | mcp_workspace.workflows
     mcp_workspace.config | mcp_workspace.constants | mcp_workspace.utils | mcp_workspace._ssl
-ignore_imports =
-    mcp_workspace.git_operations.base_branch -> mcp_workspace.github_operations.issues
-    mcp_workspace.git_operations.base_branch -> mcp_workspace.github_operations.pr_manager
 
 # -----------------------------------------------------------------------------
 # Contract: MCP Library Isolation
