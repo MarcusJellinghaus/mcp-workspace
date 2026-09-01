@@ -35,9 +35,12 @@ field.
 **2. Description by category replaces enumeration.** The twelve names collapse to
 "the reference file tools, `git()`, and the GitHub tools". This trades away literal-string
 discoverability (an agent grepping descriptions for `github_label_list` won't find it
-in the instructions block) for a list that cannot drift. Per-tool reference tables —
-`README.md:223-229` and the `.claude/CLAUDE.md` tool mapping table — are unaffected;
-a row per tool is their purpose.
+in the instructions block) for a list that cannot drift. The per-tool reference tables
+stay the place where every tool is named: the `.claude/CLAUDE.md` tool mapping table
+already lists all of them, and `README.md:223-229` gains the four rows it is missing
+(`github_label_list`, `github_issue_create`, `github_issue_edit`,
+`github_issue_comment`), which otherwise appear in `README.md` only in the passages
+steps 2 and 3 remove.
 
 **3. No new runtime state or code path.** The instructions text is a literal argument
 at construction. `mcp` is built at import time, before `run_server()` learns the
@@ -71,11 +74,14 @@ malfunction.
 
 ## Testing note
 
-Step 1 (the `instructions` argument) ships without an automated test, deliberately.
-The value is a literal passed at the constructor, so an `assert mcp.instructions`
-check would be close to tautological, and the meaningful verification — that a client
-actually surfaces the block — requires an MCP server restart, which no unit test
-reaches. Steps 2 and 3 are covered by the two existing expectations in
+Step 1 adds one content test in `tests/test_server.py`, read through the public
+`FastMCP.instructions` property (never `mcp._mcp_server`). Non-emptiness alone would be
+close to tautological, so the test asserts the rules the text has to satisfy: it
+mentions reference projects, contains no `github_*` or reference-file tool name, and
+contains no filesystem path. That automates three of the issue's verification bullets —
+a non-empty `instructions` argument, no individual tool names, no path. The fourth,
+that a client actually surfaces the block, still needs an MCP server restart, which no
+unit test reaches. Steps 2 and 3 are covered by the two existing expectations in
 `tests/test_reference_projects_mcp_tools.py`, updated test-first.
 
 **Verifying by hand needs an MCP server restart.** The description an agent sees comes
@@ -90,13 +96,15 @@ No new folders or modules. No new files outside `pr_info/`.
 | File | Step | Change |
 |---|---|---|
 | `src/mcp_workspace/server.py` | 1 | Line 47: pass `instructions=` to `FastMCP(...)` |
+| `tests/test_server.py` | 1 | New instructions-content test |
 | `src/mcp_workspace/server_reference_tools.py` | 2 | Lines 37-50 docstring; lines 78-84 `usage` value |
 | `tests/test_reference_projects_mcp_tools.py` | 2 | Lines 58-64 and 92-98: both `usage` expectations |
 | `README.md` | 2 | Line 383: quoted `usage` example |
 | `README.md` | 3 | Lines 35, 455, 460: prose enumerations and the count |
+| `README.md` | 3 | Lines 223-229: four rows added to the per-tool table |
 | `.claude/CLAUDE.md` | 3 | Line 61: prose enumeration |
 
-Unchanged on purpose: `README.md:223-229` (per-tool table), the `.claude/CLAUDE.md`
+Unchanged on purpose: the existing rows of `README.md:223-229`, the `.claude/CLAUDE.md`
 tool mapping table, `README.md:374` (the `projects` field description), the `count: 0`
 branch, `tests/LLM_Test.md` (asserts `usage` is a `str`, not its value), and
 `docs/ARCHITECTURE.md` (no layer or dependency changes).

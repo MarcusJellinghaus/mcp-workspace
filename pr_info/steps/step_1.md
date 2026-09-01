@@ -61,10 +61,33 @@ The text must satisfy, and each is checkable by reading it:
 
 ## Tests
 
-None. See the testing note in the summary: the value is a literal argument, so a
-non-emptiness assertion is near-tautological, and the real check needs a server restart
-that no unit test reaches. Do not add one, and do not reach for `mcp._mcp_server` to
-inspect it.
+One test, in `tests/test_server.py`. `FastMCP` exposes `instructions` as a public
+read-only property (`self._mcp_server.instructions`), so read `mcp.instructions` —
+never `mcp._mcp_server`. Assert the *content* rules the DATA section states, not mere
+non-emptiness:
+
+```python
+from mcp_workspace.server import mcp
+
+
+def test_server_instructions_describe_reference_projects() -> None:
+    """Server instructions advertise reference projects without naming tools or paths."""
+    text = mcp.instructions
+    assert text is not None
+    assert "reference project" in text.lower()
+    # Only git() and get_reference_projects() may be named; no tool roster
+    assert "github_" not in text
+    assert "read_reference_file" not in text
+    assert "search_reference_files" not in text
+    assert "list_reference_directory" not in text
+    # No filesystem path may reach the model
+    assert "\\" not in text and "/" not in text
+```
+
+This automates three of the issue's verification bullets: a non-empty `instructions`
+argument, no individual tool names in the text, and no filesystem path in it. What it
+cannot cover is the client actually surfacing the block — that still needs the manual
+restart below.
 
 ## Checks
 
@@ -84,10 +107,12 @@ the trap noted in the summary, not a code problem.
 
 > Read `pr_info/steps/summary.md` and `pr_info/steps/step_1.md`.
 >
-> Implement step 1: add a static `instructions=` argument to the `FastMCP(...)`
-> constructor at `src/mcp_workspace/server.py:47`, using the text and the inline
-> implicit-concatenation style given in the step. No module-level constant, no new
-> imports, no test — the step explains why the test is omitted.
+> Implement step 1 test-first: add the instructions-content test from the step to
+> `tests/test_server.py`, confirm it fails, then add the static `instructions=`
+> argument to the `FastMCP(...)` constructor at `src/mcp_workspace/server.py:47`,
+> using the text and the inline implicit-concatenation style given in the step. No
+> module-level constant, no new imports in `server.py`, and read `mcp.instructions`
+> (the public property) rather than `mcp._mcp_server`.
 >
 > Use the `mcp__mcp-workspace__*` tools for all file access. Then run
 > `run_format_code`, `run_pylint_check`, `run_pytest_check` with
