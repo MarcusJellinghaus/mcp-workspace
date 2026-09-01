@@ -43,3 +43,21 @@ I'll gather context first.`pr_info/steps/step_3.md:20` — high — The `README.
 Verdict(decision='tasks', tasks=["In pr_info/steps/step_3.md line 20, correct the README.md:35 replacement text so it does not claim all GitHub pull-request tools accept reference_name: scope it to the read tools plus issue writes, e.g. 'the GitHub issue, pull request, search and label read tools accept reference_name; issues can also be created, edited and commented on.'", "In pr_info/steps/step_3.md line 26, fix the README.md:455 replacement's opening sentence so it does not state that all GitHub tools take an optional reference_name — github_pr_create has no such parameter — and make it consistent with the bullet the same step writes at README.md:460."], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 4 — 2026-09-01
+**Findings**:
+I'll gather context first.`pr_info/steps/step_2.md:18` — high — New `usage` value ("Pass a name as reference_name to the reference file tools, git(), and the GitHub tools") is false as a category claim: `github_pr_create` has no `reference_name` parameter (`src/mcp_workspace/server.py:1464-1469`), and step 3 both adds a `github_pr_create` table row and writes the bullet "Any GitHub tool without a `reference_name` parameter targets the workspace repository" — so the plan contradicts itself and ships the same overclaim round 3 corrected in README prose, into four places (usage literal, docstring pointer at step_2.md:56, `README.md:383`, both test expectations). Scope it, e.g. "...the reference file tools, git(), and the GitHub read tools; issues can also be created, edited and commented on".
+
+`pr_info/steps/summary.md:36` — high — Same overclaimed category phrase ("the twelve names collapse to 'the reference file tools, `git()`, and the GitHub tools'") is the authoritative wording steps 2 and 3 copy; it must be corrected in step with `step_2.md:18` or the wrong string propagates to the source, README and tests.
+**Decisions**:
+Verdict(decision='tasks', tasks=["In pr_info/steps/step_2.md line 18, scope the new usage string so it does not claim all GitHub tools accept reference_name (github_pr_create does not), e.g. '...the reference file tools, git(), and the GitHub read tools; issues can also be created, edited and commented on', and propagate the corrected wording to the docstring pointer at step_2.md:56, the README.md:383 occurrence and both test expectations.", 'In pr_info/steps/summary.md line 36, update the authoritative collapsed phrase to match the corrected, scoped usage wording from step_2.md:18 so steps 2 and 3 copy the right string into the source, README and tests.'], escalate_reason=None)
+**Changes**:
+applied
+
+## Round 5 — 2026-09-01
+**Findings**:
+I'll gather context first.NO FINDINGS
+**Decisions**:
+Verdict(decision='dismiss', tasks=[], escalate_reason=None)
+**Changes**:
+dismiss
