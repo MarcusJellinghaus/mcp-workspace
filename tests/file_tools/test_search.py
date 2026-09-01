@@ -205,6 +205,37 @@ class TestSearchFilesGlobSemantics:
         assert result["total_files"] == 0
 
 
+class TestSearchFilesGlobValidation:
+    """Globs that cannot match anything by construction raise ValueError."""
+
+    @pytest.mark.parametrize("glob", ["", "   ", "#*.py", "!*.py", "[", "[a-", "a[b"])
+    def test_glob_matching_nothing_by_construction_raises(
+        self, project_dir: Path, glob: str
+    ) -> None:
+        """Blank, comment, negation-only and unterminated-class globs raise."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        with pytest.raises(ValueError, match="matches nothing by construction"):
+            search_files(project_dir, glob=glob)
+
+    def test_raise_happens_in_combined_mode_too(self, project_dir: Path) -> None:
+        """The raise precedes the content search when a pattern is also given."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        with pytest.raises(ValueError, match="matches nothing by construction"):
+            search_files(project_dir, glob="", pattern="x")
+
+    @pytest.mark.parametrize("glob", ["!", "a\\"])
+    def test_malformed_glob_still_raises_value_error(
+        self, project_dir: Path, glob: str
+    ) -> None:
+        """Globs pathspec rejects outright keep raising a ValueError subclass."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        with pytest.raises(ValueError):
+            search_files(project_dir, glob=glob)
+
+
 class TestSearchFilesContentSearch:
     """Tests for content search (regex) and combined modes."""
 

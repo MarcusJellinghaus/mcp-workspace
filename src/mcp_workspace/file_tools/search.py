@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pathspec import PathSpec
+from pathspec import PathSpec, RegexPattern
 
 from mcp_workspace.file_tools.directory_utils import list_files
 from mcp_workspace.file_tools.path_utils import normalize_path
@@ -14,6 +14,41 @@ from mcp_workspace.file_tools.path_utils import normalize_path
 # lines and a single pathological line must not crowd out the rest. Callers
 # who need a full line read the file at the reported line number.
 _MAX_LINE_CHARS = 500
+
+
+def _match_glob(glob: str, files: List[str]) -> List[str]:
+    """Match project-relative paths against a gitignore-semantics glob.
+
+    Args:
+        glob: Glob pattern, interpreted with gitignore/wildmatch semantics.
+        files: Project-relative paths to filter.
+
+    Returns:
+        The subset of ``files`` matching ``glob``.
+
+    Raises:
+        ValueError: If the pattern cannot match anything by construction —
+            a gitignore comment, a blank line, a negation-only pattern, or a
+            pattern pathspec cannot compile (such as an unterminated ``[``).
+    """
+    win32 = sys.platform == "win32"
+    spec = PathSpec.from_lines("gitwildmatch", [glob.lower() if win32 else glob])
+
+    usable = any(
+        isinstance(p, RegexPattern) and p.regex is not None and p.include
+        for p in spec.patterns
+    )
+    if not usable:
+        raise ValueError(
+            f"Glob pattern {glob!r} matches nothing by construction "
+            "(gitignore comment, blank, negation-only, or unparseable pattern)"
+        )
+
+    def _norm(p: str) -> str:
+        slashed = p.replace("\\", "/")
+        return slashed.lower() if win32 else slashed
+
+    return [f for f in files if spec.match_file(_norm(f))]
 
 
 def _search_content(
@@ -116,25 +151,16 @@ def search_files(
         Dictionary with search results.
 
     Raises:
-        ValueError: If neither glob nor pattern is provided.
+        ValueError: If neither glob nor pattern is provided, or if the glob
+            matches nothing by construction (gitignore comment, blank,
+            negation-only, or unparseable pattern).
     """
     if glob is None and pattern is None:
         raise ValueError("At least one of 'glob' or 'pattern' must be provided")
 
     all_files = list_files(".", project_dir=project_dir, use_gitignore=True)
 
-    if glob is not None:
-        win32 = sys.platform == "win32"
-        norm_glob = glob.lower() if win32 else glob
-        spec = PathSpec.from_lines("gitwildmatch", [norm_glob])
-
-        def _norm(p: str) -> str:
-            slashed = p.replace("\\", "/")
-            return slashed.lower() if win32 else slashed
-
-        matched = [f for f in all_files if spec.match_file(_norm(f))]
-    else:
-        matched = all_files
+    matched = _match_glob(glob, all_files) if glob is not None else all_files
 
     # Content search mode: pattern provided
     if pattern is not None:

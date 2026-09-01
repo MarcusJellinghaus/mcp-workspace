@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: Raise on globs that match nothing by construction — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: add `TestSearchFilesGlobValidation` tests, extract `_match_glob(glob, files)` in `search.py` with the single `ValueError` condition, update `search_files` `Raises:`, raise the `pathspec` floor to `>=1.1.1` in `pyproject.toml`
-- [ ] Quality checks: pylint, pytest (`-n auto`), mypy, ruff — fix all issues
-- [ ] Commit message prepared: `fix(search): raise on globs that match nothing by construction`
+- [x] Implementation: add `TestSearchFilesGlobValidation` tests, extract `_match_glob(glob, files)` in `search.py` with the single `ValueError` condition, update `search_files` `Raises:`, raise the `pathspec` floor to `>=1.1.1` in `pyproject.toml`
+- [x] Quality checks: pylint, pytest (`-n auto`), mypy, ruff — fix all issues
+- [x] Commit message prepared: `fix(search): raise on globs that match nothing by construction`
 
 ### Step 3: `glob_note` for brace globs that match no files — [step_3.md](./steps/step_3.md)
 
