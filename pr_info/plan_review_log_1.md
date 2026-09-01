@@ -17,3 +17,19 @@ I'll gather context first.`pr_info/steps/step_3.md:52` — high — Claim "both 
 Verdict(decision='tasks', tasks=["In pr_info/steps/step_3.md, fix the incorrect premise at line 52: add the four missing rows (github_label_list, github_issue_create, github_issue_edit, github_issue_comment) to the README per-tool table at README.md:223-229 so the tools remain named somewhere in README after steps 2+3, and update the step's claim text accordingly.", "In pr_info/steps/summary.md, update line 99 ('Unchanged on purpose: README.md:223-229') and the file table at lines 90-97 to reflect that the README per-tool table is now modified by step 3.", "In pr_info/steps/step_1.md, replace 'Tests: None' with an automated test using the public FastMCP.instructions property asserting the instructions text mentions reference projects, contains no github_* tool enumeration, and contains no filesystem path; drop the '_mcp_server' framing that implied no public accessor exists.", "In pr_info/steps/summary.md line 74, replace the 'no automated test' rationale with the step 1 instructions-content test now planned, noting which of the issue's verification bullets it automates."], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 2 — 2026-09-01
+**Findings**:
+I'll gather context first.`pr_info/steps/step_3.md:51` — high — The "four missing rows" set is incomplete. `search_reference_files` and `git` appear in `README.md` **only** at line 383 (the quoted `usage` string step 2 rewrites), and `github_pr_create` appears **only** at line 460 (the bullet step 3 rewrites); verified by grep. After steps 2+3 all three vanish from README entirely — the same regression round 1 flagged for the four GitHub tools, unfixed for these three.
+
+`pr_info/steps/summary.md:40` — medium — Restates the same incomplete premise ("gains the four rows it is missing ... which otherwise appear in `README.md` only in the passages steps 2 and 3 remove"); the row set and this sentence both need `search_reference_files`, `git` and `github_pr_create` accounted for.
+
+`pr_info/steps/step_1.md:84` — low — `assert "\\" not in text and "/" not in text` is a brittle proxy for "no filesystem path": it also rejects legitimate slashes (`read/write`, `owner/repo`, any URL), so harmless rewording of the instructions breaks the test for a reason unrelated to the constraint.
+
+`pr_info/steps/step_2.md:15` — low — "used verbatim in all four places" contradicts the docstring variant at lines 56-57, which ends with a period while the other three do not.
+
+`pr_info/steps/step_2.md:48` — low — The docstring summary stays "Get available reference project names" while the same edit corrects `projects` from "List of project names" to `{"name", "url"}` dicts; the summary line carries the identical inaccuracy the issue asks to fix.
+**Decisions**:
+Verdict(decision='tasks', tasks=['In pr_info/steps/step_3.md, extend the README per-tool table row set beyond the four GitHub tools: also add rows for search_reference_files, git and github_pr_create, which otherwise disappear from README once step 2 rewrites the usage string at README.md:383 and step 3 rewrites the bullet at README.md:460.', "In pr_info/steps/summary.md line 40, correct the premise sentence to cover all seven tools (the four GitHub write/label tools plus search_reference_files, git and github_pr_create) rather than only 'the four rows it is missing'."], escalate_reason=None)
+**Changes**:
+applied

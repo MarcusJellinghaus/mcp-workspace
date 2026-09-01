@@ -17,13 +17,13 @@ One commit, documentation only. Read [summary.md](./summary.md) first.
 ### `README.md:35`
 
 ```markdown
-- Cross-repo GitHub access: the GitHub issue, pull request, search and label tools accept `reference_name`
+- Cross-repo GitHub access: the GitHub issue, pull request, search and label read tools accept `reference_name`; issues can also be created, edited and commented on
 ```
 
 ### `README.md:455`
 
 ```markdown
-The GitHub tools take an optional `reference_name`. Without it they act on the workspace repository; with it they act on the named reference project instead. Issues, pull requests, searches and labels can be read there; issues can also be created, edited and commented on.
+The GitHub tools that take an optional `reference_name` act on the workspace repository without it, and on the named reference project with it. Issues, pull requests, searches and labels can be read there; issues can also be created, edited and commented on.
 ```
 
 Keep the read/write distinction — it is the load-bearing fact — but carry it on the
