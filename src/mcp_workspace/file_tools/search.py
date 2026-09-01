@@ -159,9 +159,15 @@ def search_files(
 
     Args:
         project_dir: Project root directory.
-        glob: Glob pattern (gitignore semantics). Examples:
-            ``*.py`` (any .py at any depth), ``tests/**/test_*.py``,
-            ``/README.md`` (root only).
+        glob: Glob pattern with gitignore/wildmatch semantics. Examples:
+            ``*.py`` (unanchored — any .py at any depth, unlike a shell
+            glob), ``tests/**/test_*.py``, ``/README.md`` (root only).
+            Brace expansion is NOT supported: ``{a,b}/f.py`` matches a
+            literal ``{a,b}`` directory. Issue one call per alternative, or
+            widen to ``*`` and filter. On Windows, matching is
+            case-insensitive by design, so a glob cannot detect a filename
+            casing mismatch — use ``git ls-files``, which reports the name as
+            recorded in the index.
         pattern: Python regex to match file contents. Invalid regex patterns
             are automatically treated as literal text.
             (e.g. "def foo", "TODO.*fix")
@@ -170,7 +176,9 @@ def search_files(
         max_result_lines: Maximum total lines in result output.
 
     Returns:
-        Dictionary with search results.
+        Dictionary with search results. Carries a ``glob_note`` key when the
+        glob matched no files and contains ``{``, which wildmatch treats
+        literally, distinguishing that from a genuine no-such-file result.
 
     Raises:
         ValueError: If neither glob nor pattern is provided, or if the glob

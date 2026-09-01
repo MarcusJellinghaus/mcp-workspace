@@ -195,7 +195,15 @@ async def search_reference_files(
 
     Args:
         reference_name: Name of the reference project
-        glob: File path pattern (e.g. "**/*.py", "tests/**/test_*.py")
+        glob: File path pattern with gitignore/wildmatch semantics — e.g.
+            "**/*.py", "tests/**/test_*.py", "/README.md" (root only).
+            Brace expansion is NOT supported: "{a,b}/f.py" matches a literal
+            "{a,b}" directory. Issue one call per alternative, or widen to
+            "*" and filter. A bare "*.py" is unanchored and matches at
+            any depth, unlike a shell glob. On Windows, matching is
+            case-insensitive by design, so a glob cannot detect a filename
+            casing mismatch — use `git ls-files`, which reports the name as
+            recorded in the index.
         pattern: Python regex to match file contents. Invalid regex patterns are
             automatically treated as literal text. (e.g. "def foo", "TODO.*fix")
         context_lines: Lines of context around each match (0 = match line only)
@@ -205,6 +213,14 @@ async def search_reference_files(
     Returns:
         Dict with matches (content search) or file list (file search),
         plus truncated flag if results were capped.
+        Adds a "glob_note" key when the glob matched no files and contains
+        "{", which wildmatch treats literally, distinguishing that from a
+        genuine no-such-file result.
+
+    Raises:
+        ValueError: If the glob matches nothing by construction (a gitignore
+            comment, blank, negation-only, or unparseable pattern such as an
+            unterminated "[").
     """
     ref_path = await get_reference_project_path(reference_name)
 

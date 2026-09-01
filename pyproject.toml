@@ -109,9 +109,11 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["D", "DOC"]
 # DOC502: these modules document exceptions propagated from OS/git/GitHub
-# calls (PermissionError, GitCommandError, ...) — useful docs, keep them.
+# calls or delegated utils (PermissionError, GitCommandError, ValueError,
+# ...) — useful docs, keep them.
 "src/mcp_workspace/file_tools/file_operations.py" = ["DOC502"]
 "src/mcp_workspace/git_operations/read_operations.py" = ["DOC502"]
+"src/mcp_workspace/server_reference_tools.py" = ["DOC502"]
 "src/mcp_workspace/main.py" = ["DOC502"]
 "src/mcp_workspace/workflows/task_tracker.py" = ["DOC502"]
 

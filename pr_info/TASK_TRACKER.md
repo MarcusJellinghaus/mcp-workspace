@@ -41,9 +41,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 4: Document glob semantics in all three docstrings — [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: create `tests/test_tool_descriptions.py` guard test, write the four documented behaviours plus `glob_note` and `Raises:` into the `server.search_files`, `server_reference_tools.search_reference_files`, and `file_tools.search.search_files` docstrings; add DOC502 `per-file-ignores` if ruff fires
-- [ ] Quality checks: pylint, pytest (`-n auto`), mypy, ruff — fix all issues
-- [ ] Commit message prepared: `docs(search): document glob semantics in tool descriptions`
+- [x] Implementation: create `tests/test_tool_descriptions.py` guard test, write the four documented behaviours plus `glob_note` and `Raises:` into the `server.search_files`, `server_reference_tools.search_reference_files`, and `file_tools.search.search_files` docstrings; add DOC502 `per-file-ignores` if ruff fires
+- [x] Quality checks: pylint, pytest (`-n auto`), mypy, ruff — fix all issues
+- [x] Commit message prepared: `docs(search): document glob semantics in tool descriptions`
 
 ## Pull Request
 
