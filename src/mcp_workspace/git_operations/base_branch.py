@@ -15,7 +15,9 @@ from mcp_workspace.git_operations.branch_queries import (
     extract_issue_number_from_branch,
     get_current_branch_name,
     get_default_branch_name,
+    remote_branch_exists,
 )
+from mcp_workspace.git_operations.core import safe_repo_context
 from mcp_workspace.git_operations.parent_branch_detection import (
     MERGE_BASE_DISTANCE_THRESHOLD,
     detect_parent_branch_via_merge_base,
@@ -112,6 +114,38 @@ def _detect_from_pr(
     return None
 
 
+# Suppress git's own terminal credential prompt so ls-remote does not wait on
+# a human. Passed per call via the `env=` kwarg so nothing leaks into the
+# shared Git object's environment.
+_LS_REMOTE_ENV = {"GIT_TERMINAL_PROMPT": "0"}
+
+
+def _origin_still_has_branch(project_dir: Path, branch_name: str) -> Optional[bool]:
+    """Ask origin whether a branch still exists there.
+
+    Args:
+        project_dir: Path to git repository
+        branch_name: Branch name to look for (without 'origin/' prefix)
+
+    Returns:
+        True if origin still lists the branch, False if origin answered and the
+        branch is gone, None if the question could not be answered.
+    """
+    try:
+        with safe_repo_context(project_dir) as repo:
+            # The full ref, not the bare name: 'feature-A' would also match an
+            # unrelated 'refs/heads/team/feature-A' and mask the deletion.
+            output = str(
+                repo.git.ls_remote(
+                    "--heads", "origin", f"refs/heads/{branch_name}", env=_LS_REMOTE_ENV
+                )
+            )
+            return bool(output.strip())
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.debug("Could not ask origin about branch '%s': %s", branch_name, e)
+        return None
+
+
 def _detect_from_merge_base(
     project_dir: Path,
     current_branch: str,
@@ -123,15 +157,33 @@ def _detect_from_merge_base(
         current_branch: Current branch name
 
     Returns:
-        Parent branch name, or None if not found within threshold
+        Parent branch name, or None if no candidate was found within the
+        threshold, or the winning candidate was discarded because origin no
+        longer has that branch (the caller then falls back to the default
+        branch).
     """
     result = detect_parent_branch_via_merge_base(
         project_dir,
         current_branch,
         distance_threshold=MERGE_BASE_DISTANCE_THRESHOLD,
     )
-    if result:
-        logger.debug("Detected base branch from merge-base: '%s'", result)
+    if not result:
+        return None
+    logger.debug("Merge-base elected candidate branch: '%s'", result)
+
+    # Never pushed: an empty ls-remote answer would be ambiguous, so don't ask.
+    if not remote_branch_exists(project_dir, result):
+        return result
+
+    # Without a resolvable default branch there is nothing better to fall back
+    # to, and a "gone" verdict would cascade into base_branch="unknown".
+    default = get_default_branch_name(project_dir)
+    if default is None or default == result:
+        return result
+
+    if _origin_still_has_branch(project_dir, result) is False:
+        logger.debug("Discarding merge-base winner '%s': deleted on origin", result)
+        return None
     return result
 
 
