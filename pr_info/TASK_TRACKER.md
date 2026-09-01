@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: Shrink the docstring and the `usage` value — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: update both `usage` expectations in `tests/test_reference_projects_mcp_tools.py`, then the docstring and `usage` value in `src/mcp_workspace/server_reference_tools.py` and the example in `README.md`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: update both `usage` expectations in `tests/test_reference_projects_mcp_tools.py`, then the docstring and `usage` value in `src/mcp_workspace/server_reference_tools.py` and the example in `README.md`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: Prose enumerations become category descriptions — [step_3.md](./steps/step_3.md)
 

@@ -380,7 +380,7 @@ get_reference_projects()
 # Returns: {
 #   "count": 3,
 #   "projects": [{"name": "docs", "url": "https://github.com/org/docs"}, ...],
-#   "usage": "Use these 3 projects with list_reference_directory(), read_reference_file(), search_reference_files(), git(), github_issue_view(), github_issue_list(), github_pr_view(), github_search(), github_label_list(), github_issue_create(), github_issue_edit(), and github_issue_comment()"
+#   "usage": "Pass a name as reference_name to the reference file tools, git(), and the GitHub read tools; issues can also be created, edited and commented on"
 # }
 ```
 
