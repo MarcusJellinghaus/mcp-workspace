@@ -145,6 +145,174 @@ class TestSearchFilesGlobOnly:
         assert "debug.log" not in matched_names
 
 
+class TestSearchFilesGlobSemantics:
+    """Pins gitignore/wildmatch glob semantics that callers rely on."""
+
+    def test_trailing_slash_matches_files_beneath(self, project_dir: Path) -> None:
+        """``src/`` matches files under the directory, not siblings of it."""
+        src = project_dir / "src"
+        src.mkdir()
+        (src / "a.py").write_text("x = 1\n")
+        (project_dir / "root.py").write_text("z = 3\n")
+
+        result = search_files(project_dir, glob="src/")
+
+        matched_basenames = {Path(f).name for f in result["files"]}
+        assert "a.py" in matched_basenames
+        assert "root.py" not in matched_basenames
+
+    @pytest.mark.parametrize("glob", ["[!a]*.py", "[^a]*.py"])
+    def test_character_class_negation(self, project_dir: Path, glob: str) -> None:
+        """Both ``[!a]`` and ``[^a]`` negate the character class."""
+        (project_dir / "a.py").write_text("x = 1\n")
+        (project_dir / "b.py").write_text("y = 2\n")
+
+        result = search_files(project_dir, glob=glob)
+
+        matched_basenames = {Path(f).name for f in result["files"]}
+        assert "b.py" in matched_basenames
+        assert "a.py" not in matched_basenames
+
+    def test_double_star_matches_everything_below_prefix(
+        self, project_dir: Path
+    ) -> None:
+        """``src/**`` matches at every depth below ``src``, and nothing outside it."""
+        deep = project_dir / "src" / "deep"
+        deep.mkdir(parents=True)
+        (project_dir / "src" / "a.py").write_text("x = 1\n")
+        (deep / "b.py").write_text("y = 2\n")
+        (project_dir / "root.py").write_text("z = 3\n")
+
+        result = search_files(project_dir, glob="src/**")
+
+        matched_basenames = {Path(f).name for f in result["files"]}
+        assert "a.py" in matched_basenames
+        assert "b.py" in matched_basenames
+        assert "root.py" not in matched_basenames
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX-only")
+    def test_glob_is_case_sensitive_on_posix(self, project_dir: Path) -> None:
+        """On POSIX, ``README.md`` does not match ``readme.md``.
+
+        Companion to ``test_windows_case_insensitive_match_preserved`` in
+        ``TestSearchFilesGlobOnly``: the same glob differs by platform.
+        """
+        (project_dir / "readme.md").write_text("# docs\n")
+
+        result = search_files(project_dir, glob="README.md")
+
+        assert result["files"] == []
+        assert result["total_files"] == 0
+
+
+class TestSearchFilesGlobValidation:
+    """Globs that cannot match anything by construction raise ValueError."""
+
+    @pytest.mark.parametrize("glob", ["", "   ", "#*.py", "!*.py", "[", "[a-", "a[b"])
+    def test_glob_matching_nothing_by_construction_raises(
+        self, project_dir: Path, glob: str
+    ) -> None:
+        """Blank, comment, negation-only and unterminated-class globs raise."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        with pytest.raises(ValueError, match="matches nothing by construction"):
+            search_files(project_dir, glob=glob)
+
+    def test_raise_happens_in_combined_mode_too(self, project_dir: Path) -> None:
+        """The raise precedes the content search when a pattern is also given."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        with pytest.raises(ValueError, match="matches nothing by construction"):
+            search_files(project_dir, glob="", pattern="x")
+
+    @pytest.mark.parametrize("glob", ["!", "a\\"])
+    def test_malformed_glob_still_raises_value_error(
+        self, project_dir: Path, glob: str
+    ) -> None:
+        """Globs pathspec rejects outright keep raising a ValueError subclass."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        with pytest.raises(ValueError):
+            search_files(project_dir, glob=glob)
+
+
+class TestSearchFilesGlobNote:
+    """Brace globs that match no files carry an explanatory ``glob_note``."""
+
+    def test_brace_glob_with_no_matches_returns_note(self, project_dir: Path) -> None:
+        """A brace glob matching nothing is flagged as unsupported expansion."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        result = search_files(project_dir, glob="{a,b}/f.py")
+
+        assert result["total_files"] == 0
+        assert "brace expansion" in result["glob_note"].lower()
+
+    def test_brace_glob_note_in_content_search_mode(self, project_dir: Path) -> None:
+        """The note is attached in content search mode too."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        result = search_files(project_dir, glob="**/*.{md,json}", pattern="x")
+
+        assert result["mode"] == "content_search"
+        assert "brace expansion" in result["glob_note"].lower()
+
+    def test_escaped_brace_also_returns_note(self, project_dir: Path) -> None:
+        """An escaped brace compiles identically and is flagged the same way."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        result = search_files(project_dir, glob="\\{a,b}/f.py")
+
+        assert result["total_files"] == 0
+        assert "brace expansion" in result["glob_note"].lower()
+
+    def test_brace_glob_that_matches_files_has_no_note(self, project_dir: Path) -> None:
+        """Braces that are real filename characters are left alone."""
+        braced = project_dir / "{a,b}"
+        braced.mkdir()
+        (braced / "f.py").write_text("x = 1\n")
+
+        result = search_files(project_dir, glob="{a,b}/f.py")
+
+        assert result["total_files"] == 1
+        assert "glob_note" not in result
+
+    def test_glob_note_absent_when_glob_matched_but_pattern_did_not(
+        self, project_dir: Path
+    ) -> None:
+        """A zero-match content search does not trigger the glob note."""
+        braced = project_dir / "{a,b}"
+        braced.mkdir()
+        (braced / "f.py").write_text("x = 1\n")
+
+        result = search_files(
+            project_dir, glob="{a,b}/f.py", pattern="zzz_no_match_zzz"
+        )
+
+        assert result["total_matches"] == 0
+        assert "glob_note" not in result
+
+    def test_plain_glob_with_no_matches_has_no_note(self, project_dir: Path) -> None:
+        """A brace-free glob with zero matches is a genuine absence."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        result = search_files(project_dir, glob="**/*.nonexistent_xyz")
+
+        assert result["total_files"] == 0
+        assert "glob_note" not in result
+
+    def test_closed_character_class_with_no_matches_has_no_note(
+        self, project_dir: Path
+    ) -> None:
+        """A well-formed character class works; its zero matches are genuine."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        result = search_files(project_dir, glob="[!a]*.nonexistent_xyz")
+
+        assert result["total_files"] == 0
+        assert "glob_note" not in result
+
+
 class TestSearchFilesContentSearch:
     """Tests for content search (regex) and combined modes."""
 

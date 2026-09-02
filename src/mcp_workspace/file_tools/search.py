@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pathspec import PathSpec
+from pathspec import PathSpec, RegexPattern
 
 from mcp_workspace.file_tools.directory_utils import list_files
 from mcp_workspace.file_tools.path_utils import normalize_path
@@ -14,6 +14,63 @@ from mcp_workspace.file_tools.path_utils import normalize_path
 # lines and a single pathological line must not crowd out the rest. Callers
 # who need a full line read the file at the reported line number.
 _MAX_LINE_CHARS = 500
+
+# Braces are the one silent-zero case that cannot raise: gitwildmatch compiles
+# them to a valid regex matching them literally, and directories literally named
+# '{{cookiecutter.project_slug}}' are real. Detection is textual, so the caller
+# gets a note rather than an error.
+_BRACE_NOTE = (
+    "Glob matched no files and contains '{'. Brace expansion is not supported — "
+    "patterns use gitignore/wildmatch semantics, where braces are literal. "
+    "Issue one call per alternative, or widen to '*' and filter the results."
+)
+
+
+def _glob_note(glob: str) -> Optional[str]:
+    """Explain a zero-match glob when its braces are the likely cause.
+
+    Args:
+        glob: Glob pattern that matched no files.
+
+    Returns:
+        ``_BRACE_NOTE`` if the pattern contains a brace, else ``None``.
+    """
+    return _BRACE_NOTE if "{" in glob else None
+
+
+def _match_glob(glob: str, files: List[str]) -> List[str]:
+    """Match project-relative paths against a gitignore-semantics glob.
+
+    Args:
+        glob: Glob pattern, interpreted with gitignore/wildmatch semantics.
+        files: Project-relative paths to filter.
+
+    Returns:
+        The subset of ``files`` matching ``glob``.
+
+    Raises:
+        ValueError: If the pattern cannot match anything by construction —
+            a gitignore comment, a blank line, a negation-only pattern, or a
+            pattern pathspec cannot compile (such as an unterminated ``[``).
+    """
+    win32 = sys.platform == "win32"
+    spec = PathSpec.from_lines("gitwildmatch", [glob.lower() if win32 else glob])
+
+    usable = any(
+        isinstance(p, RegexPattern) and p.regex is not None and p.include
+        for p in spec.patterns
+    )
+    if not usable:
+        raise ValueError(
+            f"Glob pattern {glob!r} matches nothing by construction "
+            "(gitignore comment, blank, negation-only, or unparseable pattern)"
+        )
+
+    def _norm(p: str) -> str:
+        slashed = p.replace("\\", "/")
+        return slashed.lower() if win32 else slashed
+
+    return [f for f in files if spec.match_file(_norm(f))]
 
 
 def _search_content(
@@ -102,9 +159,15 @@ def search_files(
 
     Args:
         project_dir: Project root directory.
-        glob: Glob pattern (gitignore semantics). Examples:
-            ``*.py`` (any .py at any depth), ``tests/**/test_*.py``,
-            ``/README.md`` (root only).
+        glob: Glob pattern with gitignore/wildmatch semantics. Examples:
+            ``*.py`` (unanchored — any .py at any depth, unlike a shell
+            glob), ``tests/**/test_*.py``, ``/README.md`` (root only).
+            Brace expansion is NOT supported: ``{a,b}/f.py`` matches a
+            literal ``{a,b}`` directory. Issue one call per alternative, or
+            widen to ``*`` and filter. On Windows, matching is
+            case-insensitive by design, so a glob cannot detect a filename
+            casing mismatch — use ``git ls-files``, which reports the name as
+            recorded in the index.
         pattern: Python regex to match file contents. Invalid regex patterns
             are automatically treated as literal text.
             (e.g. "def foo", "TODO.*fix")
@@ -113,28 +176,22 @@ def search_files(
         max_result_lines: Maximum total lines in result output.
 
     Returns:
-        Dictionary with search results.
+        Dictionary with search results. Carries a ``glob_note`` key when the
+        glob matched no files and contains ``{``, which wildmatch treats
+        literally, distinguishing that from a genuine no-such-file result.
 
     Raises:
-        ValueError: If neither glob nor pattern is provided.
+        ValueError: If neither glob nor pattern is provided, or if the glob
+            matches nothing by construction (gitignore comment, blank,
+            negation-only, or unparseable pattern).
     """
     if glob is None and pattern is None:
         raise ValueError("At least one of 'glob' or 'pattern' must be provided")
 
     all_files = list_files(".", project_dir=project_dir, use_gitignore=True)
 
-    if glob is not None:
-        win32 = sys.platform == "win32"
-        norm_glob = glob.lower() if win32 else glob
-        spec = PathSpec.from_lines("gitwildmatch", [norm_glob])
-
-        def _norm(p: str) -> str:
-            slashed = p.replace("\\", "/")
-            return slashed.lower() if win32 else slashed
-
-        matched = [f for f in all_files if spec.match_file(_norm(f))]
-    else:
-        matched = all_files
+    matched = _match_glob(glob, all_files) if glob is not None else all_files
+    glob_note = _glob_note(glob) if glob is not None and not matched else None
 
     # Content search mode: pattern provided
     if pattern is not None:
@@ -159,6 +216,8 @@ def search_files(
 
         if note is not None:
             result["note"] = note
+        if glob_note is not None:
+            result["glob_note"] = glob_note
 
         return result
 
@@ -166,9 +225,13 @@ def search_files(
     total = len(matched)
     truncated = total > max_results
 
-    return {
+    file_result: Dict[str, Any] = {
         "mode": "file_search",
         "files": matched[:max_results],
         "total_files": total,
         "truncated": truncated,
     }
+    if glob_note is not None:
+        file_result["glob_note"] = glob_note
+
+    return file_result
