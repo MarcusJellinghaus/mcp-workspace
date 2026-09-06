@@ -483,7 +483,7 @@ Reports files whose line count exceeds a threshold.
 **Features:**
 - Counts lines in every UTF-8 file under the project directory — all file types, tracked or not — excluding `.git/` and anything the project-root `.gitignore` matches. Nested `.gitignore` files are not read
 - Files listed in `.large-files-allowlist` (one path per line, `#` comments allowed) are exempt; entries are matched as exact paths, not globs
-- Allowlist entries that no longer exceed the threshold are reported as stale
+- Allowlist entries are reported as stale when the file no longer exceeds the threshold, and also when it is missing, binary/non-UTF-8, or matched by `.gitignore` — for example after a rename or a typo in the entry
 - The violations list and the stale-entries list are each capped at 50 with a `showing X of Y` notice; the caps are internal and there is no parameter to lift them
 
 ## Security Features

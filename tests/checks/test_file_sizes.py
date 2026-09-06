@@ -193,7 +193,7 @@ class TestRenderOutput:
         assert notice in output
         assert "Stale allowlist entries (312):" in output
         assert output.splitlines()[-1] == notice
-        assert "largest" not in notice
+        assert "largest" not in output
 
     def test_both_caps_fire(self) -> None:
         result = CheckResult(
