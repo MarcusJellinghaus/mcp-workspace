@@ -1531,6 +1531,10 @@ def get_base_branch() -> str:
 def check_file_size(max_lines: Optional[int] = None) -> str:
     """Check file line counts against threshold.
 
+    Counts lines in every UTF-8 file under the project directory — all file
+    types, tracked or not — excluding `.git/` and anything the project-root
+    `.gitignore` matches. Nested `.gitignore` files are not read.
+
     Args:
         max_lines: Maximum allowed lines per file. When omitted, the default
             comes from the server's --file-size-limit flag, falling back to

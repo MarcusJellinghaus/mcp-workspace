@@ -9,6 +9,16 @@ from mcp_workspace.file_tools.directory_utils import list_files
 
 logger = logging.getLogger(__name__)
 
+# The 50-violation cap is deliberate: check_file_size has no lift parameter and
+# is not getting one. Callers narrow instead - the allowlist takes exact paths
+# only, so .gitignore is what excludes a vendored tree from the scan.
+_MAX_REPORT_VIOLATIONS = 50
+
+# The 50-entry cap is deliberate: check_file_size has no lift parameter and is
+# not getting one. There is no narrowing alternative here - the entries come
+# from the allowlist file, so shortening that file is the only remedy.
+_MAX_STALE_ENTRIES = 50
+
 
 @dataclass
 class FileMetrics:
@@ -162,9 +172,14 @@ def render_output(result: CheckResult, max_lines: int) -> str:
         )
         lines.append("")
         lines.append("Violations:")
-        for v in result.violations:
+        for v in result.violations[:_MAX_REPORT_VIOLATIONS]:
             display_path = str(v.path).replace("\\", "/")
             lines.append(f"  - {display_path}: {v.line_count} lines")
+        if count > _MAX_REPORT_VIOLATIONS:
+            lines.append(
+                f"  ... showing {_MAX_REPORT_VIOLATIONS} of {count}"
+                " violations (largest first)"
+            )
         lines.append("")
         lines.append(
             "Consider refactoring these files or adding them to the allowlist."
@@ -174,9 +189,14 @@ def render_output(result: CheckResult, max_lines: int) -> str:
         lines.append(f"\nAllowlisted files: {result.allowlisted_count}")
 
     if result.stale_entries:
-        lines.append(f"\nStale allowlist entries ({len(result.stale_entries)}):")
-        for entry in result.stale_entries:
+        stale_count = len(result.stale_entries)
+        lines.append(f"\nStale allowlist entries ({stale_count}):")
+        for entry in result.stale_entries[:_MAX_STALE_ENTRIES]:
             lines.append(f"  - {entry}")
+        if stale_count > _MAX_STALE_ENTRIES:
+            lines.append(
+                f"  ... showing {_MAX_STALE_ENTRIES} of {stale_count} stale entries"
+            )
 
     return "\n".join(lines)
 

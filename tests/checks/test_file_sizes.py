@@ -2,10 +2,13 @@
 
 import os
 from pathlib import Path
+from typing import List
 
 import pytest
 
 from mcp_workspace.checks.file_sizes import (
+    _MAX_REPORT_VIOLATIONS,
+    _MAX_STALE_ENTRIES,
     CheckResult,
     FileMetrics,
     check_file_sizes,
@@ -30,6 +33,14 @@ def _write_file(base: Path, rel: str, lines: int) -> Path:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text("\n".join(f"line {i}" for i in range(lines)) + "\n", encoding="utf-8")
     return p
+
+
+def _metrics(count: int) -> List[FileMetrics]:
+    """Helper: build *count* violations, largest first."""
+    return [
+        FileMetrics(path=Path(f"src/f{i}.py"), line_count=1000 - i)
+        for i in range(count)
+    ]
 
 
 class TestCountLines:
@@ -158,6 +169,77 @@ class TestRenderOutput:
         output = render_output(result, max_lines=600)
         assert "Allowlisted" in output
         assert "2" in output
+
+    def test_violations_capped_at_50(self) -> None:
+        result = CheckResult(passed=False, violations=_metrics(845))
+        output = render_output(result, max_lines=600)
+        notice = "  ... showing 50 of 845 violations (largest first)"
+        output_lines = output.splitlines()
+        assert notice in output_lines
+        item_lines = [line for line in output_lines if line.startswith("  - ")]
+        assert len(item_lines) == 50
+        # The notice follows the last item directly, then the blank line and remedy.
+        notice_index = output_lines.index(notice)
+        assert output_lines[notice_index - 1] == "  - src/f49.py: 951 lines"
+        assert output_lines[notice_index + 1 :] == [
+            "",
+            "Consider refactoring these files or adding them to the allowlist.",
+        ]
+        assert "845 file(s) exceed" in output
+        assert "src/f50.py" not in output
+
+    def test_stale_entries_capped_at_50(self) -> None:
+        result = CheckResult(
+            passed=True,
+            total_files_checked=5,
+            stale_entries=[f"old{i:03d}.py" for i in range(312)],
+        )
+        output = render_output(result, max_lines=600)
+        notice = "  ... showing 50 of 312 stale entries"
+        output_lines = output.splitlines()
+        assert notice in output_lines
+        assert "Stale allowlist entries (312):" in output
+        item_lines = [line for line in output_lines if line.startswith("  - ")]
+        assert len(item_lines) == 50
+        assert output_lines[-1] == notice
+        assert "old050.py" not in output
+        assert "largest" not in output
+
+    def test_both_caps_fire(self) -> None:
+        result = CheckResult(
+            passed=False,
+            violations=_metrics(60),
+            allowlisted_count=3,
+            stale_entries=[f"old{i:03d}.py" for i in range(60)],
+        )
+        output = render_output(result, max_lines=600)
+        notices = [line for line in output.splitlines() if "showing" in line]
+        assert notices == [
+            "  ... showing 50 of 60 violations (largest first)",
+            "  ... showing 50 of 60 stale entries",
+        ]
+        assert "File size check failed: 60 file(s) exceed 600 lines" in output
+        assert "Allowlisted files: 3" in output
+        assert "Consider refactoring these files or adding them to the allowlist." in (
+            output
+        )
+        # The notices must not name a tool parameter - the caps are internal.
+        for notice in notices:
+            assert "max_lines" not in notice
+            assert "max_report" not in notice
+
+    def test_exactly_50_no_notice(self) -> None:
+        assert _MAX_REPORT_VIOLATIONS == 50
+        assert _MAX_STALE_ENTRIES == 50
+        result = CheckResult(
+            passed=False,
+            violations=_metrics(_MAX_REPORT_VIOLATIONS),
+            stale_entries=[f"old{i:03d}.py" for i in range(_MAX_STALE_ENTRIES)],
+        )
+        output = render_output(result, max_lines=600)
+        assert "showing" not in output
+        item_lines = [line for line in output.splitlines() if line.startswith("  - ")]
+        assert len(item_lines) == _MAX_REPORT_VIOLATIONS + _MAX_STALE_ENTRIES
 
 
 class TestRenderAllowlist:
