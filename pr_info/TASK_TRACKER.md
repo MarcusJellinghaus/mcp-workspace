@@ -49,5 +49,5 @@ Runs after step 1 — documents the caps step 1 introduces.
 
 ## Pull Request
 
-- [ ] PR review
+- [x] PR review
 - [ ] PR summary
