@@ -21,6 +21,33 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Cap the violation and stale-entry lists at 50 — [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared: `feat(file_sizes): cap violation and stale-entry reports at 50`
+
+### Step 2: State `check_file_size`'s scan scope in its docstring — [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared: `docs(server): state check_file_size scan scope`
+
+### Step 3: README — correct List Directory's `.gitignore` claim, add a `check_file_size` entry — [step_3.md](./steps/step_3.md)
+
+Runs after step 1 — documents the caps step 1 introduces.
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared: `docs(readme): document check_file_size and fix gitignore scope`
+
+### Step 4: Correct the file-size check scope in `refactoring-guide.md` — [step_4.md](./steps/step_4.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared: `docs(refactoring-guide): correct file-size check scope`
 
 ## Pull Request
+
+- [ ] PR review
+- [ ] PR summary
