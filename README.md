@@ -235,12 +235,14 @@ The server exposes the following MCP tools:
 | `github_pr_create` | Creates a GitHub pull request | "Open a PR for this branch" |
 | `search_reference_files` | Searches file contents or finds files in a reference project | "Find where the docs project configures logging" |
 | `git` | Runs a read-only git command (log, diff, status, show, branch, ...) | "Show the last five commits" |
+| `check_file_size` | Reports files whose line count exceeds a threshold | "Which files in this project are too long?" |
 
 ### Tool Details
 
 #### List Directory
 - Returns a list of file and directory names
-- By default, results are filtered based on .gitignore patterns and .git folders are excluded
+- The `.gitignore` in the listed directory is applied; no other `.gitignore` file is read — including the project-root one when listing a subdirectory — nor `.git/info/exclude`
+- `.git` folders are excluded
 
 #### Read File
 - Parameters:
@@ -471,6 +473,18 @@ The GitHub tools that take an optional `reference_name` act on the workspace rep
 **Error Handling:** returned as `"Error: ..."` strings rather than raised:
 - `"Error: Reference project '<name>' not found"` - when the name is not a reference project
 - `"Error: Reference project '<name>' has no URL configured"` - when the reference project has no repository URL
+
+#### Check File Size
+Reports files whose line count exceeds a threshold.
+
+**Parameters:**
+- `max_lines` (integer, optional): Line threshold. Falls back to the server's `--file-size-limit` flag, then to `600`
+
+**Features:**
+- Counts lines in every UTF-8 file under the project directory — all file types, tracked or not — excluding `.git/` and anything the project-root `.gitignore` matches. Nested `.gitignore` files are not read
+- Files listed in `.large-files-allowlist` (one path per line, `#` comments allowed) are exempt; entries are matched as exact paths, not globs
+- Allowlist entries that no longer exceed the threshold are reported as stale
+- The violations list and the stale-entries list are each capped at 50 with a `showing X of Y` notice; the caps are internal and there is no parameter to lift them
 
 ## Security Features
 

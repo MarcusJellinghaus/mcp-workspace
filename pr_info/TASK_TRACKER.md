@@ -37,9 +37,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 Runs after step 1 — documents the caps step 1 introduces.
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared: `docs(readme): document check_file_size and fix gitignore scope`
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared: `docs(readme): document check_file_size and fix gitignore scope`
 
 ### Step 4: Correct the file-size check scope in `refactoring-guide.md` — [step_4.md](./steps/step_4.md)
 
