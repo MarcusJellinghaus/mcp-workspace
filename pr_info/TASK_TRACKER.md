@@ -23,9 +23,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: Cap the violation and stale-entry lists at 50 — [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared: `feat(file_sizes): cap violation and stale-entry reports at 50`
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared: `feat(file_sizes): cap violation and stale-entry reports at 50`
 
 ### Step 2: State `check_file_size`'s scan scope in its docstring — [step_2.md](./steps/step_2.md)
 
