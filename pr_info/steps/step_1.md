@@ -47,10 +47,17 @@ def normalize_path(path: str, project_dir: Path) -> tuple[Path, str]: ...   # si
 ```
 with tempfile.TemporaryDirectory() as tmp:
     target = Path(tmp)/"target"; target.touch()
-    try: (Path(tmp)/"link").symlink_to(target)
+    dir_target = Path(tmp)/"dir_target"; dir_target.mkdir()
+    try:
+        (Path(tmp)/"link").symlink_to(target)
+        (Path(tmp)/"dir_link").symlink_to(dir_target, target_is_directory=True)
     except (OSError, NotImplementedError): return False
 return True
 ```
+
+Probe **both** link kinds. On Windows a directory symlink is a distinct object and can be
+refused separately, so a file-only probe would let the intermediate-symlinked-directory cases
+run against a wrongly typed link instead of skipping.
 
 `normalize_path`:
 
@@ -120,6 +127,10 @@ def layout(tmp_path: Path) -> dict[str, Path]:
 def link_layout(layout: dict[str, Path]) -> dict[str, Path]:
     """layout plus project/link.env -> outside/credentials.env, project/link -> outside,
     project/inside_link.txt -> project/inside.txt."""
+    # project/link is a DIRECTORY symlink:
+    #     (project / "link").symlink_to(outside, target_is_directory=True)
+    # The flag is a no-op on POSIX and required on Windows, where a directory
+    # symlink is a distinct object kind.
 ```
 
 Four tests, all built from `tmp_path` so the absolute branch is exercised on Windows too:
@@ -130,6 +141,13 @@ Four tests, all built from `tmp_path` so the absolute branch is exercised on Win
    - absolute `..`: `str(project / ".." / "outside" / "credentials.env")` (the defect)
    - relative `..`: `"../outside/credentials.env"` (the control — already rejected today)
    - mid-path `..`: `"src/../README.md"` (newly rejected; acceptance criterion)
+   - plain absolute outside: `str(outside / "credentials.env")` — no `..`, no symlink, so
+     guard 1 cannot intercept it and no symlink privilege is needed. This is the only case
+     that exercises the resolve/containment guard with a **genuinely absolute** input on
+     Windows: the other absolute payload is caught by guard 1, the symlink tests skip
+     without Developer Mode, and the pre-existing
+     `test_normalize_path_security_error_absolute` uses `/tmp/outside_project.txt`, which is
+     not absolute on Windows.
 2. `test_normalize_path_rejects_symlink_escape` — `@requires_symlinks`, parametrized over
    four forms: `"link.env"`, `str(project / "link.env")`, `"link/credentials.env"`,
    `str(project / "link" / "credentials.env")`. The last two are the intermediate

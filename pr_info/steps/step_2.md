@@ -18,7 +18,7 @@ files. Only a symlinked file entry can surface.
 
 | File | Change |
 |---|---|
-| `tests/file_tools/test_search.py` | Add 2 tests |
+| `tests/file_tools/test_search.py` | Add 3 tests (one `@requires_symlinks`) |
 | `src/mcp_workspace/file_tools/search.py` | `_search_content`: move the `normalize_path` call inside the `try`, add a handler, add the result key; document the key |
 | `src/mcp_workspace/server.py` | One docstring line in the `search_files` MCP tool |
 | `src/mcp_workspace/server_reference_tools.py` | One docstring line in `search_reference_files` |
@@ -93,6 +93,17 @@ Docstring line (all three places, adapted to local wording):
 2. `test_binary_file_not_reported_as_skipped` — a binary file plus a matching text file, no
    patching; assert `"skipped_files" not in result`. This pins the handler ordering directly:
    drop the `UnicodeDecodeError` handler or put it second and this test fails.
+3. `test_search_skips_real_symlink_escape` — `@requires_symlinks` (step 1's shared marker,
+   `from tests.conftest import requires_symlinks`), no patching at all. Create
+   `outside/credentials.env` as a sibling of `project_dir`, a matching in-project file, and
+   a non-gitignored `project_dir/link.env -> outside/credentials.env`; both files contain the
+   search pattern. Assert the call returns, the in-project file is in `details`, the target's
+   content is not, and `result["skipped_files"] == ["link.env"]`.
+
+   This is the only test that proves the real failure mode end to end: the other two reach the
+   handler through a patched `normalize_path`, so they cannot check that a symlinked file
+   actually reaches `_search_content` — the claim the "affected set is narrow" reasoning above
+   rests on. Skips on Windows without symlink privileges; `ubuntu-latest` CI proves it.
 
 `test_search_files_skips_binary_files` (`test_search.py:427`) must pass unchanged.
 
@@ -110,7 +121,7 @@ Docstring line (all three places, adapted to local wording):
 > Implement step 2 of the plan in `pr_info/steps/step_2.md`, using `pr_info/steps/summary.md`
 > for context. Step 1 must already be committed.
 >
-> Work TDD: add the two tests to `tests/file_tools/test_search.py` first, then change
+> Work TDD: add the three tests to `tests/file_tools/test_search.py` first, then change
 > `_search_content` in `src/mcp_workspace/file_tools/search.py` per the ALGORITHM section,
 > then add the one-line `skipped_files` note to the three docstrings listed under WHERE.
 >

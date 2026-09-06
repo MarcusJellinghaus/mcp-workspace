@@ -78,7 +78,7 @@ surface this plan writes to. The advisory text and reporter credits stay out of 
 | `src/mcp_workspace/file_tools/search.py` | 2 | **Modified** — `_search_content` skips and reports rejected files |
 | `src/mcp_workspace/server.py` | 2 | **Modified** — one docstring line (`skipped_files`) |
 | `src/mcp_workspace/server_reference_tools.py` | 2 | **Modified** — one docstring line (`skipped_files`) |
-| `tests/file_tools/test_search.py` | 2 | **Modified** — 2 tests added |
+| `tests/file_tools/test_search.py` | 2 | **Modified** — 3 tests added (one `@requires_symlinks`) |
 | `tests/file_tools/test_file_operations.py` | 3 | **Modified** — 1 parametrized operation-level test |
 | `tests/test_reference_projects_mcp_tools.py` | 4 | **Modified** — 1 async test |
 | `README.md` | 5 | **Modified** — `## Path Confinement` section + 1 Security Notes bullet |
