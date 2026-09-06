@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pathspec import PathSpec, RegexPattern
+from pathspec import GitIgnoreSpec, RegexPattern
 
 from mcp_workspace.file_tools.directory_utils import list_files
 from mcp_workspace.file_tools.path_utils import normalize_path
@@ -15,7 +15,7 @@ from mcp_workspace.file_tools.path_utils import normalize_path
 # who need a full line read the file at the reported line number.
 _MAX_LINE_CHARS = 500
 
-# Braces are the one silent-zero case that cannot raise: gitwildmatch compiles
+# Braces are the one silent-zero case that cannot raise: gitignore semantics compile
 # them to a valid regex matching them literally, and directories literally named
 # '{{cookiecutter.project_slug}}' are real. Detection is textual, so the caller
 # gets a note rather than an error.
@@ -54,7 +54,7 @@ def _match_glob(glob: str, files: List[str]) -> List[str]:
             pattern pathspec cannot compile (such as an unterminated ``[``).
     """
     win32 = sys.platform == "win32"
-    spec = PathSpec.from_lines("gitwildmatch", [glob.lower() if win32 else glob])
+    spec = GitIgnoreSpec.from_lines([glob.lower() if win32 else glob])
 
     usable = any(
         isinstance(p, RegexPattern) and p.regex is not None and p.include

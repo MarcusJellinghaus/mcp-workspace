@@ -21,6 +21,6 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-- [ ] [Step 1 — Migrate the glob matcher to `GitIgnoreSpec`](./steps/step_1.md)
+- [x] [Step 1 — Migrate the glob matcher to `GitIgnoreSpec`](./steps/step_1.md)
 
 ## Pull Request
