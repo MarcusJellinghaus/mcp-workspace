@@ -43,9 +43,9 @@ Runs after step 1 — documents the caps step 1 introduces.
 
 ### Step 4: Correct the file-size check scope in `refactoring-guide.md` — [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared: `docs(refactoring-guide): correct file-size check scope`
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared: `docs(refactoring-guide): correct file-size check scope`
 
 ## Pull Request
 

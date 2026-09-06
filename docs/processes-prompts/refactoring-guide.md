@@ -101,7 +101,7 @@ Suppresses moved-code blocks from the diff output. After a pure refactoring, the
 mcp-coder check file-size --max-lines 750
 ```
 
-Verifies all tracked Python files are under the line threshold. If split files were previously in `.large-files-allowlist`, remove those entries. Stale entries are reported automatically.
+Verifies every UTF-8 file under the project directory — all file types, tracked or not — is under the line threshold, excluding `.git/` and anything the project-root `.gitignore` matches. If split files were previously in `.large-files-allowlist`, remove those entries. Stale entries are reported automatically.
 
 #### Import Linter
 
