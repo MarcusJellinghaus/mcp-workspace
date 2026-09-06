@@ -98,8 +98,10 @@ unchanged signature), the single-violation cases at `tests/checks/test_file_size
 | [step_3](step_3.md) | README — List Directory correction + `check_file_size` entry | `docs(readme): document check_file_size and fix gitignore scope` |
 | [step_4](step_4.md) | `refactoring-guide.md:104` correction | `docs(refactoring-guide): correct file-size check scope` |
 
-Steps 2-4 are documentation-only and independent of each other and of step 1; they can be done in
-any order. Each is a separate commit per the one-commit-per-step rule.
+Steps 2-4 are documentation-only. Step 3 must run **after** step 1: its README block documents the
+two 50-item caps, so committing it first would describe behaviour the code does not yet have.
+Steps 2 and 4 are independent of everything else and can be done at any point. Each step is a
+separate commit per the one-commit-per-step rule.
 
 ## Acceptance criteria coverage
 

@@ -121,8 +121,13 @@ def _metrics(count: int) -> List[FileMetrics]:
 ```
 
 It returns `FileMetrics(path=Path(f"src/f{i}.py"), line_count=1000 - i)` for `i` in `range(count)`,
-which is already sorted descending, matching what `check_file_sizes` produces. Add `List` to the
-`typing` import.
+which is already sorted descending, matching what `check_file_sizes` produces. The module has no
+`typing` import today (it imports only `os`, `pathlib.Path` and `pytest`), so add a new
+`from typing import List` line.
+
+Extend the existing `mcp_workspace.checks.file_sizes` import with `_MAX_REPORT_VIOLATIONS` and
+`_MAX_STALE_ENTRIES`; case 4 drives its item counts from them, which is what covers the
+"both caps are named constants" criterion.
 
 Four cases in `TestRenderOutput`:
 
@@ -135,13 +140,18 @@ Four cases in `TestRenderOutput`:
    `"  ... showing 50 of 312 stale entries"` is present; assert the header
    `"Stale allowlist entries (312):"` is intact; assert the notice is the **last** line of the
    output; assert the notice does **not** contain `"largest"`.
-3. **`test_both_caps_fire`** — one `CheckResult` with 60 violations, 60 stale entries and
-   `allowlisted_count=3`. Assert both notices present, the fail summary line present, the
+3. **`test_both_caps_fire`** — one `CheckResult(passed=False, ...)` with 60 violations, 60 stale
+   entries and `allowlisted_count=3`. `passed=False` is required — the violations block only
+   renders on the fail path. Assert both notices present, the fail summary line present, the
    `"Allowlisted files: 3"` line present, and the remedy sentence present. This case covers the
    "summary line, allowlist count and remedy sentence render unchanged" criterion.
-4. **`test_exactly_50_no_notice`** — one `CheckResult` with exactly 50 violations and exactly 50
-   stale entries. Assert `"showing"` does not appear anywhere in the output, and that all 100 items
-   are listed.
+4. **`test_exactly_50_no_notice`** — one `CheckResult(passed=False, ...)` with exactly
+   `_MAX_REPORT_VIOLATIONS` violations and exactly `_MAX_STALE_ENTRIES` stale entries, sized from
+   the constants rather than the literal 50. `passed=False` is required, as in case 3. Assert
+   `"showing"` does not appear anywhere in the output, and that all items of both lists are listed
+   (`_MAX_REPORT_VIOLATIONS + _MAX_STALE_ENTRIES` lines starting with `"  - "`). Driving the sizes
+   from the constants is what ties the criterion "both caps are named constants" to a test; also
+   assert both constants equal 50, so the literal notice strings asserted in cases 1-3 stay valid.
 
 Also assert in at least one case that neither notice names a parameter — e.g. `"max_lines"` and
 `"max_report"` absent from the notice lines.

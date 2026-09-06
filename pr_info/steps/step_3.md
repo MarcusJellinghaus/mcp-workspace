@@ -2,7 +2,8 @@
 
 Read [summary.md](summary.md) first.
 
-Documentation-only. Single commit. Independent of steps 1, 2 and 4.
+Documentation-only. Single commit. **Runs after step 1** — the `#### Check File Size` block below
+documents the two 50-item caps that step 1 introduces. Independent of steps 2 and 4.
 
 Two edits, both in `README.md`. They are kept in one step because they are one theme — making the
 README's statements about `.gitignore` scope accurate — and because 3b is the reason 3a matters: a
