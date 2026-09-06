@@ -57,7 +57,8 @@ prefix; the secret file's content must never be returned.
 `run_format_code`, then `run_pylint_check`, `run_pytest_check` (`extra_args: ["-n", "auto"]`),
 `run_mypy_check`.
 
-After this step the whole acceptance list is covered. Confirm the run is green end to end and
+After this step every code and test criterion is covered; step 5 adds the README statement.
+Confirm the run is green end to end and
 note which symlink tests skipped locally — variant 2 (the symlink escape) is proven only by
 the `ubuntu-latest` CI job, so state that plainly in the PR rather than reporting a local
 green as full verification.

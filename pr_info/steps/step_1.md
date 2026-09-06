@@ -90,8 +90,20 @@ f"'{project_dir}'. Path traversal is not allowed."
 | `abs_path` | the **lexically joined** path — names the symlink, not its target | never resolved |
 | `rel_path` | `str(joined.relative_to(project_dir))` | never contains `..`, by construction |
 
-Update the docstring: document that resolution is used to *validate* while the *joined* path
-is returned, and why (symlink semantics + the three `relative_to` call sites).
+Update the docstring on two axes:
+
+- **Design** — resolution is used to *validate* while the *joined* path is returned, and why
+  (symlink semantics + the three `relative_to` call sites).
+- **Contract** — the `Raises:` section must name both newly rejected input classes, not just
+  "outside the project directory": a `..` segment **anywhere** in the path, including
+  mid-path (`src/../README.md`), and a path that resolves outside the project through a
+  symlink — an in-project symlinked file, or an intermediate symlinked directory component,
+  neither of which contains `..`. This docstring is the in-code home of the behaviour change;
+  `README.md` (step 5) is the user-facing one.
+
+`_outside_error` needs a docstring with a `Returns:` section — it returns the `ValueError`
+rather than raising it, and ruff's DOC201 applies to `path_utils.py` (it is not in the
+`DOC502` per-file ignore list in `pyproject.toml`).
 
 ## Tests (write first)
 
@@ -137,7 +149,12 @@ still passes; that is expected and is not to be "fixed" by reordering the guards
 ## Checks
 
 `run_format_code`, then `run_pylint_check`, `run_pytest_check` (`extra_args: ["-n", "auto"]`),
-`run_mypy_check`, plus `run_ruff_check` and `run_vulture_check` for the removed `import os`.
+`run_mypy_check`, plus `run_ruff_check` and `run_vulture_check`.
+
+Ruff is configured with `select = ["D", "DOC"]` (`pyproject.toml`), so it checks docstrings
+only and will *not* flag the removed `import os` — it is here for the rewritten docstrings,
+and it requires a `Returns:` section on `_outside_error` (DOC201). `run_vulture_check` is the
+one that speaks to dead code after the import removal.
 
 ## Commit
 

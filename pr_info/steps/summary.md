@@ -63,11 +63,10 @@ Both are intentional and narrow:
 2. A mid-path `..` is now rejected — `read_file("src/../README.md")` starts failing. No
    existing test depends on it.
 
-**Assumption:** neither is documented in-repo. This repo has no `CHANGELOG.md` or
-release-notes file, and the issue's Decisions table puts release logistics (GHSA
-publication, crediting the five reporters, the release itself) outside this issue. The only
-user-facing text this plan adds is the `skipped_files` docstring line. Say so if a README
-note is wanted instead.
+Both are stated in `README.md` by step 5. This repo has no `CHANGELOG.md` or release-notes
+file, and the issue's Decisions table puts release logistics (GHSA publication, crediting the
+five reporters, the release itself) outside this issue, so the README is the user-visible
+surface this plan writes to. The advisory text and reporter credits stay out of it.
 
 ## Files created / modified
 
@@ -82,6 +81,7 @@ note is wanted instead.
 | `tests/file_tools/test_search.py` | 2 | **Modified** — 2 tests added |
 | `tests/file_tools/test_file_operations.py` | 3 | **Modified** — 1 parametrized operation-level test |
 | `tests/test_reference_projects_mcp_tools.py` | 4 | **Modified** — 1 async test |
+| `README.md` | 5 | **Modified** — `## Path Confinement` section + 1 Security Notes bullet |
 
 No new modules, packages or folders. No public signature changes.
 
@@ -93,6 +93,7 @@ No new modules, packages or folders. No public signature changes.
 | [step_2.md](./step_2.md) | `search_files` survives a rejected file and reports it as `skipped_files` | `fix(search): skip and report files rejected by the path guard (#290)` |
 | [step_3.md](./step_3.md) | Operation-level absolute-traversal coverage | `test(file_operations): cover absolute-path traversal (#290)` |
 | [step_4.md](./step_4.md) | Reference-project traversal coverage | `test(reference): cover absolute-path traversal (#290)` |
+| [step_5.md](./step_5.md) | README states the two newly rejected input classes | `docs(readme): state the two paths the guard now rejects (#290)` |
 
 Steps are independently committable and ordered by dependency. Step 1 alone leaves the suite
 green — no existing test plants a symlink pointing outside the project — so step 2 is a
