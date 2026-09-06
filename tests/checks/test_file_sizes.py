@@ -173,13 +173,19 @@ class TestRenderOutput:
     def test_violations_capped_at_50(self) -> None:
         result = CheckResult(passed=False, violations=_metrics(845))
         output = render_output(result, max_lines=600)
-        assert "  ... showing 50 of 845 violations (largest first)" in output
-        item_lines = [line for line in output.splitlines() if line.startswith("  - ")]
+        notice = "  ... showing 50 of 845 violations (largest first)"
+        output_lines = output.splitlines()
+        assert notice in output_lines
+        item_lines = [line for line in output_lines if line.startswith("  - ")]
         assert len(item_lines) == 50
+        # The notice follows the last item directly, then the blank line and remedy.
+        notice_index = output_lines.index(notice)
+        assert output_lines[notice_index - 1] == "  - src/f49.py: 951 lines"
+        assert output_lines[notice_index + 1 :] == [
+            "",
+            "Consider refactoring these files or adding them to the allowlist.",
+        ]
         assert "845 file(s) exceed" in output
-        assert "Consider refactoring these files or adding them to the allowlist." in (
-            output
-        )
         assert "src/f50.py" not in output
 
     def test_stale_entries_capped_at_50(self) -> None:
