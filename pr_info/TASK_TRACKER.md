@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: State `check_file_size`'s scan scope in its docstring — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared: `docs(server): state check_file_size scan scope`
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared: `docs(server): state check_file_size scan scope`
 
 ### Step 3: README — correct List Directory's `.gitignore` claim, add a `check_file_size` entry — [step_3.md](./steps/step_3.md)
 
