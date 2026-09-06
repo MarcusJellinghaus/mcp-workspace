@@ -196,9 +196,13 @@ class TestRenderOutput:
         )
         output = render_output(result, max_lines=600)
         notice = "  ... showing 50 of 312 stale entries"
-        assert notice in output
+        output_lines = output.splitlines()
+        assert notice in output_lines
         assert "Stale allowlist entries (312):" in output
-        assert output.splitlines()[-1] == notice
+        item_lines = [line for line in output_lines if line.startswith("  - ")]
+        assert len(item_lines) == 50
+        assert output_lines[-1] == notice
+        assert "old050.py" not in output
         assert "largest" not in output
 
     def test_both_caps_fire(self) -> None:
