@@ -211,6 +211,9 @@ async def search_reference_files(
         Adds a "glob_note" key when the glob matched no files and contains
         "{", which wildmatch treats literally, distinguishing that from a
         genuine no-such-file result.
+        A content search adds a "skipped_files" key listing project-relative
+        paths that could not be read — a path rejected by the security check,
+        or an unreadable file — present only when non-empty.
 
     Raises:
         ValueError: If the glob matches nothing by construction (a gitignore

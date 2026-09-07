@@ -19,6 +19,17 @@ All operations are securely contained within your specified project directory, g
 
 By connecting your AI assistant to your filesystem, you can transform your workflow from manual coding to a more intuitive prompting approach - describe what you need in natural language and let the AI generate, modify, and organize code directly in your project files.
 
+## Path Confinement
+
+Every path is validated against the project directory before any file operation. Validation resolves symlinks and rejects the path if the resolved location lies outside the project directory. A `..` segment is rejected outright rather than followed. Reference projects are validated the same way against their own directory.
+
+Two kinds of path are rejected that earlier versions accepted:
+
+- **A `..` segment anywhere in the path**, not only a leading one. `read_file("src/../README.md")` is rejected; use `read_file("README.md")`.
+- **A path that leaves the project through a symlink.** A symlinked file inside the project whose target is outside it, or an intermediate symlinked directory component, is rejected even though the path contains no `..`. To read content that lives outside the project, configure it with `--reference-project` (read-only) or run a second server instance pointed at it.
+
+One limitation: if the operating system cannot resolve a path at all, validation falls back to the lexical checks alone — the path must contain no `..` and must lie under the project directory by name — so a symlink pointing outside the project is not detected in that case.
+
 ## Features
 
 - `list_directory`: List all files and directories in the project directory
@@ -150,6 +161,7 @@ The server validates reference projects at startup:
 - All paths are validated to prevent directory traversal attacks
 - Gitignore filtering is automatically applied to hide irrelevant files
 - Path access is restricted to the specified reference project directories
+- The same rejections described in [Path Confinement](#path-confinement) apply to reference-project paths
 
 ## Integration Options
 
