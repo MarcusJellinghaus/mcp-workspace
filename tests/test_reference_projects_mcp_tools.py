@@ -394,6 +394,37 @@ class TestReferenceProjectMCPTools:
                     await read_reference_file("test_proj", "../../../etc/passwd")
 
     @pytest.mark.asyncio
+    async def test_read_reference_file_rejects_absolute_traversal(
+        self, tmp_path: Path
+    ) -> None:
+        """An absolute path escaping the reference project is rejected.
+
+        Unlike its neighbours, this test mocks neither read_file_util nor
+        ensure_available: the real security check has to run, and
+        ensure_available returns immediately because the directory exists.
+        """
+        import mcp_workspace.server_reference_tools as server_module
+        from mcp_workspace.server_reference_tools import read_reference_file
+
+        ref = tmp_path / "ref"
+        ref.mkdir()
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        secret = outside / "credentials.env"
+        secret.write_text("SECRET=1", encoding="utf-8")
+
+        server_module._reference_projects = {
+            "ref": ReferenceProject(name="ref", path=ref.resolve()),
+        }
+
+        escape = str(ref.resolve() / ".." / "outside" / "credentials.env")
+
+        with pytest.raises(ValueError, match="Security error") as exc_info:
+            await read_reference_file("ref", escape)
+
+        assert "SECRET=1" not in str(exc_info.value)
+
+    @pytest.mark.asyncio
     async def test_read_reference_file_logging(self) -> None:
         """Test DEBUG level logging for file operations."""
         import mcp_workspace.server_reference_tools as server_module
