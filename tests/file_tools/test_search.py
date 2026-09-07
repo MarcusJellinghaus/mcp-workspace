@@ -623,6 +623,21 @@ class TestSearchFilesSkippedFiles:
         assert "skipped_files" not in result
 
     @requires_symlinks
+    def test_broken_symlink_reported_as_skipped(self, project_dir: Path) -> None:
+        """A read that fails with OSError is reported, and the search finishes.
+
+        The link target stays inside the project, so the path guard accepts it
+        and the OSError comes from open() itself rather than normalize_path.
+        """
+        (project_dir / "good.py").write_text("def target():\n    pass\n")
+        (project_dir / "broken.py").symlink_to(project_dir / "missing.py")
+
+        result = search_files(project_dir, pattern=r"def target")
+
+        assert {Path(m["file"]).name for m in result["details"]} == {"good.py"}
+        assert result["skipped_files"] == ["broken.py"]
+
+    @requires_symlinks
     def test_search_skips_real_symlink_escape(self, tmp_path: Path) -> None:
         """A symlinked file pointing outside the project is skipped, not fatal."""
         # The server resolves --project-dir at startup, so resolve here too.
