@@ -2,6 +2,7 @@
 
 import os
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ from mcp_workspace.file_tools.file_operations import (
     append_file,
     delete_directory,
     delete_file,
+    move_file,
     read_file,
     save_file,
 )
@@ -720,3 +722,33 @@ def test_delete_directory_truncation_summary(project_dir: Path) -> None:
     assert result[20].startswith("... and 6 more")
     assert "dirs deleted total" in result[20]
     assert not abs_dir.exists()
+
+
+# Absolute-form traversal, one entry per path argument reaching normalize_path.
+# move_file validates source and destination independently, so both are covered.
+_ABSOLUTE_TRAVERSAL_OPERATIONS: list[tuple[str, Callable[[str, Path], object]]] = [
+    ("read_file", lambda p, d: read_file(p, project_dir=d)),
+    ("save_file", lambda p, d: save_file(p, "x", project_dir=d)),
+    ("append_file", lambda p, d: append_file(p, "x", project_dir=d)),
+    ("delete_file", lambda p, d: delete_file(p, project_dir=d)),
+    ("delete_directory", lambda p, d: delete_directory(p, d, recursive=True)),
+    ("move_file_source", lambda p, d: move_file(p, "dest.txt", project_dir=d)),
+    ("move_file_destination", lambda p, d: move_file("source.txt", p, project_dir=d)),
+]
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [operation for _, operation in _ABSOLUTE_TRAVERSAL_OPERATIONS],
+    ids=[name for name, _ in _ABSOLUTE_TRAVERSAL_OPERATIONS],
+)
+def test_operations_reject_absolute_traversal(
+    project_dir: Path, operation: Callable[[str, Path], object]
+) -> None:
+    """Every operation rejects an absolute path that leaves the project via '..'."""
+    # Built from the fixture, not a hardcoded POSIX string: "/tmp/x" is not
+    # absolute on Windows and would test the relative branch instead.
+    escape = str(project_dir / ".." / "outside_project.txt")
+
+    with pytest.raises(ValueError, match="Security error"):
+        operation(escape, project_dir)

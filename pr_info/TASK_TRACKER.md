@@ -41,9 +41,9 @@ Details: [step_2.md](./steps/step_2.md)
 
 Details: [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: one parametrized test over the seven operations in `tests/file_tools/test_file_operations.py` (test-only; no source change)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared: `test(file_operations): cover absolute-path traversal (#290)`
+- [x] Implementation: one parametrized test over the seven operations in `tests/file_tools/test_file_operations.py` (test-only; no source change)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared: `test(file_operations): cover absolute-path traversal (#290)`
 
 ### Step 4: Reference-project traversal coverage
 
