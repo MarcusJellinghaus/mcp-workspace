@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import tempfile
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any, Type, TypeVar, cast
@@ -20,6 +21,34 @@ PROJECT_DIR = Path(os.path.abspath(os.path.dirname(__file__)))
 TEST_DIR = Path("testdata/test_file_tools")
 TEST_FILE = TEST_DIR / "test_file.txt"
 TEST_CONTENT = "This is test content."
+
+
+def _symlinks_supported() -> bool:
+    """Check whether this platform lets us create symlinks.
+
+    Both link kinds are probed: on Windows a directory symlink is a distinct
+    object kind and can be refused separately from a file symlink.
+
+    Returns:
+        True if both a file and a directory symlink could be created.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "target"
+        target.touch()
+        dir_target = Path(tmp) / "dir_target"
+        dir_target.mkdir()
+        try:
+            (Path(tmp) / "link").symlink_to(target)
+            (Path(tmp) / "dir_link").symlink_to(dir_target, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            return False
+    return True
+
+
+requires_symlinks = pytest.mark.skipif(
+    not _symlinks_supported(),
+    reason="symlink creation not permitted on this platform",
+)
 
 
 @pytest.fixture

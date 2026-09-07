@@ -25,9 +25,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 Details: [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: `requires_symlinks` marker in `tests/conftest.py`, 2 fixtures + 4 parametrized tests in `tests/file_tools/test_path_utils.py`, rewritten `normalize_path` + `_outside_error` in `src/mcp_workspace/file_tools/path_utils.py`, `import os` removed
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff and vulture) — fix all issues
-- [ ] Commit message prepared: `fix(path_utils): validate absolute paths against the resolved path (#290)`
+- [x] Implementation: `requires_symlinks` marker in `tests/conftest.py`, 2 fixtures + 4 parametrized tests in `tests/file_tools/test_path_utils.py`, rewritten `normalize_path` + `_outside_error` in `src/mcp_workspace/file_tools/path_utils.py`, `import os` removed
+- [x] Quality checks: pylint, pytest, mypy (plus ruff and vulture) — fix all issues
+- [x] Commit message prepared: `fix(path_utils): validate absolute paths against the resolved path (#290)`
 
 ### Step 2: `search_files` skips a rejected file and reports it
 
