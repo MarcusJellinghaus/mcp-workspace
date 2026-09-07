@@ -219,6 +219,73 @@ def test_normalize_path_accepts_in_project(
     assert ".." not in Path(rel_path).parts
 
 
+@pytest.mark.parametrize(
+    "build_payload",
+    [
+        pytest.param(
+            lambda paths: str(paths["project"] / ".." / "outside" / "credentials.env"),
+            id="absolute-with-dotdot",
+        ),
+        pytest.param(
+            lambda _paths: "../outside/credentials.env",
+            id="relative-with-dotdot",
+        ),
+        pytest.param(lambda _paths: "src/../README.md", id="mid-path-dotdot"),
+    ],
+)
+def test_normalize_path_never_returns_dotdot_rel_path(
+    layout: dict[str, Path], build_payload: PayloadBuilder
+) -> None:
+    """A '..' input is rejected, and never returns a rel_path carrying '..'.
+
+    Asserted on the returned value rather than on an input that had no '..' to
+    begin with: that is what makes it guard the '..' guard. Before the fix the
+    absolute form returned "../outside/credentials.env" as the *validated*
+    relative path, which this test catches either way.
+    """
+    payload = build_payload(layout)
+
+    try:
+        _abs_path, rel_path = normalize_path(payload, layout["project"])
+    except ValueError as exc:
+        assert "Security error" in str(exc)
+        assert "outside the project directory" in str(exc)
+        return
+
+    assert ".." not in Path(rel_path).parts, (
+        f"'..' input {payload!r} was accepted and returned an escaping "
+        f"rel_path {rel_path!r}"
+    )
+    pytest.fail(f"'..' input {payload!r} was accepted, returning {rel_path!r}")
+
+
+def test_normalize_path_accepts_project_dir_containing_dotdot(
+    tmp_path: Path,
+) -> None:
+    """A project_dir with its own '..' segment does not reject every path.
+
+    Only the requested path is checked for '..'; the anchor is the caller's.
+    """
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "file.txt").write_text("inside", encoding="utf-8")
+    project_dir = tmp_path / "sub" / ".."
+
+    abs_path, rel_path = normalize_path("file.txt", project_dir)
+
+    assert abs_path == project_dir / "file.txt"
+    assert rel_path == "file.txt"
+    assert abs_path.read_text(encoding="utf-8") == "inside"
+
+
+def test_normalize_path_rejects_embedded_nul(layout: dict[str, Path]) -> None:
+    """A path the OS cannot resolve is a security error, not a raw ValueError."""
+    with pytest.raises(ValueError) as excinfo:
+        normalize_path("inside\0.txt", layout["project"])
+
+    assert "Security error" in str(excinfo.value)
+    assert "outside the project directory" in str(excinfo.value)
+
+
 @requires_symlinks
 def test_normalize_path_accepts_internal_symlink(link_layout: dict[str, Path]) -> None:
     """A symlink staying inside the project is accepted, and the link is returned."""
