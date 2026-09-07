@@ -57,9 +57,9 @@ Details: [step_4.md](./steps/step_4.md)
 
 Details: [step_5.md](./steps/step_5.md)
 
-- [ ] Implementation: `## Path Confinement` section after `## Overview` plus one cross-reference bullet in the reference-project Security Notes list (docs-only)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared: `docs(readme): state the two paths the guard now rejects (#290)`
+- [x] Implementation: `## Path Confinement` section after `## Overview` plus one cross-reference bullet in the reference-project Security Notes list (docs-only)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared: `docs(readme): state the two paths the guard now rejects (#290)`
 
 ## Pull Request
 
