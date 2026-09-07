@@ -63,5 +63,5 @@ Details: [step_5.md](./steps/step_5.md)
 
 ## Pull Request
 
-- [ ] PR review: verify the full diff against [summary.md](./steps/summary.md), including the "Traps to carry through every step" list and the tests that must pass unchanged
+- [x] PR review: verify the full diff against [summary.md](./steps/summary.md), including the "Traps to carry through every step" list and the tests that must pass unchanged
 - [ ] PR summary: describe the fix, both breaking changes, and state that variant 2 (symlink escape) is verified only by the Ubuntu CI job
