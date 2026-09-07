@@ -2,10 +2,13 @@
 
 import sys
 from pathlib import Path
+from typing import Tuple
 
 import pytest
 
+from mcp_workspace.file_tools.path_utils import normalize_path as real_normalize_path
 from mcp_workspace.file_tools.search import search_files
+from tests.conftest import requires_symlinks
 
 
 class TestSearchFilesGlobOnly:
@@ -568,3 +571,74 @@ class TestSearchFilesCompactFallback:
         assert result["total_matches"] == 2
         assert result["truncated"] is True
         assert "matched_files" in result
+
+
+class TestSearchFilesSkippedFiles:
+    """Tests for the skipped_files key of content search."""
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            pytest.param(
+                ValueError("Security error: outside the project directory"),
+                id="rejected-by-path-guard",
+            ),
+            pytest.param(OSError("boom"), id="unreadable-file"),
+        ],
+    )
+    def test_search_reports_skipped_file(
+        self,
+        project_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        error: Exception,
+    ) -> None:
+        """One unusable file is skipped and reported; the search still returns."""
+        (project_dir / "good.py").write_text("def target():\n    pass\n")
+        (project_dir / "bad.py").write_text("def target():\n    pass\n")
+
+        def fake_normalize_path(path: str, base_dir: Path) -> Tuple[Path, str]:
+            if Path(path).name == "bad.py":
+                raise error
+            return real_normalize_path(path, base_dir)
+
+        monkeypatch.setattr(
+            "mcp_workspace.file_tools.search.normalize_path", fake_normalize_path
+        )
+
+        result = search_files(project_dir, pattern=r"def target")
+
+        matched = {Path(m["file"]).name for m in result["details"]}
+        assert "good.py" in matched
+        assert "bad.py" not in matched
+        assert result["skipped_files"] == ["bad.py"]
+
+    def test_binary_file_not_reported_as_skipped(self, project_dir: Path) -> None:
+        """Binary files remain a silent skip, not a reported one."""
+        (project_dir / "text.py").write_text("def hello():\n    pass\n")
+        (project_dir / "binary.bin").write_bytes(b"\x80\x81\x82\xff\xfe")
+
+        result = search_files(project_dir, pattern=r"def hello")
+
+        assert len(result["details"]) == 1
+        assert "skipped_files" not in result
+
+    @requires_symlinks
+    def test_search_skips_real_symlink_escape(self, tmp_path: Path) -> None:
+        """A symlinked file pointing outside the project is skipped, not fatal."""
+        # The server resolves --project-dir at startup, so resolve here too.
+        root = tmp_path.resolve()
+        project = root / "project"
+        project.mkdir()
+        outside = root / "outside"
+        outside.mkdir()
+        (outside / "credentials.env").write_text(
+            "SECRET_MARKER=value\n", encoding="utf-8"
+        )
+        (project / "inside.txt").write_text("SECRET_MARKER=inside\n", encoding="utf-8")
+        (project / "link.env").symlink_to(outside / "credentials.env")
+
+        result = search_files(project, pattern=r"SECRET_MARKER")
+
+        assert {Path(m["file"]).name for m in result["details"]} == {"inside.txt"}
+        assert all("SECRET_MARKER=value" not in m["text"] for m in result["details"])
+        assert result["skipped_files"] == ["link.env"]

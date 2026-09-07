@@ -84,7 +84,9 @@ def _search_content(
     """Search file contents for regex matches.
 
     Returns:
-        content_search result dict.
+        content_search result dict. Carries a ``skipped_files`` key listing
+        project-relative paths that could not be read — a path rejected by the
+        security check, or an unreadable file — present only when non-empty.
     """
     matches: List[Dict[str, Any]] = []
     total_matches = 0
@@ -92,13 +94,19 @@ def _search_content(
     chars_used = 0
     truncated = False
     files_map: Dict[str, List[int]] = {}
+    skipped: List[str] = []
 
     for rel_path in files:
-        abs_path, _ = normalize_path(rel_path, project_dir)
         try:
+            abs_path, _ = normalize_path(rel_path, project_dir)
             with open(abs_path, "r", encoding="utf-8") as f:
                 file_lines = f.readlines()
         except UnicodeDecodeError:
+            # Must precede the next handler: UnicodeDecodeError is a subclass
+            # of ValueError. Binary files stay a silent skip.
+            continue
+        except (ValueError, OSError):
+            skipped.append(rel_path)
             continue
 
         for i, line in enumerate(file_lines):
@@ -144,6 +152,8 @@ def _search_content(
         result["matched_files"] = [
             {"file": f, "lines": lns} for f, lns in files_map.items()
         ]
+    if skipped:
+        result["skipped_files"] = skipped
     return result
 
 
@@ -179,6 +189,9 @@ def search_files(
         Dictionary with search results. Carries a ``glob_note`` key when the
         glob matched no files and contains ``{``, which wildmatch treats
         literally, distinguishing that from a genuine no-such-file result.
+        A content search carries a ``skipped_files`` key listing
+        project-relative paths that could not be read — a path rejected by the
+        security check, or an unreadable file — present only when non-empty.
 
     Raises:
         ValueError: If neither glob nor pattern is provided, or if the glob

@@ -33,9 +33,9 @@ Details: [step_1.md](./steps/step_1.md)
 
 Details: [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: 3 tests in `tests/file_tools/test_search.py`, `_search_content` skip/report with `skipped_files` in `src/mcp_workspace/file_tools/search.py`, docstring line in `server.py` and `server_reference_tools.py`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared: `fix(search): skip and report files rejected by the path guard (#290)`
+- [x] Implementation: 3 tests in `tests/file_tools/test_search.py`, `_search_content` skip/report with `skipped_files` in `src/mcp_workspace/file_tools/search.py`, docstring line in `server.py` and `server_reference_tools.py`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared: `fix(search): skip and report files rejected by the path guard (#290)`
 
 ### Step 3: Operation-level absolute-traversal coverage
 
