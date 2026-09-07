@@ -657,3 +657,18 @@ class TestSearchFilesSkippedFiles:
         assert {Path(m["file"]).name for m in result["details"]} == {"inside.txt"}
         assert all("SECRET_MARKER=value" not in m["text"] for m in result["details"])
         assert result["skipped_files"] == ["link.env"]
+
+
+class TestSearchFilesNoDeprecationWarning:
+    """The glob matcher must not route through a deprecated pathspec name."""
+
+    @pytest.mark.filterwarnings("error::DeprecationWarning")
+    def test_search_files_with_glob_emits_no_deprecation_warning(
+        self, project_dir: Path
+    ) -> None:
+        """A glob-bearing search compiles its pattern without deprecation."""
+        (project_dir / "a.py").write_text("x = 1\n")
+
+        result = search_files(project_dir, glob="**/*.py")
+
+        assert result["mode"] == "file_search"
