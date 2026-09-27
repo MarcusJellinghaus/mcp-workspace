@@ -83,7 +83,7 @@ tree.
 | Path | Change |
 |------|--------|
 | `src/mcp_workspace/git_operations/remotes.py` | Modified — extend the `.repository_status` import, add `_MAX_DIRTY_PATHS_PER_BUCKET`, add `_format_dirty_tree`, edit one `logger.warning` call |
-| `tests/git_operations/test_remotes.py` | Modified — one new integration case in `TestRebaseOntoBranch`, plus one unit test for `_format_dirty_tree` (truncation and empty tree) |
+| `tests/git_operations/test_remotes.py` | Modified — one new integration case in `TestRebaseOntoBranch`, plus unit tests for `_format_dirty_tree` (per-bucket truncation, all buckets, empty tree) |
 
 No new folders or modules. No fixture changes: `git_repo_with_remote`
 (`tests/git_operations/conftest.py`) already yields `(repo, project_dir, bare_remote_dir)`

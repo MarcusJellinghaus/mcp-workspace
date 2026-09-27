@@ -32,8 +32,9 @@ def test_rebase_onto_branch_dirty_tree_logs_files(
 ) -> None: ...
 ```
 
-Plus one module-level unit test for `_format_dirty_tree` covering the truncation clause and
-the empty-tree contract — see [Truncation and empty-tree coverage](#truncation-and-empty-tree-coverage).
+Plus module-level unit tests for `_format_dirty_tree` covering per-bucket truncation, the
+all-buckets label rendering and line order, and the empty-tree contract — see
+[Truncation and empty-tree coverage](#truncation-and-empty-tree-coverage).
 
 ## HOW — integration points
 
@@ -99,10 +100,14 @@ push main -u; checkout -b feature-branch
 add+commit a new file on feature-branch           # so the rebase is not a fast-forward
 checkout main; add+commit a new file; push main   # advance origin/main
 checkout feature-branch
-write README.md without committing                # dirty TRACKED file
+write README.md with content != "# Test Project"  # dirty TRACKED file
 with caplog.at_level("WARNING"): result = rebase_onto_branch(project_dir, "main")
 assert result is False and "modified: README.md" in caplog.text
 ```
+
+The README.md write must differ from the fixture's committed `"# Test Project"`. Writing the
+same bytes back leaves the tree clean, so the rebase succeeds and the test never reaches the
+dirty-tree path.
 
 The feature-branch commit mirrors `test_rebase_onto_branch_success`. Without it the rebase
 would be a pure fast-forward, so reaching the `except GitCommandError` fall-through would
@@ -142,7 +147,8 @@ rather than hardcoding `"main"`.
    means the setup is not reaching the fall-through branch.
 2. Add the constant and helper, extend the import, edit the call site.
 3. Re-run and watch it pass.
-4. Add the `_format_dirty_tree` unit test (truncation + empty tree) and watch it pass.
+4. Add the `_format_dirty_tree` unit tests (per-bucket truncation, all buckets, empty tree)
+   and watch them pass.
 
 ## Verification
 
@@ -173,28 +179,49 @@ fact. If any `.scratch/` probe is added while working, delete it before committi
 ## Truncation and empty-tree coverage
 
 The integration test cannot reach the truncation clause — that needs 21+ dirty files in one
-bucket. Cover it with a unit test that patches `get_full_status` instead of building the
-files, using the same `unittest.mock.patch` pattern already imported in
+bucket — and covers only the `modified` bucket. Cover the rest with unit tests that patch
+`get_full_status` instead of building the files, using the same `unittest.mock.patch`
+pattern already imported in
 `tests/git_operations/test_remotes.py` (line 5):
 
 ```
+@pytest.mark.parametrize("bucket", ["staged", "modified", "untracked"])
 @patch("mcp_workspace.git_operations.remotes.get_full_status")
-def test_format_dirty_tree_truncates_and_handles_clean(mock_status: MagicMock) -> None:
-    mock_status.return_value = {"staged": [], "modified": [f"f{i}.py" for i in range(25)],
-                                "untracked": []}
+def test_format_dirty_tree_truncates_each_bucket(
+    mock_status: MagicMock, bucket: str
+) -> None:
+    empty = {"staged": [], "modified": [], "untracked": []}
+    mock_status.return_value = {**empty, bucket: [f"f{i}.py" for i in range(25)]}
     out = _format_dirty_tree(Path("/tmp"))
-    assert "... showing 20 of 25 modified" in out
+    assert f"  {bucket}: f0.py" in out
+    assert f"... showing 20 of 25 {bucket}" in out
     assert "f24.py" not in out
 
+
+@patch("mcp_workspace.git_operations.remotes.get_full_status")
+def test_format_dirty_tree_all_buckets(mock_status: MagicMock) -> None:
+    mock_status.return_value = {"staged": ["s.py"], "modified": ["m.py"],
+                                "untracked": ["u.py"]}
+    assert _format_dirty_tree(Path("/tmp")) == (
+        "\nWorking tree:\n  staged: s.py\n  modified: m.py\n  untracked: u.py"
+    )
+
+
+@patch("mcp_workspace.git_operations.remotes.get_full_status")
+def test_format_dirty_tree_clean(mock_status: MagicMock) -> None:
     mock_status.return_value = {"staged": [], "modified": [], "untracked": []}
     assert _format_dirty_tree(Path("/tmp")) == ""
 ```
 
-Two cases, no fixture, no git: the truncation clause and the `""` empty-tree return
-contract that keeps the call site a single line. Add `_format_dirty_tree` to the existing
+No fixture, no git. The parameterized case covers the truncation clause for each bucket —
+`untracked` included, since that is the issue's motivating failure mode
+(`"untracked working tree files would be overwritten by checkout"`). The all-buckets case
+pins the label text and the staged / modified / untracked line order with one exact-string
+assertion. The clean case pins the `""` empty-tree return contract that keeps the call site a
+single line. Add `_format_dirty_tree` to the existing
 `mcp_workspace.git_operations.remotes` import in the test module, and `MagicMock` to the
 `unittest.mock` import — `mypy --strict` covers `tests`, so the patched argument needs its
-annotation. This test needs no `git_integration` marker, so place it outside
+annotation. These tests need no `git_integration` marker, so place them outside
 `TestRebaseOntoBranch`.
 
 ## LLM prompt
@@ -210,8 +237,11 @@ annotation. This test needs no `git_integration` marker, so place it outside
 > as `test_rebase_onto_branch_success` does, so the rebase is not a fast-forward — confirm it
 > fails on its assertion, then implement `_MAX_DIRTY_PATHS_PER_BUCKET` and
 > `_format_dirty_tree` in `src/mcp_workspace/git_operations/remotes.py` and wire the helper
-> into the fall-through `logger.warning`. Then add the `_format_dirty_tree` unit test that
-> patches `get_full_status` to cover truncation and the empty-tree `""` return.
+> into the fall-through `logger.warning`. Then add the `_format_dirty_tree` unit tests that
+> patch `get_full_status` to cover per-bucket truncation (parameterized over staged,
+> modified and untracked), the all-buckets label rendering and line order, and the
+> empty-tree `""` return. Write the dirty README.md with content different from the
+> fixture's `# Test Project`, or the tree stays clean and the rebase succeeds.
 >
 > Assert the rendered bucket line (`modified: README.md`) in `caplog.text`, not the git
 > sentence around it — this must not become a message-text test. Do not change
