@@ -2,13 +2,14 @@
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from git import Repo
 from git.exc import GitCommandError
 
 from mcp_workspace.git_operations.remotes import (
+    _format_dirty_tree,
     clone_repo,
     get_remote_url,
     get_repository_identifier,
@@ -355,6 +356,82 @@ class TestRebaseOntoBranch:
 
         # Verify: returns False
         assert result is False
+
+    def test_rebase_onto_branch_dirty_tree_logs_files(
+        self,
+        git_repo_with_remote: tuple[Repo, Path, Path],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Test the dirty working tree is named when the rebase is refused."""
+        repo, project_dir, _ = git_repo_with_remote
+
+        current_branch = repo.active_branch.name
+        repo.git.push("-u", "origin", current_branch)
+
+        # Commit on the feature branch so the rebase is not a fast-forward
+        repo.git.checkout("-b", "feature-branch")
+        feature_file = project_dir / "feature.txt"
+        feature_file.write_text("feature content")
+        repo.index.add(["feature.txt"])
+        repo.index.commit("Add feature")
+
+        # Advance origin/<main> so there is something to rebase onto
+        repo.git.checkout(current_branch)
+        main_file = project_dir / "main_update.txt"
+        main_file.write_text("main update content")
+        repo.index.add(["main_update.txt"])
+        repo.index.commit("Update main")
+        repo.git.push("origin", current_branch)
+
+        repo.git.checkout("feature-branch")
+
+        # Dirty a tracked file - content must differ from the committed version
+        (project_dir / "README.md").write_text("# Test Project - locally edited")
+
+        with caplog.at_level("WARNING"):
+            result = rebase_onto_branch(project_dir, current_branch)
+
+        assert result is False
+        assert "modified: README.md" in caplog.text
+
+
+class TestFormatDirtyTree:
+    """Tests for the _format_dirty_tree helper."""
+
+    @pytest.mark.parametrize("bucket", ["staged", "modified", "untracked"])
+    @patch("mcp_workspace.git_operations.remotes.get_full_status")
+    def test_format_dirty_tree_truncates_each_bucket(
+        self, mock_status: MagicMock, bucket: str
+    ) -> None:
+        """Test each category is capped and annotated with its total count."""
+        empty: dict[str, list[str]] = {"staged": [], "modified": [], "untracked": []}
+        mock_status.return_value = {**empty, bucket: [f"f{i}.py" for i in range(25)]}
+
+        out = _format_dirty_tree(Path("/tmp"))
+
+        assert f"  {bucket}: f0.py" in out
+        assert f"... showing 20 of 25 {bucket}" in out
+        assert "f24.py" not in out
+
+    @patch("mcp_workspace.git_operations.remotes.get_full_status")
+    def test_format_dirty_tree_all_buckets(self, mock_status: MagicMock) -> None:
+        """Test labels and line order for a tree dirty in every category."""
+        mock_status.return_value = {
+            "staged": ["s.py"],
+            "modified": ["m.py"],
+            "untracked": ["u.py"],
+        }
+
+        assert _format_dirty_tree(Path("/tmp")) == (
+            "\nWorking tree:\n  staged: s.py\n  modified: m.py\n  untracked: u.py"
+        )
+
+    @patch("mcp_workspace.git_operations.remotes.get_full_status")
+    def test_format_dirty_tree_clean(self, mock_status: MagicMock) -> None:
+        """Test a clean tree renders nothing."""
+        mock_status.return_value = {"staged": [], "modified": [], "untracked": []}
+
+        assert _format_dirty_tree(Path("/tmp")) == ""
 
 
 @pytest.mark.git_integration

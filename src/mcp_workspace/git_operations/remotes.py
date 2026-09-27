@@ -10,7 +10,7 @@ from git.exc import GitCommandError, InvalidGitRepositoryError
 
 from .branch_queries import branch_exists
 from .core import logger, safe_repo_context
-from .repository_status import is_git_repository
+from .repository_status import get_full_status, is_git_repository
 
 if TYPE_CHECKING:
     from mcp_workspace.utils.repo_identifier import RepoIdentifier
@@ -278,6 +278,45 @@ def get_repository_identifier(
         return None
 
 
+_MAX_DIRTY_PATHS_PER_BUCKET = 20
+
+
+def _format_dirty_tree(project_dir: Path) -> str:
+    """Render the uncommitted changes of a working tree as a log block.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+
+    Returns:
+        An empty string when the working tree is clean, so callers can append
+        it unconditionally. Otherwise a block starting with a newline, then
+        ``Working tree:``, then one indented line per non-empty category of
+        staged, modified and untracked paths. A category listing more than
+        ``_MAX_DIRTY_PATHS_PER_BUCKET`` paths is truncated and annotated with
+        the total count.
+    """
+    status = get_full_status(project_dir)
+
+    lines: list[str] = []
+    for label in ("staged", "modified", "untracked"):
+        paths = status[label]
+        if not paths:
+            continue
+
+        shown = paths[:_MAX_DIRTY_PATHS_PER_BUCKET]
+        line = f"  {label}: " + ", ".join(shown)
+        if len(paths) > _MAX_DIRTY_PATHS_PER_BUCKET:
+            line += (
+                f" ... showing {_MAX_DIRTY_PATHS_PER_BUCKET} of {len(paths)} {label}"
+            )
+        lines.append(line)
+
+    if not lines:
+        return ""
+
+    return "\nWorking tree:\n" + "\n".join(lines)
+
+
 def rebase_onto_branch(project_dir: Path, target_branch: str) -> bool:
     """Attempt to rebase current branch onto origin/<target_branch>.
 
@@ -348,7 +387,7 @@ def rebase_onto_branch(project_dir: Path, target_branch: str) -> bool:
                     return False
 
                 # Other git command error (e.g., invalid branch name)
-                logger.warning(f"Skipping rebase: {e}")
+                logger.warning(f"Skipping rebase: {e}{_format_dirty_tree(project_dir)}")
                 return False
 
     except (InvalidGitRepositoryError, GitCommandError) as e:
