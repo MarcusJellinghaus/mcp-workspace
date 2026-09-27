@@ -370,9 +370,12 @@ def rebase_onto_branch(project_dir: Path, target_branch: str) -> bool:
                     logger.info(f"Already up-to-date with origin/{target_branch}")
                     return True
 
-                # Check if rebase is in progress (conflicts detected)
-                rebase_merge_dir = project_dir / ".git" / "rebase-merge"
-                rebase_apply_dir = project_dir / ".git" / "rebase-apply"
+                # Check if rebase is in progress (conflicts detected).
+                # Use the repository's real git dir: in a linked worktree or a
+                # submodule, .git is a file and the rebase state lives elsewhere.
+                git_dir = Path(repo.git_dir)
+                rebase_merge_dir = git_dir / "rebase-merge"
+                rebase_apply_dir = git_dir / "rebase-apply"
 
                 if rebase_merge_dir.exists() or rebase_apply_dir.exists():
                     logger.warning(

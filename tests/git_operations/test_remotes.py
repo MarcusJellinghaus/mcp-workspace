@@ -394,6 +394,50 @@ class TestRebaseOntoBranch:
         assert result is False
         assert "modified: README.md" in caplog.text
 
+    def test_rebase_onto_branch_conflict_in_linked_worktree(
+        self,
+        git_repo_with_remote: tuple[Repo, Path, Path],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Test a conflict is detected in a worktree, where .git is a file."""
+        repo, project_dir, _ = git_repo_with_remote
+
+        current_branch = repo.active_branch.name
+        repo.git.push("-u", "origin", current_branch)
+
+        # Linked worktree on a feature branch - its .git is a file, and its
+        # rebase state lives under <main>/.git/worktrees/<name>/
+        worktree_dir = project_dir.parent / "worktree"
+        repo.git.worktree("add", "-b", "feature-branch", str(worktree_dir))
+        worktree_repo = Repo(worktree_dir)
+        assert (worktree_dir / ".git").is_file()
+
+        # Conflicting file on the worktree branch
+        (worktree_dir / "conflict.txt").write_text("feature branch content")
+        worktree_repo.index.add(["conflict.txt"])
+        worktree_repo.index.commit("Add conflict file on feature")
+        original_head = worktree_repo.head.commit.hexsha
+
+        # Same file with different content on main, pushed to origin
+        (project_dir / "conflict.txt").write_text("main branch content")
+        repo.index.add(["conflict.txt"])
+        repo.index.commit("Add conflict file on main")
+        repo.git.push("origin", current_branch)
+
+        with caplog.at_level("WARNING"):
+            result = rebase_onto_branch(worktree_dir, current_branch)
+
+        assert result is False
+        assert "merge conflicts detected" in caplog.text
+        # Conflicted files must not be reported as a dirty working tree
+        assert "Working tree:" not in caplog.text
+
+        # Verify: rebase aborted and original state preserved
+        worktree_git_dir = Path(worktree_repo.git_dir)
+        assert not (worktree_git_dir / "rebase-merge").exists()
+        assert not (worktree_git_dir / "rebase-apply").exists()
+        assert worktree_repo.head.commit.hexsha == original_head
+
 
 class TestFormatDirtyTree:
     """Tests for the _format_dirty_tree helper."""
