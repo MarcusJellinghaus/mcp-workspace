@@ -83,7 +83,7 @@ tree.
 | Path | Change |
 |------|--------|
 | `src/mcp_workspace/git_operations/remotes.py` | Modified — extend the `.repository_status` import, add `_MAX_DIRTY_PATHS_PER_BUCKET`, add `_format_dirty_tree`, edit one `logger.warning` call |
-| `tests/git_operations/test_remotes.py` | Modified — one new case in `TestRebaseOntoBranch` |
+| `tests/git_operations/test_remotes.py` | Modified — one new integration case in `TestRebaseOntoBranch`, plus one unit test for `_format_dirty_tree` (truncation and empty tree) |
 
 No new folders or modules. No fixture changes: `git_repo_with_remote`
 (`tests/git_operations/conftest.py`) already yields `(repo, project_dir, bare_remote_dir)`
@@ -92,4 +92,4 @@ with the default branch renamed to `main` and one committed tracked file, `READM
 ## Steps
 
 One step, one commit — see [step_1.md](./step_1.md). The change is a single helper plus its
-call site plus one test; there are no independent parts to split.
+call site plus two tests; there are no independent parts to split.
