@@ -15,3 +15,21 @@ I'll gather context: knowledge base, the issue and its links, and the plan files
 Verdict(decision='tasks', tasks=["In pr_info/steps/step_2.md, resolve the issue manager via `_issue_manager()` outside the `_api_error` / `_ref_suffix` path, or special-case its reference-resolution ValueError. An unknown reference_name must return exactly `Error: Reference project 'nope' not found`, the same bytes as the other issue tools.", 'In pr_info/steps/step_2.md, replace `except Exception` with `except (GithubException, ValueError)` per approved Decision 16, so programming errors still raise.', "Remove the 'no source change is expected' claim from pr_info/steps/step_3.md:4. The plan must note that `test_unknown_reference_name_returns_error` (test_github_write_tools_reference.py:143) also runs on the new `_TOOL_CASES` entries and asserts the exact unknown-reference error string.", "Merge step 3's parametrised `_TOOL_CASES` test additions into step 2 so they land in the same commit. Update pr_info/steps/summary.md and renumber the steps.", 'In pr_info/steps/step_1.md, give the `repo.get_issue` mock `side_effect` order for the `_write_link` tests: parent, then child, then the refetched parent. Cases 1 and 2 should assert that the refetched parent is the one returned.'], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 2 — 2026-09-29
+**Findings**:
+Plan files read; checking a couple of codebase facts the plan relies on.`pr_info/steps/step_3.md:53` — medium — The reference-project step (Test 4.2) can't be run as written. Test 4.2 creates only one issue and closes it at its step 6, but a link → list → unlink cycle needs a parent and a child. The step must say to create a second issue in the reference repo, run the cycle before the close step, and close both issues afterwards.
+
+`pr_info/steps/step_2.md:176` — low — Case 11 (`reference_name="sibling"`) needs the `sibling` reference project to be configured, like the `reference_projects` fixture in `test_github_write_tools_reference.py`. The model file `test_github_write_tools_issue_edit.py` has no such fixture. Without it, `_issue_manager` returns `Error: Reference project 'sibling' not found`, so the test never reaches the `_api_error` suffix it is meant to check.
+**Decisions**:
+Verdict(decision='tasks', tasks=['In pr_info/steps/step_3.md, rewrite the Test 4.2 reference-project step. Create a second issue in the reference repo to act as the child. Run the link, list and unlink cycle before the step-6 close. Close both issues afterwards.', 'In pr_info/steps/step_2.md, make case 11 (`reference_name="sibling"`) configure the `sibling` reference project, the way the `reference_projects` fixture in test_github_write_tools_reference.py does. This lets the call reach the `_api_error` suffix path instead of stopping at the \'not found\' error.'], escalate_reason=None)
+**Changes**:
+applied
+
+## Round 3 — 2026-09-29
+**Findings**:
+Checking `_get_issue_checked` against the test helpers the plan relies on.NO FINDINGS
+**Decisions**:
+Verdict(decision='dismiss', tasks=[], escalate_reason=None)
+**Changes**:
+dismiss
