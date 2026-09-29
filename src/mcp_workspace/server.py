@@ -1380,11 +1380,8 @@ def _subissue_write(
     Returns:
         The success line, or error message string.
     """
-    # Lazy imports: keep PyGithub off the server startup import path
+    # Lazy import: keeps PyGithub off the server startup import path
     from mcp_workspace.github_operations import GithubException
-    from mcp_workspace.github_operations.issues.sub_issues_mixin import (
-        sub_issue_total,
-    )
 
     suffix = _ref_suffix(reference_name)
     for number in (parent_number, child_number):
@@ -1399,16 +1396,15 @@ def _subissue_write(
         return f"Error: {exc}"
     try:
         call = manager.remove_sub_issue if unlink else manager.add_sub_issue
-        parent = call(parent_number, child_number)
-        if parent is None:
+        link = call(parent_number, child_number)
+        if link is None:
             return _repo_access_error(manager)
-        total = sub_issue_total(parent)
-        count = "" if total is None else f" ({total} sub-issues)"
+        count = "" if link.total is None else f" ({link.total} sub-issues)"
         verb = "Unlinked" if unlink else "Linked"
         relation = "from" if unlink else "as a sub-issue of"
         return (
             f"{verb} #{child_number} {relation} #{parent_number} "
-            f"— {parent.html_url}{count}"
+            f"— {link.url}{count}"
         )
     except (GithubException, ValueError) as exc:
         return _api_error(exc, reference_name)
@@ -1437,7 +1433,7 @@ def github_subissue_add(
 
     Returns:
         "Linked #<child> as a sub-issue of #<parent> — <url> (<N> sub-issues)",
-        where the count is omitted when GitHub reports none, or error message
+        where the count is omitted when it could not be read, or error message
         string.
     """
     return _subissue_write(parent_number, child_number, False, reference_name)
@@ -1510,7 +1506,7 @@ def github_subissue_remove(
 
     Returns:
         "Unlinked #<child> from #<parent> — <url> (<N> sub-issues)", where the
-        count is omitted when GitHub reports none, or error message string.
+        count is omitted when it could not be read, or error message string.
     """
     return _subissue_write(parent_number, child_number, True, reference_name)
 

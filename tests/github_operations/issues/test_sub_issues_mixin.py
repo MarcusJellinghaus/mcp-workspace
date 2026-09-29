@@ -7,10 +7,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 from github.GithubException import GithubException
 
+from mcp_workspace.github_operations.base_manager import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import IssueManager
-from mcp_workspace.github_operations.issues.sub_issues_mixin import sub_issue_total
+from mcp_workspace.github_operations.issues.sub_issues_mixin import (
+    SubIssueLink,
+    sub_issue_total,
+)
 
 from .._issue_test_helpers import make_mock_issue
+
+_URL = "https://github.com/test/repo/issues/3"
 
 
 def _make_issue(number: int) -> MagicMock:
@@ -25,10 +31,11 @@ class TestIssueManagerSubIssues:
     """Unit tests for IssueManager sub-issue operations with mocked dependencies."""
 
     def test_add_sub_issue_success(self, mock_issue_manager: IssueManager) -> None:
-        """The child object is linked and the refetched parent is returned."""
+        """The child object is linked; the count comes from the refetched parent."""
         mock_parent = _make_issue(3)
         mock_child = _make_issue(5)
         mock_refetched_parent = _make_issue(3)
+        mock_refetched_parent.html_url = _URL
         mock_refetched_parent.sub_issues_summary.total = 1
         mock_issue_manager._repository.get_issue.side_effect = [
             mock_parent,
@@ -39,13 +46,15 @@ class TestIssueManagerSubIssues:
         result = mock_issue_manager.add_sub_issue(3, 5)
 
         mock_parent.add_sub_issue.assert_called_once_with(mock_child)
-        assert result is mock_refetched_parent
+        assert result == SubIssueLink(_URL, 1)
 
     def test_remove_sub_issue_success(self, mock_issue_manager: IssueManager) -> None:
-        """The child object is unlinked and the refetched parent is returned."""
+        """The child object is unlinked; a missing summary yields no count."""
         mock_parent = _make_issue(3)
         mock_child = _make_issue(5)
         mock_refetched_parent = _make_issue(3)
+        mock_refetched_parent.html_url = _URL
+        mock_refetched_parent.sub_issues_summary = None
         mock_issue_manager._repository.get_issue.side_effect = [
             mock_parent,
             mock_child,
@@ -56,7 +65,41 @@ class TestIssueManagerSubIssues:
 
         mock_parent.remove_sub_issue.assert_called_once_with(mock_child)
         mock_parent.add_sub_issue.assert_not_called()
-        assert result is mock_refetched_parent
+        assert result == SubIssueLink(_URL, None)
+
+    @pytest.mark.parametrize("unlink", [False, True], ids=["add", "remove"])
+    @pytest.mark.parametrize(
+        "refetch_error",
+        [
+            GithubException(502, {"message": "Bad Gateway"}, None),
+            IssueIdentityMismatchError("issue #3 was transferred"),
+        ],
+        ids=["github_exception", "identity_mismatch"],
+    )
+    def test_failed_refetch_after_write_keeps_success(
+        self,
+        mock_issue_manager: IssueManager,
+        unlink: bool,
+        refetch_error: Exception,
+    ) -> None:
+        """A write that landed is still a success; only the count is lost."""
+        mock_parent = _make_issue(3)
+        mock_parent.html_url = _URL
+        mock_child = _make_issue(5)
+        mock_issue_manager._repository.get_issue.side_effect = [
+            mock_parent,
+            mock_child,
+            refetch_error,
+        ]
+
+        write = (
+            mock_issue_manager.remove_sub_issue
+            if unlink
+            else mock_issue_manager.add_sub_issue
+        )
+        result = write(3, 5)
+
+        assert result == SubIssueLink(_URL, None)
 
     def test_list_sub_issues_returns_children_in_order(
         self, mock_issue_manager: IssueManager

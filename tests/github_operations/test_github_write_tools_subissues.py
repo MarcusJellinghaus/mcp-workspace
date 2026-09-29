@@ -1,13 +1,15 @@
 """Tests for the ``github_subissue_add/_list/_remove`` MCP tools in server.py."""
 
 from pathlib import Path
-from typing import Generator, Optional
+from typing import Callable, Generator, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
 from github import GithubException
 
 from mcp_workspace.github_operations.base_manager import IssueIdentityMismatchError
+from mcp_workspace.github_operations.issues import IssueManager
+from mcp_workspace.github_operations.issues.sub_issues_mixin import SubIssueLink
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server import (
     github_subissue_add,
@@ -16,6 +18,8 @@ from mcp_workspace.server import (
     set_project_dir,
 )
 from mcp_workspace.server_reference_tools import set_reference_projects
+
+from ._issue_test_helpers import make_mock_issue
 
 _URL = "https://github.com/test/repo/issues/3"
 _DUPLICATE = (
@@ -47,12 +51,9 @@ def reference_projects() -> Generator[None, None, None]:
     set_reference_projects({})
 
 
-def _make_parent(total: Optional[int] = 2) -> MagicMock:
-    """Build a mock refetched parent; ``total=None`` means no summary at all."""
-    parent = MagicMock()
-    parent.html_url = _URL
-    parent.sub_issues_summary = None if total is None else MagicMock(total=total)
-    return parent
+def _make_parent(total: Optional[int] = 2) -> SubIssueLink:
+    """Build a link result; ``total=None`` means the count is unknown."""
+    return SubIssueLink(_URL, total)
 
 
 def _make_child(number: int, state: str, title: str) -> MagicMock:
@@ -79,7 +80,7 @@ class TestSubissueAdd:
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_success_without_summary(self, mock_cls: MagicMock) -> None:
-        """A missing summary omits the parenthetical instead of inventing 0."""
+        """An unknown count omits the parenthetical instead of inventing 0."""
         mock_cls.return_value.add_sub_issue.return_value = _make_parent(total=None)
 
         result = github_subissue_add(parent_number=3, child_number=7)
@@ -215,7 +216,7 @@ class TestSubissueRemove:
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_success_without_summary(self, mock_cls: MagicMock) -> None:
-        """A missing summary omits the parenthetical."""
+        """An unknown count omits the parenthetical."""
         mock_cls.return_value.remove_sub_issue.return_value = _make_parent(total=None)
 
         result = github_subissue_remove(parent_number=3, child_number=7)
@@ -248,6 +249,50 @@ class TestSubissueRemove:
         result = github_subissue_remove(parent_number=3, child_number=7)
 
         assert result == "Error: Not Found"
+
+
+@pytest.mark.git_integration
+@pytest.mark.parametrize(
+    ("tool", "expected"),
+    [
+        (github_subissue_add, f"Linked #7 as a sub-issue of #3 — {_URL}"),
+        (github_subissue_remove, f"Unlinked #7 from #3 — {_URL}"),
+    ],
+    ids=["add", "remove"],
+)
+@pytest.mark.parametrize(
+    "refetch_error",
+    [
+        GithubException(502, {"message": "Bad Gateway"}, None),
+        IssueIdentityMismatchError("issue #3 was transferred"),
+    ],
+    ids=["github_exception", "identity_mismatch"],
+)
+def test_failed_refetch_after_write_reports_success(
+    mock_issue_manager: IssueManager,
+    tool: Callable[..., str],
+    expected: str,
+    refetch_error: Exception,
+) -> None:
+    """A write that landed is reported as success, without the count."""
+    parent = make_mock_issue(3)
+    parent.pull_request = None
+    parent.html_url = _URL
+    child = make_mock_issue(7)
+    child.pull_request = None
+    mock_issue_manager._repository.get_issue.side_effect = [
+        parent,
+        child,
+        refetch_error,
+    ]
+
+    with patch(
+        "mcp_workspace.github_operations.issues.IssueManager",
+        return_value=mock_issue_manager,
+    ):
+        result = tool(parent_number=3, child_number=7)
+
+    assert result == expected
 
 
 class TestSubissueList:
