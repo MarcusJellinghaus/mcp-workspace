@@ -132,10 +132,18 @@ Each step is exactly one commit, leaving pylint/pytest/mypy green.
 | 4 | Cross-tool invariant test (tests only) |
 | 5 | `docs/ARCHITECTURE.md` and the `@mcp.tool()` docstrings (docs only) |
 
-**Step 2 must land after step 1.** Removing `file_sizes`' `.replace` while `_discover_files`
-still emits backslashes silently breaks allowlist matching on Windows, and Linux-only CI
-cannot catch it. Within a single PR no such state is released, so this is commit ordering
-rather than risk. Steps 3–5 are order-free after step 1.
+**Order: 1 → 3 → 4, with step 2 any time after step 1, and step 5 last.**
+
+- **Step 2 after step 1.** Removing `file_sizes`' `.replace` while `_discover_files` still
+  emits backslashes silently breaks allowlist matching on Windows, and Linux-only CI cannot
+  catch it. Within a single PR no such state is released, so this is commit ordering rather
+  than risk.
+- **Step 4 after step 3.** Step 4's invariant test asserts `delete_directory` emits no
+  backslash, which only holds once step 3 changes `file_operations.py:458`. Running step 4
+  first reds the suite on Windows — the only platform where the bug is observable.
+- **Step 5 last**, so the documented invariant matches shipped behaviour.
+
+This matches the preconditions stated in each step's LLM prompt.
 
 ## Files created or modified
 
