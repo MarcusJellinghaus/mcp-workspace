@@ -1,78 +1,104 @@
-# Step 3 — `reference_name` routing tests
+# Step 3 — documentation
 
-Read [summary.md](./summary.md) first. Depends on Step 2. Tests only — no source
-change is expected. If a test here fails, the fix belongs in `server.py`.
+Read [summary.md](./summary.md) first. Depends on Step 2. Docs only; no code and
+no automated tests. All three surfaces are acceptance criteria (Decision 7).
 
 ## WHERE
 
 Modified:
 
-- `tests/github_operations/test_github_write_tools_reference.py`
+- `README.md` — the tool table, around line 246
+- `tests/LLM_Test.md` — Section 4 (Test 4.1) and the reference-project section
+  (Test 4.2)
+- `.claude/CLAUDE.md` — the tool-mapping table
+
+`docs/ARCHITECTURE.md` needs nothing: it mentions neither mixins nor individual
+tools (verified by search).
 
 ## WHAT
 
-Extend the existing parametrised routing table (around line 111) with the three
-new tools:
+**`README.md`** — three rows after `github_issue_edit`, matching the existing
+`| tool | description | example prompt |` shape:
 
-```python
-_TOOL_CASES = [
-    (github_label_list, {}),
-    (github_issue_comment, {"number": 42, "body": "hi"}),
-    (github_issue_create, {"title": "T"}),
-    (github_issue_edit, {"number": 42, "title": "T"}),
-    (github_subissue_add, {"parent_number": 42, "child_number": 43}),
-    (github_subissue_list, {"parent_number": 42}),
-    (github_subissue_remove, {"parent_number": 42, "child_number": 43}),
-]
-_TOOL_IDS = [
-    "label_list", "issue_comment", "issue_create", "issue_edit",
-    "subissue_add", "subissue_list", "subissue_remove",
-]
 ```
+| `github_subissue_add` | Links an issue as a sub-issue of another | "Make issue 43 a sub-issue of 42" |
+| `github_subissue_list` | Lists an issue's sub-issues | "What are the sub-issues of issue 42?" |
+| `github_subissue_remove` | Unlinks a sub-issue from its parent | "Detach issue 43 from its parent" |
+```
+
+**`tests/LLM_Test.md`** — a new `### Test 4.4: Sub-issue link → list → unlink`
+after Test 4.3, scripted in the file's existing numbered `call — expect …` style.
+It needs two throwaway issues, so create both and close both:
+
+1. `github_issue_create(title="LLM test parent - safe to close", ...)` → parent `#P`
+2. `github_issue_create(title="LLM test child - safe to close", ...)` → child `#C`
+3. `github_subissue_list(parent_number=<P>)` — expect `No sub-issues.`
+4. `github_subissue_add(parent_number=<P>, child_number=<C>)` — expect
+   `Linked #C as a sub-issue of #P — <url>`, with `(1 sub-issues)`
+5. `github_subissue_list(parent_number=<P>)` — expect one line
+   `#C  open  LLM test child - safe to close`
+6. `github_subissue_add(parent_number=<P>, child_number=<C>)` again — expect an
+   error naming duplicate sub-issues / one parent, not a success
+7. `github_subissue_add(parent_number=<P>, child_number=<P>)` — expect
+   `Error: an issue cannot be its own sub-issue`
+8. `github_subissue_add(parent_number=<P>, child_number=0)` — expect
+   `Error: invalid issue number: 0`
+9. `github_subissue_remove(parent_number=<P>, child_number=<C>)` — expect
+   `Unlinked #C from #P — <url>`
+10. `github_subissue_remove(parent_number=<P>, child_number=<C>)` again — expect
+    a 404 error, not a silent success
+11. `github_subissue_list(parent_number=<P>)` — expect `No sub-issues.`
+12. Close both issues with `github_issue_edit(..., state="closed")`
+
+In the reference-project section (Test 4.2), append one step: repeat the
+add → list → remove cycle with `reference_name=<name>` on every call, noting that
+one `reference_name` scopes **both** numbers and that cross-repo linking is not
+supported.
+
+**`.claude/CLAUDE.md`** — three rows in the tool-mapping table, next to the other
+GitHub issue entries:
+
+```
+| Link a sub-issue | `mcp__mcp-workspace__github_subissue_add` |
+| List sub-issues | `mcp__mcp-workspace__github_subissue_list` |
+| Unlink a sub-issue | `mcp__mcp-workspace__github_subissue_remove` |
+```
+
+This row is what makes an agent in this repo reach for the MCP tool instead of a
+raw `gh api` call — the gap that produced issue #294.
 
 ## HOW
 
-- Import the three tools from `mcp_workspace.server` alongside the existing ones.
-- Both existing parametrised tests — `test_reference_name_uses_repo_url` and
-  `test_no_reference_name_uses_project_dir` — pick the new cases up with no
-  further change. They assert only how `IssueManager` was constructed
-  (`{"repo_url": "https://github.com/owner/sibling"}` versus
-  `project_dir`), so the mocked manager's return value does not matter.
-- The file's local `_make_manager()` returns a `MagicMock`, so
-  `add_sub_issue`/`list_sub_issues` auto-return Mocks and the tools render a
-  harmless Mock repr. No new fixture is needed. Only add a stub return value if
-  one of these tests starts asserting on tool output, which it should not.
-- Use distinct parent and child numbers (42/43): equal numbers would hit the
-  self-link guard and return before `IssueManager` is ever constructed, so the
-  routing assertion would fail for the wrong reason.
+Plain Markdown edits. Match each file's existing table columns, heading depth and
+numbering style. Keep the prose short: the repo's writing style is "say it once".
 
 ## ALGORITHM
 
-None — this step only extends existing parametrised data.
+None.
 
 ## DATA
 
-`_TOOL_CASES: list[tuple[Callable[..., str], dict[str, Any]]]` and the matching
-`_TOOL_IDS: list[str]`, both already defined in the file.
+None.
 
 ## Checks
 
 `run_format_code`, then pylint, pytest `-n auto`, mypy, vulture, ruff,
-lint-imports.
+lint-imports — all should be unaffected, but run them so the commit is verified
+like every other.
 
 ## Commit
 
-`test(server): cover reference_name routing for sub-issue tools (#294)`
+`docs: document the sub-issue tools (#294)`
 
 ## LLM prompt
 
 > Implement Step 3 of the sub-issue tools feature for issue #294. Steps 1 and 2
 > are already committed.
 > Read `pr_info/steps/summary.md` and `pr_info/steps/step_3.md` first.
-> In `tests/github_operations/test_github_write_tools_reference.py`, import
-> `github_subissue_add`, `github_subissue_list` and `github_subissue_remove` and
-> add them to `_TOOL_CASES` and `_TOOL_IDS` as shown in step_3. Use parent 42 and
-> child 43 — equal numbers would trip the self-link guard before `IssueManager`
-> is constructed. Expect no source change; if a test fails, fix `server.py`.
+> Update the three documentation surfaces exactly as step_3 describes:
+> `README.md`'s tool table, a new Test 4.4 plus a reference-project step in
+> `tests/LLM_Test.md`, and `.claude/CLAUDE.md`'s tool-mapping table. Match each
+> file's existing style and keep the prose short. Do not change
+> `docs/ARCHITECTURE.md` — it documents neither mixins nor individual tools.
 > Then run `run_format_code` followed by pylint, pytest (`extra_args=["-n","auto"]`),
 > mypy, vulture, ruff and lint-imports, and make one commit.

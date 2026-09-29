@@ -149,11 +149,28 @@ Note `make_mock_issue` returns a `MagicMock`, so `mock_issue.pull_request` is a
 truthy Mock by default — set `pull_request = None` on any issue that should pass
 the guard.
 
+`_write_link` fetches three times, in this order: parent, child, then the
+refetched parent. Drive it with an explicit `side_effect` list rather than
+`return_value`:
+
+```python
+mock_issue_manager._repository.get_issue.side_effect = [
+    mock_parent, mock_child, mock_refetched_parent
+]
+```
+
+`mock_refetched_parent` is a distinct object (`make_mock_issue(3)` with its own
+`sub_issues_summary`), so "the refetched parent is what comes back" is assertable
+by identity. `list_sub_issues` fetches once, so it needs a single-element
+`side_effect` or a plain `return_value`.
+
 Cover:
 
 1. `add_sub_issue` success — `mock_parent.add_sub_issue.assert_called_once_with(mock_child)`
-   (the child **object**), and the returned parent is the refetched one.
-2. `remove_sub_issue` success — `assert_called_once_with(mock_child)`.
+   (the child **object**), and `result is mock_refetched_parent`, not
+   `mock_parent`.
+2. `remove_sub_issue` success — `mock_parent.remove_sub_issue.assert_called_once_with(mock_child)`,
+   and again `result is mock_refetched_parent`.
 3. `list_sub_issues` returns the children in order.
 4. `list_sub_issues` honours `max_results` — pass more children than the cap and
    assert the slice length; `max_results=0` and a negative value both yield `[]`.

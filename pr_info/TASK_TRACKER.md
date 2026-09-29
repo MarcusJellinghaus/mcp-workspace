@@ -22,8 +22,7 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ## Tasks
 
 - [ ] [Step 1](./steps/step_1.md) — SubIssuesMixin, composed into IssueManager, PyGithub>=2.7.0
-- [ ] [Step 2](./steps/step_2.md) — github_subissue_add/_list/_remove tools in server.py
-- [ ] [Step 3](./steps/step_3.md) — reference_name routing tests
-- [ ] [Step 4](./steps/step_4.md) — documentation (README, LLM_Test.md, CLAUDE.md)
+- [ ] [Step 2](./steps/step_2.md) — github_subissue_add/_list/_remove tools in server.py, incl. reference_name routing cases
+- [ ] [Step 3](./steps/step_3.md) — documentation (README, LLM_Test.md, CLAUDE.md)
 
 ## Pull Request

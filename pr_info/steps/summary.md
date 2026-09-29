@@ -92,7 +92,7 @@ at `158-162` does not cover `src/`), a plain `if summary is None:` is flagged
 library's annotation is wrong — where a bare `# type: ignore[unreachable]` would
 only silence it. One cast, one place, directly unit-testable with a real `None`.
 
-**Two deliberate readings of the issue, both flagged:**
+**One deliberate reading of the issue, flagged:**
 
 1. *The pull-request guard cannot live where the issue words it.* The issue puts
    it under "Pre-write validation, in `server.py`, before the manager is built",
@@ -102,13 +102,11 @@ only silence it. One cast, one place, directly unit-testable with a real `None`.
    lives in the mixin, raising `ValueError("#<n> is a pull request, not an
    issue")`, which the tool's catch renders into the decided string byte for
    byte. Nothing is written first either way.
-2. *The tools catch `Exception`, a superset of Decision 16's
-   `(GithubException, ValueError)`.* Both named types are still caught and still
-   rendered as `"Error: <message>"`; `_api_error` falls back to `str(exc)` when
-   there is no dict `message`, which is exactly what a `ValueError` needs. Every
-   other tool in `server.py` already ends in `except Exception` (lines 893, 948,
-   1027, 1136) with no pylint disable, so this is both simpler than two arms and
-   consistent with the file.
+**The tools catch `(GithubException, ValueError)`** — Decision 16 exactly. Both
+are rendered as `"Error: <message>"`; `_api_error` falls back to `str(exc)` when
+there is no dict `message`, which is what a `ValueError` needs. A programming
+error (`AttributeError`, `TypeError`) is deliberately *not* caught, so it raises
+instead of reaching the caller disguised as an API failure.
 
 **Message rendering stays inline.** `_api_error` guards with
 `isinstance(data, dict)` and `.get("message")`, falling back to `str(exc)` —
@@ -119,7 +117,13 @@ existing test files, and this feature has settled on `"Error: <msg>"`. Changing
 a shared helper's contract for three new tools is not worth it.
 
 **Every error string appends `_ref_suffix(reference_name)`** (`server.py:84`),
-as every other issue tool does, so the caller knows which repo failed.
+as every other issue tool does, so the caller knows which repo failed — with one
+exception: the reference-resolution failure. `_issue_manager(reference_name)` is
+called *outside* the `_api_error` path, and its `ValueError` is returned as a
+bare `f"Error: {exc}"`, because that message already names the project and
+`test_unknown_reference_name_returns_error`
+(`test_github_write_tools_reference.py:143`) asserts it byte for byte across
+every tool in `_TOOL_CASES`, the new ones included.
 
 **Both issues are fetched with `self._get_issue_checked(repo, n)`**, never
 `repo.get_issue(n)`, so parent and child both get the transferred-issue guard
@@ -202,9 +206,8 @@ Untouched on purpose: `issues/types.py`, `issues/__init__.py`,
 | Step | Scope | Commit |
 |---|---|---|
 | [step_1](./step_1.md) | `SubIssuesMixin` + composition + dependency floor + mixin tests | 1 |
-| [step_2](./step_2.md) | Three MCP tools + server helpers + vulture whitelist + tool tests | 1 |
-| [step_3](./step_3.md) | `reference_name` routing tests | 1 |
-| [step_4](./step_4.md) | Documentation (README, LLM_Test.md, CLAUDE.md) | 1 |
+| [step_2](./step_2.md) | Three MCP tools + server helpers + vulture whitelist + tool tests + `reference_name` routing cases | 1 |
+| [step_3](./step_3.md) | Documentation (README, LLM_Test.md, CLAUDE.md) | 1 |
 
 Each step is tests-first, self-contained, and ends with all quality gates
 passing: `run_format_code`, then pylint, pytest (`-n auto`), mypy, vulture,

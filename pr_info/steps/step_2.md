@@ -14,6 +14,8 @@ Modified:
   immediately after `github_issue_edit`
 - `vulture_whitelist.py` — three names under "GitHub write tools registered in
   server.py" (line ~54)
+- `tests/github_operations/test_github_write_tools_reference.py` — the three
+  tools added to the existing `_TOOL_CASES` / `_TOOL_IDS` routing table
 
 ## WHAT
 
@@ -66,13 +68,21 @@ The two write tools are one-liners delegating to `_subissue_write` with
   `from mcp_workspace.github_operations.issues.sub_issues_mixin import sub_issue_total`
   inside `_subissue_write`. `_api_error` needs no import (it duck-types `.data`).
 - Every returned error string appends `_ref_suffix(reference_name)`
-  (`server.py:84`).
+  (`server.py:84`) — **except** the reference-resolution failure. Build the
+  manager *before* the main `try`, in its own `except ValueError` that returns a
+  bare `f"Error: {exc}"`. An unknown reference name must return exactly
+  `Error: Reference project 'nope' not found`, byte-identical to every other
+  issue tool; routing that message through `_api_error` would append
+  `_ref_suffix` and double the project name.
 - Repository inaccessible: the mixin returns `None`, and the tool returns the
   existing `_repo_access_error(manager)` (`server.py:833`), as `github_search`
   does at `server.py:1094-1095`.
-- `except Exception as exc: return _api_error(exc, reference_name)` — a superset
-  of Decision 16; see summary. Every other tool in the file already ends in a
-  broad `except Exception` with no pylint disable.
+- `except (GithubException, ValueError) as exc: return _api_error(exc, reference_name)`
+  — Decision 16 exactly. `IssueIdentityMismatchError` and the PR guard are
+  `ValueError`s, so both are covered; a programming error (`AttributeError`,
+  `TypeError`) still raises instead of being rendered as a caller-facing
+  `Error: ...`. Import `GithubException` lazily inside the function body, as
+  `github_issue_edit` does (`server.py:1247`).
 - `vulture_whitelist.py`: add `_.github_subissue_add`, `_.github_subissue_list`,
   `_.github_subissue_remove` to the existing write-tools block.
 
@@ -90,8 +100,11 @@ _subissue_write(parent_number, child_number, unlink, reference_name):
         if n <= 0: return f"Error: invalid issue number: {n}{suffix}"
     if parent_number == child_number:
         return f"Error: an issue cannot be its own sub-issue{suffix}"
+    try:                                    # no _ref_suffix here: the message
+        manager = _issue_manager(reference_name)   # already names the project
+    except ValueError as exc:
+        return f"Error: {exc}"
     try:
-        manager = _issue_manager(reference_name)
         call = manager.remove_sub_issue if unlink else manager.add_sub_issue
         parent = call(parent_number, child_number)
         if parent is None: return _repo_access_error(manager)
@@ -101,7 +114,7 @@ _subissue_write(parent_number, child_number, unlink, reference_name):
         relation = "from" if unlink else "as a sub-issue of"
         return (f"{verb} #{child_number} {relation} #{parent_number} "
                 f"— {parent.html_url}{count}")
-    except Exception as exc:
+    except (GithubException, ValueError) as exc:
         return _api_error(exc, reference_name)
 
 github_subissue_list(parent_number, max_results, reference_name):
@@ -109,11 +122,14 @@ github_subissue_list(parent_number, max_results, reference_name):
         return f"Error: invalid issue number: {parent_number}{_ref_suffix(reference_name)}"
     try:
         manager = _issue_manager(reference_name)
+    except ValueError as exc:
+        return f"Error: {exc}"
+    try:
         children = manager.list_sub_issues(parent_number, max_results=max_results)
         if children is None: return _repo_access_error(manager)
         if not children: return "No sub-issues."
         return "\n".join(f"#{c.number}  {c.state}  {c.title}" for c in children)
-    except Exception as exc:
+    except (GithubException, ValueError) as exc:
         return _api_error(exc, reference_name)
 ```
 
@@ -159,6 +175,9 @@ add a local `_make_parent(total=...)` helper returning a mock parent with
     never a traceback.
 11. An error with `reference_name="sibling"` → the message ends with
     `in reference project 'sibling'`.
+12. `reference_name="nope"` (not a configured project) → exactly
+    `Error: Reference project 'nope' not found`, with **no** ref suffix
+    appended, and the manager class never constructed.
 
 `github_subissue_remove`: success line
 `Unlinked #7 from #3 — <url> (1 sub-issues)`, the real-`None` summary case, the
@@ -169,6 +188,42 @@ self-link and invalid-number guards, and a 404 on an unlinked child surfacing as
 order; `[]` → `No sub-issues.`; `None` → repository error; `parent_number=0` →
 invalid-number error; `max_results` is forwarded to the mixin
 (`assert_called_once_with(3, max_results=5)`).
+
+**`reference_name` routing**, in the existing
+`tests/github_operations/test_github_write_tools_reference.py`: import the three
+tools and extend the parametrised table around line 100:
+
+```python
+_TOOL_CASES = [
+    (github_label_list, {}),
+    (github_issue_comment, {"number": 42, "body": "hi"}),
+    (github_issue_create, {"title": "T"}),
+    (github_issue_edit, {"number": 42, "title": "T"}),
+    (github_subissue_add, {"parent_number": 42, "child_number": 43}),
+    (github_subissue_list, {"parent_number": 42}),
+    (github_subissue_remove, {"parent_number": 42, "child_number": 43}),
+]
+_TOOL_IDS = [
+    "label_list", "issue_comment", "issue_create", "issue_edit",
+    "subissue_add", "subissue_list", "subissue_remove",
+]
+```
+
+- **Three** parametrised tests consume that table, not two:
+  `test_reference_name_uses_repo_url`, `test_no_reference_name_uses_project_dir`
+  and `test_unknown_reference_name_returns_error`
+  (`test_github_write_tools_reference.py:143`). The last one asserts the exact
+  string `Error: Reference project 'nope' not found` and
+  `mock_manager_cls.assert_not_called()` — which is why `_issue_manager` is
+  resolved outside the `_api_error` path above. If that test fails for the new
+  cases, the fix belongs in `server.py`, not in the assertion.
+- Use distinct parent and child numbers (42/43): equal numbers would hit the
+  self-link guard and return before `IssueManager` is constructed, so the
+  routing assertion would fail for the wrong reason.
+- The file's local `_make_manager()` returns a `MagicMock`, so
+  `add_sub_issue`/`list_sub_issues` auto-return Mocks and the tools render a
+  harmless Mock repr. The first two tests assert only how `IssueManager` was
+  constructed, so no new fixture or stub return value is needed.
 
 ## Checks
 
@@ -185,12 +240,16 @@ lint-imports. Vulture fails without the three whitelist entries.
 > already committed.
 > Read `pr_info/steps/summary.md` and `pr_info/steps/step_2.md` in full first.
 > Work test-first: write `tests/github_operations/test_github_write_tools_subissues.py`
-> covering every case listed in step_2, then add `_api_error`, `_subissue_write`
-> and the three `@mcp.tool()` functions to `src/mcp_workspace/server.py`
-> immediately after `github_issue_edit`, and add the three tool names to
-> `vulture_whitelist.py`.
+> covering every case listed in step_2, add the three tools to `_TOOL_CASES` /
+> `_TOOL_IDS` in `tests/github_operations/test_github_write_tools_reference.py`,
+> then add `_api_error`, `_subissue_write` and the three `@mcp.tool()` functions
+> to `src/mcp_workspace/server.py` immediately after `github_issue_edit`, and add
+> the three tool names to `vulture_whitelist.py`.
 > Match the success and error formats in summary.md exactly, including the em
-> dashes, the two spaces in the list line, and the `_ref_suffix` on every error.
+> dashes, the two spaces in the list line, and the `_ref_suffix` on every error
+> except the reference-resolution failure, which must stay byte-identical to the
+> other issue tools (`Error: Reference project 'nope' not found`).
+> Catch `(GithubException, ValueError)`, not bare `Exception`.
 > Keep PyGithub imports lazy (inside function bodies).
 > Then run `run_format_code` followed by pylint, pytest (`extra_args=["-n","auto"]`),
 > mypy, vulture, ruff and lint-imports, fix anything they report, and make one
