@@ -1346,6 +1346,175 @@ def github_issue_edit(
         return f"Error: {e}"
 
 
+def _api_error(exc: Exception, reference_name: Optional[str]) -> str:
+    """Render a GitHub or validation error as a caller-facing error string.
+
+    Args:
+        exc: The exception to render.
+        reference_name: Reference project name, or None for the workspace.
+
+    Returns:
+        "Error: <message>" using GitHub's message when the exception carries a
+        dict payload with one, otherwise str(exc).
+    """
+    # exc.data is not reliably a dict with a "message" key
+    data = getattr(exc, "data", None)
+    message = data.get("message") if isinstance(data, dict) else None
+    return f"Error: {message or exc}{_ref_suffix(reference_name)}"
+
+
+def _subissue_write(
+    parent_number: int,
+    child_number: int,
+    unlink: bool,
+    reference_name: Optional[str],
+) -> str:
+    """Link or unlink a sub-issue and render the outcome.
+
+    Args:
+        parent_number: Parent issue number.
+        child_number: Child issue number.
+        unlink: Remove the link when True, add it when False.
+        reference_name: Reference project name, or None for the workspace.
+
+    Returns:
+        The success line, or error message string.
+    """
+    # Lazy imports: keep PyGithub off the server startup import path
+    from mcp_workspace.github_operations import GithubException
+    from mcp_workspace.github_operations.issues.sub_issues_mixin import (
+        sub_issue_total,
+    )
+
+    suffix = _ref_suffix(reference_name)
+    for number in (parent_number, child_number):
+        if number <= 0:
+            return f"Error: invalid issue number: {number}{suffix}"
+    if parent_number == child_number:
+        return f"Error: an issue cannot be its own sub-issue{suffix}"
+    try:
+        manager = _issue_manager(reference_name)
+    except ValueError as exc:
+        # No suffix: the message already names the reference project
+        return f"Error: {exc}"
+    try:
+        call = manager.remove_sub_issue if unlink else manager.add_sub_issue
+        parent = call(parent_number, child_number)
+        if parent is None:
+            return _repo_access_error(manager)
+        total = sub_issue_total(parent)
+        count = "" if total is None else f" ({total} sub-issues)"
+        verb = "Unlinked" if unlink else "Linked"
+        relation = "from" if unlink else "as a sub-issue of"
+        return (
+            f"{verb} #{child_number} {relation} #{parent_number} "
+            f"— {parent.html_url}{count}"
+        )
+    except (GithubException, ValueError) as exc:
+        return _api_error(exc, reference_name)
+
+
+@mcp.tool()
+@log_function_call
+def github_subissue_add(
+    parent_number: int, child_number: int, reference_name: Optional[str] = None
+) -> str:
+    """Link an existing issue as a sub-issue of another. This writes to GitHub.
+
+    Both issues live in the same repository: the workspace repository, or the
+    reference project's repository when reference_name is given — it scopes
+    both numbers. GitHub rejects a child that already has a parent, here or
+    elsewhere, with one generic message; call github_subissue_list first if
+    the difference matters.
+
+    Args:
+        parent_number: Parent issue number (must be positive)
+        child_number: Issue number to link under the parent (must be positive
+            and differ from parent_number)
+        reference_name: Optional reference project name. When set, both issues
+            are in that project's GitHub repository instead of the workspace
+            repository.
+
+    Returns:
+        "Linked #<child> as a sub-issue of #<parent> — <url> (<N> sub-issues)",
+        where the count is omitted when GitHub reports none, or error message
+        string.
+    """
+    return _subissue_write(parent_number, child_number, False, reference_name)
+
+
+@mcp.tool()
+@log_function_call
+def github_subissue_list(
+    parent_number: int, max_results: int = 30, reference_name: Optional[str] = None
+) -> str:
+    """List an issue's sub-issues. This only reads from GitHub.
+
+    Reads from the workspace repository, or the reference project's repository
+    when reference_name is given.
+
+    Args:
+        parent_number: Parent issue number (must be positive)
+        max_results: Maximum sub-issues to return (default: 30)
+        reference_name: Optional reference project name. When set, reads from
+            that project's GitHub repository instead of the workspace
+            repository.
+
+    Returns:
+        One "#<number>  <state>  <title>" line per sub-issue, "No sub-issues."
+        when there are none, or error message string.
+    """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations import GithubException
+
+    if parent_number <= 0:
+        return (
+            f"Error: invalid issue number: {parent_number}"
+            f"{_ref_suffix(reference_name)}"
+        )
+    try:
+        manager = _issue_manager(reference_name)
+    except ValueError as exc:
+        # No suffix: the message already names the reference project
+        return f"Error: {exc}"
+    try:
+        children = manager.list_sub_issues(parent_number, max_results=max_results)
+        if children is None:
+            return _repo_access_error(manager)
+        if not children:
+            return "No sub-issues."
+        return "\n".join(f"#{c.number}  {c.state}  {c.title}" for c in children)
+    except (GithubException, ValueError) as exc:
+        return _api_error(exc, reference_name)
+
+
+@mcp.tool()
+@log_function_call
+def github_subissue_remove(
+    parent_number: int, child_number: int, reference_name: Optional[str] = None
+) -> str:
+    """Unlink a sub-issue from its parent. This writes to GitHub.
+
+    Both issues live in the same repository: the workspace repository, or the
+    reference project's repository when reference_name is given — it scopes
+    both numbers. Removing a child that is not linked to the parent is an
+    error, not a silent no-op.
+
+    Args:
+        parent_number: Parent issue number (must be positive)
+        child_number: Issue number to unlink from the parent (must be positive
+            and differ from parent_number)
+        reference_name: Optional reference project name. When set, both issues
+            are in that project's GitHub repository instead of the workspace
+            repository.
+
+    Returns:
+        "Unlinked #<child> from #<parent> — <url> (<N> sub-issues)", where the
+        count is omitted when GitHub reports none, or error message string.
+    """
+    return _subissue_write(parent_number, child_number, True, reference_name)
+
+
 @mcp.tool()
 @log_function_call
 def github_issue_comment(

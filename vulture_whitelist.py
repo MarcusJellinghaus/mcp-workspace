@@ -52,6 +52,9 @@ _.github_issue_edit
 _.github_issue_comment
 _.github_label_list
 _.github_pr_create
+_.github_subissue_add
+_.github_subissue_list
+_.github_subissue_remove
 
 # Base branch detection tool
 _.get_base_branch
