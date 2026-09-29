@@ -38,8 +38,11 @@ def reference_project(invariant_project: Path) -> Iterator[str]:
 
 @pytest.mark.parametrize("tool_name, call, path_keys", [...])
 def test_emitted_paths_use_forward_slashes(
-    tool_name, call, path_keys, invariant_project
+    tool_name, call, path_keys, invariant_project, reference_project
 ) -> None:
+    # Every callable takes the same two arguments; the six non-reference
+    # tools ignore the second.
+    result = call(invariant_project, reference_project)
 ```
 
 ## HOW
@@ -48,6 +51,11 @@ def test_emitted_paths_use_forward_slashes(
   triple; the callable runs one tool against the temp project and returns its raw result,
   and `path_keys` names the result keys that carry paths. Adding a tool to the guarded set
   is one line.
+- **Every callable takes `(project, reference_name)`**, so one signature serves all eight
+  params: the two reference tools pass `reference_name` through, the other six ignore it.
+  The test function therefore requests **both** fixtures, `invariant_project` and
+  `reference_project`; the latter depends on the former, so the temp project is registered
+  as a reference project for every param, which is harmless for the six that do not use it.
 - `_paths` walks `str`, `list`, `tuple` and `dict`. For a `dict` it descends only into the
   keys named in `path_keys`, so free-form strings — `search_files`' matched line text
   above all — are never asserted over. A `list`/`str` result carries nothing but paths and
@@ -71,9 +79,13 @@ def test_emitted_paths_use_forward_slashes(
   `{name: ReferenceProject(name=..., path=...)}` and patch
   `server_reference_tools.ensure_available` with an `AsyncMock` returning `None`. Restore
   the module global on teardown.
-- The two reference tools are `async`; mark those params with `pytest.mark.asyncio` or wrap
-  the callables with `asyncio.run` so the single parametrized test stays sync. Prefer the
-  wrapper — it keeps one test function.
+- **Three of the guarded tools are `async`** — `edit_file` (`server.py:712`) as well as the
+  two reference tools. Wrap each of those callables with `asyncio.run` so the single
+  parametrized test stays sync (preferred over `pytest.mark.asyncio`, which would split the
+  test). Missing the wrapper does not fail: the callable returns an un-awaited coroutine,
+  `_paths` collects nothing from it, and the parameter passes vacuously — which for
+  `edit_file` silently drops the only check on `_create_diff`'s `replace`
+  (`file_tools/edit_file.py:150`), the accidental compliance this test exists to pin.
 - `move_file` is covered at the **util** layer (`file_operations.move_file`, whose returned
   dict carries `source` and `destination`), not at the MCP tool layer, whose `bool` return
   carries no path.
@@ -85,8 +97,9 @@ def test_emitted_paths_use_forward_slashes(
 build temp project containing a nested file (a/b/c.txt) and a nested edit/move target,
   plus a nested file over check_file_size's threshold; all contents ASCII, no backslash
 set_project_dir(project)                      # the MCP tools read the module global
+register project as a reference project       # reference_project fixture, yields its name
 for each (tool_name, call, path_keys) in the parametrized set:
-    result = call(project)
+    result = call(project, reference_name)    # async tools wrapped in asyncio.run
     for s in _paths(result, path_keys):       # path-carrying fields/lines only
         assert "\\" not in s, f"{tool_name} emitted a native separator: {s!r}"
 restore the previous project dir
@@ -104,7 +117,7 @@ The guarded set, named explicitly:
 | `search_reference_files` | reference tool | `Dict[str, Any]` | `files`, `skipped_files`; called glob-only |
 | `delete_directory` | util | `list[str]` of deleted paths | the whole list |
 | `move_file` | util | `Dict[str, Any]` with `source`, `destination` | `source`, `destination` |
-| `edit_file` | MCP tool | `str` — diff headers plus diff body | the `---`/`+++` header lines only |
+| `edit_file` | MCP tool (`async`) | `str` — diff headers plus diff body, **only after `asyncio.run`**; the raw call yields a coroutine | the `---`/`+++` header lines only |
 | `check_file_size` | MCP tool | `str` — report text | the `  - ` violation/stale lines only |
 
 The `Asserted over` column is what `path_keys` (dict results) or the line filter (`str`
@@ -153,6 +166,14 @@ This step *is* the test. Two properties to get right:
 > Write it as **one parametrized test** over the eight `(tool_name, callable, path_keys)`
 > triples in the **DATA** table, plus a `_paths` helper that collects the path-carrying
 > strings from a return value. The assertion is that no emitted path contains a backslash.
+>
+> Give every callable the signature `(project, reference_name)` and have the test request
+> both the `invariant_project` and `reference_project` fixtures, so the two reference-tool
+> params get the name they need and the other six ignore it.
+>
+> Wrap the three `async` tools — `edit_file` and the two reference tools — in `asyncio.run`.
+> Without the wrapper the callable returns an un-awaited coroutine, `_paths` finds nothing
+> in it, and the parameter passes vacuously.
 >
 > Assert only over the `Asserted over` column of the **DATA** table — never over file
 > content. `search_files` and `search_reference_files` are called glob-only so no match text

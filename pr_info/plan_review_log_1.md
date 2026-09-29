@@ -31,3 +31,13 @@ I'll gather context first.`pr_info/steps/summary.md:65` — medium — The flagg
 Verdict(decision='tasks', tasks=["Resolve the summary.md:65 deviation explicitly in the plan: either restore the two issue items as written (remove _build_tree's per-path `replace` and add the unmatched-prefix warning) or record a ratified rationale in summary.md plus an updated Decisions/Sites disposition so no acceptance bullet is left silently unmet before step 1 is implemented.", "In pr_info/steps/step_4.md:65, stop asserting over every string in a tool's return value: restrict the backslash walk to path-carrying fields, or pin the fixture spec (step_4.md:23-25) to backslash-free file contents and specify the call arguments so search_files content matches, edit_file diff bodies, and check_file_size report text cannot fail on data rather than on a separator bug.", "In pr_info/steps/step_4.md:23, have the invariant_project fixture set the server module global _project_dir via set_project_dir, matching the reference-tool fixture's wiring, since list_directory, search_files, edit_file, and check_file_size depend on it."], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 3 — 2026-09-29
+**Findings**:
+I'll gather context first.`pr_info/steps/summary.md:138` — high — "Steps 3–5 are order-free after step 1" contradicts `pr_info/steps/step_4.md:147` ("Steps 1–3 must already be committed") and `pr_info/steps/step_5.md:76`. Step 4's invariant test asserts `delete_directory` emits no backslash, which only holds after step 3's `file_operations.py:458` change; running step 4 before step 3 reds the suite on Windows (the only platform where the bug is observable). State the real constraint: 1 → 3 → 4, with 2 after 1 and 5 last.
+
+`pr_info/steps/step_4.md:102` — low — `search_files` called glob-only returns `mode`/`files`/`total_files`/`truncated` and no `skipped_files` (that key is emitted only by `_search_content`, `search.py:159`), so listing `skipped_files` in `path_keys` for the glob-only params guards nothing. Nested `skipped_files` coverage is carried by `pr_info/steps/step_3.md:77` instead — note that here so the omission is not read as a gap.
+**Decisions**:
+Verdict(decision='tasks', tasks=['Fix the step-ordering contradiction in pr_info/steps/summary.md:138: replace "Steps 3-5 are order-free after step 1" with the real constraint 1 -> 3 -> 4, with step 2 after step 1 and step 5 last, matching pr_info/steps/step_4.md:147 and step_5.md:76 (step 4\'s no-backslash assertion on delete_directory depends on step 3\'s file_operations.py:458 change).'], escalate_reason=None)
+**Changes**:
+applied
