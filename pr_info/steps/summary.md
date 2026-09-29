@@ -62,18 +62,31 @@ is stripped so collapse depth is measured from the scope root, not the project r
 (`_find_collapsible` only considers `depth >= 2`). Building the tree from unstripped paths
 would change which directories collapse under a scoped listing.
 
-> **Deviation from the issue, flagged for review.** The issue's Decisions table says to
-> *remove* `_build_tree`'s `replace` as "now dead" and add an aggregated unmatched-prefix
-> warning. Traced through, that does not fix the bug for the issue's own first acceptance
-> criterion: given backslash paths *and* a backslash `base_path`, `strip_prefix` is
-> `docs\architecture/` while the path is `docs\architecture\architecture.md`. They diverge
-> at the separator, `startswith` is still False, nothing is stripped, and the output is
-> still a duplicated prefix. Normalizing `base_path` instead — one added line rather than
-> one removed and seven added for a `logging` import, a counter and a warning — makes that
-> test meaningful and removes the warning machinery entirely. With both sides normalized,
-> an unmatched prefix can only mean a caller passed a path outside `base_path`, which no
-> caller does (`list_directory_tree` has exactly one caller). Reversing this decision means
-> restoring the warning and relaxing the acceptance test; nothing else depends on it.
+> **Deviation from the issue — ratified, and this section supersedes the issue for these
+> two rows.** The issue's Decisions table says to *remove* `_build_tree`'s `replace` as
+> "now dead" and to add an aggregated unmatched-prefix warning. Traced through, that does
+> not fix the bug for the issue's own first acceptance criterion: given backslash paths
+> *and* a backslash `base_path`, `strip_prefix` is `docs\architecture/` while the path is
+> `docs\architecture\architecture.md`. They diverge at the separator, `startswith` is still
+> False, nothing is stripped, and the output is still a duplicated prefix. Normalizing
+> `base_path` instead — one added line rather than one removed and seven added for a
+> `logging` import, a counter and a warning — makes that test meaningful and removes the
+> warning machinery entirely. With both sides normalized, an unmatched prefix can only mean
+> a caller passed a path outside `base_path`, which no caller does (`list_directory_tree`
+> has exactly one caller).
+
+Superseded issue items, so no acceptance bullet is left silently unmet:
+
+| Issue item | Disposition here |
+|---|---|
+| `## Sites` row `tree_listing.py` `_build_tree`: "`replace("\\", "/")` removed (now dead)" | **Not removed.** It is dead for production callers but load-bearing for the regression test, which feeds `_build_tree` backslash paths directly. Replaced by one added line in `list_directory_tree` that normalizes `base_path`. |
+| Decisions row "Unstripped-prefix mismatch → log a warning in `_build_tree`" and "Warning granularity → one aggregated warning per call" | **Dropped, not deferred.** With both sides of the `startswith` normalized the mismatch the warning was meant to surface is unreachable from the only caller, so the warning would be unreachable code carrying a `logging` import, a counter and a log line. |
+| Acceptance bullet "the normalization workarounds dispositioned as listed in `## Sites`" | Met by the `## Sites` rows as amended above: `search._norm`'s `replace` removed, the three `file_sizes` `replace` calls removed via the retyping, `load_allowlist`'s kept, `_build_tree`'s kept for the reason in row 1. |
+
+Reversing this ratification means restoring the warning (plus the `logging` import) in
+`_build_tree`, removing its per-path `replace`, dropping `list_directory_tree`'s
+`base_path` normalization, and relaxing the step 1 regression test to forward-slash file
+paths with a backslash `base_path`. Nothing else in the plan depends on it.
 
 ### 3. `FileMetrics.path` is retyped `Path` → `str`
 

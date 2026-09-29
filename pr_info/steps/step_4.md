@@ -16,30 +16,55 @@ Sits in the `tests/` root alongside the other cross-cutting suites
 ## WHAT
 
 ```python
-def _strings(value: Any) -> list[str]:
-    """Flatten a tool return value to every string it carries."""
+def _paths(value: Any, keys: tuple[str, ...]) -> list[str]:
+    """Collect the path-carrying strings from a tool return value.
+
+    For list/str results, every string. For dict results, only the values under
+    `keys` (recursively), so match text and other free-form strings are skipped.
+    """
 
 @pytest.fixture
 def invariant_project(tmp_path: Path) -> Path:
     """Temp project with a nested file, a nested file to move, a nested
-    over-the-limit file for check_file_size, and a git repo."""
+    over-the-limit file for check_file_size, and a git repo. Calls
+    server.set_project_dir(tmp_path) and restores the previous value on
+    teardown — list_directory, search_files, edit_file and check_file_size all
+    read the server module global. All fixture file contents are ASCII and
+    backslash-free."""
 
 @pytest.fixture
 def reference_project(invariant_project: Path) -> Iterator[str]:
     """Register invariant_project as a reference project; yield its name."""
 
-@pytest.mark.parametrize("tool_name, call", [...])
-def test_emitted_paths_use_forward_slashes(tool_name, call, invariant_project) -> None:
+@pytest.mark.parametrize("tool_name, call, path_keys", [...])
+def test_emitted_paths_use_forward_slashes(
+    tool_name, call, path_keys, invariant_project
+) -> None:
 ```
 
 ## HOW
 
-- **One parametrized test**, not eight. Each param is a `(name, callable)` pair; the
-  callable runs one tool against the temp project and returns its raw result. Adding a tool
-  to the guarded set is one line.
-- `_strings` walks `str`, `list`, `tuple` and `dict` (values **and** keys are irrelevant —
-  walk values only) and yields every `str` it finds, so a tool returning a `Dict[str, Any]`
-  is covered without the test knowing its shape.
+- **One parametrized test**, not eight. Each param is a `(name, callable, path_keys)`
+  triple; the callable runs one tool against the temp project and returns its raw result,
+  and `path_keys` names the result keys that carry paths. Adding a tool to the guarded set
+  is one line.
+- `_paths` walks `str`, `list`, `tuple` and `dict`. For a `dict` it descends only into the
+  keys named in `path_keys`, so free-form strings — `search_files`' matched line text
+  above all — are never asserted over. A `list`/`str` result carries nothing but paths and
+  is walked whole.
+- **The assertion must never be able to fail on file content.** Three results embed file
+  text: `search_files`' matches, `edit_file`'s diff body, and `check_file_size`'s report.
+  Two defences, both required. First, `path_keys` excludes the content-bearing keys.
+  Second, for the two tools whose result is a bare `str`, the call arguments are pinned so
+  content cannot reach the assertion:
+  - `edit_file` — assert only the `---`/`+++` diff header lines (the paths it emits);
+    filter the result to lines starting with `---` or `+++` before asserting.
+  - `check_file_size` — assert only the violation lines (`  - <path>: N lines`) and stale
+    allowlist lines; filter to lines starting with `  - ` before asserting.
+  - `search_files` — call it in **file-search** mode (`glob` only, no `pattern`), so the
+    result carries `files` and `skipped_files` and no match text at all.
+  Belt and braces, the fixture's file contents are ASCII and contain no backslash, so a
+  stray content string cannot produce a false failure either.
 - The reference fixture follows the existing pattern in
   `tests/test_reference_search_mcp_tools.py`: set
   `mcp_workspace.server_reference_tools._reference_projects` to
@@ -58,27 +83,33 @@ def test_emitted_paths_use_forward_slashes(tool_name, call, invariant_project) -
 
 ```
 build temp project containing a nested file (a/b/c.txt) and a nested edit/move target,
-  plus a nested file over check_file_size's threshold
-for each (tool_name, call) in the parametrized set:
+  plus a nested file over check_file_size's threshold; all contents ASCII, no backslash
+set_project_dir(project)                      # the MCP tools read the module global
+for each (tool_name, call, path_keys) in the parametrized set:
     result = call(project)
-    for s in _strings(result):
+    for s in _paths(result, path_keys):       # path-carrying fields/lines only
         assert "\\" not in s, f"{tool_name} emitted a native separator: {s!r}"
+restore the previous project dir
 ```
 
 ## DATA
 
 The guarded set, named explicitly:
 
-| Tool | Layer | What it emits |
-|---|---|---|
-| `list_directory` | MCP tool | `List[str]` of entries |
-| `search_files` | MCP tool | `Dict[str, Any]` — `files`, `matches`, `skipped_files` |
-| `list_reference_directory` | reference tool | `List[str]` |
-| `search_reference_files` | reference tool | `Dict[str, Any]` |
-| `delete_directory` | util | `list[str]` of deleted paths |
-| `move_file` | util | `Dict[str, Any]` with `source`, `destination` |
-| `edit_file` | MCP tool | diff headers in the result |
-| `check_file_size` | MCP tool | report text |
+| Tool | Layer | What it emits | Asserted over |
+|---|---|---|---|
+| `list_directory` | MCP tool | `List[str]` of entries | the whole list |
+| `search_files` | MCP tool | `Dict[str, Any]` — `files`, `matches`, `skipped_files` | `files`, `skipped_files`; called glob-only so `matches` is absent |
+| `list_reference_directory` | reference tool | `List[str]` | the whole list |
+| `search_reference_files` | reference tool | `Dict[str, Any]` | `files`, `skipped_files`; called glob-only |
+| `delete_directory` | util | `list[str]` of deleted paths | the whole list |
+| `move_file` | util | `Dict[str, Any]` with `source`, `destination` | `source`, `destination` |
+| `edit_file` | MCP tool | `str` — diff headers plus diff body | the `---`/`+++` header lines only |
+| `check_file_size` | MCP tool | `str` — report text | the `  - ` violation/stale lines only |
+
+The `Asserted over` column is what `path_keys` (dict results) or the line filter (`str`
+results) selects. Everything excluded is file content or prose, which carries no path and
+could otherwise fail on data rather than on a separator bug.
 
 `check_file_size` only emits paths for violations (or stale allowlist entries), so the call
 must produce one: give the fixture a nested file above the threshold, or call it with a
@@ -94,8 +125,9 @@ API for no added guard.
 
 This step *is* the test. Two properties to get right:
 
-1. The assertion must be able to fail. Pin that automatically: assert the same helper flags
-   a deliberately backslashed sample string.
+1. The assertion must be able to fail. Pin that automatically: assert `_paths` returns a
+   deliberately backslashed sample string, from both a `list` result and a `dict` result
+   under a named key, so the narrowing added here cannot silence the guard.
 2. It must not duplicate per-tool assertions. This file is the single home for *separator*
    assertions across the guarded set. The separator-coverage criteria for
    `list_reference_directory` and `search_reference_files` are satisfied here, not by
@@ -118,9 +150,19 @@ This step *is* the test. Two properties to get right:
 > if any tool in the guarded set fails the invariant, that is a bug in steps 1–3 to fix
 > there, not here.
 >
-> Write it as **one parametrized test** over the eight `(tool_name, callable)` pairs in the
-> **DATA** table, plus a `_strings` helper that flattens any return value to the strings it
-> carries. The assertion is that no emitted string contains a backslash.
+> Write it as **one parametrized test** over the eight `(tool_name, callable, path_keys)`
+> triples in the **DATA** table, plus a `_paths` helper that collects the path-carrying
+> strings from a return value. The assertion is that no emitted path contains a backslash.
+>
+> Assert only over the `Asserted over` column of the **DATA** table — never over file
+> content. `search_files` and `search_reference_files` are called glob-only so no match text
+> is returned; `edit_file` is narrowed to its `---`/`+++` diff header lines and
+> `check_file_size` to its `  - ` violation lines. Keep every fixture file's content ASCII
+> and backslash-free as a second line of defence.
+>
+> The `invariant_project` fixture must call `server.set_project_dir(tmp_path)` and restore
+> the previous value on teardown — `list_directory`, `search_files`, `edit_file` and
+> `check_file_size` all read that module global.
 >
 > For the two reference tools, follow the fixture pattern already used in
 > `tests/test_reference_search_mcp_tools.py`: set

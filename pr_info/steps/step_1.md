@@ -44,8 +44,9 @@ slashed = p                                            # was: p.replace("\\", "/
   boundary.
 - `list_directory_tree` normalizes `base_path` once, before it feeds both `_build_tree`
   (where it becomes `strip_prefix`) and `render_prefix`. `_build_tree` **keeps** its
-  existing per-path `replace("\\", "/")` — see the deviation note in `summary.md` for why
-  removing it would break the regression test rather than fix it.
+  existing per-path `replace("\\", "/")` — see the ratified deviation note in `summary.md`
+  for why removing it would break the regression test rather than fix it, and for how the
+  two superseded issue items are dispositioned.
 - `search._norm` keeps the win32 `.lower()`; only the `replace` goes. The `.lower()` is
   deliberate case-insensitive globbing, pinned by `test_windows_case_insensitive_match_preserved`.
   After the change `_norm` may collapse to a single expression — keep the function, it is
