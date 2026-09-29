@@ -612,6 +612,27 @@ class TestSearchFilesSkippedFiles:
         assert "bad.py" not in matched
         assert result["skipped_files"] == ["bad.py"]
 
+    def test_skipped_nested_file_is_forward_slash_separated(
+        self, project_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A skipped nested file is reported project-relative with '/'."""
+        nested = project_dir / "pkg" / "inner"
+        nested.mkdir(parents=True)
+        (nested / "bad.py").write_text("def target():\n    pass\n")
+
+        def fake_normalize_path(path: str, base_dir: Path) -> Tuple[Path, str]:
+            if Path(path).name == "bad.py":
+                raise OSError("boom")
+            return real_normalize_path(path, base_dir)
+
+        monkeypatch.setattr(
+            "mcp_workspace.file_tools.search.normalize_path", fake_normalize_path
+        )
+
+        result = search_files(project_dir, pattern=r"def target")
+
+        assert result["skipped_files"] == ["pkg/inner/bad.py"]
+
     def test_binary_file_not_reported_as_skipped(self, project_dir: Path) -> None:
         """Binary files remain a silent skip, not a reported one."""
         (project_dir / "text.py").write_text("def hello():\n    pass\n")

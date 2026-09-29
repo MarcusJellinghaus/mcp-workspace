@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from mcp_workspace.server import (
+    _check_not_gitignored,
     append_file,
     check_branch_status,
     delete_directory,
@@ -619,6 +620,20 @@ def test_save_file_not_gitignored(gitignore_project: Path) -> None:
     """Non-gitignored save works normally."""
     result = save_file("readme.txt", "hello")
     assert result is True
+
+
+def test_check_not_gitignored_absolute_path_message_is_forward_slash(
+    gitignore_project: Path,
+) -> None:
+    """An absolute gitignored path is reported project-relative with '/'."""
+    nested = gitignore_project / "sub" / "deeper"
+    nested.mkdir(parents=True)
+    (nested / "debug.log").write_text("log content")
+
+    with pytest.raises(ValueError) as excinfo:
+        _check_not_gitignored(str(nested / "debug.log"))
+
+    assert "File 'sub/deeper/debug.log' is excluded by .gitignore" in str(excinfo.value)
 
 
 def test_read_file_no_gitignore(project_dir: Path) -> None:

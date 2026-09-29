@@ -92,6 +92,50 @@ def test_delete_directory_outside_project_raises(project_dir: Path) -> None:
         delete_directory("../evil", project_dir, recursive=True)
 
 
+def test_delete_directory_entries_are_forward_slash_separated(
+    project_dir: Path,
+) -> None:
+    """Every returned entry uses '/', the directory itself and nested children."""
+    rel = TEST_DIR / "posix_tree"
+    abs_dir = project_dir / rel
+    sub = abs_dir / "sub"
+    sub.mkdir(parents=True)
+    (sub / "nested.txt").write_text("nested", encoding="utf-8")
+
+    result = delete_directory(str(rel), project_dir, recursive=True)
+
+    assert all("\\" not in entry for entry in result)
+    assert set(result) == {
+        rel.as_posix(),
+        f"{rel.as_posix()}/sub",
+        f"{rel.as_posix()}/sub/nested.txt",
+    }
+
+
+def test_delete_directory_messages_are_forward_slash_separated(
+    project_dir: Path,
+) -> None:
+    """The two ValueError messages and the idempotent string carry '/' paths."""
+    rel = TEST_DIR / "outer" / "inner"
+    expected = rel.as_posix()
+
+    missing = delete_directory(str(rel), project_dir, recursive=True)
+    assert missing == [f"Directory '{expected}' does not exist — nothing to delete"]
+
+    abs_dir = project_dir / rel
+    abs_dir.mkdir(parents=True)
+    (abs_dir / "file.txt").write_text("content", encoding="utf-8")
+    with pytest.raises(ValueError) as not_empty:
+        delete_directory(str(rel), project_dir, recursive=False)
+    assert f"Directory '{expected}' is not empty" in str(not_empty.value)
+
+    rel_file = TEST_DIR / "outer" / "a_file.txt"
+    (project_dir / rel_file).write_text("content", encoding="utf-8")
+    with pytest.raises(ValueError) as is_file:
+        delete_directory(str(rel_file), project_dir, recursive=True)
+    assert f"Path '{rel_file.as_posix()}' is a file" in str(is_file.value)
+
+
 def test_delete_directory_truncation_summary(project_dir: Path) -> None:
     """25 files in a dir truncate the list to 20 + a summary entry."""
     rel = TEST_DIR / "many"

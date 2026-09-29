@@ -277,7 +277,7 @@ def _check_not_gitignored(file_path: str) -> None:
     path = Path(file_path)
     if path.is_absolute():
         try:
-            file_path = str(path.relative_to(_project_dir))
+            file_path = path.relative_to(_project_dir).as_posix()
         except ValueError:
             return  # Path outside project dir — other validation handles this
     if is_path_gitignored(file_path, _project_dir):
