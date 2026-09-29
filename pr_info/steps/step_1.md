@@ -14,7 +14,7 @@ enforcement points and removes the two workarounds that become dead.
 | `tests/file_tools/test_tree_listing.py` | regression guard (new test) |
 | `tests/file_tools/test_directory_utils.py` | new invariant assertion; fix two existing assertions; drop the `_discover_files` mocks that existed only to dodge separators |
 | `tests/file_tools/test_path_utils.py` | new exact-string test; fix two existing assertions |
-| `tests/test_server.py` | tighten the near-miss integration assertion |
+| `tests/test_server_list_directory.py` | tighten the near-miss integration assertion (list_directory tests split out of `tests/test_server.py`) |
 
 ## WHAT
 
@@ -88,7 +88,7 @@ New:
    Both existing tests normalize both sides, so nothing asserts this today.
 3. `test_path_utils.py` — assert `normalize_path` returns the exact string
    `"a/b/c.txt"` for a nested path, with neither side round-tripped through `Path`.
-4. `test_server.py` — integration: a small, non-collapsed, non-truncated scoped
+4. `test_server_list_directory.py` — integration: a small, non-collapsed, non-truncated scoped
    `list_directory` whose file entries are accepted by `read_file` unmodified. Assert each
    path appears exactly once. Cover project root, one level deep, nested, a directory with
    subdirectories, and `dirs_only=True`.
@@ -100,7 +100,7 @@ Modified:
    backslash string becomes unproducible, so it silently stops guarding `.git` exclusion.
 6. `test_path_utils.py:78` and `:94` — these compare against `str(TEST_DIR / ...)`, which is
    backslash-separated on win32.
-7. `test_server.py::test_list_directory_path_subtree_integration` — the near-miss. It
+7. `test_server_list_directory.py::test_list_directory_path_subtree_integration` — the near-miss. It
    asserts `any("a.py" in entry ...)`, which the duplicated prefix satisfies. Tighten to
    exact equality.
 8. `test_directory_utils.py` — drop the `_discover_files` mocks that existed only to dodge

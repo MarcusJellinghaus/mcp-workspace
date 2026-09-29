@@ -171,7 +171,9 @@ This matches the preconditions stated in each step's LLM prompt.
 `tests/file_tools/test_tree_listing.py`, `tests/file_tools/test_directory_utils.py`,
 `tests/file_tools/test_path_utils.py`, `tests/file_tools/test_search.py`,
 `tests/file_tools/test_delete_directory.py`, `tests/file_tools/test_move_operations.py`,
-`tests/checks/test_file_sizes.py`, `tests/test_server.py`.
+`tests/checks/test_file_sizes.py`, `tests/test_server.py`. The `list_directory` tests move
+from `tests/test_server.py` to the new `tests/test_server_list_directory.py` to keep the
+former under the file-size limit.
 
 No reference-tool test file is modified: separator coverage for the two reference tools
 lives in the new `tests/test_path_separator_invariant.py`, which borrows its fixture pattern
