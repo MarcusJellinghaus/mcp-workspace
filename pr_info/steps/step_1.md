@@ -12,9 +12,8 @@ enforcement points and removes the two workarounds that become dead.
 | `src/mcp_workspace/file_tools/tree_listing.py` | `list_directory_tree` — normalize `base_path` |
 | `src/mcp_workspace/file_tools/search.py` | `_norm` — remove the dead workaround |
 | `tests/file_tools/test_tree_listing.py` | regression guard (new test) |
-| `tests/file_tools/test_directory_utils.py` | new invariant assertion; fix two existing assertions |
+| `tests/file_tools/test_directory_utils.py` | new invariant assertion; fix two existing assertions; drop the `_discover_files` mocks that existed only to dodge separators |
 | `tests/file_tools/test_path_utils.py` | new exact-string test; fix two existing assertions |
-| `tests/file_tools/test_search.py` | drop `_discover_files` mocks that existed only to dodge separators |
 | `tests/test_server.py` | tighten the near-miss integration assertion |
 
 ## WHAT
@@ -103,8 +102,13 @@ Modified:
 7. `test_server.py::test_list_directory_path_subtree_integration` — the near-miss. It
    asserts `any("a.py" in entry ...)`, which the duplicated prefix satisfies. Tighten to
    exact equality.
-8. `test_search.py` — drop the `_discover_files` mocks that existed only to dodge
-   separators. Leave any mock that is load-bearing for another reason.
+8. `test_directory_utils.py` — drop the `_discover_files` mocks that existed only to dodge
+   separators: `test_list_files_basic:264` and `test_list_files_with_gitignore:306`. Both
+   return hand-written forward-slash lists so the real walk never runs; with the walk fixed
+   they can call `list_files` for real. Leave any mock that is load-bearing for another
+   reason — in particular `test_list_files_with_exception`'s `_discover_files` mock (it
+   raises) and the `normalize_path` patch at `test_search.py:604` (it injects an unreadable
+   file).
 
 Existing `test_search.py` assertions use `Path(m["file"]).name`, `endswith`, or bare names,
 so the `search_files` output switch to `/` is low-risk. A sweep of `tests/` for assertions

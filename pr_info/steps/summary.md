@@ -136,8 +136,8 @@ rather than risk. Steps 3–5 are order-free after step 1.
 | `src/mcp_workspace/file_tools/search.py` | `_norm` loses its `replace`; keeps the win32 `.lower()` |
 | `src/mcp_workspace/checks/file_sizes.py` | `FileMetrics.path: str`; three `replace` calls and the `Path` round-trip removed |
 | `src/mcp_workspace/file_tools/file_operations.py` | `delete_directory` children use `as_posix()` |
-| `src/mcp_workspace/server.py` | `_check_not_gitignored` uses `as_posix()`; four tool docstrings |
-| `src/mcp_workspace/server_reference_tools.py` | two tool docstrings |
+| `src/mcp_workspace/server.py` | `_check_not_gitignored` uses `as_posix()`; two tool docstrings (`list_directory`, `search_files`) |
+| `src/mcp_workspace/server_reference_tools.py` | two tool docstrings (`list_reference_directory`, `search_reference_files`) |
 
 ### Tests — created
 
@@ -150,8 +150,11 @@ rather than risk. Steps 3–5 are order-free after step 1.
 `tests/file_tools/test_tree_listing.py`, `tests/file_tools/test_directory_utils.py`,
 `tests/file_tools/test_path_utils.py`, `tests/file_tools/test_search.py`,
 `tests/file_tools/test_delete_directory.py`, `tests/file_tools/test_move_operations.py`,
-`tests/checks/test_file_sizes.py`, `tests/test_server.py`,
-`tests/test_reference_projects_mcp_tools.py`.
+`tests/checks/test_file_sizes.py`, `tests/test_server.py`.
+
+No reference-tool test file is modified: separator coverage for the two reference tools
+lives in the new `tests/test_path_separator_invariant.py`, which borrows its fixture pattern
+from `tests/test_reference_search_mcp_tools.py` without editing it.
 
 ### Docs — modified
 

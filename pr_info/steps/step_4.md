@@ -21,7 +21,8 @@ def _strings(value: Any) -> list[str]:
 
 @pytest.fixture
 def invariant_project(tmp_path: Path) -> Path:
-    """Temp project with a nested file, a nested file to move, and a git repo."""
+    """Temp project with a nested file, a nested file to move, a nested
+    over-the-limit file for check_file_size, and a git repo."""
 
 @pytest.fixture
 def reference_project(invariant_project: Path) -> Iterator[str]:
@@ -56,7 +57,8 @@ def test_emitted_paths_use_forward_slashes(tool_name, call, invariant_project) -
 ## ALGORITHM
 
 ```
-build temp project containing a nested file (a/b/c.txt) and a nested edit/move target
+build temp project containing a nested file (a/b/c.txt) and a nested edit/move target,
+  plus a nested file over check_file_size's threshold
 for each (tool_name, call) in the parametrized set:
     result = call(project)
     for s in _strings(result):
@@ -78,6 +80,11 @@ The guarded set, named explicitly:
 | `edit_file` | MCP tool | diff headers in the result |
 | `check_file_size` | MCP tool | report text |
 
+`check_file_size` only emits paths for violations (or stale allowlist entries), so the call
+must produce one: give the fixture a nested file above the threshold, or call it with a
+threshold low enough (`max_lines=0`) that the nested file violates it. Without that the
+parameter asserts over a report containing no paths at all.
+
 Excluded, deliberately: `git`, `github_pr_view` and `check_branch_status`. Their paths
 originate outside this codebase already forward-slashed — the "already compliant" row — so
 there is nothing this change can regress, and including them would mean mocking the GitHub
@@ -87,8 +94,8 @@ API for no added guard.
 
 This step *is* the test. Two properties to get right:
 
-1. It must **fail on the pre-fix code**. Verify by stashing step 1 locally, or at minimum by
-   asserting that the same helper flags a deliberately backslashed sample string.
+1. The assertion must be able to fail. Pin that automatically: assert the same helper flags
+   a deliberately backslashed sample string.
 2. It must not duplicate per-tool assertions. This file is the single home for *separator*
    assertions across the guarded set. The separator-coverage criteria for
    `list_reference_directory` and `search_reference_files` are satisfied here, not by
