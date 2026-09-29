@@ -17,6 +17,7 @@ from .base import parse_base_branch, validate_issue_number
 from .comments_mixin import CommentsMixin
 from .events_mixin import EventsMixin
 from .labels_mixin import LabelsMixin
+from .sub_issues_mixin import SubIssuesMixin
 from .types import IssueData, create_empty_issue_data
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,9 @@ def _issue_to_data(github_issue: Issue) -> IssueData:
     )
 
 
-class IssueManager(CommentsMixin, LabelsMixin, EventsMixin, BaseGitHubManager):
+class IssueManager(
+    CommentsMixin, LabelsMixin, EventsMixin, SubIssuesMixin, BaseGitHubManager
+):
     """Manages GitHub issue operations using the GitHub API.
 
     This class provides methods for creating, retrieving, listing, and managing
