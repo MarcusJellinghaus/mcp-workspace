@@ -174,7 +174,13 @@ add a local `_make_parent(total=...)` helper returning a mock parent with
     `mcp_workspace.github_operations.base_manager`) → rendered as `Error: ...`,
     never a traceback.
 11. An error with `reference_name="sibling"` → the message ends with
-    `in reference project 'sibling'`.
+    `in reference project 'sibling'`. First configure `sibling` with
+    `set_reference_projects({"sibling": ReferenceProject(name="sibling",
+    path=Path("/does/not/exist"), url="https://github.com/owner/sibling")})`
+    and reset it with `set_reference_projects({})` afterwards, as the
+    `reference_projects` fixture in `test_github_write_tools_reference.py`
+    does. Without that, `_issue_manager` returns the "not found" error and the
+    call never reaches the `_api_error` suffix.
 12. `reference_name="nope"` (not a configured project) → exactly
     `Error: Reference project 'nope' not found`, with **no** ref suffix
     appended, and the manager class never constructed.

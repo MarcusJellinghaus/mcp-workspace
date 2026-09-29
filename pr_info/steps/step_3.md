@@ -50,10 +50,23 @@ It needs two throwaway issues, so create both and close both:
 11. `github_subissue_list(parent_number=<P>)` — expect `No sub-issues.`
 12. Close both issues with `github_issue_edit(..., state="closed")`
 
-In the reference-project section (Test 4.2), append one step: repeat the
-add → list → remove cycle with `reference_name=<name>` on every call, noting that
-one `reference_name` scopes **both** numbers and that cross-repo linking is not
-supported.
+In the reference-project section (Test 4.2), insert these steps between the
+existing step 5 and the step-6 close, and renumber that close. Pass
+`reference_name=<name>` on every call, and note that one `reference_name` scopes
+**both** numbers and that cross-repo linking is not supported:
+
+1. `github_issue_create(title="LLM test child - safe to close", ..., reference_name=<name>)`
+   → child `#C`; the issue from step 3 (`#N`) is the parent
+2. `github_subissue_add(parent_number=<N>, child_number=<C>, reference_name=<name>)`
+   — expect `Linked #C as a sub-issue of #N — <url>`, the URL pointing at the
+   sibling repo
+3. `github_subissue_list(parent_number=<N>, reference_name=<name>)` — expect one
+   line `#C  open  LLM test child - safe to close`
+4. `github_subissue_remove(parent_number=<N>, child_number=<C>, reference_name=<name>)`
+   — expect `Unlinked #C from #N — <url>`
+
+The renumbered close step then closes both `#N` and `#C` with
+`github_issue_edit(..., state="closed", reference_name=<name>)`.
 
 **`.claude/CLAUDE.md`** — three rows in the tool-mapping table, next to the other
 GitHub issue entries:
