@@ -71,7 +71,7 @@ def _discover_files(directory: Path, project_dir: Path) -> List[str]:
             continue
 
         for file in files:
-            rel_file_path = str(rel_root / file)
+            rel_file_path = rel_root.joinpath(file).as_posix()
             discovered_files.append(rel_file_path)
 
     return discovered_files

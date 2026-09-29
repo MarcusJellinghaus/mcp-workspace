@@ -74,8 +74,17 @@ def test_normalize_path_relative() -> None:
     # Check that the absolute path is correct
     assert abs_path == project_dir / relative_path
 
-    # Check that the relative path is correct
-    assert rel_path == relative_path
+    # Check that the relative path is correct (forward-slash separated)
+    assert rel_path == Path(relative_path).as_posix()
+
+
+def test_normalize_path_relative_uses_forward_slashes() -> None:
+    """The returned relative path is forward-slash separated on every platform."""
+    project_dir = Path(os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
+
+    _, rel_path = normalize_path(os.path.join("a", "b", "c.txt"), project_dir)
+
+    assert rel_path == "a/b/c.txt"
 
 
 def test_normalize_path_absolute() -> None:
@@ -90,8 +99,8 @@ def test_normalize_path_absolute() -> None:
     # Check that the absolute path is correct
     assert abs_path == Path(absolute_path)
 
-    # Check that the relative path is correct
-    assert rel_path == str(test_file)
+    # Check that the relative path is correct (forward-slash separated)
+    assert rel_path == test_file.as_posix()
 
 
 def test_normalize_path_security_error_absolute() -> None:

@@ -1,7 +1,7 @@
 """Tests for the MCP server API endpoints."""
 
 from pathlib import Path
-from typing import Callable, Generator
+from typing import Callable, Generator, List
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -355,10 +355,57 @@ def test_list_directory_path_subtree_integration(project_dir: Path) -> None:
 
     result = list_directory(path="sub")
 
-    # Subtree listing should contain the file inside sub
-    assert any("a.py" in entry for entry in result)
-    # Should NOT contain root.py
-    assert not any("root.py" in entry for entry in result)
+    # Subtree listing should contain the file inside sub, prefix present exactly once
+    assert result == ["sub/a.py"]
+
+
+_TREE_FILES = [
+    "root.py",
+    "sub/a.py",
+    "sub/deep/b.py",
+    "pkg/mod.py",
+    "pkg/inner/other.py",
+]
+
+
+def _make_tree(project_dir: Path) -> None:
+    """Create a small file tree whose content is each file's own relative path."""
+    for rel in _TREE_FILES:
+        path = project_dir / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(rel)
+
+
+@pytest.mark.parametrize(
+    "scope, expected",
+    [
+        (".", _TREE_FILES),
+        ("sub", ["sub/deep/b.py", "sub/a.py"]),
+        ("sub/deep", ["sub/deep/b.py"]),
+        ("pkg", ["pkg/inner/other.py", "pkg/mod.py"]),
+    ],
+)
+def test_list_directory_entries_are_valid_paths_integration(
+    project_dir: Path, scope: str, expected: List[str]
+) -> None:
+    """Integration: every returned entry is a path read_file accepts unmodified."""
+    _make_tree(project_dir)
+
+    result = list_directory(path=scope)
+
+    # No entry is duplicated
+    assert len(result) == len(set(result))
+    assert set(expected) <= set(result)
+    # Each file wrote its own relative path as content, so a correct entry round-trips
+    for entry in expected:
+        assert read_file(entry) == entry
+
+
+def test_list_directory_dirs_only_subtree_integration(project_dir: Path) -> None:
+    """Integration: dirs_only entries under a scope carry the prefix exactly once."""
+    _make_tree(project_dir)
+
+    assert list_directory(path="pkg", dirs_only=True) == ["pkg/inner/"]
 
 
 def test_move_file(project_dir: Path) -> None:

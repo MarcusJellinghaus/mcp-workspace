@@ -16,7 +16,8 @@ def test_delete_directory_empty(project_dir: Path) -> None:
 
     result = delete_directory(str(rel), project_dir, recursive=False)
 
-    assert result == [str(rel)]
+    # Separators normalized on both sides: the children entries are step 3's scope
+    assert [Path(entry).as_posix() for entry in result] == [rel.as_posix()]
     assert not abs_dir.exists()
 
 
@@ -47,10 +48,12 @@ def test_delete_directory_recursive(project_dir: Path) -> None:
     result = delete_directory(str(rel), project_dir, recursive=True)
 
     assert not abs_dir.exists()
-    assert str(rel) in result
-    assert str(rel / "sub") in result
-    assert str(rel / "top.txt") in result
-    assert str(rel / "sub" / "nested.txt") in result
+    # Separators normalized on both sides: the children entries are step 3's scope
+    entries = {Path(entry).as_posix() for entry in result}
+    assert rel.as_posix() in entries
+    assert (rel / "sub").as_posix() in entries
+    assert (rel / "top.txt").as_posix() in entries
+    assert (rel / "sub" / "nested.txt").as_posix() in entries
 
 
 def test_delete_directory_path_is_file_raises(project_dir: Path) -> None:

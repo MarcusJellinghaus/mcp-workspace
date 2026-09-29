@@ -115,4 +115,4 @@ def normalize_path(path: str, project_dir: Path) -> tuple[Path, str]:
     except ValueError as exc:
         raise _outside_error(path, project_dir, "is") from exc
 
-    return joined_path, str(relative_path)
+    return joined_path, relative_path.as_posix()

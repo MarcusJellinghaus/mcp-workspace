@@ -67,8 +67,7 @@ def _match_glob(glob: str, files: List[str]) -> List[str]:
         )
 
     def _norm(p: str) -> str:
-        slashed = p.replace("\\", "/")
-        return slashed.lower() if win32 else slashed
+        return p.lower() if win32 else p
 
     return [f for f in files if spec.match_file(_norm(f))]
 

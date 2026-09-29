@@ -27,9 +27,9 @@ Execution order: 1 → 2 → 3 → 4 → 5 (step 2 may land any time after step 
 
 Detail: [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `checks/file_sizes.py` retyping
 
