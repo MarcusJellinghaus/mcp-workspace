@@ -13,6 +13,7 @@ from mcp_workspace.checks.file_sizes import (
     FileMetrics,
     check_file_sizes,
     count_lines,
+    get_file_metrics,
     load_allowlist,
     render_allowlist,
     render_output,
@@ -37,10 +38,7 @@ def _write_file(base: Path, rel: str, lines: int) -> Path:
 
 def _metrics(count: int) -> List[FileMetrics]:
     """Helper: build *count* violations, largest first."""
-    return [
-        FileMetrics(path=Path(f"src/f{i}.py"), line_count=1000 - i)
-        for i in range(count)
-    ]
+    return [FileMetrics(path=f"src/f{i}.py", line_count=1000 - i) for i in range(count)]
 
 
 class TestCountLines:
@@ -86,6 +84,25 @@ class TestLoadAllowlist:
         assert "src/big.py" in load_allowlist(p)
 
 
+class TestGetFileMetrics:
+    """Tests for get_file_metrics."""
+
+    def test_paths_are_returned_unchanged(self, tmp_path: Path) -> None:
+        _write_file(tmp_path, "src/nested/deep.py", 12)
+        _write_file(tmp_path, "top.py", 3)
+        metrics = get_file_metrics(["src/nested/deep.py", "top.py"], tmp_path)
+        assert [(m.path, m.line_count) for m in metrics] == [
+            ("src/nested/deep.py", 12),
+            ("top.py", 3),
+        ]
+
+    def test_unreadable_file_excluded(self, tmp_path: Path) -> None:
+        (tmp_path / "binary.bin").write_bytes(bytes(range(256)))
+        _write_file(tmp_path, "a.py", 5)
+        metrics = get_file_metrics(["binary.bin", "a.py"], tmp_path)
+        assert [m.path for m in metrics] == ["a.py"]
+
+
 class TestCheckFileSizes:
     """Tests for check_file_sizes."""
 
@@ -110,6 +127,16 @@ class TestCheckFileSizes:
         result = check_file_sizes(project_dir, max_lines=100, allowlist={"big.py"})
         assert result.passed is True
         assert result.allowlisted_count == 1
+
+    def test_nested_allowlisted_file_skipped(self, project_dir: Path) -> None:
+        _write_file(project_dir, "src/nested/big.py", 200)
+        result = check_file_sizes(
+            project_dir, max_lines=100, allowlist={"src/nested/big.py"}
+        )
+        assert result.passed is True
+        assert result.violations == []
+        assert result.allowlisted_count == 1
+        assert result.stale_entries == []
 
     def test_stale_allowlist_entry_missing_file(self, project_dir: Path) -> None:
         _write_file(project_dir, "a.py", 5)
@@ -142,7 +169,7 @@ class TestRenderOutput:
     def test_failed(self) -> None:
         result = CheckResult(
             passed=False,
-            violations=[FileMetrics(path=Path("src/big.py"), line_count=812)],
+            violations=[FileMetrics(path="src/big.py", line_count=812)],
             total_files_checked=45,
         )
         output = render_output(result, max_lines=600)
@@ -247,8 +274,8 @@ class TestRenderAllowlist:
 
     def test_render(self) -> None:
         violations = [
-            FileMetrics(path=Path("src/a.py"), line_count=100),
-            FileMetrics(path=Path("src/b.py"), line_count=200),
+            FileMetrics(path="src/a.py", line_count=100),
+            FileMetrics(path="src/b.py", line_count=200),
         ]
         output = render_allowlist(violations)
         assert "src/a.py" in output
