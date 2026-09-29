@@ -187,7 +187,11 @@ closed rather than removed.
 3. `github_issue_create(title="LLM test - safe to close", body="Created by tests/LLM_Test.md Section 4.", reference_name=<name>)` — expect `Created issue #N — <url>`, with the URL pointing at the sibling repo
 4. `github_issue_comment(number=<N from step 3>, body="Test comment.", reference_name=<name>)` — expect `Added comment to issue #N — <url>`
 5. `github_issue_edit(number=<N>, add_labels=["status-01:created"], reference_name=<name>)` — expect an error naming `mcp-coder gh-tool set-status` and that project's own checkout, and no change to the issue
-6. `github_issue_edit(number=<N>, state="closed", reference_name=<name>)` — expect `(state: closed)`
+6. `github_issue_create(title="LLM test child - safe to close", body="Created by tests/LLM_Test.md Section 4.", reference_name=<name>)` — expect `Created issue #C — <url>`; `#N` from step 3 is the parent
+7. `github_subissue_add(parent_number=<N>, child_number=<C>, reference_name=<name>)` — expect `Linked #C as a sub-issue of #N — <url>`, with the URL pointing at the sibling repo. One `reference_name` scopes both numbers; cross-repo linking is not supported
+8. `github_subissue_list(parent_number=<N>, reference_name=<name>)` — expect one line `#C  open  LLM test child - safe to close`
+9. `github_subissue_remove(parent_number=<N>, child_number=<C>, reference_name=<name>)` — expect `Unlinked #C from #N — <url>`
+10. `github_issue_edit(number=<N>, state="closed", reference_name=<name>)` and the same for `#C` — expect `(state: closed)` for both
 
 ### Test 4.3: PR creation guards (no PR is created)
 
@@ -196,3 +200,18 @@ Only the rejection paths are scripted — creating a real PR needs a real branch
 1. `github_pr_create(title="")` — expect an empty-title error
 2. `github_pr_create(title="x", head="main", base="main")` — expect a head/base error
 3. `github_pr_create(title="x", head="bad~name")` — expect an invalid-branch-name error
+
+### Test 4.4: Sub-issue link → list → unlink
+
+1. `github_issue_create(title="LLM test parent - safe to close", body="Created by tests/LLM_Test.md Section 4.")` — expect `Created issue #P — <url>`
+2. `github_issue_create(title="LLM test child - safe to close", body="Created by tests/LLM_Test.md Section 4.")` — expect `Created issue #C — <url>`
+3. `github_subissue_list(parent_number=<P>)` — expect `No sub-issues.`
+4. `github_subissue_add(parent_number=<P>, child_number=<C>)` — expect `Linked #C as a sub-issue of #P — <url> (1 sub-issues)`
+5. `github_subissue_list(parent_number=<P>)` — expect one line `#C  open  LLM test child - safe to close`
+6. `github_subissue_add(parent_number=<P>, child_number=<C>)` again — expect an error naming duplicate sub-issues / one parent, not a success
+7. `github_subissue_add(parent_number=<P>, child_number=<P>)` — expect `Error: an issue cannot be its own sub-issue`
+8. `github_subissue_add(parent_number=<P>, child_number=0)` — expect `Error: invalid issue number: 0`
+9. `github_subissue_remove(parent_number=<P>, child_number=<C>)` — expect `Unlinked #C from #P — <url>`
+10. `github_subissue_remove(parent_number=<P>, child_number=<C>)` again — expect a 404 error, not a silent success
+11. `github_subissue_list(parent_number=<P>)` — expect `No sub-issues.`
+12. `github_issue_edit(number=<P>, state="closed")` and the same for `#C` — expect `(state: closed)` for both
