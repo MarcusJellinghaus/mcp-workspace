@@ -56,7 +56,9 @@ def _discover_files(directory: Path, project_dir: Path) -> List[str]:
     """Discover all files recursively, excluding the .git directory.
 
     Returns:
-        List of file paths relative to project_dir.
+        List of file paths relative to project_dir, forward-slash separated
+        on every platform; this is the enforcement point for all listing and
+        search tools.
     """
     discovered_files = []
 
