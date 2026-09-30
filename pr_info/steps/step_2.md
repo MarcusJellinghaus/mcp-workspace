@@ -73,7 +73,7 @@ return any(entry["type"] in _PERMANENT_GRAPHQL_ERROR_TYPES for dict entries)
 
 ## Done when
 
-- The new and rewritten tests fail before the implementation change and pass after it.
+- Before the implementation change, only the no-`data`-key case of `test_has_permanent_error_keys_on_data_presence` and the rewritten `test_null_pull_request_with_error_flagged` fail. The `"data": None → False` case and `test_null_data_with_untyped_error_retried` already pass on current code; they are regression guards. All pass after the change.
 - `test_review_data_retry_then_success` and the other existing retry tests still pass.
 - pylint, pytest and mypy pass.
 - Commit message: `fix(github_operations): stop retrying GraphQL responses without data`
