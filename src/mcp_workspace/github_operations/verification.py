@@ -43,7 +43,17 @@ _PROTECTION_KEYS: tuple[str, ...] = (
 
 
 def _protection_rows(ok: bool | None, value: str, error: str) -> dict[str, CheckResult]:
-    """Build one identical warning row per branch-protection key."""
+    """Build one identical warning row per branch-protection key.
+
+    Args:
+        ok: Check outcome shared by every row.
+        value: Display value shared by every row.
+        error: Error message shared by every row.
+
+    Returns:
+        Mapping from each branch-protection key to the same warning-severity
+        ``CheckResult``.
+    """
     return {
         k: CheckResult(ok=ok, value=value, severity="warning", error=error)
         for k in _PROTECTION_KEYS
@@ -53,7 +63,16 @@ def _protection_rows(ok: bool | None, value: str, error: str) -> dict[str, Check
 def _fetch_protection(
     manager: BaseGitHubManager, repo: Repository
 ) -> ProtectionOutcome:
-    """Fetch the default branch's protection once, recording where it failed."""
+    """Fetch the default branch's protection once, recording where it failed.
+
+    Args:
+        manager: Manager used to resolve the default branch name.
+        repo: Repository whose default branch protection is fetched.
+
+    Returns:
+        ``ProtectionOutcome`` holding the fetched protection, or the stage
+        and exception where the fetch failed.
+    """
     branch_name: str | None = None
     try:
         branch_name = manager.get_default_branch()
@@ -80,7 +99,14 @@ def _fetch_protection(
 
 
 def _short_reason(exc: Exception) -> str:
-    """Summarise ``exc`` without its raw response body."""
+    """Summarise ``exc`` without its raw response body.
+
+    Args:
+        exc: Exception to summarise.
+
+    Returns:
+        Short summary of the exception without the raw response body.
+    """
     if isinstance(exc, GithubException):
         msg = exc.data.get("message") if isinstance(exc.data, dict) else None
         if isinstance(msg, str) and len(msg) <= 100:
