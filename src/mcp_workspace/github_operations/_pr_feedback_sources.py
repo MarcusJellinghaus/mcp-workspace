@@ -119,7 +119,7 @@ def fetch_review_data(
             nodes {
               isResolved
               comments(first: 5) {
-                nodes { author { login } body path line diffSide diffHunk }
+                nodes { author { login } body path line diffHunk }
               }
             }
           }

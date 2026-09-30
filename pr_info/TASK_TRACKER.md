@@ -23,9 +23,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: Remove `diffSide` from the reviewThreads query — [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: remove `diffSide` from the query in `fetch_review_data` and the 7 test fake entries
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: remove `diffSide` from the query in `fetch_review_data` and the 7 test fake entries
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: Don't retry a GraphQL response that has errors and no `data` — [step_2.md](./steps/step_2.md)
 

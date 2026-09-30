@@ -170,7 +170,6 @@ class TestGetPRFeedback:
                                                 "body": "issue here",
                                                 "path": "src/foo.py",
                                                 "line": 10,
-                                                "diffSide": "RIGHT",
                                                 "diffHunk": "@@ ... @@",
                                             }
                                         ]
@@ -185,7 +184,6 @@ class TestGetPRFeedback:
                                                 "body": "another",
                                                 "path": "src/bar.py",
                                                 "line": 5,
-                                                "diffSide": "RIGHT",
                                                 "diffHunk": "@@ ... @@",
                                             }
                                         ]
@@ -200,7 +198,6 @@ class TestGetPRFeedback:
                                                 "body": "fixed",
                                                 "path": "src/baz.py",
                                                 "line": 1,
-                                                "diffSide": "RIGHT",
                                                 "diffHunk": "@@ ... @@",
                                             }
                                         ]
@@ -461,7 +458,6 @@ class TestGetPRFeedback:
                                                 "body": "issue here",
                                                 "path": "src/foo.py",
                                                 "line": 10,
-                                                "diffSide": "RIGHT",
                                                 "diffHunk": "@@ ... @@",
                                             }
                                         ]
@@ -655,7 +651,6 @@ class TestGetPRFeedback:
                                                 "body": "issue here",
                                                 "path": "src/foo.py",
                                                 "line": 10,
-                                                "diffSide": "RIGHT",
                                                 "diffHunk": "@@ ... @@",
                                             }
                                         ]
@@ -714,7 +709,6 @@ class TestGetPRFeedback:
                                                 "body": "issue here",
                                                 "path": "src/foo.py",
                                                 "line": 10,
-                                                "diffSide": "RIGHT",
                                                 "diffHunk": "@@ ... @@",
                                             }
                                         ]
@@ -766,7 +760,6 @@ class TestGetPRFeedback:
                                                 "body": "issue here",
                                                 "path": "src/foo.py",
                                                 "line": 10,
-                                                "diffSide": "RIGHT",
                                                 "diffHunk": "@@ ... @@",
                                             }
                                         ]
