@@ -23,9 +23,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: Formatter renders the linked-branches line ([step_1.md](./steps/step_1.md))
 
-- [ ] Implementation: tests in `TestFormatIssueView`, then `format_issue_view` keyword-only `linked_branches` / `include_linked_branches`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests in `TestFormatIssueView`, then `format_issue_view` keyword-only `linked_branches` / `include_linked_branches`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `github_issue_view` flag and lookup helper ([step_2.md](./steps/step_2.md))
 

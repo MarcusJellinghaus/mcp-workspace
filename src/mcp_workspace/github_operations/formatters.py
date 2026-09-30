@@ -56,6 +56,9 @@ def format_issue_view(
     issue: IssueData,
     comments: list[CommentData],
     max_lines: int = 200,
+    *,
+    linked_branches: list[str] | None = None,
+    include_linked_branches: bool = False,
 ) -> str:
     """Format a single issue with full detail for LLM consumption.
 
@@ -63,6 +66,10 @@ def format_issue_view(
         issue: Issue data dict.
         comments: List of comment data dicts.
         max_lines: Maximum output lines before truncation.
+        linked_branches: Names of branches linked to the issue, or None if
+            the lookup failed. Ignored unless include_linked_branches is set.
+        include_linked_branches: Render a "Linked branches:" line directly
+            under the State line.
 
     Returns:
         Formatted multi-line text string.
@@ -71,7 +78,15 @@ def format_issue_view(
 
     labels = ", ".join(issue["labels"]) if issue["labels"] else "none"
     assignees = ", ".join(issue["assignees"]) if issue["assignees"] else "none"
-    parts.append(f"State: {issue['state']} | Labels: {labels} | Assignees: {assignees}")
+    header = f"State: {issue['state']} | Labels: {labels} | Assignees: {assignees}"
+    if include_linked_branches:
+        if linked_branches is None:
+            branches = "unknown (lookup failed)"
+        else:
+            branches = ", ".join(linked_branches) or "none"
+        # Joined with a single newline so the line survives any max_lines >= 4.
+        header += f"\nLinked branches: {branches}"
+    parts.append(header)
 
     parts.append(issue["body"] or "(no description)")
 
