@@ -89,6 +89,35 @@ def _patch_all_ok(
     token_source: Literal["env", "config"] = "env",
 ) -> dict[str, object]:
     """Run verify_github with all dependencies mocked to succeed."""
+    result, _ = _run_all_ok_with_branch(
+        project_dir,
+        oauth_scopes=oauth_scopes,
+        user_login=user_login,
+        repo_full_name=repo_full_name,
+        default_branch=default_branch,
+        protection=protection,
+        delete_branch_on_merge=delete_branch_on_merge,
+        token_source=token_source,
+    )
+    return result
+
+
+def _run_all_ok_with_branch(
+    project_dir: Path,
+    *,
+    oauth_scopes: list[str] | None = None,
+    user_login: str = "testuser",
+    repo_full_name: str = "owner/repo",
+    default_branch: str = "main",
+    protection: Mock | None = None,
+    protection_error: Exception | None = None,
+    delete_branch_on_merge: bool = True,
+    token_source: Literal["env", "config"] = "env",
+) -> tuple[dict[str, object], Mock]:
+    """Like ``_patch_all_ok``, but also return the branch mock.
+
+    ``protection_error``, when set, is raised by ``get_protection()``.
+    """
     if oauth_scopes is None:
         oauth_scopes = ["repo", "workflow"]
 
@@ -107,6 +136,8 @@ def _patch_all_ok(
     if protection is None:
         protection = _make_mock_protection()
     mock_branch.get_protection.return_value = protection
+    if protection_error is not None:
+        mock_branch.get_protection.side_effect = protection_error
     mock_repo.get_branch.return_value = mock_branch
 
     identifier = _make_identifier(full_name=repo_full_name)
@@ -125,7 +156,7 @@ def _patch_all_ok(
         mock_manager.get_default_branch.return_value = default_branch
         mock_manager_cls.return_value = mock_manager
 
-        return verify_github(project_dir)
+        return verify_github(project_dir), mock_branch
 
 
 def _run_with_repo_inaccessible(project_dir: Path) -> dict[str, object]:
@@ -1188,6 +1219,24 @@ class TestPermissionProbeOverallOkUnaffected:
             assert check["ok"] is False
         # overall_ok depends only on error-severity checks, all of which pass.
         assert result["overall_ok"] is True
+
+
+class TestSingleProtectionFetch:
+    """get_protection() is called exactly once per verify_github run."""
+
+    def test_success_fetches_once(self, tmp_path: Path) -> None:
+        result, mock_branch = _run_all_ok_with_branch(tmp_path)
+        assert mock_branch.get_protection.call_count == 1
+        admin: CheckResult = result["perm_administration_read"]  # type: ignore[assignment]
+        assert admin["ok"] is True
+
+    def test_403_fetches_once(self, tmp_path: Path) -> None:
+        denial = GithubException(status=403, data={"message": "x"}, headers={})
+        result, mock_branch = _run_all_ok_with_branch(tmp_path, protection_error=denial)
+        assert mock_branch.get_protection.call_count == 1
+        admin: CheckResult = result["perm_administration_read"]  # type: ignore[assignment]
+        assert admin["ok"] is False
+        assert "not accessible (403)" in admin["error"]
 
 
 class TestPermissionProbeSkipWhenUnreachable:

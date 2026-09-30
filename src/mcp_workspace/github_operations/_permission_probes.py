@@ -19,7 +19,7 @@ from typing import Callable
 from github.GithubException import GithubException
 from github.Repository import Repository
 
-from mcp_workspace.github_operations._types import CheckResult
+from mcp_workspace.github_operations._types import CheckResult, ProtectionOutcome
 from mcp_workspace.github_operations.base_manager import BaseGitHubManager
 
 _PROBE_KEYS: tuple[str, ...] = (
@@ -70,6 +70,38 @@ def _classify_permission_response(
     return CheckResult(ok=False, value="failed", severity="warning", error=err)
 
 
+def _is_branch_not_protected(exc: Exception | None) -> bool:
+    """Return True if ``exc`` is GitHub's 404 ``Branch not protected`` answer."""
+    return (
+        isinstance(exc, GithubException)
+        and exc.status == 404
+        and isinstance(exc.data, dict)
+        and exc.data.get("message") == "Branch not protected"
+    )
+
+
+def _classify_exception(
+    exc: Exception,
+    name: str,
+    url: str,
+    web_host: str | None,
+) -> CheckResult:
+    """Classify a probe exception into a failed CheckResult.
+
+    Returns:
+        The classified HTTP status for a ``GithubException``, otherwise a
+        network-error result.
+    """
+    if isinstance(exc, GithubException):
+        return _classify_permission_response(name, exc.status, url, web_host)
+    return CheckResult(
+        ok=False,
+        value="failed",
+        severity="warning",
+        error=f"network error: {exc} — needs {name}",
+    )
+
+
 def _run_probe(
     *,
     call: Callable[[], object],
@@ -86,15 +118,8 @@ def _run_probe(
     """
     try:
         call()
-    except GithubException as e:
-        return _classify_permission_response(name, e.status, url, web_host)
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        return CheckResult(
-            ok=False,
-            value="failed",
-            severity="warning",
-            error=f"network error: {e} — needs {name}",
-        )
+        return _classify_exception(e, name, url, web_host)
     return _classify_permission_response(name, 200, url, web_host)
 
 
@@ -129,49 +154,51 @@ def _probe_statuses(
 
 
 def _probe_administration(
-    repo: Repository,
-    default_branch: str,
+    outcome: ProtectionOutcome,
     base: str,
     web_host: str | None,
 ) -> CheckResult:
-    """Probe Administration: Read with two-call attribution.
+    """Classify the shared branch-protection fetch as Administration: Read.
+
+    A ``Branch not protected`` 404 counts as success: GitHub answered, so the
+    token can read the endpoint.
 
     Returns:
         CheckResult for the branch-protection probe, or a "not checked"
-        result when the preliminary branch lookup fails.
+        result when the preliminary branch lookup failed.
     """
-    url = f"{base}/branches/{default_branch}/protection"
-    try:
-        branch = repo.get_branch(default_branch)
-    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+    if outcome.stage == "get_branch":
         return CheckResult(
             ok=None,
             value="not checked",
             severity="warning",
             error="branch lookup failed (covered by perm_contents_read)",
         )
-    return _run_probe(
-        call=branch.get_protection,
-        name="Administration: Read",
-        url=url,
-        web_host=web_host,
-    )
+    url = f"{base}/branches/{outcome.branch}/protection"
+    if outcome.exception is None or _is_branch_not_protected(outcome.exception):
+        return _classify_permission_response("Administration: Read", 200, url, web_host)
+    return _classify_exception(outcome.exception, "Administration: Read", url, web_host)
 
 
 def run_permission_probes(
     manager: BaseGitHubManager,
     repo: Repository | None,
+    *,
+    protection_outcome: ProtectionOutcome | None,
 ) -> dict[str, CheckResult]:
     """Run 6 per-permission read probes; return one CheckResult per probe key.
 
-    When ``repo`` is None (repo_accessible.ok=False), returns 6 placeholder
-    rows with value="not checked", error="repository not accessible" and
-    issues NO PyGithub calls.
+    When ``repo`` or ``protection_outcome`` is None (repo_accessible.ok=False),
+    returns 6 placeholder rows with value="not checked",
+    error="repository not accessible" and issues NO PyGithub calls.
+
+    The Administration probe makes no API call; it classifies
+    ``protection_outcome``, the branch-protection fetch done by verify_github.
 
     Returns:
         Mapping from each probe key to its CheckResult.
     """
-    if repo is None:
+    if repo is None or protection_outcome is None:
         return {
             k: CheckResult(
                 ok=None,
@@ -195,7 +222,7 @@ def run_permission_probes(
         web_host=web_host,
     )
     out["perm_administration_read"] = _probe_administration(
-        repo, default, base, web_host
+        protection_outcome, base, web_host
     )
     out["perm_pull_requests_read"] = _run_probe(
         call=lambda: repo.get_pulls(state="all").totalCount,
