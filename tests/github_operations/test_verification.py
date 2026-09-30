@@ -545,53 +545,159 @@ class TestBranchProtectionAllPass:
         assert result["overall_ok"] is True
 
 
-class TestNoBranchProtection404:
-    """Test when get_protection() raises 404 — no protection configured."""
+def _run_with_protection_error(
+    tmp_path: Path,
+    exc: Exception,
+    *,
+    on: Literal["get_protection", "get_branch"] = "get_protection",
+) -> dict[str, object]:
+    """Run verify_github with ``exc`` raised by ``get_protection`` or ``get_branch``."""
+    mock_user = Mock()
+    mock_user.login = "testuser"
 
-    def _run(self, tmp_path: Path) -> dict[str, object]:
-        mock_user = Mock()
-        mock_user.login = "testuser"
+    mock_github_client = Mock()
+    mock_github_client.get_user.return_value = mock_user
+    mock_github_client.oauth_scopes = ["repo"]
 
-        mock_github_client = Mock()
-        mock_github_client.get_user.return_value = mock_user
-        mock_github_client.oauth_scopes = ["repo"]
-
-        mock_branch = Mock()
-        mock_branch.get_protection.side_effect = GithubException(
-            status=404, data={"message": "Branch not protected"}, headers={}
-        )
-
-        mock_repo = Mock()
-        mock_repo.full_name = "owner/repo"
+    mock_branch = Mock()
+    mock_repo = Mock()
+    mock_repo.full_name = "owner/repo"
+    if on == "get_protection":
+        mock_branch.get_protection.side_effect = exc
         mock_repo.get_branch.return_value = mock_branch
+    else:
+        mock_repo.get_branch.side_effect = exc
 
-        identifier = _make_identifier()
+    identifier = _make_identifier()
 
-        with (
-            patch(
-                f"{MODULE}.get_github_token_with_source",
-                return_value=("ghp_test", "env"),
+    with (
+        patch(
+            f"{MODULE}.get_github_token_with_source",
+            return_value=("ghp_test", "env"),
+        ),
+        patch(f"{CLIENT}.Github", return_value=mock_github_client),
+        patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
+        patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
+    ):
+        mock_manager = Mock()
+        mock_manager._get_repository.return_value = mock_repo
+        mock_manager.get_default_branch.return_value = "main"
+        mock_mgr_cls.return_value = mock_manager
+        return verify_github(tmp_path)
+
+
+_DOC_URL = "https://docs.github.com/rest/branches/branch-protection"
+
+
+class TestProtectionOutcomeTable:
+    """All five branch-protection rows follow the outcome table."""
+
+    @pytest.mark.parametrize(
+        ("exc", "on", "expected_ok", "starts", "contains"),
+        [
+            pytest.param(
+                GithubException(
+                    status=404, data={"message": "Branch not protected"}, headers={}
+                ),
+                "get_protection",
+                False,
+                "not configured",
+                "not configured",
+                id="404-branch-not-protected",
             ),
-            patch(f"{CLIENT}.Github", return_value=mock_github_client),
-            patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
-            patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
-        ):
-            mock_manager = Mock()
-            mock_manager._get_repository.return_value = mock_repo
-            mock_manager.get_default_branch.return_value = "main"
-            mock_mgr_cls.return_value = mock_manager
-            return verify_github(tmp_path)
+            pytest.param(
+                GithubException(status=404, data={"message": "Not Found"}, headers={}),
+                "get_protection",
+                None,
+                "not verifiable",
+                "HTTP 404: Not Found",
+                id="404-not-found",
+            ),
+            pytest.param(
+                GithubException(
+                    status=401, data={"message": "Bad credentials"}, headers={}
+                ),
+                "get_protection",
+                None,
+                "not verifiable",
+                "token rejected (401)",
+                id="401",
+            ),
+            pytest.param(
+                GithubException(
+                    status=403,
+                    data={
+                        "message": "Resource not accessible by personal access token",
+                        "documentation_url": _DOC_URL,
+                    },
+                    headers={},
+                ),
+                "get_protection",
+                None,
+                "not verifiable",
+                "token lacks Administration: Read",
+                id="403",
+            ),
+            pytest.param(
+                GithubException(status=500, data={"message": "oops"}, headers={}),
+                "get_protection",
+                None,
+                "not verifiable",
+                "HTTP 500",
+                id="500",
+            ),
+            pytest.param(
+                ConnectionError("boom"),
+                "get_protection",
+                None,
+                "not verifiable",
+                "ConnectionError",
+                id="connection-error",
+            ),
+            pytest.param(
+                GithubException(status=404, data={"message": "Not Found"}, headers={}),
+                "get_branch",
+                None,
+                "not verifiable",
+                "HTTP 404",
+                id="get-branch-404",
+            ),
+        ],
+    )
+    def test_rows(
+        self,
+        tmp_path: Path,
+        exc: Exception,
+        on: Literal["get_protection", "get_branch"],
+        expected_ok: bool | None,
+        starts: str,
+        contains: str,
+    ) -> None:
+        result = _run_with_protection_error(tmp_path, exc, on=on)
 
-    def test_all_five_not_ok(self, tmp_path: Path) -> None:
-        result = self._run(tmp_path)
         for key in BRANCH_CHECK_KEYS:
             check: CheckResult = result[key]  # type: ignore[assignment]
-            assert check["ok"] is False, f"{key} should not be ok"
+            assert check["ok"] is expected_ok, key
             assert check["severity"] == "warning"
-
-    def test_overall_ok_still_true(self, tmp_path: Path) -> None:
-        result = self._run(tmp_path)
+            assert check["value"].startswith(starts), check["value"]
+            assert contains in check["value"], check["value"]
+            if expected_ok is not False:
+                assert "not configured" not in check["value"]
+                assert check["error"].startswith(f"{on} failed: ")
+            else:
+                assert check["error"] == "no branch protection"
+            for text in (check["value"], check["error"]):
+                assert "{" not in text
+                assert "documentation_url" not in text
         assert result["overall_ok"] is True
+
+    def test_long_message_reason_is_status_only(self, tmp_path: Path) -> None:
+        exc = GithubException(status=500, data={"message": "x" * 101}, headers={})
+        result = _run_with_protection_error(tmp_path, exc)
+
+        check: CheckResult = result["branch_protection"]  # type: ignore[assignment]
+        assert check["value"] == "not verifiable — HTTP 500"
+        assert check["error"] == "get_protection failed: HTTP 500"
 
 
 class TestNoStatusChecksConfigured:

@@ -21,7 +21,10 @@ from mcp_workspace.github_operations._network import (
     has_applicable_proxy,
     maybe_log_network_diagnostics,
 )
-from mcp_workspace.github_operations._permission_probes import run_permission_probes
+from mcp_workspace.github_operations._permission_probes import (
+    _is_branch_not_protected,
+    run_permission_probes,
+)
 from mcp_workspace.github_operations._types import CheckResult, ProtectionOutcome
 from mcp_workspace.github_operations.base_manager import BaseGitHubManager
 from mcp_workspace.utils.token_fingerprint import format_token_fingerprint
@@ -76,11 +79,40 @@ def _fetch_protection(
         return ProtectionOutcome(branch_name, "get_protection", None, exc)
 
 
+def _short_reason(exc: Exception) -> str:
+    """Summarise ``exc`` without its raw response body."""
+    if isinstance(exc, GithubException):
+        msg = exc.data.get("message") if isinstance(exc.data, dict) else None
+        if isinstance(msg, str) and len(msg) <= 100:
+            return f"HTTP {exc.status}: {msg}"
+        return f"HTTP {exc.status}"
+    return type(exc).__name__
+
+
+def _classify_protection_failure(
+    outcome: ProtectionOutcome,
+) -> tuple[bool | None, str, str]:
+    """Return (ok, value, error) shared by all five branch-protection rows."""
+    exc = outcome.exception
+    assert exc is not None
+    if _is_branch_not_protected(exc):
+        return False, "not configured", "no branch protection"
+    reason = _short_reason(exc)
+    error = f"{outcome.stage} failed: {reason}"
+    if outcome.stage == "get_protection" and isinstance(exc, GithubException):
+        if exc.status == 401:
+            return None, "not verifiable — token rejected (401)", error
+        if exc.status == 403:
+            return None, "not verifiable — token lacks Administration: Read", error
+    return None, f"not verifiable — {reason}", error
+
+
 def verify_github(project_dir: Path) -> dict[str, object]:
     """Verify GitHub connectivity and branch protection.
 
     Runs checks 1–4 (token, auth, repo URL, repo access) independently.
     Each check reports its own result regardless of earlier failures.
+    A check that could not be verified reports ``ok=None``.
 
     Args:
         project_dir: Path to the project directory containing a git repository.
@@ -283,12 +315,7 @@ def verify_github(project_dir: Path) -> dict[str, object]:
     if outcome is None:
         result.update(_protection_rows(None, "unknown", "repository not accessible"))
     elif outcome.protection is None:
-        fetch_exc = outcome.exception
-        if isinstance(fetch_exc, GithubException) and fetch_exc.status == 404:
-            _reason = "no branch protection"
-        else:
-            _reason = str(fetch_exc)
-        result.update(_protection_rows(False, "not configured", _reason))
+        result.update(_protection_rows(*_classify_protection_failure(outcome)))
     else:
         protection = outcome.protection
 
