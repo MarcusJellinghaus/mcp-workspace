@@ -162,6 +162,46 @@ class TestFormatIssueView:
         result = format_issue_view(issue, comments=[])
         assert "(no description)" in result
 
+    @pytest.mark.parametrize(
+        ("linked_branches", "expected_line"),
+        [
+            (["1176-adopt-deptry"], "Linked branches: 1176-adopt-deptry"),
+            (["12-a", "12-b"], "Linked branches: 12-a, 12-b"),
+            ([], "Linked branches: none"),
+            (None, "Linked branches: unknown (lookup failed)"),
+        ],
+    )
+    def test_format_issue_view_linked_branches(
+        self, linked_branches: list[str] | None, expected_line: str
+    ) -> None:
+        """Linked-branches line rendered as line 4, under the State line."""
+        result = format_issue_view(
+            _make_issue(),
+            comments=[],
+            linked_branches=linked_branches,
+            include_linked_branches=True,
+        )
+        assert result.splitlines()[3] == expected_line
+
+    def test_format_issue_view_linked_branches_not_requested(self) -> None:
+        """No linked-branches line when the flag is off."""
+        issue = _make_issue()
+        assert "Linked branches" not in format_issue_view(issue, comments=[])
+        result = format_issue_view(issue, comments=[], linked_branches=["x"])
+        assert "Linked branches" not in result
+
+    def test_format_issue_view_linked_branches_survives_max_lines_4(self) -> None:
+        """Linked-branches line kept when output is truncated to 4 lines."""
+        issue = _make_issue(body="\n".join(f"line {i}" for i in range(300)))
+        result = format_issue_view(
+            issue,
+            comments=[],
+            max_lines=4,
+            linked_branches=["42-x"],
+            include_linked_branches=True,
+        )
+        assert "Linked branches: 42-x" in result
+
 
 # --- format_issue_list tests ---
 

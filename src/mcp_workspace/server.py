@@ -834,6 +834,33 @@ def _issue_manager(reference_name: Optional[str]) -> "IssueManager":
     return IssueManager(repo_url=get_reference_repo_url(reference_name))
 
 
+def _linked_branches(number: int, reference_name: Optional[str]) -> Optional[list[str]]:
+    """Look up an issue's linked branches; None when the lookup fails for any reason.
+
+    Args:
+        number: Issue number to look up.
+        reference_name: Optional reference project name. When None, the
+            workspace repository is used.
+
+    Returns:
+        Names of the branches linked to the issue, or None if the lookup failed.
+    """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.issues import IssueBranchManager
+
+    try:
+        if reference_name is None:
+            manager = IssueBranchManager(project_dir=_project_dir)
+        else:
+            manager = IssueBranchManager(
+                repo_url=get_reference_repo_url(reference_name)
+            )
+        return manager.get_linked_branches_or_none(number)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.debug("Linked branch lookup failed", exc_info=True)
+        return None
+
+
 def _repo_access_error(manager: "IssueManager") -> str:
     """Build the error text for a repository that could not be accessed.
 
@@ -868,6 +895,7 @@ def github_issue_view(
     include_comments: bool = True,
     max_lines: int = 200,
     reference_name: Optional[str] = None,
+    include_linked_branches: bool = False,
 ) -> str:
     """View a GitHub issue with full detail.
 
@@ -877,6 +905,9 @@ def github_issue_view(
         max_lines: Maximum output lines (default: 200)
         reference_name: Optional reference project name. When set, reads from
             that project's GitHub repository instead of the workspace repository.
+        include_linked_branches: Add a "Linked branches" line listing branch
+            names, "none", or "unknown (lookup failed)". Costs two extra GitHub
+            requests (default: False)
 
     Returns:
         Formatted issue detail text, or error message string.
@@ -893,7 +924,18 @@ def github_issue_view(
                 return _repo_access_error(manager)
             return f"Error: Issue #{number} not found in {repo_full_name}"
         comments = manager.get_comments(number) if include_comments else []
-        return format_issue_view(issue, comments, max_lines)
+        linked = (
+            _linked_branches(number, reference_name)
+            if include_linked_branches
+            else None
+        )
+        return format_issue_view(
+            issue,
+            comments,
+            max_lines,
+            linked_branches=linked,
+            include_linked_branches=include_linked_branches,
+        )
     except Exception as e:
         return f"Error: {e}"
 
