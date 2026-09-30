@@ -13,10 +13,26 @@ from mcp_workspace.github_operations._permission_probes import (
     _run_probe,
     run_permission_probes,
 )
+from mcp_workspace.github_operations._types import ProtectionOutcome
 from mcp_workspace.github_operations.verification import CheckResult
 
 GITHUB_COM_HOST = "https://github.com"
 GHE_TENANT_HOST = "https://tenant.ghe.com"
+
+
+def _outcome(
+    exc: Exception | None = None,
+    *,
+    stage: str = "get_protection",
+    branch: str | None = "main",
+) -> ProtectionOutcome:
+    """Build a ProtectionOutcome; success when ``exc`` is None."""
+    return ProtectionOutcome(
+        branch=branch,
+        stage=stage,  # type: ignore[arg-type]
+        protection=Mock() if exc is None else None,
+        exception=exc,
+    )
 
 
 # ===================================================================
@@ -59,16 +75,17 @@ class TestClassifier401:
 
 
 class TestClassifier403:
-    """403 status -> blocked by org policy hint."""
+    """403 status -> neutral not-accessible hint."""
 
     def test_403_message(self) -> None:
         url = "https://api.github.com/repos/x/y/issues?state=all"
         result = _classify_permission_response("Issues: Read", 403, url, None)
         err = result["error"]
-        assert "403" in err
+        assert "not accessible (403)" in err
         assert "Issues: Read" in err
-        assert "blocked by org policy" in err
+        assert "grant it to the token" in err
         assert f"(GET {url})" in err
+        assert "blocked by org policy" not in err
 
 
 class TestClassifier404HostBranching:
@@ -106,23 +123,6 @@ class TestClassifier404HostBranching:
         assert "settings" not in err
         assert "fine-grained PAT" not in err
         assert f"(GET {url})" in err
-
-
-class TestClassifier404Admin:
-    """admin_404=True: branch-protection-aware 404 message."""
-
-    def test_admin_404_phrase(self) -> None:
-        url = "https://api.github.com/repos/x/y/branches/main/protection"
-        result = _classify_permission_response(
-            "Administration: Read", 404, url, GITHUB_COM_HOST, admin_404=True
-        )
-        err = result["error"]
-        assert "Administration: Read" in err
-        assert "no branch protection configured" in err
-        assert "404" in err
-        assert f"(GET {url})" in err
-        # admin_404 takes precedence over the host-branched 404 message
-        assert "fine-grained PAT" not in err
 
 
 class TestClassifierUnexpected:
@@ -196,7 +196,9 @@ class TestSimpleProbesSuccess:
     @pytest.mark.parametrize("key,_name", SIMPLE_PROBE_PARAMS)
     def test_success(self, key: str, _name: str, mock_repo_full: Mock) -> None:
         manager = _make_manager()
-        results = run_permission_probes(manager, mock_repo_full)
+        results = run_permission_probes(
+            manager, mock_repo_full, protection_outcome=_outcome()
+        )
         check = results[key]
         assert check["ok"] is True
         assert check["value"] == "OK"
@@ -272,7 +274,7 @@ class TestSimpleProbesFailure:
         exc = GithubException(status=status, data={"message": "x"}, headers={})
         repo = _make_repo_with_probe_failure(key, exc)
         manager = _make_manager()
-        results = run_permission_probes(manager, repo)
+        results = run_permission_probes(manager, repo, protection_outcome=_outcome())
         check = results[key]
         assert check["ok"] is False
         err = check["error"]
@@ -321,7 +323,7 @@ class TestTotalCountIsRead:
         getattr(repo, method_name).return_value = target_paginated
 
         manager = _make_manager()
-        run_permission_probes(manager, repo)
+        run_permission_probes(manager, repo, protection_outcome=_outcome())
         assert prop.call_count == 1
 
 
@@ -340,7 +342,7 @@ class TestStatusesTwoCallAttribution:
         result = _probe_statuses(
             repo, "main", "https://api.github.com/repos/owner/repo", GITHUB_COM_HOST
         )
-        assert result["ok"] is False
+        assert result["ok"] is None
         assert result["value"] == "not checked"
         assert result["error"] == "commit lookup failed (covered by perm_contents_read)"
         # Classifier always emits "(GET ...)" on failures; absence proves it was skipped
@@ -371,39 +373,69 @@ class TestStatusesTwoCallAttribution:
 # ===================================================================
 
 
-class TestAdministrationTwoCallAttribution:
-    """get_branch failures are NOT routed through the classifier."""
+ADMIN_BASE = "https://api.github.com/repos/owner/repo"
+ADMIN_URL = f"{ADMIN_BASE}/branches/main/protection"
 
-    def test_get_branch_raises_skips_classifier(self) -> None:
-        repo = Mock()
-        repo.default_branch = "main"
-        repo.get_branch.side_effect = GithubException(status=403, data={}, headers={})
+
+class TestAdministrationTwoCallAttribution:
+    """The Administration probe classifies the shared protection outcome."""
+
+    def test_get_branch_failure_not_checked(self) -> None:
+        exc = GithubException(status=403, data={}, headers={})
         result = _probe_administration(
-            repo, "main", "https://api.github.com/repos/owner/repo", GITHUB_COM_HOST
+            _outcome(exc, stage="get_branch"), ADMIN_BASE, GITHUB_COM_HOST
         )
-        assert result["ok"] is False
+        assert result["ok"] is None
         assert result["value"] == "not checked"
         assert result["error"] == "branch lookup failed (covered by perm_contents_read)"
         assert "GET" not in result["error"]
         assert "https://" not in result["error"]
 
-    def test_get_protection_404_runs_classifier_with_admin_404(self) -> None:
-        repo = Mock()
-        repo.default_branch = "main"
-        branch = Mock()
-        branch.get_protection.side_effect = GithubException(
-            status=404, data={}, headers={}
-        )
-        repo.get_branch.return_value = branch
-        result = _probe_administration(
-            repo, "main", "https://api.github.com/repos/owner/repo", GITHUB_COM_HOST
-        )
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            None,
+            GithubException(
+                status=404, data={"message": "Branch not protected"}, headers={}
+            ),
+        ],
+        ids=["success", "branch_not_protected_404"],
+    )
+    def test_readable_endpoint_ok(self, exc: Exception | None) -> None:
+        result = _probe_administration(_outcome(exc), ADMIN_BASE, GITHUB_COM_HOST)
+        assert result["ok"] is True
+        assert result["value"] == "OK"
+        assert "error" not in result
+
+    def test_403_new_wording(self) -> None:
+        exc = GithubException(status=403, data={"message": "x"}, headers={})
+        result = _probe_administration(_outcome(exc), ADMIN_BASE, GITHUB_COM_HOST)
+        assert result["ok"] is False
+        err = result["error"]
+        assert "not accessible (403)" in err
+        assert "Administration: Read" in err
+        assert "blocked by org policy" not in err
+        assert f"(GET {ADMIN_URL})" in err
+
+    def test_other_404_generic_text(self) -> None:
+        exc = GithubException(status=404, data={"message": "Not Found"}, headers={})
+        result = _probe_administration(_outcome(exc), ADMIN_BASE, GITHUB_COM_HOST)
         assert result["ok"] is False
         err = result["error"]
         assert "Administration: Read" in err
-        assert "no branch protection configured" in err
-        url = "https://api.github.com/repos/owner/repo/branches/main/protection"
-        assert f"(GET {url})" in err
+        assert "fine-grained PAT" in err
+        assert "no branch protection" not in err
+        assert f"(GET {ADMIN_URL})" in err
+
+
+class TestAdministrationNoApiCalls:
+    """run_permission_probes never re-fetches branch protection."""
+
+    def test_get_branch_not_called(self, mock_repo_full: Mock) -> None:
+        run_permission_probes(
+            _make_manager(), mock_repo_full, protection_outcome=_outcome()
+        )
+        mock_repo_full.get_branch.assert_not_called()
 
 
 # ===================================================================
@@ -439,18 +471,18 @@ class TestSkipWhenUnreachable:
 
     def test_six_placeholder_rows(self) -> None:
         manager = MagicMock()
-        results = run_permission_probes(manager, None)
+        results = run_permission_probes(manager, None, protection_outcome=None)
         assert set(results.keys()) == set(_PROBE_KEYS)
         for key in _PROBE_KEYS:
             check = results[key]
-            assert check["ok"] is False
+            assert check["ok"] is None
             assert check["value"] == "not checked"
             assert check["severity"] == "warning"
             assert check["error"] == "repository not accessible"
 
     def test_manager_not_dereferenced(self) -> None:
         manager = MagicMock()
-        run_permission_probes(manager, None)
+        run_permission_probes(manager, None, protection_outcome=None)
         # _repo_identifier should never have been accessed
         assert "_repo_identifier" not in {c[0] for c in manager.mock_calls if c[0]}
         # Stronger: no attribute access at all besides the call itself
@@ -490,15 +522,13 @@ class TestUrlTemplates:
         type(workflows).totalCount = PropertyMock(side_effect=exc)
         repo.get_workflows.return_value = workflows
 
-        branch = Mock()
-        branch.get_protection.side_effect = exc
-        repo.get_branch.return_value = branch
-
         commit = Mock()
         commit.get_combined_status.side_effect = exc
         repo.get_commit.return_value = commit
 
-        results = run_permission_probes(manager, repo)
+        results = run_permission_probes(
+            manager, repo, protection_outcome=_outcome(exc, branch="trunk")
+        )
 
         expected_urls = {
             "perm_contents_read": "https://ghe.example.com/api/v3/repos/acme/widget/contents/",
@@ -524,12 +554,14 @@ class TestProbeKeyOrder:
     """run_permission_probes returns keys in _PROBE_KEYS order."""
 
     def test_skip_path_order(self) -> None:
-        results = run_permission_probes(MagicMock(), None)
+        results = run_permission_probes(MagicMock(), None, protection_outcome=None)
         assert tuple(results.keys()) == _PROBE_KEYS
 
     def test_normal_path_order(self, mock_repo_full: Mock) -> None:
         manager = _make_manager()
-        results = run_permission_probes(manager, mock_repo_full)
+        results = run_permission_probes(
+            manager, mock_repo_full, protection_outcome=_outcome()
+        )
         assert tuple(results.keys()) == _PROBE_KEYS
 
 

@@ -89,6 +89,35 @@ def _patch_all_ok(
     token_source: Literal["env", "config"] = "env",
 ) -> dict[str, object]:
     """Run verify_github with all dependencies mocked to succeed."""
+    result, _ = _run_all_ok_with_branch(
+        project_dir,
+        oauth_scopes=oauth_scopes,
+        user_login=user_login,
+        repo_full_name=repo_full_name,
+        default_branch=default_branch,
+        protection=protection,
+        delete_branch_on_merge=delete_branch_on_merge,
+        token_source=token_source,
+    )
+    return result
+
+
+def _run_all_ok_with_branch(
+    project_dir: Path,
+    *,
+    oauth_scopes: list[str] | None = None,
+    user_login: str = "testuser",
+    repo_full_name: str = "owner/repo",
+    default_branch: str = "main",
+    protection: Mock | None = None,
+    protection_error: Exception | None = None,
+    delete_branch_on_merge: bool = True,
+    token_source: Literal["env", "config"] = "env",
+) -> tuple[dict[str, object], Mock]:
+    """Like ``_patch_all_ok``, but also return the branch mock.
+
+    ``protection_error``, when set, is raised by ``get_protection()``.
+    """
     if oauth_scopes is None:
         oauth_scopes = ["repo", "workflow"]
 
@@ -107,6 +136,8 @@ def _patch_all_ok(
     if protection is None:
         protection = _make_mock_protection()
     mock_branch.get_protection.return_value = protection
+    if protection_error is not None:
+        mock_branch.get_protection.side_effect = protection_error
     mock_repo.get_branch.return_value = mock_branch
 
     identifier = _make_identifier(full_name=repo_full_name)
@@ -125,6 +156,32 @@ def _patch_all_ok(
         mock_manager.get_default_branch.return_value = default_branch
         mock_manager_cls.return_value = mock_manager
 
+        return verify_github(project_dir), mock_branch
+
+
+def _run_with_repo_inaccessible(project_dir: Path) -> dict[str, object]:
+    """Run verify_github with auth OK but the repository lookup returning None."""
+    mock_user = Mock()
+    mock_user.login = "testuser"
+
+    mock_github_client = Mock()
+    mock_github_client.get_user.return_value = mock_user
+    mock_github_client.oauth_scopes = ["repo"]
+
+    identifier = _make_identifier()
+
+    with (
+        patch(
+            f"{MODULE}.get_github_token_with_source",
+            return_value=("ghp_test", "env"),
+        ),
+        patch(f"{CLIENT}.Github", return_value=mock_github_client),
+        patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
+        patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
+    ):
+        mock_manager = Mock()
+        mock_manager._get_repository.return_value = None
+        mock_mgr_cls.return_value = mock_manager
         return verify_github(project_dir)
 
 
@@ -488,53 +545,159 @@ class TestBranchProtectionAllPass:
         assert result["overall_ok"] is True
 
 
-class TestNoBranchProtection404:
-    """Test when get_protection() raises 404 — no protection configured."""
+def _run_with_protection_error(
+    tmp_path: Path,
+    exc: Exception,
+    *,
+    on: Literal["get_protection", "get_branch"] = "get_protection",
+) -> dict[str, object]:
+    """Run verify_github with ``exc`` raised by ``get_protection`` or ``get_branch``."""
+    mock_user = Mock()
+    mock_user.login = "testuser"
 
-    def _run(self, tmp_path: Path) -> dict[str, object]:
-        mock_user = Mock()
-        mock_user.login = "testuser"
+    mock_github_client = Mock()
+    mock_github_client.get_user.return_value = mock_user
+    mock_github_client.oauth_scopes = ["repo"]
 
-        mock_github_client = Mock()
-        mock_github_client.get_user.return_value = mock_user
-        mock_github_client.oauth_scopes = ["repo"]
-
-        mock_branch = Mock()
-        mock_branch.get_protection.side_effect = GithubException(
-            status=404, data={"message": "Branch not protected"}, headers={}
-        )
-
-        mock_repo = Mock()
-        mock_repo.full_name = "owner/repo"
+    mock_branch = Mock()
+    mock_repo = Mock()
+    mock_repo.full_name = "owner/repo"
+    if on == "get_protection":
+        mock_branch.get_protection.side_effect = exc
         mock_repo.get_branch.return_value = mock_branch
+    else:
+        mock_repo.get_branch.side_effect = exc
 
-        identifier = _make_identifier()
+    identifier = _make_identifier()
 
-        with (
-            patch(
-                f"{MODULE}.get_github_token_with_source",
-                return_value=("ghp_test", "env"),
+    with (
+        patch(
+            f"{MODULE}.get_github_token_with_source",
+            return_value=("ghp_test", "env"),
+        ),
+        patch(f"{CLIENT}.Github", return_value=mock_github_client),
+        patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
+        patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
+    ):
+        mock_manager = Mock()
+        mock_manager._get_repository.return_value = mock_repo
+        mock_manager.get_default_branch.return_value = "main"
+        mock_mgr_cls.return_value = mock_manager
+        return verify_github(tmp_path)
+
+
+_DOC_URL = "https://docs.github.com/rest/branches/branch-protection"
+
+
+class TestProtectionOutcomeTable:
+    """All five branch-protection rows follow the outcome table."""
+
+    @pytest.mark.parametrize(
+        ("exc", "on", "expected_ok", "starts", "contains"),
+        [
+            pytest.param(
+                GithubException(
+                    status=404, data={"message": "Branch not protected"}, headers={}
+                ),
+                "get_protection",
+                False,
+                "not configured",
+                "not configured",
+                id="404-branch-not-protected",
             ),
-            patch(f"{CLIENT}.Github", return_value=mock_github_client),
-            patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
-            patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
-        ):
-            mock_manager = Mock()
-            mock_manager._get_repository.return_value = mock_repo
-            mock_manager.get_default_branch.return_value = "main"
-            mock_mgr_cls.return_value = mock_manager
-            return verify_github(tmp_path)
+            pytest.param(
+                GithubException(status=404, data={"message": "Not Found"}, headers={}),
+                "get_protection",
+                None,
+                "not verifiable",
+                "HTTP 404: Not Found",
+                id="404-not-found",
+            ),
+            pytest.param(
+                GithubException(
+                    status=401, data={"message": "Bad credentials"}, headers={}
+                ),
+                "get_protection",
+                None,
+                "not verifiable",
+                "token rejected (401)",
+                id="401",
+            ),
+            pytest.param(
+                GithubException(
+                    status=403,
+                    data={
+                        "message": "Resource not accessible by personal access token",
+                        "documentation_url": _DOC_URL,
+                    },
+                    headers={},
+                ),
+                "get_protection",
+                None,
+                "not verifiable",
+                "token lacks Administration: Read",
+                id="403",
+            ),
+            pytest.param(
+                GithubException(status=500, data={"message": "oops"}, headers={}),
+                "get_protection",
+                None,
+                "not verifiable",
+                "HTTP 500",
+                id="500",
+            ),
+            pytest.param(
+                ConnectionError("boom"),
+                "get_protection",
+                None,
+                "not verifiable",
+                "ConnectionError",
+                id="connection-error",
+            ),
+            pytest.param(
+                GithubException(status=404, data={"message": "Not Found"}, headers={}),
+                "get_branch",
+                None,
+                "not verifiable",
+                "HTTP 404",
+                id="get-branch-404",
+            ),
+        ],
+    )
+    def test_rows(
+        self,
+        tmp_path: Path,
+        exc: Exception,
+        on: Literal["get_protection", "get_branch"],
+        expected_ok: bool | None,
+        starts: str,
+        contains: str,
+    ) -> None:
+        result = _run_with_protection_error(tmp_path, exc, on=on)
 
-    def test_all_five_not_ok(self, tmp_path: Path) -> None:
-        result = self._run(tmp_path)
         for key in BRANCH_CHECK_KEYS:
             check: CheckResult = result[key]  # type: ignore[assignment]
-            assert check["ok"] is False, f"{key} should not be ok"
+            assert check["ok"] is expected_ok, key
             assert check["severity"] == "warning"
-
-    def test_overall_ok_still_true(self, tmp_path: Path) -> None:
-        result = self._run(tmp_path)
+            assert check["value"].startswith(starts), check["value"]
+            assert contains in check["value"], check["value"]
+            if expected_ok is not False:
+                assert "not configured" not in check["value"]
+                assert check["error"].startswith(f"{on} failed: ")
+            else:
+                assert check["error"] == "no branch protection"
+            for text in (check["value"], check["error"]):
+                assert "{" not in text
+                assert "documentation_url" not in text
         assert result["overall_ok"] is True
+
+    def test_long_message_reason_is_status_only(self, tmp_path: Path) -> None:
+        exc = GithubException(status=500, data={"message": "x" * 101}, headers={})
+        result = _run_with_protection_error(tmp_path, exc)
+
+        check: CheckResult = result["branch_protection"]  # type: ignore[assignment]
+        assert check["value"] == "not verifiable — HTTP 500"
+        assert check["error"] == "get_protection failed: HTTP 500"
 
 
 class TestNoStatusChecksConfigured:
@@ -587,33 +750,13 @@ class TestBranchDeletionEnabled:
 class TestBranchProtectionWhenRepoNotAccessible:
     """Test branch protection checks when repo is not accessible (check 4 failed)."""
 
-    def test_all_five_present_and_not_ok(self, tmp_path: Path) -> None:
-        mock_user = Mock()
-        mock_user.login = "testuser"
-
-        mock_github_client = Mock()
-        mock_github_client.get_user.return_value = mock_user
-        mock_github_client.oauth_scopes = ["repo"]
-
-        identifier = _make_identifier()
-
-        with (
-            patch(
-                f"{MODULE}.get_github_token_with_source",
-                return_value=("ghp_test", "env"),
-            ),
-            patch(f"{CLIENT}.Github", return_value=mock_github_client),
-            patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
-            patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
-        ):
-            mock_manager = Mock()
-            mock_manager._get_repository.return_value = None
-            mock_mgr_cls.return_value = mock_manager
-            result = verify_github(tmp_path)
+    def test_all_five_present_and_not_verifiable(self, tmp_path: Path) -> None:
+        result = _run_with_repo_inaccessible(tmp_path)
 
         for key in BRANCH_CHECK_KEYS:
             check: CheckResult = result[key]  # type: ignore[assignment]
-            assert check["ok"] is False
+            assert check["ok"] is None
+            assert check["value"] == "unknown"
             assert "error" in check
 
 
@@ -688,33 +831,41 @@ class TestAutoDeleteBranches:
         assert check["value"] == "auto-delete on merge"
 
     def test_repo_not_accessible(self, tmp_path: Path) -> None:
-        mock_user = Mock()
-        mock_user.login = "testuser"
-
-        mock_github_client = Mock()
-        mock_github_client.get_user.return_value = mock_user
-        mock_github_client.oauth_scopes = ["repo"]
-
-        identifier = _make_identifier()
-
-        with (
-            patch(
-                f"{MODULE}.get_github_token_with_source",
-                return_value=("ghp_test", "env"),
-            ),
-            patch(f"{CLIENT}.Github", return_value=mock_github_client),
-            patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
-            patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
-        ):
-            mock_manager = Mock()
-            mock_manager._get_repository.return_value = None
-            mock_mgr_cls.return_value = mock_manager
-            result = verify_github(tmp_path)
+        result = _run_with_repo_inaccessible(tmp_path)
 
         check: CheckResult = result["auto_delete_branches"]  # type: ignore[assignment]
-        assert check["ok"] is False
+        assert check["ok"] is None
         assert check["value"] == "unknown"
         assert "error" in check
+
+
+class TestOverallOkWithUnverifiableRows:
+    """ok=None rows are warnings and never take part in overall_ok."""
+
+    def test_repo_inaccessible_overall_ok_follows_error_rows(
+        self, tmp_path: Path
+    ) -> None:
+        result = _run_with_repo_inaccessible(tmp_path)
+
+        checks = [v for v in result.values() if isinstance(v, dict)]
+        assert any(c["ok"] is None for c in checks)
+        error_rows = [c for c in checks if c["severity"] == "error"]
+        assert result["overall_ok"] == all(c["ok"] for c in error_rows)
+        # repo_accessible is an error row and failed.
+        assert result["overall_ok"] is False
+
+    def test_all_ok_with_unverifiable_probe_rows(self, tmp_path: Path) -> None:
+        unverifiable = {
+            k: CheckResult(ok=None, value="not checked", severity="warning", error="x")
+            for k in _PROBE_KEYS
+        }
+        with patch(f"{MODULE}.run_permission_probes", return_value=unverifiable):
+            result = _patch_all_ok(tmp_path)
+
+        for k in _PROBE_KEYS:
+            check: CheckResult = result[k]  # type: ignore[assignment]
+            assert check["ok"] is None
+        assert result["overall_ok"] is True
 
 
 class TestOverallOkTrueWhenOnlyWarningsFail:
@@ -1176,6 +1327,24 @@ class TestPermissionProbeOverallOkUnaffected:
         assert result["overall_ok"] is True
 
 
+class TestSingleProtectionFetch:
+    """get_protection() is called exactly once per verify_github run."""
+
+    def test_success_fetches_once(self, tmp_path: Path) -> None:
+        result, mock_branch = _run_all_ok_with_branch(tmp_path)
+        assert mock_branch.get_protection.call_count == 1
+        admin: CheckResult = result["perm_administration_read"]  # type: ignore[assignment]
+        assert admin["ok"] is True
+
+    def test_403_fetches_once(self, tmp_path: Path) -> None:
+        denial = GithubException(status=403, data={"message": "x"}, headers={})
+        result, mock_branch = _run_all_ok_with_branch(tmp_path, protection_error=denial)
+        assert mock_branch.get_protection.call_count == 1
+        admin: CheckResult = result["perm_administration_read"]  # type: ignore[assignment]
+        assert admin["ok"] is False
+        assert "not accessible (403)" in admin["error"]
+
+
 class TestPermissionProbeSkipWhenUnreachable:
     """When repo_accessible.ok=False, probes return 6 placeholder rows."""
 
@@ -1217,7 +1386,7 @@ class TestPermissionProbeSkipWhenUnreachable:
 
         for k in _PROBE_KEYS:
             check: CheckResult = result[k]  # type: ignore[assignment]
-            assert check["ok"] is False
+            assert check["ok"] is None
             assert check["value"] == "not checked"
             assert check["severity"] == "warning"
             assert check["error"] == "repository not accessible"

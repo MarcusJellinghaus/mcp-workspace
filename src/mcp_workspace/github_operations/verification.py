@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from github.GithubException import GithubException
+from github.Repository import Repository
 from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
 from mcp_workspace.config import get_github_token_with_source
@@ -21,7 +22,11 @@ from mcp_workspace.github_operations._network import (
     maybe_log_network_diagnostics,
 )
 from mcp_workspace.github_operations._permission_probes import run_permission_probes
-from mcp_workspace.github_operations._types import CheckResult
+from mcp_workspace.github_operations._types import (
+    CheckResult,
+    ProtectionOutcome,
+    is_branch_not_protected,
+)
 from mcp_workspace.github_operations.base_manager import BaseGitHubManager
 from mcp_workspace.utils.token_fingerprint import format_token_fingerprint
 
@@ -29,12 +34,110 @@ __all__ = ["CheckResult", "verify_github"]
 
 logger = logging.getLogger(__name__)
 
+_PROTECTION_KEYS: tuple[str, ...] = (
+    "branch_protection",
+    "ci_checks_required",
+    "strict_mode",
+    "force_push",
+    "branch_deletion",
+)
+
+
+def _protection_rows(ok: bool | None, value: str, error: str) -> dict[str, CheckResult]:
+    """Build one identical warning row per branch-protection key.
+
+    Args:
+        ok: Check outcome shared by every row.
+        value: Display value shared by every row.
+        error: Error message shared by every row.
+
+    Returns:
+        Mapping from each branch-protection key to the same warning-severity
+        ``CheckResult``.
+    """
+    return {
+        k: CheckResult(ok=ok, value=value, severity="warning", error=error)
+        for k in _PROTECTION_KEYS
+    }
+
+
+def _fetch_protection(
+    manager: BaseGitHubManager, repo: Repository
+) -> ProtectionOutcome:
+    """Fetch the default branch's protection once, recording where it failed.
+
+    Args:
+        manager: Manager used to resolve the default branch name.
+        repo: Repository whose default branch protection is fetched.
+
+    Returns:
+        ``ProtectionOutcome`` holding the fetched protection, or the stage
+        and exception where the fetch failed.
+    """
+    branch_name: str | None = None
+    try:
+        branch_name = manager.get_default_branch()
+        branch = repo.get_branch(branch_name)
+    except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        logger.debug("Branch lookup failed branch=%s exc=%s", branch_name, exc)
+        return ProtectionOutcome(branch_name, "get_branch", None, exc)
+    try:
+        return ProtectionOutcome(
+            branch_name, "get_protection", branch.get_protection(), None
+        )
+    except GithubException as exc:
+        logger.debug(
+            "get_protection failed branch=%s status=%s data=%s headers=%s",
+            branch_name,
+            exc.status,
+            exc.data,
+            extract_diagnostic_headers(exc),
+        )
+        return ProtectionOutcome(branch_name, "get_protection", None, exc)
+    except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        logger.debug("get_protection failed branch=%s exc=%s", branch_name, exc)
+        return ProtectionOutcome(branch_name, "get_protection", None, exc)
+
+
+def _short_reason(exc: Exception) -> str:
+    """Summarise ``exc`` without its raw response body.
+
+    Args:
+        exc: Exception to summarise.
+
+    Returns:
+        Short summary of the exception without the raw response body.
+    """
+    if isinstance(exc, GithubException):
+        msg = exc.data.get("message") if isinstance(exc.data, dict) else None
+        if isinstance(msg, str) and len(msg) <= 100:
+            return f"HTTP {exc.status}: {msg}"
+        return f"HTTP {exc.status}"
+    return type(exc).__name__
+
+
+def _classify_protection_failure(
+    stage: str, exc: Exception
+) -> tuple[bool | None, str, str]:
+    """Return (ok, value, error) shared by all five branch-protection rows."""
+    if is_branch_not_protected(exc):
+        return False, "not configured", "no branch protection"
+    reason = _short_reason(exc)
+    error = f"{stage} failed: {reason}"
+    if stage == "get_protection" and isinstance(exc, GithubException):
+        if exc.status == 401:
+            return None, "not verifiable — token rejected (401)", error
+        if exc.status == 403:
+            return None, "not verifiable — token lacks Administration: Read", error
+    return None, f"not verifiable — {reason}", error
+
 
 def verify_github(project_dir: Path) -> dict[str, object]:
     """Verify GitHub connectivity and branch protection.
 
     Runs checks 1–4 (token, auth, repo URL, repo access) independently.
     Each check reports its own result regardless of earlier failures.
+    A check that could not be verified reports ``ok=None``.
 
     Args:
         project_dir: Path to the project directory containing a git repository.
@@ -230,126 +333,89 @@ def verify_github(project_dir: Path) -> dict[str, object]:
     repo_obj = result.get("repo_accessible")
     repo_is_ok = isinstance(repo_obj, dict) and repo_obj.get("ok") is True
 
-    if not repo_is_ok or repo is None or manager is None:
-        for key in (
-            "branch_protection",
-            "ci_checks_required",
-            "strict_mode",
-            "force_push",
-            "branch_deletion",
-        ):
-            result[key] = CheckResult(
-                ok=False,
-                value="unknown",
-                severity="warning",
-                error="repository not accessible",
+    outcome: ProtectionOutcome | None = None
+    if repo_is_ok and repo is not None and manager is not None:
+        outcome = _fetch_protection(manager, repo)
+
+    if outcome is None:
+        result.update(_protection_rows(None, "unknown", "repository not accessible"))
+    elif outcome.exception is not None:
+        result.update(
+            _protection_rows(
+                *_classify_protection_failure(outcome.stage, outcome.exception)
             )
-    else:
-        try:
-            default_branch_name = manager.get_default_branch()
-            branch = repo.get_branch(default_branch_name)
-            protection = branch.get_protection()
-        except GithubException as exc:
-            _reason = "no branch protection" if exc.status == 404 else str(exc)
-            for key in (
-                "branch_protection",
-                "ci_checks_required",
-                "strict_mode",
-                "force_push",
-                "branch_deletion",
-            ):
-                result[key] = CheckResult(
-                    ok=False,
-                    value="not configured",
-                    severity="warning",
-                    error=_reason,
-                )
-        except (
-            Exception
-        ) as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            _reason = str(exc)
-            for key in (
-                "branch_protection",
-                "ci_checks_required",
-                "strict_mode",
-                "force_push",
-                "branch_deletion",
-            ):
-                result[key] = CheckResult(
-                    ok=False,
-                    value="not configured",
-                    severity="warning",
-                    error=_reason,
-                )
-        else:
-            # Check 5: branch_protection
-            result["branch_protection"] = CheckResult(
+        )
+    elif outcome.protection is not None:
+        protection = outcome.protection
+
+        # Check 5: branch_protection
+        result["branch_protection"] = CheckResult(
+            ok=True,
+            value=f"{outcome.branch} protected",
+            severity="warning",
+        )
+
+        # Check 6: ci_checks_required
+        # PyGithub types this as RequiredStatusChecks but returns None
+        # when the GitHub API sends null
+        status_checks: Any = protection.required_status_checks
+        if status_checks is not None:
+            contexts = status_checks.contexts
+            result["ci_checks_required"] = CheckResult(
                 ok=True,
-                value=f"{default_branch_name} protected",
+                value=f"{len(contexts)} checks configured",
+                severity="warning",
+            )
+        else:
+            result["ci_checks_required"] = CheckResult(
+                ok=False,
+                value="not configured",
                 severity="warning",
             )
 
-            # Check 6: ci_checks_required
-            # PyGithub types this as RequiredStatusChecks but returns None
-            # when the GitHub API sends null
-            status_checks: Any = protection.required_status_checks
-            if status_checks is not None:
-                contexts = status_checks.contexts
-                result["ci_checks_required"] = CheckResult(
-                    ok=True,
-                    value=f"{len(contexts)} checks configured",
-                    severity="warning",
-                )
-            else:
-                result["ci_checks_required"] = CheckResult(
-                    ok=False,
-                    value="not configured",
-                    severity="warning",
-                )
+        # Check 7: strict_mode
+        if status_checks is not None and status_checks.strict:
+            result["strict_mode"] = CheckResult(
+                ok=True,
+                value="enabled",
+                severity="warning",
+            )
+        else:
+            result["strict_mode"] = CheckResult(
+                ok=False,
+                value="disabled",
+                severity="warning",
+            )
 
-            # Check 7: strict_mode
-            if status_checks is not None and status_checks.strict:
-                result["strict_mode"] = CheckResult(
-                    ok=True,
-                    value="enabled",
-                    severity="warning",
-                )
-            else:
-                result["strict_mode"] = CheckResult(
-                    ok=False,
-                    value="disabled",
-                    severity="warning",
-                )
+        # Check 8: force_push
+        force_push_allowed = protection.allow_force_pushes
+        if not force_push_allowed:
+            result["force_push"] = CheckResult(
+                ok=True,
+                value="disabled",
+                severity="warning",
+            )
+        else:
+            result["force_push"] = CheckResult(
+                ok=False,
+                value="enabled",
+                severity="warning",
+            )
 
-            # Check 8: force_push
-            force_push_allowed = protection.allow_force_pushes
-            if not force_push_allowed:
-                result["force_push"] = CheckResult(
-                    ok=True,
-                    value="disabled",
-                    severity="warning",
-                )
-            else:
-                result["force_push"] = CheckResult(
-                    ok=False,
-                    value="enabled",
-                    severity="warning",
-                )
-
-            # Check 9: branch_deletion
-            deletion_allowed = protection.allow_deletions
-            if not deletion_allowed:
-                result["branch_deletion"] = CheckResult(
-                    ok=True,
-                    value="disabled",
-                    severity="warning",
-                )
-            else:
-                result["branch_deletion"] = CheckResult(
-                    ok=False,
-                    value="enabled",
-                    severity="warning",
-                )
+        # Check 9: branch_deletion
+        deletion_allowed = protection.allow_deletions
+        if not deletion_allowed:
+            result["branch_deletion"] = CheckResult(
+                ok=True,
+                value="disabled",
+                severity="warning",
+            )
+        else:
+            result["branch_deletion"] = CheckResult(
+                ok=False,
+                value="enabled",
+                severity="warning",
+            )
 
     # ------------------------------------------------------------------
     # Check 10: auto_delete_branches (repo-level setting)
@@ -369,7 +435,7 @@ def verify_github(project_dir: Path) -> dict[str, object]:
             )
     else:
         result["auto_delete_branches"] = CheckResult(
-            ok=False,
+            ok=None,
             value="unknown",
             severity="warning",
             error="repository not accessible",
@@ -379,7 +445,11 @@ def verify_github(project_dir: Path) -> dict[str, object]:
     # Per-permission read probes (6 fine-grained PAT permissions).
     # ------------------------------------------------------------------
     result.update(
-        run_permission_probes(manager, repo if repo_is_ok else None)  # type: ignore[arg-type]
+        run_permission_probes(
+            manager,  # type: ignore[arg-type]
+            repo if repo_is_ok else None,
+            protection_outcome=outcome,
+        )
     )
 
     # ------------------------------------------------------------------
