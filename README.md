@@ -243,6 +243,9 @@ The server exposes the following MCP tools:
 | `github_label_list` | Lists the labels defined in a repository | "What labels does this repo use?" |
 | `github_issue_create` | Creates a GitHub issue | "Open an issue for the failing import check" |
 | `github_issue_edit` | Edits a GitHub issue's title, body or labels | "Retitle issue 12" |
+| `github_subissue_add` | Links an issue as a sub-issue of another | "Make issue 43 a sub-issue of 42" |
+| `github_subissue_list` | Lists an issue's sub-issues | "What are the sub-issues of issue 42?" |
+| `github_subissue_remove` | Unlinks a sub-issue from its parent | "Detach issue 43 from its parent" |
 | `github_issue_comment` | Adds a comment to a GitHub issue | "Comment on issue 12 with the repro steps" |
 | `github_pr_create` | Creates a GitHub pull request | "Open a PR for this branch" |
 | `search_reference_files` | Searches file contents or finds files in a reference project | "Find where the docs project configures logging" |

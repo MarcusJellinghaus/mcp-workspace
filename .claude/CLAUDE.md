@@ -55,6 +55,9 @@ If you can't name the gap, use the MCP tool. Exempt: the approved git/gh command
 | Create GitHub issue | `mcp__mcp-workspace__github_issue_create` |
 | Edit GitHub issue | `mcp__mcp-workspace__github_issue_edit` |
 | Comment on GitHub issue | `mcp__mcp-workspace__github_issue_comment` |
+| Link a sub-issue | `mcp__mcp-workspace__github_subissue_add` |
+| List sub-issues | `mcp__mcp-workspace__github_subissue_list` |
+| Unlink a sub-issue | `mcp__mcp-workspace__github_subissue_remove` |
 | Create GitHub PR | `mcp__mcp-workspace__github_pr_create` |
 | List GitHub labels | `mcp__mcp-workspace__github_label_list` |
 

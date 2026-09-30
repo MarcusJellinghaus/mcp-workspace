@@ -17,6 +17,9 @@ from mcp_workspace.server import (
     github_issue_create,
     github_issue_edit,
     github_label_list,
+    github_subissue_add,
+    github_subissue_list,
+    github_subissue_remove,
 )
 from mcp_workspace.server_reference_tools import set_reference_projects
 
@@ -102,8 +105,19 @@ _TOOL_CASES: list[tuple[Callable[..., str], dict[str, Any]]] = [
     (github_issue_comment, {"number": 42, "body": "hi"}),
     (github_issue_create, {"title": "T"}),
     (github_issue_edit, {"number": 42, "title": "T"}),
+    (github_subissue_add, {"parent_number": 42, "child_number": 43}),
+    (github_subissue_list, {"parent_number": 42}),
+    (github_subissue_remove, {"parent_number": 42, "child_number": 43}),
 ]
-_TOOL_IDS = ["label_list", "issue_comment", "issue_create", "issue_edit"]
+_TOOL_IDS = [
+    "label_list",
+    "issue_comment",
+    "issue_create",
+    "issue_edit",
+    "subissue_add",
+    "subissue_list",
+    "subissue_remove",
+]
 
 
 @pytest.mark.parametrize(("tool", "kwargs"), _TOOL_CASES, ids=_TOOL_IDS)
