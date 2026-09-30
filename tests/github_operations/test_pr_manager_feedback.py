@@ -13,6 +13,7 @@ from github.Requester import Requester
 from mcp_workspace.checks.pr_feedback import collect_pr_feedback
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations._pr_feedback_sources import (
+    _has_permanent_error,
     fetch_code_scanning_alerts,
     fetch_conversation_comments,
 )
@@ -53,6 +54,20 @@ def _post_call_count(manager: PullRequestManager) -> int:
     return sum(
         1 for c in requester.requestJsonAndCheck.call_args_list if c.args[0] == "POST"
     )
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        ({"errors": [{"message": "Field 'x' doesn't exist"}]}, True),  # no data key
+        ({"data": None, "errors": [{"message": "timeout"}]}, False),  # data: null
+    ],
+)
+def test_has_permanent_error_keys_on_data_presence(
+    result: dict[str, Any], expected: bool
+) -> None:
+    """Errors without a `data` key are permanent; `data: null` is retryable."""
+    assert _has_permanent_error(result) is expected
 
 
 @pytest.mark.git_integration
@@ -170,7 +185,6 @@ class TestGetPRFeedback:
                                                 "body": "issue here",
                                                 "path": "src/foo.py",
                                                 "line": 10,
-                                                "diffSide": "RIGHT",
                                                 "diffHunk": "@@ ... @@",
                                             }
                                         ]
@@ -185,7 +199,6 @@ class TestGetPRFeedback:
                                                 "body": "another",
                                                 "path": "src/bar.py",
                                                 "line": 5,
-                                                "diffSide": "RIGHT",
                                                 "diffHunk": "@@ ... @@",
                                             }
                                         ]
@@ -200,7 +213,6 @@ class TestGetPRFeedback:
                                                 "body": "fixed",
                                                 "path": "src/baz.py",
                                                 "line": 1,
-                                                "diffSide": "RIGHT",
                                                 "diffHunk": "@@ ... @@",
                                             }
                                         ]
@@ -461,7 +473,6 @@ class TestGetPRFeedback:
                                                 "body": "issue here",
                                                 "path": "src/foo.py",
                                                 "line": 10,
-                                                "diffSide": "RIGHT",
                                                 "diffHunk": "@@ ... @@",
                                             }
                                         ]
@@ -655,7 +666,6 @@ class TestGetPRFeedback:
                                                 "body": "issue here",
                                                 "path": "src/foo.py",
                                                 "line": 10,
-                                                "diffSide": "RIGHT",
                                                 "diffHunk": "@@ ... @@",
                                             }
                                         ]
@@ -714,7 +724,6 @@ class TestGetPRFeedback:
                                                 "body": "issue here",
                                                 "path": "src/foo.py",
                                                 "line": 10,
-                                                "diffSide": "RIGHT",
                                                 "diffHunk": "@@ ... @@",
                                             }
                                         ]
@@ -766,7 +775,6 @@ class TestGetPRFeedback:
                                                 "body": "issue here",
                                                 "path": "src/foo.py",
                                                 "line": 10,
-                                                "diffSide": "RIGHT",
                                                 "diffHunk": "@@ ... @@",
                                             }
                                         ]
@@ -883,15 +891,18 @@ class TestGetPRFeedback:
             == "GraphQL error — pullRequest not returned"
         )
 
-    def test_null_pull_request_with_error_flagged(
+    def test_null_data_with_untyped_error_retried(
         self, mock_manager: PullRequestManager
     ) -> None:
-        """A real GraphQL error wins over the synthesized 'not returned' one."""
+        """`data: null` with an untyped error (a timeout) is still retried."""
         self._setup_mocks(
             mock_manager,
-            graphql_response=_null_pr_body(
-                {"message": "Field 'x' doesn't exist on type 'Y'"}
-            ),
+            graphql_response={
+                "data": None,
+                "errors": [
+                    {"message": "Something went wrong while executing your query."}
+                ],
+            },
             comments=[],
             alerts_response=[],
         )
@@ -903,6 +914,28 @@ class TestGetPRFeedback:
 
         assert _post_call_count(mock_manager) == 3
         assert sleep.call_count == 2
+        assert "threads" in result["unavailable"]
+
+    def test_null_pull_request_with_error_flagged(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """An invalid query (errors, no `data`) fails once, without retrying."""
+        self._setup_mocks(
+            mock_manager,
+            graphql_response={
+                "errors": [{"message": "Field 'x' doesn't exist on type 'Y'"}]
+            },
+            comments=[],
+            alerts_response=[],
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            result = mock_manager.get_pr_feedback(42)
+
+        assert _post_call_count(mock_manager) == 1
+        sleep.assert_not_called()
         assert (
             render_exception_for_display(result["unavailable"]["threads"])
             == "GraphQL error — Field 'x' doesn't exist on type 'Y'"

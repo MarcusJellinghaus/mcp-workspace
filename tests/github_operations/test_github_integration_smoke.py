@@ -99,6 +99,32 @@ class TestPullRequestManagerSmoke:
         assert repo_name, "Expected repository name"
         assert "/" in repo_name, "Expected repository name in 'owner/repo' format"
 
+    def test_pr_feedback_query_accepted(self, pr_manager: PullRequestManager) -> None:
+        """The reviewThreads query passes GitHub's schema validation."""
+        # An existing PR avoids the not-found retry loop; GitHub validates the
+        # query before looking up the PR, so any PR will do.
+        prs = pr_manager.list_pull_requests(state="all", max_results=1)
+        if not prs:
+            pytest.skip("test repo has no pull requests")
+
+        result = pr_manager.get_pr_feedback(prs[0]["number"])
+        assert "threads" not in result["unavailable"], result["unavailable"]
+
+    def test_invalid_graphql_query_returns_errors_without_data(
+        self, pr_manager: PullRequestManager
+    ) -> None:
+        """GitHub answers an invalid query with HTTP 200, `errors`, and no `data` key."""
+        requester = pr_manager._github_client._Github__requester  # type: ignore[attr-defined]  # pylint: disable=protected-access
+
+        # requestJsonAndCheck raises on a 4xx, which checks the HTTP 200 assumption.
+        _, body = requester.requestJsonAndCheck(
+            "POST",
+            requester.graphql_url,
+            input={"query": "query { viewer { notAField } }"},
+        )
+        assert "errors" in body
+        assert "data" not in body
+
     def test_pr_crud_lifecycle(self, pr_manager: PullRequestManager) -> None:
         """Smoke test: Verify full PR CRUD lifecycle with real GitHub API.
 
