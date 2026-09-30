@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: `github_issue_view` flag and lookup helper ([step_2.md](./steps/step_2.md))
 
-- [ ] Implementation: tests in `test_github_read_tools_issues.py` and `test_github_read_tools_reference.py`, then `_linked_branches` helper and `include_linked_branches` in `server.py`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests in `test_github_read_tools_issues.py` and `test_github_read_tools_reference.py`, then `_linked_branches` helper and `include_linked_branches` in `server.py`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

@@ -1,6 +1,7 @@
 """Tests for the GitHub issue read-only MCP tools in server.py."""
 
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -142,6 +143,101 @@ def test_github_issue_view_transferred(mock_manager_cls: MagicMock) -> None:
         "MarcusJellinghaus/mcp-workspace#220 "
         "— https://github.com/MarcusJellinghaus/mcp-workspace/issues/220"
     )
+
+
+@patch("mcp_workspace.github_operations.issues.IssueBranchManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_view_linked_branches_off(
+    mock_manager_cls: MagicMock, mock_branch_cls: MagicMock
+) -> None:
+    """By default no lookup is made and no Linked branches line is rendered."""
+    mock_mgr = MagicMock()
+    mock_mgr.get_issue.return_value = _make_issue()
+    mock_mgr.get_comments.return_value = []
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_view(number=42)
+
+    mock_branch_cls.assert_not_called()
+    assert "Linked branches" not in result
+
+
+@patch("mcp_workspace.github_operations.issues.IssueBranchManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_view_linked_branches_on(
+    mock_manager_cls: MagicMock, mock_branch_cls: MagicMock, project_dir: Path
+) -> None:
+    """The flag looks up linked branches in the workspace repo and renders them."""
+    mock_mgr = MagicMock()
+    mock_mgr.get_issue.return_value = _make_issue()
+    mock_mgr.get_comments.return_value = []
+    mock_manager_cls.return_value = mock_mgr
+    mock_branch_mgr = mock_branch_cls.return_value
+    mock_branch_mgr.get_linked_branches_or_none.return_value = ["42-fix"]
+
+    result = github_issue_view(number=42, include_linked_branches=True)
+
+    assert "Linked branches: 42-fix" in result
+    assert mock_branch_cls.call_args.kwargs == {"project_dir": project_dir}
+    mock_branch_mgr.get_linked_branches_or_none.assert_called_once_with(42)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["lookup_raises", "lookup_returns_none", "constructor_raises"],
+)
+@patch("mcp_workspace.github_operations.issues.IssueBranchManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_view_linked_branches_failure(
+    mock_manager_cls: MagicMock, mock_branch_cls: MagicMock, failure: str
+) -> None:
+    """A failed lookup renders an unknown line instead of failing the view."""
+    mock_mgr = MagicMock()
+    mock_mgr.get_issue.return_value = _make_issue()
+    mock_mgr.get_comments.return_value = []
+    mock_manager_cls.return_value = mock_mgr
+    lookup = mock_branch_cls.return_value.get_linked_branches_or_none
+    if failure == "lookup_raises":
+        lookup.side_effect = RuntimeError("GraphQL down")
+    elif failure == "lookup_returns_none":
+        lookup.return_value = None
+    else:
+        mock_branch_cls.side_effect = ValueError("no token")
+
+    result = github_issue_view(number=42, include_linked_branches=True)
+
+    assert result.startswith("# #42")
+    assert "Linked branches: unknown (lookup failed)" in result
+    assert "Error:" not in result
+
+
+@patch("mcp_workspace.github_operations.issues.IssueBranchManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_view_not_found_skips_linked_branches(
+    mock_manager_cls: MagicMock, mock_branch_cls: MagicMock
+) -> None:
+    """A missing issue returns the not-found error without a branch lookup."""
+    mock_mgr = MagicMock()
+    mock_mgr.get_issue.return_value = IssueData(
+        number=0,
+        title="",
+        body="",
+        state="",
+        labels=[],
+        assignees=[],
+        user=None,
+        created_at=None,
+        updated_at=None,
+        url="",
+        locked=False,
+    )
+    mock_mgr._get_repository.return_value.full_name = "owner/repo"
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_view(number=999, include_linked_branches=True)
+
+    assert result == "Error: Issue #999 not found in owner/repo"
+    mock_branch_cls.assert_not_called()
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")

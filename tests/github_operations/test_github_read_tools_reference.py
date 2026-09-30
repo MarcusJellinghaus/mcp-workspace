@@ -85,6 +85,25 @@ def test_reference_name_uses_repo_url(
     }
 
 
+@patch("mcp_workspace.github_operations.issues.IssueBranchManager")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_issue_view_linked_branches_reference_uses_repo_url(
+    mock_manager_cls: MagicMock,
+    mock_branch_cls: MagicMock,
+    reference_projects: None,  # pylint: disable=unused-argument
+) -> None:
+    """The linked-branch lookup targets the reference project's URL."""
+    mock_mgr = MagicMock()
+    _configure_manager(mock_mgr)
+    mock_manager_cls.return_value = mock_mgr
+
+    github_issue_view(number=42, reference_name="sibling", include_linked_branches=True)
+
+    assert mock_branch_cls.call_args.kwargs == {
+        "repo_url": "https://github.com/owner/sibling"
+    }
+
+
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_no_reference_name_uses_project_dir(
     mock_manager_cls: MagicMock, project_dir: Path
