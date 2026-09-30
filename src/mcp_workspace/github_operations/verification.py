@@ -21,11 +21,12 @@ from mcp_workspace.github_operations._network import (
     has_applicable_proxy,
     maybe_log_network_diagnostics,
 )
-from mcp_workspace.github_operations._permission_probes import (
-    _is_branch_not_protected,
-    run_permission_probes,
+from mcp_workspace.github_operations._permission_probes import run_permission_probes
+from mcp_workspace.github_operations._types import (
+    CheckResult,
+    ProtectionOutcome,
+    is_branch_not_protected,
 )
-from mcp_workspace.github_operations._types import CheckResult, ProtectionOutcome
 from mcp_workspace.github_operations.base_manager import BaseGitHubManager
 from mcp_workspace.utils.token_fingerprint import format_token_fingerprint
 
@@ -116,16 +117,14 @@ def _short_reason(exc: Exception) -> str:
 
 
 def _classify_protection_failure(
-    outcome: ProtectionOutcome,
+    stage: str, exc: Exception
 ) -> tuple[bool | None, str, str]:
     """Return (ok, value, error) shared by all five branch-protection rows."""
-    exc = outcome.exception
-    assert exc is not None
-    if _is_branch_not_protected(exc):
+    if is_branch_not_protected(exc):
         return False, "not configured", "no branch protection"
     reason = _short_reason(exc)
-    error = f"{outcome.stage} failed: {reason}"
-    if outcome.stage == "get_protection" and isinstance(exc, GithubException):
+    error = f"{stage} failed: {reason}"
+    if stage == "get_protection" and isinstance(exc, GithubException):
         if exc.status == 401:
             return None, "not verifiable — token rejected (401)", error
         if exc.status == 403:
@@ -340,9 +339,13 @@ def verify_github(project_dir: Path) -> dict[str, object]:
 
     if outcome is None:
         result.update(_protection_rows(None, "unknown", "repository not accessible"))
-    elif outcome.protection is None:
-        result.update(_protection_rows(*_classify_protection_failure(outcome)))
-    else:
+    elif outcome.exception is not None:
+        result.update(
+            _protection_rows(
+                *_classify_protection_failure(outcome.stage, outcome.exception)
+            )
+        )
+    elif outcome.protection is not None:
         protection = outcome.protection
 
         # Check 5: branch_protection

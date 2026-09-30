@@ -19,7 +19,11 @@ from typing import Callable
 from github.GithubException import GithubException
 from github.Repository import Repository
 
-from mcp_workspace.github_operations._types import CheckResult, ProtectionOutcome
+from mcp_workspace.github_operations._types import (
+    CheckResult,
+    ProtectionOutcome,
+    is_branch_not_protected,
+)
 from mcp_workspace.github_operations.base_manager import BaseGitHubManager
 
 _PROBE_KEYS: tuple[str, ...] = (
@@ -68,16 +72,6 @@ def _classify_permission_response(
     else:
         err = f"unexpected status {status} — needs {name}{suffix}"
     return CheckResult(ok=False, value="failed", severity="warning", error=err)
-
-
-def _is_branch_not_protected(exc: Exception | None) -> bool:
-    """Return True if ``exc`` is GitHub's 404 ``Branch not protected`` answer."""
-    return (
-        isinstance(exc, GithubException)
-        and exc.status == 404
-        and isinstance(exc.data, dict)
-        and exc.data.get("message") == "Branch not protected"
-    )
 
 
 def _classify_exception(
@@ -175,7 +169,7 @@ def _probe_administration(
             error="branch lookup failed (covered by perm_contents_read)",
         )
     url = f"{base}/branches/{outcome.branch}/protection"
-    if outcome.exception is None or _is_branch_not_protected(outcome.exception):
+    if outcome.exception is None or is_branch_not_protected(outcome.exception):
         return _classify_permission_response("Administration: Read", 200, url, web_host)
     return _classify_exception(outcome.exception, "Administration: Read", url, web_host)
 
