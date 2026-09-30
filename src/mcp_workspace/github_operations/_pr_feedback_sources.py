@@ -22,8 +22,11 @@ logger = logging.getLogger(__name__)
 # reviewThreads GraphQL retry config — handles GitHub's eventual-consistency
 # flake where a brand-new PR node is not yet visible. GitHub answers HTTP 200
 # with a null `pullRequest` for that case, so the retry keys on usability
-# ("nothing usable came back and no error type is permanent"), not on a status
-# code that PyGithub only synthesises. Genuine HTTP failures raise out of
+# ("nothing usable came back and no error is permanent"), not on a status
+# code that PyGithub only synthesises. An error is permanent when its type is
+# listed below, or when the response has `errors` and no `data` key — GraphQL
+# rejected the query at validation. `"data": null` (a timeout) is still
+# retried. Genuine HTTP failures raise out of
 # `requestJsonAndCheck` and are not retried here; `build_github_client`'s
 # `GithubRetry` already covers 403/5xx.
 _REVIEW_DATA_MAX_ATTEMPTS = 3
@@ -34,11 +37,16 @@ _PERMANENT_GRAPHQL_ERROR_TYPES = frozenset(
 
 
 def _has_permanent_error(result: dict[str, Any]) -> bool:
-    """Return True when any `errors` entry names a permanently-failing type.
+    """Return True when the response carries an error that retrying cannot fix.
+
+    Two rules: the body has `errors` and no `data` key (GraphQL rejected the
+    query at validation), or any `errors` entry names a permanently-failing
+    type. A missing `data` key is the marker rather than a missing `type`,
+    because the not-found flake has no `type` either but does return `data`.
 
     Reads the raw `errors` list rather than going through
-    `extract_graphql_errors`: only the `type` field matters for this decision,
-    so the classifier stays independent of a parser shaped for display.
+    `extract_graphql_errors`: the parser is shaped for display, so the
+    classifier stays independent of it.
 
     Returns:
         True if the retry loop should give up immediately.
@@ -46,6 +54,8 @@ def _has_permanent_error(result: dict[str, Any]) -> bool:
     errors = result.get("errors")
     if not isinstance(errors, list):
         return False
+    if "data" not in result:
+        return True
     return any(
         isinstance(entry, dict) and entry.get("type") in _PERMANENT_GRAPHQL_ERROR_TYPES
         for entry in errors
@@ -88,7 +98,7 @@ def fetch_review_data(
     Calls `requestJsonAndCheck` directly rather than `graphql_query`, so `data`
     and `errors` arrive together and partial results survive instead of being
     discarded with the exception. Retries while nothing usable came back and no
-    error type is permanent.
+    error is permanent; a response with errors and no `data` is not retried.
 
     Returns:
         Tuple of (unresolved_threads, resolved_count, changes_requested_reviews,

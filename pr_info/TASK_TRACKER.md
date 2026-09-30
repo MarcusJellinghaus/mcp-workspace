@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: Don't retry a GraphQL response that has errors and no `data` — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: tests first (parametrized `_has_permanent_error` test, `test_null_data_with_untyped_error_retried`, rewrite `test_null_pull_request_with_error_flagged`), then the no-`data` rule and comment/docstring updates
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests first (parametrized `_has_permanent_error` test, `test_null_data_with_untyped_error_retried`, rewrite `test_null_pull_request_with_error_flagged`), then the no-`data` rule and comment/docstring updates
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: GitHub integration tests for the query and invalid-query responses — [step_3.md](./steps/step_3.md)
 
