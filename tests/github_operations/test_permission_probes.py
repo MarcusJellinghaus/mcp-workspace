@@ -59,16 +59,17 @@ class TestClassifier401:
 
 
 class TestClassifier403:
-    """403 status -> blocked by org policy hint."""
+    """403 status -> neutral not-accessible hint."""
 
     def test_403_message(self) -> None:
         url = "https://api.github.com/repos/x/y/issues?state=all"
         result = _classify_permission_response("Issues: Read", 403, url, None)
         err = result["error"]
-        assert "403" in err
+        assert "not accessible (403)" in err
         assert "Issues: Read" in err
-        assert "blocked by org policy" in err
+        assert "grant it to the token" in err
         assert f"(GET {url})" in err
+        assert "blocked by org policy" not in err
 
 
 class TestClassifier404HostBranching:
@@ -106,23 +107,6 @@ class TestClassifier404HostBranching:
         assert "settings" not in err
         assert "fine-grained PAT" not in err
         assert f"(GET {url})" in err
-
-
-class TestClassifier404Admin:
-    """admin_404=True: branch-protection-aware 404 message."""
-
-    def test_admin_404_phrase(self) -> None:
-        url = "https://api.github.com/repos/x/y/branches/main/protection"
-        result = _classify_permission_response(
-            "Administration: Read", 404, url, GITHUB_COM_HOST, admin_404=True
-        )
-        err = result["error"]
-        assert "Administration: Read" in err
-        assert "no branch protection configured" in err
-        assert "404" in err
-        assert f"(GET {url})" in err
-        # admin_404 takes precedence over the host-branched 404 message
-        assert "fine-grained PAT" not in err
 
 
 class TestClassifierUnexpected:
@@ -387,7 +371,7 @@ class TestAdministrationTwoCallAttribution:
         assert "GET" not in result["error"]
         assert "https://" not in result["error"]
 
-    def test_get_protection_404_runs_classifier_with_admin_404(self) -> None:
+    def test_get_protection_404_runs_classifier(self) -> None:
         repo = Mock()
         repo.default_branch = "main"
         branch = Mock()
@@ -401,7 +385,8 @@ class TestAdministrationTwoCallAttribution:
         assert result["ok"] is False
         err = result["error"]
         assert "Administration: Read" in err
-        assert "no branch protection configured" in err
+        assert "fine-grained PAT" in err
+        assert "no branch protection" not in err
         url = "https://api.github.com/repos/owner/repo/branches/main/protection"
         assert f"(GET {url})" in err
 

@@ -37,8 +37,6 @@ def _classify_permission_response(
     status: int,
     url: str,
     web_host: str | None,
-    *,
-    admin_404: bool = False,
 ) -> CheckResult:
     """Classify an HTTP status code into a permission probe CheckResult.
 
@@ -53,14 +51,12 @@ def _classify_permission_response(
     if status == 401:
         err = f"token rejected (401) — needs {name}{suffix}"
     elif status == 403:
-        err = f"blocked by org policy (403) — needs {name}{suffix}"
+        err = (
+            f"not accessible (403) — needs {name}; grant it to the token, "
+            f"or an org policy is blocking it{suffix}"
+        )
     elif status == 404:
-        if admin_404:
-            err = (
-                f"missing permission {name} OR no branch protection "
-                f"configured (404){suffix}"
-            )
-        elif web_host is not None:
+        if web_host is not None:
             err = (
                 f"missing permission {name} OR awaiting org approval "
                 f"(404 — fine-grained PATs return 404 for ungranted resources; "
@@ -80,7 +76,6 @@ def _run_probe(
     name: str,
     url: str,
     web_host: str | None,
-    admin_404: bool = False,
 ) -> CheckResult:
     """Execute a probe call and classify the outcome.
 
@@ -92,9 +87,7 @@ def _run_probe(
     try:
         call()
     except GithubException as e:
-        return _classify_permission_response(
-            name, e.status, url, web_host, admin_404=admin_404
-        )
+        return _classify_permission_response(name, e.status, url, web_host)
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         return CheckResult(
             ok=False,
@@ -102,7 +95,7 @@ def _run_probe(
             severity="warning",
             error=f"network error: {e} — needs {name}",
         )
-    return _classify_permission_response(name, 200, url, web_host, admin_404=admin_404)
+    return _classify_permission_response(name, 200, url, web_host)
 
 
 def _probe_statuses(
@@ -162,7 +155,6 @@ def _probe_administration(
         name="Administration: Read",
         url=url,
         web_host=web_host,
-        admin_404=True,
     )
 
 

@@ -27,9 +27,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 2: Probe classifier wording — [step_2.md](./steps/step_2.md)
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: Single protection fetch; Administration probe classifies the shared outcome — [step_3.md](./steps/step_3.md)
 - [ ] Implementation (tests + production code)
