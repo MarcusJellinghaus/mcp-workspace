@@ -122,7 +122,7 @@ def _probe_statuses(
         commit = repo.get_commit(default_branch)
     except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         return CheckResult(
-            ok=False,
+            ok=None,
             value="not checked",
             severity="warning",
             error="commit lookup failed (covered by perm_contents_read)",
@@ -152,7 +152,7 @@ def _probe_administration(
         branch = repo.get_branch(default_branch)
     except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         return CheckResult(
-            ok=False,
+            ok=None,
             value="not checked",
             severity="warning",
             error="branch lookup failed (covered by perm_contents_read)",
@@ -182,7 +182,7 @@ def run_permission_probes(
     if repo is None:
         return {
             k: CheckResult(
-                ok=False,
+                ok=None,
                 value="not checked",
                 severity="warning",
                 error="repository not accessible",

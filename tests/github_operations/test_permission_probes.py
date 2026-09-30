@@ -340,7 +340,7 @@ class TestStatusesTwoCallAttribution:
         result = _probe_statuses(
             repo, "main", "https://api.github.com/repos/owner/repo", GITHUB_COM_HOST
         )
-        assert result["ok"] is False
+        assert result["ok"] is None
         assert result["value"] == "not checked"
         assert result["error"] == "commit lookup failed (covered by perm_contents_read)"
         # Classifier always emits "(GET ...)" on failures; absence proves it was skipped
@@ -381,7 +381,7 @@ class TestAdministrationTwoCallAttribution:
         result = _probe_administration(
             repo, "main", "https://api.github.com/repos/owner/repo", GITHUB_COM_HOST
         )
-        assert result["ok"] is False
+        assert result["ok"] is None
         assert result["value"] == "not checked"
         assert result["error"] == "branch lookup failed (covered by perm_contents_read)"
         assert "GET" not in result["error"]
@@ -443,7 +443,7 @@ class TestSkipWhenUnreachable:
         assert set(results.keys()) == set(_PROBE_KEYS)
         for key in _PROBE_KEYS:
             check = results[key]
-            assert check["ok"] is False
+            assert check["ok"] is None
             assert check["value"] == "not checked"
             assert check["severity"] == "warning"
             assert check["error"] == "repository not accessible"

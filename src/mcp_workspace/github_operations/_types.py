@@ -9,9 +9,13 @@ from typing import Literal, NotRequired, TypedDict
 
 
 class CheckResult(TypedDict):
-    """Result of a single verification check."""
+    """Result of a single verification check.
 
-    ok: bool
+    ``ok`` is ``True`` for a verified positive, ``False`` for a verified
+    negative, and ``None`` when the check could not be verified.
+    """
+
+    ok: bool | None
     value: str
     severity: Literal["error", "warning"]
     error: NotRequired[str]

@@ -29,6 +29,22 @@ __all__ = ["CheckResult", "verify_github"]
 
 logger = logging.getLogger(__name__)
 
+_PROTECTION_KEYS: tuple[str, ...] = (
+    "branch_protection",
+    "ci_checks_required",
+    "strict_mode",
+    "force_push",
+    "branch_deletion",
+)
+
+
+def _protection_rows(ok: bool | None, value: str, error: str) -> dict[str, CheckResult]:
+    """Build one identical warning row per branch-protection key."""
+    return {
+        k: CheckResult(ok=ok, value=value, severity="warning", error=error)
+        for k in _PROTECTION_KEYS
+    }
+
 
 def verify_github(project_dir: Path) -> dict[str, object]:
     """Verify GitHub connectivity and branch protection.
@@ -231,19 +247,7 @@ def verify_github(project_dir: Path) -> dict[str, object]:
     repo_is_ok = isinstance(repo_obj, dict) and repo_obj.get("ok") is True
 
     if not repo_is_ok or repo is None or manager is None:
-        for key in (
-            "branch_protection",
-            "ci_checks_required",
-            "strict_mode",
-            "force_push",
-            "branch_deletion",
-        ):
-            result[key] = CheckResult(
-                ok=False,
-                value="unknown",
-                severity="warning",
-                error="repository not accessible",
-            )
+        result.update(_protection_rows(None, "unknown", "repository not accessible"))
     else:
         try:
             default_branch_name = manager.get_default_branch()
@@ -251,36 +255,11 @@ def verify_github(project_dir: Path) -> dict[str, object]:
             protection = branch.get_protection()
         except GithubException as exc:
             _reason = "no branch protection" if exc.status == 404 else str(exc)
-            for key in (
-                "branch_protection",
-                "ci_checks_required",
-                "strict_mode",
-                "force_push",
-                "branch_deletion",
-            ):
-                result[key] = CheckResult(
-                    ok=False,
-                    value="not configured",
-                    severity="warning",
-                    error=_reason,
-                )
+            result.update(_protection_rows(False, "not configured", _reason))
         except (
             Exception
         ) as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            _reason = str(exc)
-            for key in (
-                "branch_protection",
-                "ci_checks_required",
-                "strict_mode",
-                "force_push",
-                "branch_deletion",
-            ):
-                result[key] = CheckResult(
-                    ok=False,
-                    value="not configured",
-                    severity="warning",
-                    error=_reason,
-                )
+            result.update(_protection_rows(False, "not configured", str(exc)))
         else:
             # Check 5: branch_protection
             result["branch_protection"] = CheckResult(
@@ -369,7 +348,7 @@ def verify_github(project_dir: Path) -> dict[str, object]:
             )
     else:
         result["auto_delete_branches"] = CheckResult(
-            ok=False,
+            ok=None,
             value="unknown",
             severity="warning",
             error="repository not accessible",

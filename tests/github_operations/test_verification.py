@@ -128,6 +128,32 @@ def _patch_all_ok(
         return verify_github(project_dir)
 
 
+def _run_with_repo_inaccessible(project_dir: Path) -> dict[str, object]:
+    """Run verify_github with auth OK but the repository lookup returning None."""
+    mock_user = Mock()
+    mock_user.login = "testuser"
+
+    mock_github_client = Mock()
+    mock_github_client.get_user.return_value = mock_user
+    mock_github_client.oauth_scopes = ["repo"]
+
+    identifier = _make_identifier()
+
+    with (
+        patch(
+            f"{MODULE}.get_github_token_with_source",
+            return_value=("ghp_test", "env"),
+        ),
+        patch(f"{CLIENT}.Github", return_value=mock_github_client),
+        patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
+        patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
+    ):
+        mock_manager = Mock()
+        mock_manager._get_repository.return_value = None
+        mock_mgr_cls.return_value = mock_manager
+        return verify_github(project_dir)
+
+
 class TestAllConnectivityChecksPass:
     """Test that all connectivity checks pass with valid setup."""
 
@@ -587,33 +613,13 @@ class TestBranchDeletionEnabled:
 class TestBranchProtectionWhenRepoNotAccessible:
     """Test branch protection checks when repo is not accessible (check 4 failed)."""
 
-    def test_all_five_present_and_not_ok(self, tmp_path: Path) -> None:
-        mock_user = Mock()
-        mock_user.login = "testuser"
-
-        mock_github_client = Mock()
-        mock_github_client.get_user.return_value = mock_user
-        mock_github_client.oauth_scopes = ["repo"]
-
-        identifier = _make_identifier()
-
-        with (
-            patch(
-                f"{MODULE}.get_github_token_with_source",
-                return_value=("ghp_test", "env"),
-            ),
-            patch(f"{CLIENT}.Github", return_value=mock_github_client),
-            patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
-            patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
-        ):
-            mock_manager = Mock()
-            mock_manager._get_repository.return_value = None
-            mock_mgr_cls.return_value = mock_manager
-            result = verify_github(tmp_path)
+    def test_all_five_present_and_not_verifiable(self, tmp_path: Path) -> None:
+        result = _run_with_repo_inaccessible(tmp_path)
 
         for key in BRANCH_CHECK_KEYS:
             check: CheckResult = result[key]  # type: ignore[assignment]
-            assert check["ok"] is False
+            assert check["ok"] is None
+            assert check["value"] == "unknown"
             assert "error" in check
 
 
@@ -688,33 +694,41 @@ class TestAutoDeleteBranches:
         assert check["value"] == "auto-delete on merge"
 
     def test_repo_not_accessible(self, tmp_path: Path) -> None:
-        mock_user = Mock()
-        mock_user.login = "testuser"
-
-        mock_github_client = Mock()
-        mock_github_client.get_user.return_value = mock_user
-        mock_github_client.oauth_scopes = ["repo"]
-
-        identifier = _make_identifier()
-
-        with (
-            patch(
-                f"{MODULE}.get_github_token_with_source",
-                return_value=("ghp_test", "env"),
-            ),
-            patch(f"{CLIENT}.Github", return_value=mock_github_client),
-            patch(f"{MODULE}.get_repository_identifier", return_value=identifier),
-            patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls,
-        ):
-            mock_manager = Mock()
-            mock_manager._get_repository.return_value = None
-            mock_mgr_cls.return_value = mock_manager
-            result = verify_github(tmp_path)
+        result = _run_with_repo_inaccessible(tmp_path)
 
         check: CheckResult = result["auto_delete_branches"]  # type: ignore[assignment]
-        assert check["ok"] is False
+        assert check["ok"] is None
         assert check["value"] == "unknown"
         assert "error" in check
+
+
+class TestOverallOkWithUnverifiableRows:
+    """ok=None rows are warnings and never take part in overall_ok."""
+
+    def test_repo_inaccessible_overall_ok_follows_error_rows(
+        self, tmp_path: Path
+    ) -> None:
+        result = _run_with_repo_inaccessible(tmp_path)
+
+        checks = [v for v in result.values() if isinstance(v, dict)]
+        assert any(c["ok"] is None for c in checks)
+        error_rows = [c for c in checks if c["severity"] == "error"]
+        assert result["overall_ok"] == all(c["ok"] for c in error_rows)
+        # repo_accessible is an error row and failed.
+        assert result["overall_ok"] is False
+
+    def test_all_ok_with_unverifiable_probe_rows(self, tmp_path: Path) -> None:
+        unverifiable = {
+            k: CheckResult(ok=None, value="not checked", severity="warning", error="x")
+            for k in _PROBE_KEYS
+        }
+        with patch(f"{MODULE}.run_permission_probes", return_value=unverifiable):
+            result = _patch_all_ok(tmp_path)
+
+        for k in _PROBE_KEYS:
+            check: CheckResult = result[k]  # type: ignore[assignment]
+            assert check["ok"] is None
+        assert result["overall_ok"] is True
 
 
 class TestOverallOkTrueWhenOnlyWarningsFail:
@@ -1217,7 +1231,7 @@ class TestPermissionProbeSkipWhenUnreachable:
 
         for k in _PROBE_KEYS:
             check: CheckResult = result[k]  # type: ignore[assignment]
-            assert check["ok"] is False
+            assert check["ok"] is None
             assert check["value"] == "not checked"
             assert check["severity"] == "warning"
             assert check["error"] == "repository not accessible"
