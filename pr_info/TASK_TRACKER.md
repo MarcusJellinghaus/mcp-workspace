@@ -21,6 +21,19 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Formatter renders the linked-branches line ([step_1.md](./steps/step_1.md))
+
+- [ ] Implementation: tests in `TestFormatIssueView`, then `format_issue_view` keyword-only `linked_branches` / `include_linked_branches`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: `github_issue_view` flag and lookup helper ([step_2.md](./steps/step_2.md))
+
+- [ ] Implementation: tests in `test_github_read_tools_issues.py` and `test_github_read_tools_reference.py`, then `_linked_branches` helper and `include_linked_branches` in `server.py`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: check the full branch diff against `main` for issues
+- [ ] PR summary prepared
