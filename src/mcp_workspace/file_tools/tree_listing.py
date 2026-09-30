@@ -211,6 +211,8 @@ def list_directory_tree(
     if not file_paths:
         return []
 
+    base_path = base_path.replace("\\", "/")
+
     tree = _build_tree(file_paths, base_path)
     _collapse(tree, dirs_only)
     render_prefix = ""

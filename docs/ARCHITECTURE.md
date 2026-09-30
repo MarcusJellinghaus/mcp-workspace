@@ -112,6 +112,30 @@ never have to remember to activate it.
 activation is **not** what made startup slow, so there is no reason to defer it
 and trade the guarantee away.
 
+### 6. Forward-Slash Project-Relative Paths
+
+Every project-relative path the server emits is forward-slash separated on every
+platform — in structured return values and prose error messages alike. Callers
+feed these paths straight back into other tools, so a Windows `src\foo.py` in one
+result becomes a mismatch or a doubled prefix in the next call.
+
+**Absolute paths stay native.** `edit_file`'s `File not found: {abs_path}` and
+`path_utils._outside_error` keep OS separators: they are not fed back into
+tools, and `C:/Users/...` reads worse than it helps.
+
+The rule is enforced at two sources, not per call site:
+
+- `directory_utils._discover_files` — every listing and search tool
+  (`list_directory`, `search_files`, and their reference-project variants).
+- `path_utils.normalize_path` — the relative path returned alongside the
+  absolute one.
+
+A new path source belongs next to these, not behind a local `replace("\\", "/")`.
+
+**This is load-bearing.** CI runs on `ubuntu-latest` only, where backslashes never
+appear, so CI cannot catch a regression. The guard is
+`tests/test_path_separator_invariant.py`, which asserts the invariant across tools.
+
 ## Architecture Enforcement Tools
 
 We use four tools to enforce architectural boundaries:

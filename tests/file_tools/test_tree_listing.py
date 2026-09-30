@@ -77,6 +77,30 @@ class TestListDirectoryTree:
         assert sorted(result) == sorted(paths)
 
 
+class TestSeparatorNormalization:
+    """Regression guard for issue #297 (backslash input duplicated the prefix)."""
+
+    def test_backslash_paths_and_backslash_base_path(self) -> None:
+        """Backslash paths and a backslash base_path are stripped and rendered with /."""
+        paths = [
+            "docs\\architecture\\architecture.md",
+            "docs\\architecture\\sub\\other.md",
+        ]
+        result = list_directory_tree(paths, base_path="docs\\architecture")
+        assert result == [
+            "docs/architecture/sub/other.md",
+            "docs/architecture/architecture.md",
+        ]
+
+    def test_backslash_base_path_dirs_only(self) -> None:
+        """dirs_only output is forward-slashed for a backslash base_path."""
+        paths = ["docs\\architecture\\sub\\other.md"]
+        result = list_directory_tree(
+            paths, base_path="docs\\architecture", dirs_only=True
+        )
+        assert result == ["docs/architecture/sub/"]
+
+
 class TestSortOrder:
     """Tests for deterministic sort order: dirs first, alphabetical."""
 

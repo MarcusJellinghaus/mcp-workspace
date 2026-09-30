@@ -38,6 +38,19 @@ class TestBasicMoveOperations:
         assert dest.exists()
         assert dest.read_text() == "test content"
 
+    def test_move_file_nested_paths_are_forward_slash_separated(
+        self, tmp_path: Path
+    ) -> None:
+        """The returned dict reports nested paths with '/', not os.sep."""
+        source = tmp_path / "src" / "pkg" / "mod.py"
+        source.parent.mkdir(parents=True)
+        source.write_text("content")
+
+        result = move_file("src/pkg/mod.py", "lib/inner/mod.py", project_dir=tmp_path)
+
+        assert result["source"] == "src/pkg/mod.py"
+        assert result["destination"] == "lib/inner/mod.py"
+
     def test_move_file_to_subdirectory(self, tmp_path: Path) -> None:
         """Test moving a file to a subdirectory."""
         # Create source file

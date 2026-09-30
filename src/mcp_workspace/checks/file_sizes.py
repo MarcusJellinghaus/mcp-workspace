@@ -24,7 +24,7 @@ _MAX_STALE_ENTRIES = 50
 class FileMetrics:
     """Metrics for a single file."""
 
-    path: Path
+    path: str
     line_count: int
 
 
@@ -80,7 +80,7 @@ def load_allowlist(allowlist_path: Path) -> Set[str]:
     return entries
 
 
-def get_file_metrics(files: List[Path], project_dir: Path) -> List[FileMetrics]:
+def get_file_metrics(files: List[str], project_dir: Path) -> List[FileMetrics]:
     """Get file metrics for a list of files.
 
     Returns:
@@ -112,17 +112,16 @@ def check_file_sizes(
     """
     # Get all project files
     raw_files = list_files(".", project_dir)
-    files = [Path(f) for f in raw_files]
 
     # Get metrics
-    metrics = get_file_metrics(files, project_dir)
+    metrics = get_file_metrics(raw_files, project_dir)
 
     violations: List[FileMetrics] = []
     allowlisted_count = 0
     over_limit_allowlisted: Set[str] = set()
 
     for m in metrics:
-        normalized = str(m.path).replace("\\", "/")
+        normalized = m.path
         if m.line_count <= max_lines:
             continue
 
@@ -173,8 +172,7 @@ def render_output(result: CheckResult, max_lines: int) -> str:
         lines.append("")
         lines.append("Violations:")
         for v in result.violations[:_MAX_REPORT_VIOLATIONS]:
-            display_path = str(v.path).replace("\\", "/")
-            lines.append(f"  - {display_path}: {v.line_count} lines")
+            lines.append(f"  - {v.path}: {v.line_count} lines")
         if count > _MAX_REPORT_VIOLATIONS:
             lines.append(
                 f"  ... showing {_MAX_REPORT_VIOLATIONS} of {count}"
@@ -207,4 +205,4 @@ def render_allowlist(violations: List[FileMetrics]) -> str:
     Returns:
         Newline-separated normalized paths, one per violation.
     """
-    return "\n".join(str(v.path).replace("\\", "/") for v in violations)
+    return "\n".join(v.path for v in violations)

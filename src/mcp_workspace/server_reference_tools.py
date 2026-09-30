@@ -163,7 +163,9 @@ async def list_reference_directory(reference_name: str) -> List[str]:
         reference_name: Name of the reference project to list
 
     Returns:
-        A list of filenames in the reference project directory
+        A list of filenames in the reference project directory. Paths are
+        forward-slash separated on every platform and can be passed straight
+        back to `read_reference_file`.
     """
     ref_path = await get_reference_project_path(reference_name)
 
@@ -214,6 +216,8 @@ async def search_reference_files(
         A content search adds a "skipped_files" key listing project-relative
         paths that could not be read — a path rejected by the security check,
         or an unreadable file — present only when non-empty.
+        Paths are forward-slash separated on every platform and can be
+        passed straight back to `read_reference_file`.
 
     Raises:
         ValueError: If the glob matches nothing by construction (a gitignore

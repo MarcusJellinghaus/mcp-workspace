@@ -277,7 +277,7 @@ def _check_not_gitignored(file_path: str) -> None:
     path = Path(file_path)
     if path.is_absolute():
         try:
-            file_path = str(path.relative_to(_project_dir))
+            file_path = path.relative_to(_project_dir).as_posix()
         except ValueError:
             return  # Path outside project dir — other validation handles this
     if is_path_gitignored(file_path, _project_dir):
@@ -364,6 +364,8 @@ def search_files(
         A content search adds a "skipped_files" key listing project-relative
         paths that could not be read — a path rejected by the security check,
         or an unreadable file — present only when non-empty.
+        Paths are forward-slash separated on every platform and can be
+        passed straight back to `read_file`.
 
     Raises:
         ValueError: If the project directory has not been set, or if the glob
@@ -396,7 +398,9 @@ def list_directory(path: str = ".", dirs_only: bool = False) -> List[str]:
     Returns:
         A list of path strings: files, directories (trailing ``/``),
         collapsed summaries (``dir/ (N files)``), or a truncation line
-        when output exceeds the internal limit.
+        when output exceeds the internal limit. Paths are forward-slash
+        separated on every platform and can be passed straight back to
+        `read_file`.
 
     Raises:
         ValueError: If the project directory has not been set or the

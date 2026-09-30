@@ -455,7 +455,7 @@ def delete_directory(
 
     n_files = sum(1 for p in children if p.is_file())
     n_dirs = sum(1 for p in children if p.is_dir()) + 1
-    all_rel = [rel_path] + [str(p.relative_to(project_dir)) for p in children]
+    all_rel = [rel_path] + [p.relative_to(project_dir).as_posix() for p in children]
 
     logger.debug("Deleting directory: %s (recursive=%s)", rel_path, recursive)
     if recursive:

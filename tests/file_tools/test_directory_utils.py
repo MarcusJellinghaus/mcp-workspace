@@ -51,6 +51,9 @@ def test_discover_files(project_dir: Path) -> None:
     # Check if all expected files were discovered
     assert rel_paths.issuperset(expected_paths)
 
+    # Discovered paths are forward-slash separated on every platform (issue #297)
+    assert not any("\\" in f for f in discovered_files)
+
 
 def test_git_directory_exclusion(project_dir: Path) -> None:
     """Test that .git directory is excluded from file discovery."""
@@ -74,9 +77,9 @@ def test_git_directory_exclusion(project_dir: Path) -> None:
     # Convert to a set of paths for easier assertion
     discovered_paths = set(discovered_files)
 
-    # Convert paths to a format that's consistent across platforms
-    regular_path = str(Path("testdata/test_file_tools/regular.txt"))
-    git_path = str(Path("testdata/test_file_tools/.git/git_config.txt"))
+    # Discovered paths are forward-slash separated on every platform
+    regular_path = "testdata/test_file_tools/regular.txt"
+    git_path = "testdata/test_file_tools/.git/git_config.txt"
 
     # Assert that the regular file is included
     assert regular_path in discovered_paths
@@ -260,33 +263,13 @@ def test_list_files_basic(project_dir: Path) -> None:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(f"Content for {file_path.name}")
 
-    # Test listing files with a mock to handle platform-specific path separators
-    with patch(
-        "mcp_workspace.file_tools.directory_utils._discover_files"
-    ) as mock_discover:
-        # Configure the mock to return our test files with consistent path separators
-        mock_discover.return_value = [
-            "testdata/test_file_tools/test1.txt",
-            "testdata/test_file_tools/test2.txt",
-        ]
+    files = list_files(str(TEST_DIR), project_dir=project_dir)
 
-        # When gitignore filtering is active, avoid calling the real filter
-        with patch(
-            "mcp_workspace.file_tools.directory_utils.filter_with_gitignore",
-            side_effect=lambda files, *args, **_kwargs: files,
-        ):
-            # Test listing files
-            files = list_files(str(TEST_DIR), project_dir=project_dir)
-
-            # Check if all expected files are in the list
-            expected_files = {
-                "testdata/test_file_tools/test1.txt",
-                "testdata/test_file_tools/test2.txt",
-            }
-            actual_files = set(files)
-
-            # The files should match exactly
-            assert actual_files == expected_files
+    # The files should match exactly
+    assert set(files) == {
+        "testdata/test_file_tools/test1.txt",
+        "testdata/test_file_tools/test2.txt",
+    }
 
 
 def test_list_files_with_gitignore(project_dir: Path) -> None:
@@ -302,30 +285,12 @@ def test_list_files_with_gitignore(project_dir: Path) -> None:
     gitignore_path = test_dir / ".gitignore"
     gitignore_path.write_text("*.log")
 
-    # Mock the discovery and filtering
-    with patch(
-        "mcp_workspace.file_tools.directory_utils._discover_files"
-    ) as mock_discover:
-        # Configure the mock to return our test files
-        mock_discover.return_value = [
-            "testdata/test_file_tools/keep.txt",
-            "testdata/test_file_tools/ignore.log",
-        ]
+    # Test listing files with gitignore filtering
+    files = list_files(str(TEST_DIR), project_dir=project_dir, use_gitignore=True)
 
-        # Mock the filter to remove .log files
-        with patch(
-            "mcp_workspace.file_tools.directory_utils.filter_with_gitignore"
-        ) as mock_filter:
-            mock_filter.return_value = ["testdata/test_file_tools/keep.txt"]
-
-            # Test listing files with gitignore filtering
-            files = list_files(
-                str(TEST_DIR), project_dir=project_dir, use_gitignore=True
-            )
-
-            # The .log file should be filtered out
-            assert files == ["testdata/test_file_tools/keep.txt"]
-            assert not any(f.endswith("ignore.log") for f in files)
+    # The .log file should be filtered out
+    assert "testdata/test_file_tools/keep.txt" in files
+    assert not any(f.endswith("ignore.log") for f in files)
 
 
 def test_list_files_without_gitignore(project_dir: Path) -> None:
