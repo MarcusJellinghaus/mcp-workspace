@@ -73,13 +73,20 @@ def format_pr_feedback(feedback: PRFeedback) -> str:
         line_no = thread.get("line")
         author = thread.get("author", "")
         diff_hunk = thread.get("diff_hunk", "")
+        comment_id = thread.get("comment_id", "")
+        thread_id = thread.get("thread_id", "")
         raw = thread.get("body", "")
         body = _truncate_body(raw)
         body_cut = body_cut or body != raw
         indented_hunk = "\n".join(f"  {line}" for line in diff_hunk.splitlines())
         location = f"{path}:{line_no}" if line_no else path
+        ids = (
+            f" [comment_id={comment_id} thread_id={thread_id}]"
+            if (comment_id or thread_id)
+            else ""
+        )
         rendered.append(
-            f"[unresolved thread] {location} ({author}):\n"
+            f"[unresolved thread] {location} ({author}){ids}:\n"
             f"{indented_hunk}\n"
             f"  Comment: {body}"
         )

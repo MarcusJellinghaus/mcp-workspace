@@ -16,6 +16,7 @@ from mcp_workspace.git_operations import get_default_branch_name
 
 from . import _pr_feedback_sources
 from .base_manager import BaseGitHubManager, _handle_github_errors
+from .pr_review_mixin import PRReviewMixin
 
 # Configure logger for GitHub operations
 logger = logging.getLogger(__name__)
@@ -110,7 +111,7 @@ def _pr_to_data(pr: PullRequest) -> PullRequestData:
     }
 
 
-class PullRequestManager(BaseGitHubManager):
+class PullRequestManager(PRReviewMixin, BaseGitHubManager):
     """Manages GitHub pull request operations using the GitHub API.
 
     This class provides methods for creating, retrieving, listing, closing,
@@ -125,30 +126,43 @@ class PullRequestManager(BaseGitHubManager):
         Token needs 'repo' scope for private repositories, 'public_repo' for public.
     """
 
-    def __init__(self, project_dir: Optional[Path] = None) -> None:
+    def __init__(
+        self,
+        project_dir: Optional[Path] = None,
+        repo_url: Optional[str] = None,
+        github_token: Optional[str] = None,
+    ) -> None:
         """Initialize the PullRequestManager.
 
         Args:
             project_dir: Path to the project directory containing git repository
+            repo_url: GitHub repository URL (e.g., "https://github.com/user/repo.git")
+            github_token: Optional explicit token — overrides config lookup when provided.
 
         Raises:
-            ValueError: If project_dir is None, directory doesn't exist, is not a git repository,
-                       has no GitHub remote origin, or GitHub token is not configured
+            ValueError: If neither/both of project_dir/repo_url are provided, directory
+                       doesn't exist, is not a git repository, has no GitHub remote origin
+                       (project_dir mode only), or GitHub token is not configured
         """
-        super().__init__(project_dir)
+        super().__init__(
+            project_dir=project_dir,
+            repo_url=repo_url,
+            github_token=github_token,
+        )
 
-        # _repo_identifier is a lazy property from BaseGitHubManager.
-        # Eagerly resolve it here to fail fast if no GitHub remote.
-        assert (
-            self.project_dir is not None
-        ), "project_dir must be set after initialization"
-        try:
-            _ = self._repo_identifier  # triggers resolution
-        except ValueError as e:
-            raise ValueError(
-                f"Could not detect GitHub repository URL from git remote in: {self.project_dir}. "
-                "Make sure the repository has a GitHub remote origin configured."
-            ) from e
+        if project_dir is not None:
+            # _repo_identifier is a lazy property from BaseGitHubManager.
+            # Eagerly resolve it here to fail fast if no GitHub remote.
+            assert (
+                self.project_dir is not None
+            ), "project_dir must be set after initialization"
+            try:
+                _ = self._repo_identifier  # triggers resolution
+            except ValueError as e:
+                raise ValueError(
+                    f"Could not detect GitHub repository URL from git remote in: {self.project_dir}. "
+                    "Make sure the repository has a GitHub remote origin configured."
+                ) from e
 
     def _validate_pr_number(self, pr_number: int) -> bool:
         """Validate pull request number.

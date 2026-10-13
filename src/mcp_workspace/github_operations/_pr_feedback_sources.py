@@ -127,9 +127,10 @@ def fetch_review_data(
         pullRequest(number: $prNumber) {
           reviewThreads(first: 50) {
             nodes {
+              id
               isResolved
               comments(first: 5) {
-                nodes { author { login } body path line diffHunk }
+                nodes { author { login } body path line diffHunk databaseId }
               }
             }
           }
@@ -203,6 +204,8 @@ def fetch_review_data(
                 "author": author,
                 "body": first.get("body") or "",
                 "diff_hunk": first.get("diffHunk") or "",
+                "comment_id": first.get("databaseId"),
+                "thread_id": thread.get("id"),
             }
         )
 

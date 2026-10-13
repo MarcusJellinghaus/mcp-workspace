@@ -31,6 +31,17 @@ class TestPullRequestManagerUnit:
         ):
             PullRequestManager(None)
 
+    def test_initialization_accepts_repo_url(self) -> None:
+        """Test that repo_url mode succeeds without project_dir/git repo."""
+        with patch(
+            "mcp_workspace.github_operations.base_manager.get_github_token",
+            return_value="dummy-token",
+        ):
+            manager = PullRequestManager(repo_url="https://github.com/test/repo.git")
+
+        assert manager.project_dir is None
+        assert manager.repository_name == "test/repo"
+
     def test_initialization_requires_git_repository(self, tmp_path: Path) -> None:
         """Test that non-git directory raises ValueError."""
         regular_dir = tmp_path / "regular_dir"

@@ -26,14 +26,21 @@ def _thread(
     author: str = "alice",
     body: str = "Please refactor this.",
     diff_hunk: str = "@@ -1,2 +1,2 @@\n-x = 1\n+x = 2",
+    comment_id: int | None = None,
+    thread_id: str | None = None,
 ) -> dict[str, Any]:
-    return {
+    thread: dict[str, Any] = {
         "path": path,
         "line": line,
         "author": author,
         "body": body,
         "diff_hunk": diff_hunk,
     }
+    if comment_id is not None:
+        thread["comment_id"] = comment_id
+    if thread_id is not None:
+        thread["thread_id"] = thread_id
+    return thread
 
 
 def _comment(author: str = "bob", body: str = "Looks good") -> dict[str, Any]:
@@ -101,6 +108,33 @@ class TestUnresolvedThreads:
         assert "src/foo.py" in result
         assert ":None" not in result
         assert "src/foo.py (alice)" in result
+
+    def test_unresolved_thread_with_ids_renders_suffix(self) -> None:
+        feedback = _empty_feedback()
+        feedback["unresolved_threads"] = [
+            _thread(
+                path="src/foo.py",
+                line=42,
+                author="alice",
+                comment_id=123,
+                thread_id="PRRT_abc",
+            ),
+        ]
+        result = format_pr_feedback(feedback)
+        assert (
+            "[unresolved thread] src/foo.py:42 (alice) "
+            "[comment_id=123 thread_id=PRRT_abc]:" in result
+        )
+
+    def test_unresolved_thread_without_ids_renders_unchanged(self) -> None:
+        feedback = _empty_feedback()
+        feedback["unresolved_threads"] = [
+            _thread(path="src/foo.py", line=42, author="alice"),
+        ]
+        result = format_pr_feedback(feedback)
+        assert "[unresolved thread] src/foo.py:42 (alice):" in result
+        assert "comment_id" not in result
+        assert "thread_id" not in result
 
 
 class TestConversationComments:
