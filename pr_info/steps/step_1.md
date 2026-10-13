@@ -65,9 +65,9 @@ Returns `Optional[str]`: the full, unmodified `body` of the matched `CommentData
 
 ## Tests (write first)
 
-New class in `tests/github_operations/test_formatters.py`, e.g. `TestFindLatestMarkedComment`,
-using a small local `_make_comment(body: str) -> CommentData` helper (mirror `_make_issue`'s
-style already in that file). Cover:
+New class in `tests/github_operations/test_formatters.py`, e.g. `TestFindLatestMarkedComment`.
+Reuse the existing `_make_comment(body: str, ...) -> CommentData` helper already defined in
+that file (line 43) — do not define a new one. Cover:
 
 - empty `comments` list → `None`
 - single comment, marker in first line of a multi-line body → full body returned

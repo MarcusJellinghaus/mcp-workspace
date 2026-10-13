@@ -79,6 +79,10 @@ if issue_number is not None and issue_manager is not None:
     try:
         comments = issue_manager.get_comments(issue_number)
         last_automated_note = find_latest_marked_comment(comments)
+    except IssueIdentityMismatchError as e:
+        # Mirrors the get_issue branch above — same signal (issue transferred
+        # or renumbered), so it gets the same warning, not debug.
+        logger.warning("%s", e)
     except Exception:                                        # pylint: disable=broad-exception-caught
         logger.debug("Failed to fetch automated note comment", exc_info=True)
 ```
