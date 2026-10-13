@@ -10,8 +10,9 @@ This step assumes PyGithub's `PullRequest` class exposes
 object with `.id`, `.body`, `.user`, `.created_at`, `.updated_at`, `.html_url`. Verify
 this with `mcp__mcp-tools-py__get_library_source` (library PyGithub, symbol
 `PullRequest.create_review_comment_reply`) before implementing. If the method does not
-exist, or its signature/return shape differs from this, write one line to
-`pr_info/.blocked.txt` and stop.
+exist, or its signature/return shape differs from this, stop and report the mismatch
+to the user instead of implementing — do not guess an alternative API or write any
+code for this step.
 
 ## Goal
 
@@ -145,8 +146,8 @@ Commit message: `feat(server): add github_review_comment_reply tool`
 ## LLM prompt for this step
 
 > Read `pr_info/steps/summary.md` and `pr_info/steps/step_2.md`. First do the
-> precondition check described there via `get_library_source`; if it fails, write one
-> line to `pr_info/.blocked.txt` and stop. Otherwise implement step 2 only: the
+> precondition check described there via `get_library_source`; if it fails, stop and
+> report the mismatch instead of implementing. Otherwise implement step 2 only: the
 > `_pr_manager` helper and `github_review_comment_reply` tool in `server.py`, and
 > `reply_to_review_comment` / `_validate_comment_id` in `pr_manager.py`, following the
 > WHERE/WHAT/HOW/ALGORITHM/DATA in step_2.md exactly. Write tests first, then the
