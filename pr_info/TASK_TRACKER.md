@@ -32,7 +32,7 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ### Step 2: collector wiring in `collect_branch_status` ([step_2.md](./steps/step_2.md))
 
 - [x] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 
 ### Step 3: render `last_automated_note` in both report formats ([step_3.md](./steps/step_3.md))
