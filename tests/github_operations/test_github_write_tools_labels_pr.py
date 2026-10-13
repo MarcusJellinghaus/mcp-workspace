@@ -505,9 +505,7 @@ class TestGithubReviewCommentReply:
             pr_number=123, comment_id=456, body="Thanks, fixed."
         )
 
-        assert result == (
-            "Error: failed to reply to review comment 456 on PR #123"
-        )
+        assert result == ("Error: failed to reply to review comment 456 on PR #123")
 
     @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
     def test_exception_from_manager_is_reported(
