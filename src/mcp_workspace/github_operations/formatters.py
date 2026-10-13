@@ -4,7 +4,7 @@ Pure formatting functions that take data dicts and return formatted text strings
 No API calls or manager dependencies.
 """
 
-from typing import Any, Optional, TypedDict
+from typing import Any, List, Optional, TypedDict
 
 from mcp_workspace.github_operations.issues.types import CommentData, IssueData
 
@@ -50,6 +50,32 @@ def truncate_output(text: str, max_lines: int) -> str:
         f"\n\n... truncated: showing {max_lines} of {total} lines. "
         f"Pass max_lines={total} for the full output."
     )
+
+
+def find_latest_marked_comment(
+    comments: List[CommentData], marker: str = "❌", window: int = 3
+) -> Optional[str]:
+    """Return the full body of the most recent comment marked with `marker`.
+
+    Scans the last `window` comments, most-recent-first, for the first whose
+    first line contains `marker` as a substring (not a prefix — the marker
+    may sit inside a markdown heading, e.g. "## ❌ Implementation Failed").
+
+    Args:
+        comments: Issue comments, oldest-first (as returned by get_comments).
+        marker: Substring to look for on the first line of a comment body.
+        window: How many of the most recent comments to scan.
+
+    Returns:
+        The full matched comment body, or None if no comment in the window matches.
+    """
+    for comment in reversed(comments[-window:]):
+        body = comment["body"]
+        if not body:
+            continue
+        if marker in body.splitlines()[0]:
+            return body
+    return None
 
 
 def format_issue_view(

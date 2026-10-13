@@ -7,6 +7,7 @@ import pytest
 from mcp_workspace.github_operations.formatters import (
     InlineCommentData,
     ReviewData,
+    find_latest_marked_comment,
     format_issue_list,
     format_issue_view,
     format_pr_view,
@@ -470,3 +471,70 @@ class TestFormatSearchResults:
         ]
         result = format_search_results(items, max_results=3, total_count=412)
         assert "showing 3 of 412 results" in result
+
+
+# --- find_latest_marked_comment tests ---
+
+
+class TestFindLatestMarkedComment:
+    """Tests for find_latest_marked_comment."""
+
+    def test_find_latest_marked_comment_empty_list(self) -> None:
+        """An empty comments list returns None."""
+        assert find_latest_marked_comment([]) is None
+
+    def test_find_latest_marked_comment_single_match(self) -> None:
+        """A single comment with the marker on its first line returns the full body."""
+        body = "❌ Failed\nSome details\nmore details"
+        comments = [_make_comment(body=body)]
+        assert find_latest_marked_comment(comments) == body
+
+    def test_find_latest_marked_comment_marker_in_heading(self) -> None:
+        """The marker matches as a substring, not a prefix, inside a heading."""
+        body = "## ❌ Implementation Failed\nDetails here"
+        comments = [_make_comment(body=body)]
+        assert find_latest_marked_comment(comments) == body
+
+    def test_find_latest_marked_comment_skips_empty_body(self) -> None:
+        """A comment with an empty body is skipped without raising."""
+        comments = [_make_comment(body="")]
+        assert find_latest_marked_comment(comments) is None
+
+    def test_find_latest_marked_comment_outside_window_not_found(self) -> None:
+        """A match older than the window is not found."""
+        comments = [
+            _make_comment(body="❌ Old failure"),
+            _make_comment(body="unrelated 1"),
+            _make_comment(body="unrelated 2"),
+            _make_comment(body="unrelated 3"),
+        ]
+        assert find_latest_marked_comment(comments, window=3) is None
+
+    def test_find_latest_marked_comment_most_recent_wins(self) -> None:
+        """When two comments in the window match, the more recent one wins."""
+        comments = [
+            _make_comment(body="❌ Older failure"),
+            _make_comment(body="❌ Newer failure"),
+        ]
+        assert find_latest_marked_comment(comments) == "❌ Newer failure"
+
+    def test_find_latest_marked_comment_no_match(self) -> None:
+        """No comment in the window matches returns None."""
+        comments = [
+            _make_comment(body="all good"),
+            _make_comment(body="still fine"),
+        ]
+        assert find_latest_marked_comment(comments) is None
+
+    def test_find_latest_marked_comment_custom_marker_and_window(self) -> None:
+        """Custom marker and window arguments are respected."""
+        comments = [
+            _make_comment(body="no marker here"),
+            _make_comment(body="no marker here either"),
+            _make_comment(body="⚠️ warning in window"),
+        ]
+        assert (
+            find_latest_marked_comment(comments, marker="⚠️", window=1)
+            == "⚠️ warning in window"
+        )
+        assert find_latest_marked_comment(comments[:-1], marker="⚠️", window=2) is None
