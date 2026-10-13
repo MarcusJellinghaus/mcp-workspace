@@ -16,6 +16,7 @@ from mcp_workspace.server import (
     github_label_list,
     github_pr_create,
     github_review_comment_reply,
+    github_review_thread_resolve,
     set_project_dir,
 )
 from mcp_workspace.server_reference_tools import set_reference_projects
@@ -551,6 +552,93 @@ class TestGithubReviewCommentReply:
             pr_number=123,
             comment_id=456,
             body="Thanks, fixed.",
+            reference_name="sibling",
+        )
+
+        assert "sibling" in result
+        mock_manager_cls.assert_called_once_with(
+            repo_url="https://github.com/owner/sibling"
+        )
+
+
+# =============================================================================
+# github_review_thread_resolve tests
+# =============================================================================
+
+
+class TestGithubReviewThreadResolve:
+    """Tests for the ``github_review_thread_resolve`` MCP tool."""
+
+    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
+    def test_success_message(self, mock_manager_cls: MagicMock) -> None:
+        """A successful resolve reports the thread ID and PR number."""
+        manager: MagicMock = mock_manager_cls.return_value
+        manager.resolve_review_thread.return_value = True
+
+        result = github_review_thread_resolve(pr_number=123, thread_id="thread-abc")
+
+        assert result == "Resolved review thread thread-abc on PR #123"
+        manager.resolve_review_thread.assert_called_once_with(123, "thread-abc")
+
+    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
+    def test_failure_false_is_reported(self, mock_manager_cls: MagicMock) -> None:
+        """A False return reads as an error, not success."""
+        manager: MagicMock = mock_manager_cls.return_value
+        manager.resolve_review_thread.return_value = False
+
+        result = github_review_thread_resolve(pr_number=123, thread_id="thread-abc")
+
+        assert result == (
+            "Error: failed to resolve review thread thread-abc on PR #123"
+        )
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "Review thread thread-abc not found",
+            "Review thread thread-abc does not belong to PR #123",
+            "Review thread thread-abc is already resolved",
+        ],
+    )
+    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
+    def test_value_error_from_manager_is_reported(
+        self, mock_manager_cls: MagicMock, message: str
+    ) -> None:
+        """Each of the three ValueError reasons surfaces as an error string."""
+        manager: MagicMock = mock_manager_cls.return_value
+        manager.resolve_review_thread.side_effect = ValueError(message)
+
+        result = github_review_thread_resolve(pr_number=123, thread_id="thread-abc")
+
+        assert result == f"Error: {message}"
+
+    def test_unknown_reference_name(self) -> None:
+        """An unknown reference name is reported once, without a suffix."""
+        with patch(
+            "mcp_workspace.github_operations.pr_manager.PullRequestManager"
+        ) as mock_manager_cls:
+            result = github_review_thread_resolve(
+                pr_number=123,
+                thread_id="thread-abc",
+                reference_name="nope",
+            )
+
+            assert result == "Error: Reference project 'nope' not found"
+            mock_manager_cls.assert_not_called()
+
+    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
+    def test_reference_project_failure_names_project(
+        self,
+        mock_manager_cls: MagicMock,
+        reference_projects: None,  # pylint: disable=unused-argument
+    ) -> None:
+        """A failure on a reference project's resolve names that project."""
+        manager: MagicMock = mock_manager_cls.return_value
+        manager.resolve_review_thread.return_value = False
+
+        result = github_review_thread_resolve(
+            pr_number=123,
+            thread_id="thread-abc",
             reference_name="sibling",
         )
 

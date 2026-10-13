@@ -380,6 +380,78 @@ class PullRequestManager(BaseGitHubManager):
         )
 
     @log_function_call
+    @_handle_github_errors(default_return=False)
+    def resolve_review_thread(self, pr_number: int, thread_id: str) -> bool:
+        """Resolve a PR review thread via the resolveReviewThread GraphQL mutation.
+
+        Confirms thread_id belongs to pr_number with a single targeted
+        node(id:) lookup before resolving — the mutation itself only takes
+        threadId and does not check it against a PR.
+
+        Args:
+            pr_number: Pull request number the review thread must belong to
+            thread_id: GraphQL node ID of the review thread to resolve
+
+        Returns:
+            True on success. False only for invalid pr_number or an
+            unavailable repository. Not-found / wrong-PR / already-resolved
+            raise ValueError instead, since those need a message
+            distinguishing the three failure modes.
+
+        Raises:
+            ValueError: If thread_id is not a non-empty string, the thread is
+                not found, belongs to a different PR, or is already resolved.
+        """
+        if not self._validate_pr_number(pr_number):
+            return False
+
+        if not isinstance(thread_id, str) or not thread_id.strip():
+            raise ValueError("thread_id must be a non-empty string")
+
+        repo = self._get_repository()
+        if repo is None:
+            return False
+
+        requester = self._github_client._Github__requester  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public GraphQL API in PyGithub
+
+        lookup_query = """
+        query($id: ID!) {
+          node(id: $id) {
+            ... on PullRequestReviewThread {
+              isResolved
+              pullRequest {
+                number
+              }
+            }
+          }
+        }
+        """
+        _, lookup_result = requester.graphql_query(
+            query=lookup_query, variables={"id": thread_id}
+        )
+        node = (lookup_result.get("data") or {}).get("node")
+        if node is None:
+            raise ValueError(f"Review thread {thread_id} not found")
+        if (node.get("pullRequest") or {}).get("number") != pr_number:
+            raise ValueError(
+                f"Review thread {thread_id} does not belong to PR #{pr_number}"
+            )
+        if node.get("isResolved"):
+            raise ValueError(f"Review thread {thread_id} is already resolved")
+
+        mutation = """
+        mutation($id: ID!) {
+          resolveReviewThread(input: {threadId: $id}) {
+            thread {
+              isResolved
+            }
+          }
+        }
+        """
+        requester.graphql_query(query=mutation, variables={"id": thread_id})
+        return True
+
+    @log_function_call
     @_handle_github_errors(lambda: [])
     def list_pull_requests(
         self,

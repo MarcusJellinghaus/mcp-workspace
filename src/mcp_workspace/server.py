@@ -1660,6 +1660,42 @@ def github_review_comment_reply(
 
 @mcp.tool()
 @log_function_call
+def github_review_thread_resolve(
+    pr_number: int,
+    thread_id: str,
+    reference_name: Optional[str] = None,
+) -> str:
+    """Resolve an inline PR review thread. This writes to GitHub.
+
+    Args:
+        pr_number: Pull request number the review thread belongs to (must be positive)
+        thread_id: GraphQL node ID of the review thread to resolve
+        reference_name: Optional reference project name. When set, the thread is
+            resolved on that project's GitHub repository instead of the workspace
+            repository.
+
+    Returns:
+        "Resolved review thread <thread_id> on PR #<pr_number>", or error message
+        string.
+    """
+    try:
+        manager = _pr_manager(reference_name)
+        resolved = manager.resolve_review_thread(pr_number, thread_id)
+        if not resolved:
+            return (
+                f"Error: failed to resolve review thread {thread_id} "
+                f"on PR #{pr_number}{_ref_suffix(reference_name)}"
+            )
+        return (
+            f"Resolved review thread {thread_id} on PR #{pr_number}"
+            f"{_ref_suffix(reference_name)}"
+        )
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+@log_function_call
 def github_label_list(
     search: Optional[str] = None,
     reference_name: Optional[str] = None,
