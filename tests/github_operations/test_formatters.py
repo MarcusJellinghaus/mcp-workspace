@@ -64,7 +64,9 @@ def _make_conversation_comment(
     created_at: str = "2024-01-03T00:00:00Z",
 ) -> ConversationCommentData:
     """Create a test ConversationCommentData dict."""
-    return ConversationCommentData(id=1, body=body, author=author, created_at=created_at)
+    return ConversationCommentData(
+        id=1, body=body, author=author, created_at=created_at
+    )
 
 
 # --- truncate_output tests ---
