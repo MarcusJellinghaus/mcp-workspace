@@ -49,9 +49,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 5: `format_pr_feedback` — render `comment_id` / `thread_id`
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 
