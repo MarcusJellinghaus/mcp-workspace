@@ -61,7 +61,11 @@ No new files/modules. No directory structure changes.
 ## Implementation steps
 
 1. [step_1.md](./step_1.md) — `ConversationCommentData` TypedDict + `fetch_conversation_comments()` + `PRFeedback` retype (core data model).
-2. [step_2.md](./step_2.md) — `formatters.py`: retype `format_pr_view()`'s parameter, fix `comment['user']` → `comment['author']`.
-3. [step_3.md](./step_3.md) — `server.py`: retype local variable, switch construction to `ConversationCommentData`.
+2. [step_2.md](./step_2.md) — `formatters.py` + `server.py`: retype `format_pr_view()`'s parameter (`comment['user']` → `comment['author']`) and `server.py`'s construction, together in one commit.
 
 Each step is one commit: tests + implementation + all checks (pylint, pytest, mypy) passing.
+
+Steps 2 and 3 were originally separate (one file each) but were merged: `server.py`
+is the only caller that builds the argument `format_pr_view()` consumes, so retyping
+either file alone leaves the full pytest suite red until the other is done too — each
+step requires a green suite before it can be committed.

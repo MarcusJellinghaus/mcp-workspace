@@ -162,7 +162,11 @@ class TestGetPRFeedback:
         return mock_repo
 
     def _make_comment(
-        self, login: str, body: str, comment_id: int = 1, created_at: str = "2024-01-01T00:00:00"
+        self,
+        login: str,
+        body: str,
+        comment_id: int = 1,
+        created_at: str = "2024-01-01T00:00:00",
     ) -> Mock:
         """Create a mock conversation comment."""
         comment = Mock()
@@ -252,10 +256,16 @@ class TestGetPRFeedback:
         }
         comments = [
             self._make_comment(
-                "alice", "general comment 1", comment_id=101, created_at="2024-01-01T00:00:00"
+                "alice",
+                "general comment 1",
+                comment_id=101,
+                created_at="2024-01-01T00:00:00",
             ),
             self._make_comment(
-                "bob", "general comment 2", comment_id=102, created_at="2024-01-02T00:00:00"
+                "bob",
+                "general comment 2",
+                comment_id=102,
+                created_at="2024-01-02T00:00:00",
             ),
         ]
         alerts_response = [

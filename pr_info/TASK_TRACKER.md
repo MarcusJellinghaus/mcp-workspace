@@ -31,17 +31,9 @@ See [step_1.md](./steps/step_1.md).
 - [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [x] Commit message prepared
 
-### Step 2: `formatters.py`: retype `format_pr_view()`'s conversation-comments parameter
+### Step 2: `formatters.py` + `server.py`: use `ConversationCommentData` for conversation comments
 
 See [step_2.md](./steps/step_2.md).
-
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
-
-### Step 3: `server.py`: build `ConversationCommentData` for conversation comments
-
-See [step_3.md](./steps/step_3.md).
 
 - [ ] Implementation (tests + production code)
 - [ ] Quality checks: pylint, pytest, mypy — fix all issues
