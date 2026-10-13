@@ -37,6 +37,7 @@ from mcp_workspace.github_operations.ci_log_parser import (
     truncate_ci_details,
 )
 from mcp_workspace.github_operations.ci_results_manager import CIResultsManager
+from mcp_workspace.github_operations.formatters import find_latest_marked_comment
 from mcp_workspace.github_operations.issues import (
     IssueBranchManager,
     IssueData,
@@ -96,6 +97,7 @@ class BranchStatusReport:
     linked_branch_status: LinkedBranchStatus = LinkedBranchStatus.NOT_CHECKED
     linked_branches: tuple[str, ...] = ()
     linked_branch_issue_number: Optional[int] = None
+    last_automated_note: Optional[str] = None
 
     def format_for_human(
         self,
@@ -564,6 +566,7 @@ def collect_branch_status(
         issue_data: Optional[IssueData] = None
         issue_manager: Optional[IssueManager] = None
         pr_manager: Optional[PullRequestManager] = None
+        last_automated_note: Optional[str] = None
 
         try:
             issue_manager = IssueManager(project_dir=project_dir)
@@ -579,6 +582,19 @@ def collect_branch_status(
                     logger.warning("%s", e)
                 except Exception:  # pylint: disable=broad-exception-caught
                     logger.debug("Failed to fetch issue data", exc_info=True)
+
+                try:
+                    comments = issue_manager.get_comments(issue_number)
+                    last_automated_note = find_latest_marked_comment(comments)
+                except IssueIdentityMismatchError as e:
+                    # Mirrors the get_issue branch above — same signal (issue
+                    # transferred or renumbered), so it gets the same warning,
+                    # not debug.
+                    logger.warning("%s", e)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    logger.debug(
+                        "Failed to fetch automated note comment", exc_info=True
+                    )
         except Exception:  # pylint: disable=broad-exception-caught
             logger.debug("GitHub manager initialization failed", exc_info=True)
 
@@ -684,6 +700,7 @@ def collect_branch_status(
             linked_branch_status=linked_branch_status,
             linked_branches=linked_branches,
             linked_branch_issue_number=linked_branch_issue_number,
+            last_automated_note=last_automated_note,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error collecting branch status: {e}")

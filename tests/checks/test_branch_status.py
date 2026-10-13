@@ -19,7 +19,7 @@ from mcp_workspace.checks.branch_status import (
 )
 from mcp_workspace.checks.branch_status_rendering import CIStatus, LinkedBranchStatus
 from mcp_workspace.github_operations import IssueIdentityMismatchError
-from mcp_workspace.github_operations.issues import IssueData
+from mcp_workspace.github_operations.issues import CommentData, IssueData
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
 
@@ -133,6 +133,58 @@ class TestBranchStatusReport:
         assert "PR=" not in output
         # Recommendations line is always present (may be empty)
         assert "Recommendations:" in output
+
+    @pytest.mark.parametrize("method_name", ["format_for_human", "format_for_llm"])
+    def test_last_automated_note_rendered_before_recommendations(
+        self, method_name: str
+    ) -> None:
+        note = "## ❌ Implementation Failed\n\nDetails here."
+        report = BranchStatusReport(
+            branch_name="123-feature",
+            base_branch="main",
+            ci_status=CIStatus.PASSED,
+            ci_details=None,
+            rebase_needed=False,
+            rebase_reason="up-to-date",
+            tasks_status=TaskTrackerStatus.COMPLETE,
+            tasks_reason="All 5 tasks complete",
+            tasks_is_blocking=False,
+            current_github_label="status-04:in-progress",
+            recommendations=["Do something"],
+            pr_number=45,
+            pr_url="https://github.com/owner/repo/pull/45",
+            pr_found=True,
+            last_automated_note=note,
+        )
+        output = getattr(report, method_name)()
+        assert note in output
+        lines = output.splitlines()
+        note_index = lines.index(note.splitlines()[0])
+        recommendations_index = next(
+            i for i, line in enumerate(lines) if "Recommendations" in line
+        )
+        assert note_index < recommendations_index
+
+    @pytest.mark.parametrize("method_name", ["format_for_human", "format_for_llm"])
+    def test_last_automated_note_absent_when_none(self, method_name: str) -> None:
+        report = BranchStatusReport(
+            branch_name="123-feature",
+            base_branch="main",
+            ci_status=CIStatus.PASSED,
+            ci_details=None,
+            rebase_needed=False,
+            rebase_reason="up-to-date",
+            tasks_status=TaskTrackerStatus.COMPLETE,
+            tasks_reason="All 5 tasks complete",
+            tasks_is_blocking=False,
+            current_github_label="status-04:in-progress",
+            recommendations=["Do something"],
+            pr_number=45,
+            pr_url="https://github.com/owner/repo/pull/45",
+            pr_found=True,
+        )
+        output = getattr(report, method_name)()
+        assert "Implementation Failed" not in output
 
 
 class TestCreateEmptyReport:
@@ -516,6 +568,25 @@ class TestCollectBranchStatus:
             "number": 123,
             "labels": ["status-04:in-progress"],
         }
+        automated_comment_body = "## ❌ Implementation Failed\n\nSome details."
+        mock_issue_mgr.get_comments.return_value = [
+            CommentData(
+                id=1,
+                body="Earlier comment",
+                user="bot",
+                created_at=None,
+                updated_at=None,
+                url="https://example.com/1",
+            ),
+            CommentData(
+                id=2,
+                body=automated_comment_body,
+                user="bot",
+                created_at=None,
+                updated_at=None,
+                url="https://example.com/2",
+            ),
+        ]
         mock_issue_mgr_cls.return_value = mock_issue_mgr
         mock_pr_mgr_cls.return_value = MagicMock()
         mock_detect.return_value = "main"
@@ -535,6 +606,113 @@ class TestCollectBranchStatus:
         assert report.ci_status == CIStatus.PASSED
         assert report.pr_number == 45
         assert report.pr_mergeable is True
+        assert report.last_automated_note == automated_comment_body
+
+    @patch("mcp_workspace.checks.branch_status._collect_pr_info")
+    @patch("mcp_workspace.checks.branch_status._collect_github_label")
+    @patch("mcp_workspace.checks.branch_status._collect_task_status")
+    @patch("mcp_workspace.checks.branch_status._collect_rebase_status")
+    @patch("mcp_workspace.checks.branch_status._collect_ci_status")
+    @patch("mcp_workspace.checks.branch_status.detect_base_branch")
+    @patch("mcp_workspace.checks.branch_status.PullRequestManager")
+    @patch("mcp_workspace.checks.branch_status.IssueManager")
+    @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
+    @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    @patch(
+        "mcp_workspace.checks.branch_status._collect_linked_branch_status",
+        return_value=(LinkedBranchStatus.OK, ("123-feature",), 123),
+    )
+    def test_automated_note_fetch_failure(
+        self,
+        mock_linked: MagicMock,
+        mock_branch: MagicMock,
+        mock_extract: MagicMock,
+        mock_issue_mgr_cls: MagicMock,
+        mock_pr_mgr_cls: MagicMock,
+        mock_detect: MagicMock,
+        mock_ci: MagicMock,
+        mock_rebase: MagicMock,
+        mock_tasks: MagicMock,
+        mock_label: MagicMock,
+        mock_pr_info: MagicMock,
+    ) -> None:
+        """get_comments failure must not prevent the rest of the report from building."""
+        mock_branch.return_value = "123-feature"
+        mock_extract.return_value = 123
+        mock_issue_mgr = MagicMock()
+        mock_issue_mgr.get_issue.return_value = {
+            "number": 123,
+            "labels": ["status-04:in-progress"],
+        }
+        mock_issue_mgr.get_comments.side_effect = Exception("boom")
+        mock_issue_mgr_cls.return_value = mock_issue_mgr
+        mock_pr_mgr_cls.return_value = MagicMock()
+        mock_detect.return_value = "main"
+        mock_ci.return_value = (CIStatus.PASSED, None, [])
+        mock_rebase.return_value = (False, "up-to-date")
+        mock_tasks.return_value = (
+            TaskTrackerStatus.COMPLETE,
+            "All 5 tasks complete",
+            False,
+        )
+        mock_label.return_value = "status-04:in-progress"
+        mock_pr_info.return_value = (45, "https://url", True, True, "clean")
+
+        report = collect_branch_status(Path("/tmp"))
+        assert report.last_automated_note is None
+
+    @patch("mcp_workspace.checks.branch_status._collect_pr_info")
+    @patch("mcp_workspace.checks.branch_status._collect_github_label")
+    @patch("mcp_workspace.checks.branch_status._collect_task_status")
+    @patch("mcp_workspace.checks.branch_status._collect_rebase_status")
+    @patch("mcp_workspace.checks.branch_status._collect_ci_status")
+    @patch("mcp_workspace.checks.branch_status.detect_base_branch")
+    @patch("mcp_workspace.checks.branch_status.PullRequestManager")
+    @patch("mcp_workspace.checks.branch_status.IssueManager")
+    @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
+    @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    @patch(
+        "mcp_workspace.checks.branch_status._collect_linked_branch_status",
+        return_value=(LinkedBranchStatus.OK, ("123-feature",), 123),
+    )
+    def test_automated_note_no_match(
+        self,
+        mock_linked: MagicMock,
+        mock_branch: MagicMock,
+        mock_extract: MagicMock,
+        mock_issue_mgr_cls: MagicMock,
+        mock_pr_mgr_cls: MagicMock,
+        mock_detect: MagicMock,
+        mock_ci: MagicMock,
+        mock_rebase: MagicMock,
+        mock_tasks: MagicMock,
+        mock_label: MagicMock,
+        mock_pr_info: MagicMock,
+    ) -> None:
+        """No matching comment in the window → last_automated_note stays None."""
+        mock_branch.return_value = "123-feature"
+        mock_extract.return_value = 123
+        mock_issue_mgr = MagicMock()
+        mock_issue_mgr.get_issue.return_value = {
+            "number": 123,
+            "labels": ["status-04:in-progress"],
+        }
+        mock_issue_mgr.get_comments.return_value = []
+        mock_issue_mgr_cls.return_value = mock_issue_mgr
+        mock_pr_mgr_cls.return_value = MagicMock()
+        mock_detect.return_value = "main"
+        mock_ci.return_value = (CIStatus.PASSED, None, [])
+        mock_rebase.return_value = (False, "up-to-date")
+        mock_tasks.return_value = (
+            TaskTrackerStatus.COMPLETE,
+            "All 5 tasks complete",
+            False,
+        )
+        mock_label.return_value = "status-04:in-progress"
+        mock_pr_info.return_value = (45, "https://url", True, True, "clean")
+
+        report = collect_branch_status(Path("/tmp"))
+        assert report.last_automated_note is None
 
     @patch("mcp_workspace.checks.branch_status.detect_base_branch")
     @patch("mcp_workspace.checks.branch_status.PullRequestManager")
@@ -578,6 +756,49 @@ class TestCollectBranchStatus:
             # pr_manager is None when init fails, so pr fields should be None
             assert report.pr_found is None
             assert report.pr_mergeable is None
+
+    @patch("mcp_workspace.checks.branch_status.detect_base_branch")
+    @patch("mcp_workspace.checks.branch_status.PullRequestManager")
+    @patch("mcp_workspace.checks.branch_status.IssueManager")
+    @patch("mcp_workspace.checks.branch_status.extract_issue_number_from_branch")
+    @patch("mcp_workspace.checks.branch_status.get_current_branch_name")
+    @patch(
+        "mcp_workspace.checks.branch_status._collect_linked_branch_status",
+        return_value=(LinkedBranchStatus.NOT_CHECKED, (), None),
+    )
+    def test_automated_note_no_issue_number(
+        self,
+        mock_linked: MagicMock,
+        mock_branch: MagicMock,
+        mock_extract: MagicMock,
+        mock_issue_mgr_cls: MagicMock,
+        mock_pr_mgr_cls: MagicMock,
+        mock_detect: MagicMock,
+    ) -> None:
+        """No issue number derivable → get_comments is never called."""
+        mock_branch.return_value = "feature"
+        mock_extract.return_value = None
+        mock_issue_mgr = MagicMock()
+        mock_issue_mgr_cls.return_value = mock_issue_mgr
+        mock_pr_mgr_cls.return_value = MagicMock()
+        mock_detect.return_value = "main"
+
+        with (
+            patch("mcp_workspace.checks.branch_status._collect_ci_status") as mock_ci,
+            patch(
+                "mcp_workspace.checks.branch_status._collect_rebase_status"
+            ) as mock_rebase,
+            patch(
+                "mcp_workspace.checks.branch_status._collect_task_status"
+            ) as mock_tasks,
+        ):
+            mock_ci.return_value = (CIStatus.NOT_CONFIGURED, None, [])
+            mock_rebase.return_value = (False, "up-to-date")
+            mock_tasks.return_value = (TaskTrackerStatus.N_A, "N/A", False)
+
+            report = collect_branch_status(Path("/tmp"))
+            assert report.last_automated_note is None
+            mock_issue_mgr.get_comments.assert_not_called()
 
     @patch("mcp_workspace.checks.branch_status._collect_pr_info")
     @patch("mcp_workspace.checks.branch_status._collect_github_label")
