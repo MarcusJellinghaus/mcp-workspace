@@ -15,6 +15,7 @@ from mcp_workspace.github_operations.formatters import (
     truncate_output,
 )
 from mcp_workspace.github_operations.issues.types import CommentData, IssueData
+from mcp_workspace.github_operations.pr_manager import ConversationCommentData
 
 
 def _make_issue(
@@ -55,6 +56,15 @@ def _make_comment(
         updated_at=None,
         url="https://github.com/owner/repo/issues/42#comment-1",
     )
+
+
+def _make_conversation_comment(
+    body: str = "Comment text",
+    author: str = "commenter",
+    created_at: str = "2024-01-03T00:00:00Z",
+) -> ConversationCommentData:
+    """Create a test ConversationCommentData dict."""
+    return ConversationCommentData(id=1, body=body, author=author, created_at=created_at)
 
 
 # --- truncate_output tests ---
@@ -340,12 +350,14 @@ class TestFormatPrView:
         """Conversation comments rendered."""
         pr = _make_pr()
         comments = [
-            _make_comment(
+            _make_conversation_comment(
                 body="Looks good",
-                user="alice",
+                author="alice",
                 created_at="2024-01-05T00:00:00Z",
             ),
-            _make_comment(body="Thanks", user="bob", created_at="2024-01-06T00:00:00Z"),
+            _make_conversation_comment(
+                body="Thanks", author="bob", created_at="2024-01-06T00:00:00Z"
+            ),
         ]
         result = format_pr_view(pr, conversation_comments=comments)
         assert "## Comments (2)" in result

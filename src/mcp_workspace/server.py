@@ -1047,7 +1047,7 @@ def github_pr_view(
         ReviewData,
         format_pr_view,
     )
-    from mcp_workspace.github_operations.issues.types import CommentData
+    from mcp_workspace.github_operations.pr_manager import ConversationCommentData
 
     try:
         manager = _issue_manager(reference_name)
@@ -1066,7 +1066,7 @@ def github_pr_view(
             "merged": pr.merged,
         }
         reviews: Optional[List[ReviewData]] = None
-        conversation_comments: Optional[List[CommentData]] = None
+        conversation_comments: Optional[List[ConversationCommentData]] = None
         inline_comments: Optional[List[InlineCommentData]] = None
         if include_comments:
             reviews = [
@@ -1074,13 +1074,11 @@ def github_pr_view(
                 for r in pr.get_reviews()
             ]
             conversation_comments = [
-                CommentData(
+                ConversationCommentData(
                     id=c.id,
                     body=c.body,
-                    user=c.user.login,
-                    created_at=c.created_at.isoformat(),
-                    updated_at=c.updated_at.isoformat() if c.updated_at else None,
-                    url="",
+                    author=c.user.login,
+                    created_at=c.created_at.isoformat() if c.created_at else None,
                 )
                 for c in repo.get_issue(number).get_comments()
             ]
