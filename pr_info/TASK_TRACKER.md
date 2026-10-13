@@ -32,8 +32,8 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ### Step 2: `_pr_manager` helper + `reply_to_review_comment` + `github_review_comment_reply`
 
 - [x] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: `resolve_review_thread` + `github_review_thread_resolve`
 
