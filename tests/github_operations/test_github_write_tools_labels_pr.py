@@ -11,7 +11,14 @@ import pytest
 from github import GithubException
 
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
-from mcp_workspace.server import github_label_list, github_pr_create, set_project_dir
+from mcp_workspace.reference_projects import ReferenceProject
+from mcp_workspace.server import (
+    github_label_list,
+    github_pr_create,
+    github_review_comment_reply,
+    set_project_dir,
+)
+from mcp_workspace.server_reference_tools import set_reference_projects
 
 # Bound at import time, before any @patch is active: patching
 # ``mcp_workspace.github_operations.pr_manager.PullRequestManager`` replaces the
@@ -27,6 +34,22 @@ def setup_server(project_dir: Path) -> Generator[None, None, None]:
     """Setup the server with the project directory."""
     set_project_dir(project_dir)
     yield
+
+
+@pytest.fixture
+def reference_projects() -> Generator[None, None, None]:
+    """Configure a 'sibling' reference project with a GitHub URL."""
+    set_reference_projects(
+        {
+            "sibling": ReferenceProject(
+                name="sibling",
+                path=Path("/does/not/exist"),
+                url="https://github.com/owner/sibling",
+            )
+        }
+    )
+    yield
+    set_reference_projects({})
 
 
 def _label(
@@ -421,3 +444,117 @@ class TestGithubPrCreate:
         result = github_pr_create(title="Add feature")
 
         assert result == "Error: project_dir is required"
+
+
+# =============================================================================
+# github_review_comment_reply tests
+# =============================================================================
+
+
+def _comment_data(comment_id: int = 456) -> dict[str, Any]:
+    """Create a CommentData-shaped dict for testing."""
+    return {
+        "id": comment_id,
+        "body": "Thanks, fixed.",
+        "user": "testuser",
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2023-01-01T00:00:00Z",
+        "url": f"https://github.com/test/repo/pull/123#discussion_r{comment_id}",
+    }
+
+
+_EMPTY_COMMENT_DATA: dict[str, Any] = {
+    "id": 0,
+    "body": "",
+    "user": None,
+    "created_at": None,
+    "updated_at": None,
+    "url": "",
+}
+
+
+class TestGithubReviewCommentReply:
+    """Tests for the ``github_review_comment_reply`` MCP tool."""
+
+    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
+    def test_success_message_with_url(self, mock_manager_cls: MagicMock) -> None:
+        """A successful reply reports the comment ID, PR number, and URL."""
+        manager: MagicMock = mock_manager_cls.return_value
+        manager.reply_to_review_comment.return_value = _comment_data()
+
+        result = github_review_comment_reply(
+            pr_number=123, comment_id=456, body="Thanks, fixed."
+        )
+
+        assert result == (
+            "Replied to review comment 456 on PR #123 — "
+            "https://github.com/test/repo/pull/123#discussion_r456"
+        )
+        manager.reply_to_review_comment.assert_called_once_with(
+            123, 456, "Thanks, fixed."
+        )
+
+    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
+    def test_failure_id_zero_is_reported(self, mock_manager_cls: MagicMock) -> None:
+        """An empty CommentData (id=0) reads as an error, not success."""
+        manager: MagicMock = mock_manager_cls.return_value
+        manager.reply_to_review_comment.return_value = _EMPTY_COMMENT_DATA
+
+        result = github_review_comment_reply(
+            pr_number=123, comment_id=456, body="Thanks, fixed."
+        )
+
+        assert result == (
+            "Error: failed to reply to review comment 456 on PR #123"
+        )
+
+    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
+    def test_exception_from_manager_is_reported(
+        self, mock_manager_cls: MagicMock
+    ) -> None:
+        """An arbitrary failure from the manager surfaces as an error string."""
+        manager: MagicMock = mock_manager_cls.return_value
+        manager.reply_to_review_comment.side_effect = RuntimeError("boom")
+
+        result = github_review_comment_reply(
+            pr_number=123, comment_id=456, body="Thanks, fixed."
+        )
+
+        assert result == "Error: boom"
+
+    def test_unknown_reference_name(self) -> None:
+        """An unknown reference name is reported once, without a suffix."""
+        with patch(
+            "mcp_workspace.github_operations.pr_manager.PullRequestManager"
+        ) as mock_manager_cls:
+            result = github_review_comment_reply(
+                pr_number=123,
+                comment_id=456,
+                body="Thanks, fixed.",
+                reference_name="nope",
+            )
+
+            assert result == "Error: Reference project 'nope' not found"
+            mock_manager_cls.assert_not_called()
+
+    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
+    def test_reference_project_failure_names_project(
+        self,
+        mock_manager_cls: MagicMock,
+        reference_projects: None,  # pylint: disable=unused-argument
+    ) -> None:
+        """A failure on a reference project's reply names that project."""
+        manager: MagicMock = mock_manager_cls.return_value
+        manager.reply_to_review_comment.return_value = _EMPTY_COMMENT_DATA
+
+        result = github_review_comment_reply(
+            pr_number=123,
+            comment_id=456,
+            body="Thanks, fixed.",
+            reference_name="sibling",
+        )
+
+        assert "sibling" in result
+        mock_manager_cls.assert_called_once_with(
+            repo_url="https://github.com/owner/sibling"
+        )

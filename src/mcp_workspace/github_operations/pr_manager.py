@@ -16,6 +16,7 @@ from mcp_workspace.git_operations import get_default_branch_name
 
 from . import _pr_feedback_sources
 from .base_manager import BaseGitHubManager, _handle_github_errors
+from .issues.types import CommentData
 
 # Configure logger for GitHub operations
 logger = logging.getLogger(__name__)
@@ -71,6 +72,18 @@ def _failed_merge_result() -> MergeResult:
         "message": "",
         "status": None,
     }
+
+
+def _empty_comment_data() -> CommentData:
+    """Return a fresh empty CommentData for the decorator default (id=0)."""
+    return CommentData(
+        id=0,
+        body="",
+        user=None,
+        created_at=None,
+        updated_at=None,
+        url="",
+    )
 
 
 def _empty_pr_feedback() -> PRFeedback:
@@ -209,6 +222,22 @@ class PullRequestManager(BaseGitHubManager):
             return False
         return True
 
+    def _validate_comment_id(self, comment_id: int) -> bool:
+        """Validate review comment ID.
+
+        Args:
+            comment_id: Comment ID to validate
+
+        Returns:
+            True if valid, False otherwise
+        """
+        if not isinstance(comment_id, int) or comment_id <= 0:
+            logger.error(
+                f"Invalid comment ID: {comment_id}. Must be a positive integer."
+            )
+            return False
+        return True
+
     @log_function_call
     @_handle_github_errors(cast(PullRequestData, {}))
     def create_pull_request(
@@ -303,6 +332,52 @@ class PullRequestManager(BaseGitHubManager):
         pr = repo.get_pull(pr_number)
 
         return _pr_to_data(pr)
+
+    @log_function_call
+    @_handle_github_errors(default_return=_empty_comment_data)
+    def reply_to_review_comment(
+        self, pr_number: int, comment_id: int, body: str
+    ) -> CommentData:
+        """Reply to an inline PR review comment.
+
+        Wraps PyGithub's PullRequest.create_review_comment_reply(). No PR/comment
+        cross-check: GitHub's REST endpoint is nested under pull_number, so a
+        comment_id from another PR is rejected by GitHub itself.
+
+        Args:
+            pr_number: Pull request number the review comment belongs to
+            comment_id: Review comment ID to reply to
+            body: Reply text (required, cannot be empty)
+
+        Returns:
+            CommentData with the created reply's information, or empty
+            CommentData (id=0) on failure.
+        """
+        if not self._validate_pr_number(pr_number):
+            return _empty_comment_data()
+
+        if not self._validate_comment_id(comment_id):
+            return _empty_comment_data()
+
+        if not body or not body.strip():
+            logger.error("Reply body cannot be empty")
+            return _empty_comment_data()
+
+        repo = self._get_repository()
+        if repo is None:
+            return _empty_comment_data()
+
+        pr = repo.get_pull(pr_number)
+        reply = pr.create_review_comment_reply(comment_id, body.strip())
+
+        return CommentData(
+            id=reply.id,
+            body=reply.body or "",
+            user=reply.user.login if reply.user else None,
+            created_at=(reply.created_at.isoformat() if reply.created_at else None),
+            updated_at=(reply.updated_at.isoformat() if reply.updated_at else None),
+            url=reply.html_url,
+        )
 
     @log_function_call
     @_handle_github_errors(lambda: [])

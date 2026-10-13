@@ -38,6 +38,7 @@ from mcp_workspace.server_reference_tools import set_reference_projects
 if TYPE_CHECKING:
     # Type-only: does not execute, so PyGithub stays off the startup import path
     from mcp_workspace.github_operations.issues import IssueManager
+    from mcp_workspace.github_operations.pr_manager import PullRequestManager
 
 # Initialize loggers
 logger = logging.getLogger(__name__)
@@ -834,6 +835,31 @@ def _issue_manager(reference_name: Optional[str]) -> "IssueManager":
     return IssueManager(repo_url=get_reference_repo_url(reference_name))
 
 
+def _pr_manager(reference_name: Optional[str]) -> "PullRequestManager":
+    """Build a PullRequestManager for the workspace repo or a reference project.
+
+    Args:
+        reference_name: Optional reference project name. When None, the
+            workspace repository is used.
+
+    Returns:
+        A PullRequestManager bound to the workspace repository when
+        reference_name is None, otherwise to the reference project's
+        repository URL.
+
+    Raises:
+        ValueError: If reference_name is not a configured reference project or
+            that project has no URL configured, or if the manager cannot be
+            constructed for the resolved repository.
+    """  # noqa: DOC502 - propagated from get_reference_repo_url()/PullRequestManager
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.pr_manager import PullRequestManager
+
+    if reference_name is None:
+        return PullRequestManager(project_dir=_project_dir)
+    return PullRequestManager(repo_url=get_reference_repo_url(reference_name))
+
+
 def _linked_branches(number: int, reference_name: Optional[str]) -> Optional[list[str]]:
     """Look up an issue's linked branches; None when the lookup fails for any reason.
 
@@ -1589,6 +1615,45 @@ def github_issue_comment(
                 f"{_ref_suffix(reference_name)}"
             )
         return f"Added comment to issue #{number} — {comment['url']}"
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+@log_function_call
+def github_review_comment_reply(
+    pr_number: int,
+    comment_id: int,
+    body: str,
+    reference_name: Optional[str] = None,
+) -> str:
+    """Reply to an inline PR review comment. This writes to GitHub.
+
+    Args:
+        pr_number: Pull request number the review comment belongs to (must be positive)
+        comment_id: Review comment ID to reply to (must be positive)
+        body: Reply text in Markdown (required, cannot be empty)
+        reference_name: Optional reference project name. When set, the reply is
+            posted to that project's GitHub repository instead of the workspace
+            repository.
+
+    Returns:
+        "Replied to review comment <comment_id> on PR #<pr_number> — <url>", or
+        error message string.
+    """
+    try:
+        manager = _pr_manager(reference_name)
+        reply = manager.reply_to_review_comment(pr_number, comment_id, body)
+        # Empty CommentData carries id == 0, not number == 0 as issues do
+        if not reply["id"]:
+            return (
+                f"Error: failed to reply to review comment {comment_id} "
+                f"on PR #{pr_number}{_ref_suffix(reference_name)}"
+            )
+        return (
+            f"Replied to review comment {comment_id} on PR #{pr_number} — "
+            f"{reply['url']}"
+        )
     except Exception as e:
         return f"Error: {e}"
 
