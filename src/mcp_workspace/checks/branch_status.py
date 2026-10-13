@@ -592,7 +592,9 @@ def collect_branch_status(
                     # not debug.
                     logger.warning("%s", e)
                 except Exception:  # pylint: disable=broad-exception-caught
-                    logger.debug("Failed to fetch automated note comment", exc_info=True)
+                    logger.debug(
+                        "Failed to fetch automated note comment", exc_info=True
+                    )
         except Exception:  # pylint: disable=broad-exception-caught
             logger.debug("GitHub manager initialization failed", exc_info=True)
 

@@ -134,6 +134,58 @@ class TestBranchStatusReport:
         # Recommendations line is always present (may be empty)
         assert "Recommendations:" in output
 
+    @pytest.mark.parametrize("method_name", ["format_for_human", "format_for_llm"])
+    def test_last_automated_note_rendered_before_recommendations(
+        self, method_name: str
+    ) -> None:
+        note = "## ❌ Implementation Failed\n\nDetails here."
+        report = BranchStatusReport(
+            branch_name="123-feature",
+            base_branch="main",
+            ci_status=CIStatus.PASSED,
+            ci_details=None,
+            rebase_needed=False,
+            rebase_reason="up-to-date",
+            tasks_status=TaskTrackerStatus.COMPLETE,
+            tasks_reason="All 5 tasks complete",
+            tasks_is_blocking=False,
+            current_github_label="status-04:in-progress",
+            recommendations=["Do something"],
+            pr_number=45,
+            pr_url="https://github.com/owner/repo/pull/45",
+            pr_found=True,
+            last_automated_note=note,
+        )
+        output = getattr(report, method_name)()
+        assert note in output
+        lines = output.splitlines()
+        note_index = lines.index(note.splitlines()[0])
+        recommendations_index = next(
+            i for i, line in enumerate(lines) if "Recommendations" in line
+        )
+        assert note_index < recommendations_index
+
+    @pytest.mark.parametrize("method_name", ["format_for_human", "format_for_llm"])
+    def test_last_automated_note_absent_when_none(self, method_name: str) -> None:
+        report = BranchStatusReport(
+            branch_name="123-feature",
+            base_branch="main",
+            ci_status=CIStatus.PASSED,
+            ci_details=None,
+            rebase_needed=False,
+            rebase_reason="up-to-date",
+            tasks_status=TaskTrackerStatus.COMPLETE,
+            tasks_reason="All 5 tasks complete",
+            tasks_is_blocking=False,
+            current_github_label="status-04:in-progress",
+            recommendations=["Do something"],
+            pr_number=45,
+            pr_url="https://github.com/owner/repo/pull/45",
+            pr_found=True,
+        )
+        output = getattr(report, method_name)()
+        assert "Implementation Failed" not in output
+
 
 class TestCreateEmptyReport:
     """Tests for create_empty_report."""

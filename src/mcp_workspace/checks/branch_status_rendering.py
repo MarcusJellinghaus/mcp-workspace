@@ -179,6 +179,8 @@ def format_report_for_human(
     if linked_branch_line is not None:
         lines.append(linked_branch_line)
 
+    lines.extend(_format_last_automated_note_lines(report))
+
     lines.extend(
         [
             "",
@@ -248,6 +250,7 @@ def format_report_for_llm(
     linked_branch_line = _format_linked_branch_line(report)
     if linked_branch_line is not None:
         lines.append(linked_branch_line)
+    lines.extend(_format_last_automated_note_lines(report))
     lines.append(f"Recommendations: {recommendations_text}")
 
     if report.pr_feedback_text is not None:
@@ -362,6 +365,19 @@ def _format_linked_branch_line(report: "BranchStatusReport") -> Optional[str]:
     else:
         text = f"UNKNOWN — could not determine the linked branch for {issue}"
     return f"Linked Branch: {text}"
+
+
+def _format_last_automated_note_lines(report: "BranchStatusReport") -> List[str]:
+    """Build the ❌-marked-comment block, or [] when nothing to render.
+
+    Returns:
+        [] when report.last_automated_note is None, else a blank line followed
+        by the full multi-line comment text — matching how pr_feedback_text
+        is rendered.
+    """
+    if report.last_automated_note is None:
+        return []
+    return ["", report.last_automated_note]
 
 
 def _format_wait_line(
