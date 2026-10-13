@@ -42,13 +42,22 @@ class PullRequestData(TypedDict):
     assignees: list[str]
 
 
+class ConversationCommentData(TypedDict):
+    """TypedDict for a PR top-level conversation comment."""
+
+    author: str
+    body: str
+    id: int
+    created_at: Optional[str]
+
+
 class PRFeedback(TypedDict):
     """TypedDict for aggregated PR feedback (review threads, comments, alerts)."""
 
     unresolved_threads: list[dict[str, Any]]
     resolved_thread_count: int
     changes_requested: list[dict[str, Any]]
-    conversation_comments: list[dict[str, Any]]
+    conversation_comments: list[ConversationCommentData]
     alerts: list[dict[str, Any]]
     unavailable: dict[str, Exception]
 
