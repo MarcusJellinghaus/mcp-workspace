@@ -72,12 +72,17 @@ input type and the one dict-key lookup change.
 
 `tests/github_operations/test_formatters.py`:
 
-- `_make_comment()` currently builds `CommentData(id=1, body=..., user=...,
-  created_at=..., updated_at=None, url=...)`. Change it to build
-  `ConversationCommentData`:
+- `_make_comment()` is shared: `TestFormatIssueView` also uses it (e.g.
+  `test_format_issue_view_with_comments`, calling `_make_comment(user="alice",
+  ...)`), consumed by `format_issue_view()`, which still reads
+  `comment['user']` and is unchanged by this issue. Do not retype
+  `_make_comment()` itself — leave it building `CommentData` with its
+  existing `user` kwarg, untouched.
+
+  Instead, add a separate helper for the PR-view tests:
 
   ```python
-  def _make_comment(
+  def _make_conversation_comment(
       body: str = "Comment text",
       author: str = "commenter",
       created_at: str = "2024-01-03T00:00:00Z",
@@ -87,14 +92,14 @@ input type and the one dict-key lookup change.
       )
   ```
 
-  and import `ConversationCommentData` from `mcp_workspace.github_operations.pr_manager`
-  instead of using `CommentData` for this helper. Keep `CommentData` imported
-  if `_make_issue`/`format_issue_view` tests in the same file still need it.
+  Import `ConversationCommentData` from
+  `mcp_workspace.github_operations.pr_manager` alongside the existing
+  `CommentData` import (still needed by `_make_issue`/`format_issue_view`
+  tests).
 - `test_format_pr_view_with_conversation_comments` keeps its existing
   assertions (`"**alice**"`, `"Looks good"`, etc.) — it already calls
-  `_make_comment(body=..., user="alice", ...)`; update the call to pass
-  `author="alice"` instead of `user="alice"` to match the new helper
-  signature.
+  `_make_comment(body=..., user="alice", ...)`; switch that call to
+  `_make_conversation_comment(body=..., author="alice", ...)`.
 
 Run `mcp__mcp-tools-py__run_pytest_check` (`extra_args: ["-n", "auto"]`),
 `mcp__mcp-tools-py__run_pylint_check`, `mcp__mcp-tools-py__run_mypy_check`.

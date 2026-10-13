@@ -96,12 +96,15 @@ Each dict in the returned list now has exactly four keys:
 
 2. `tests/checks/test_branch_status_pr_feedback.py`:
    - `_comment()` helper currently returns `dict[str, Any]` with only
-     `author`/`body`. Extend its signature to
-     `_comment(author: str = "bob", body: str = "Looks good", comment_id: int = 1, created_at: str | None = "2024-01-01T00:00:00") -> dict[str, Any]`
-     and include `id`/`created_at` in the returned dict, so every call site
-     (`feedback["conversation_comments"] = [_comment(...)]`) satisfies
+     `author`/`body`. Import `ConversationCommentData` from
+     `mcp_workspace.github_operations.pr_manager` (already imports `PRFeedback`
+     from there) and retype the helper to
+     `_comment(author: str = "bob", body: str = "Looks good", comment_id: int = 1, created_at: str | None = "2024-01-01T00:00:00") -> ConversationCommentData`,
+     returning `ConversationCommentData(author=author, body=body, id=comment_id, created_at=created_at)`.
+     Returning `dict[str, Any]` would fail mypy strict mode once
+     `feedback["conversation_comments"] = [_comment(...)]` must satisfy
      `list[ConversationCommentData]`. No call sites need their arguments
-     changed — only the helper's return shape.
+     changed — only the helper's return type and shape.
 
 Run `mcp__mcp-tools-py__run_pytest_check` (with `extra_args: ["-n", "auto"]`),
 `mcp__mcp-tools-py__run_pylint_check`, `mcp__mcp-tools-py__run_mypy_check`.

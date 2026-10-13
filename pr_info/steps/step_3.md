@@ -37,20 +37,8 @@ If the function body does not match this shape, write one line to
 
 ## WHAT
 
-Replace the lazy import of `CommentData` with `ConversationCommentData`:
-
-```python
-from mcp_workspace.github_operations.formatters import (
-    ConversationCommentData,  # re-exported by formatters, or import from pr_manager
-    InlineCommentData,
-    ReviewData,
-    format_pr_view,
-)
-```
-
-Use whichever import path matches where `ConversationCommentData` actually
-lives after Step 1 (`mcp_workspace.github_operations.pr_manager`) — import it
-from there directly:
+Replace the lazy import of `CommentData` with `ConversationCommentData`,
+imported directly from where it lives after Step 1:
 
 ```python
 from mcp_workspace.github_operations.pr_manager import ConversationCommentData
