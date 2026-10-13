@@ -177,6 +177,7 @@ class TestGetPRFeedback:
                         "reviewThreads": {
                             "nodes": [
                                 {
+                                    "id": "THREAD_1",
                                     "isResolved": False,
                                     "comments": {
                                         "nodes": [
@@ -186,11 +187,13 @@ class TestGetPRFeedback:
                                                 "path": "src/foo.py",
                                                 "line": 10,
                                                 "diffHunk": "@@ ... @@",
+                                                "databaseId": 111,
                                             }
                                         ]
                                     },
                                 },
                                 {
+                                    "id": "THREAD_2",
                                     "isResolved": False,
                                     "comments": {
                                         "nodes": [
@@ -200,11 +203,13 @@ class TestGetPRFeedback:
                                                 "path": "src/bar.py",
                                                 "line": 5,
                                                 "diffHunk": "@@ ... @@",
+                                                "databaseId": 222,
                                             }
                                         ]
                                     },
                                 },
                                 {
+                                    "id": "THREAD_3",
                                     "isResolved": True,
                                     "comments": {
                                         "nodes": [
@@ -214,6 +219,7 @@ class TestGetPRFeedback:
                                                 "path": "src/baz.py",
                                                 "line": 1,
                                                 "diffHunk": "@@ ... @@",
+                                                "databaseId": 333,
                                             }
                                         ]
                                     },
@@ -268,6 +274,10 @@ class TestGetPRFeedback:
         assert result["unresolved_threads"][0]["author"] == "alice"
         assert result["unresolved_threads"][0]["body"] == "issue here"
         assert result["unresolved_threads"][0]["diff_hunk"] == "@@ ... @@"
+        assert result["unresolved_threads"][0]["comment_id"] == 111
+        assert result["unresolved_threads"][0]["thread_id"] == "THREAD_1"
+        assert result["unresolved_threads"][1]["comment_id"] == 222
+        assert result["unresolved_threads"][1]["thread_id"] == "THREAD_2"
         assert result["resolved_thread_count"] == 1
         assert len(result["changes_requested"]) == 1
         assert result["changes_requested"][0]["author"] == "alice"
@@ -281,6 +291,50 @@ class TestGetPRFeedback:
         assert result["alerts"][0]["path"] == "src/foo.py"
         assert result["alerts"][0]["line"] == 42
         assert result["unavailable"] == {}
+
+    def test_thread_missing_ids_falls_back_to_none(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """A thread/comment omitting id/databaseId yields None, not a raise."""
+        graphql_response: dict[str, Any] = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "nodes": [
+                                {
+                                    "isResolved": False,
+                                    "comments": {
+                                        "nodes": [
+                                            {
+                                                "author": {"login": "alice"},
+                                                "body": "issue here",
+                                                "path": "src/foo.py",
+                                                "line": 10,
+                                                "diffHunk": "@@ ... @@",
+                                            }
+                                        ]
+                                    },
+                                }
+                            ]
+                        },
+                        "reviews": {"nodes": []},
+                    }
+                }
+            }
+        }
+        self._setup_mocks(
+            mock_manager,
+            graphql_response=graphql_response,
+            comments=[],
+            alerts_response=[],
+        )
+
+        result = mock_manager.get_pr_feedback(42)
+
+        assert len(result["unresolved_threads"]) == 1
+        assert result["unresolved_threads"][0]["comment_id"] is None
+        assert result["unresolved_threads"][0]["thread_id"] is None
 
     def test_clean_state(self, mock_manager: PullRequestManager) -> None:
         """All sources return empty — empty PRFeedback, no unavailable entries."""
