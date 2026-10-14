@@ -10,6 +10,9 @@ URL/hint machinery.
 
 from typing import Any
 
+from github import Consts
+from github.Repository import Repository
+
 from mcp_workspace.github_operations._types import CheckResult
 
 _SECURITY_KEYS: tuple[str, ...] = (
@@ -56,3 +59,30 @@ def _classify_security_feature(feature: Any, display_name: str) -> CheckResult:
     if feature.status == "enabled":
         return CheckResult(ok=True, value="enabled", severity="warning")
     return CheckResult(ok=False, value="disabled", severity="warning")
+
+
+def _probe_dependabot_alerts(repo: Repository) -> CheckResult:
+    """Probe Dependabot alerts via a direct ``requestJson`` call.
+
+    Bypasses ``Repository.get_vulnerability_alert()``, which collapses every
+    non-204 status into a bare ``False``, and instead classifies the raw
+    HTTP status returned by the same endpoint it calls internally.
+
+    Returns:
+        CheckResult from classifying the HTTP status, or ok=None with a
+        network-error message when the request itself fails.
+    """
+    try:
+        status, _, _ = repo.requester.requestJson(
+            "GET",
+            f"{repo.url}/vulnerability-alerts",
+            headers={"Accept": Consts.vulnerabilityAlertsPreview},
+        )
+    except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        return CheckResult(
+            ok=None,
+            value="not accessible",
+            severity="warning",
+            error=f"network error: {exc}",
+        )
+    return _classify_vulnerability_alerts(status)
