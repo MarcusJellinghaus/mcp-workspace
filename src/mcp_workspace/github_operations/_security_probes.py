@@ -8,12 +8,17 @@ two GitHub API shapes involved, so this module carries no host-aware
 URL/hint machinery.
 """
 
+import logging
+from pathlib import Path
 from typing import Any
 
 from github import Consts
 from github.Repository import Repository
 
 from mcp_workspace.github_operations._types import CheckResult
+from mcp_workspace.github_operations.base_manager import BaseGitHubManager
+
+logger = logging.getLogger(__name__)
 
 _SECURITY_KEYS: tuple[str, ...] = (
     "dependabot_alerts",
@@ -86,3 +91,57 @@ def _probe_dependabot_alerts(repo: Repository) -> CheckResult:
             error=f"network error: {exc}",
         )
     return _classify_vulnerability_alerts(status)
+
+
+def verify_github_security(project_dir: Path) -> dict[str, CheckResult]:
+    """Probe the four read-only GitHub repository security settings.
+
+    Resolves its own repository independently of ``verify_github()`` (a
+    second auth round-trip), then classifies each of the four security
+    settings using the Step 1/2 helpers.
+
+    Returns:
+        dict[str, CheckResult] with exactly the 4 keys in _SECURITY_KEYS
+        order. If the repository cannot be resolved, each entry is
+        ok=None, value="not checked", error="repository not accessible".
+    """
+    try:
+        manager = BaseGitHubManager(project_dir=project_dir)
+        repo = manager._get_repository()  # pylint: disable=protected-access
+    except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        logger.debug("verify_github_security manager/repo resolution failed: %s", exc)
+        repo = None
+
+    if repo is None:
+        return {
+            key: CheckResult(
+                ok=None,
+                value="not checked",
+                severity="warning",
+                error="repository not accessible",
+            )
+            for key in _SECURITY_KEYS
+        }
+
+    security_and_analysis = repo.security_and_analysis
+    return {
+        "dependabot_alerts": _probe_dependabot_alerts(repo),
+        "dependabot_security_updates": _classify_security_feature(
+            None
+            if security_and_analysis is None
+            else security_and_analysis.dependabot_security_updates,
+            "Dependabot security updates",
+        ),
+        "secret_scanning": _classify_security_feature(
+            None
+            if security_and_analysis is None
+            else security_and_analysis.secret_scanning,
+            "Secret scanning",
+        ),
+        "secret_scanning_push_protection": _classify_security_feature(
+            None
+            if security_and_analysis is None
+            else security_and_analysis.secret_scanning_push_protection,
+            "Secret scanning push protection",
+        ),
+    }
