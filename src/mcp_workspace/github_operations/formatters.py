@@ -7,7 +7,7 @@ No API calls or manager dependencies.
 from typing import Any, List, Optional, TypedDict
 
 from mcp_workspace.github_operations.issues.types import CommentData, IssueData
-from mcp_workspace.github_operations.pr_manager import ConversationCommentData
+from mcp_workspace.github_operations.pr_types import ConversationCommentData
 
 
 class ReviewData(TypedDict):

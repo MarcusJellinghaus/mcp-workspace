@@ -1047,7 +1047,7 @@ def github_pr_view(
         ReviewData,
         format_pr_view,
     )
-    from mcp_workspace.github_operations.pr_manager import ConversationCommentData
+    from mcp_workspace.github_operations.pr_types import ConversationCommentData
 
     try:
         manager = _issue_manager(reference_name)

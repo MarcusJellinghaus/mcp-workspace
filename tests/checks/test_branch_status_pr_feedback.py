@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 from github.GithubException import GithubException
 
 from mcp_workspace.checks.pr_feedback import collect_pr_feedback, format_pr_feedback
-from mcp_workspace.github_operations.pr_manager import (
+from mcp_workspace.github_operations.pr_types import (
     ConversationCommentData,
     PRFeedback,
 )

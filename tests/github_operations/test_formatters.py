@@ -15,7 +15,7 @@ from mcp_workspace.github_operations.formatters import (
     truncate_output,
 )
 from mcp_workspace.github_operations.issues.types import CommentData, IssueData
-from mcp_workspace.github_operations.pr_manager import ConversationCommentData
+from mcp_workspace.github_operations.pr_types import ConversationCommentData
 
 
 def _make_issue(

@@ -23,7 +23,7 @@ import pytest
 
 from mcp_workspace.github_operations import LabelsManager, PullRequestManager
 from mcp_workspace.github_operations.labels_manager import LabelData
-from mcp_workspace.github_operations.pr_manager import PullRequestData
+from mcp_workspace.github_operations.pr_types import PullRequestData
 
 if TYPE_CHECKING:
     from tests.conftest import GitHubTestSetup

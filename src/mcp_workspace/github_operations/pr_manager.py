@@ -6,7 +6,7 @@ through the PyGithub library.
 
 import logging
 from pathlib import Path
-from typing import Any, List, Literal, Optional, TypedDict, cast
+from typing import List, Optional, cast
 
 from github.GithubException import GithubException
 from github.PullRequest import PullRequest
@@ -14,85 +14,14 @@ from mcp_coder_utils.log_utils import log_function_call
 
 from mcp_workspace.git_operations import get_default_branch_name
 
-from . import _pr_feedback_sources
 from .base_manager import BaseGitHubManager, _handle_github_errors
+from .pr_feedback_mixin import PRFeedbackMixin
+from .pr_merge_mixin import PRMergeMixin
 from .pr_review_mixin import PRReviewMixin
+from .pr_types import PullRequestData
 
 # Configure logger for GitHub operations
 logger = logging.getLogger(__name__)
-
-
-class PullRequestData(TypedDict):
-    """TypedDict for pull request data structure."""
-
-    number: int
-    title: str
-    body: str
-    state: str
-    head_branch: str
-    base_branch: str
-    url: str
-    created_at: Optional[str]
-    updated_at: Optional[str]
-    user: Optional[str]
-    mergeable: Optional[bool]
-    mergeable_state: Optional[str]
-    merged: bool
-    draft: bool
-    assignees: list[str]
-
-
-class ConversationCommentData(TypedDict):
-    """TypedDict for a PR top-level conversation comment."""
-
-    author: str
-    body: str
-    id: int
-    created_at: Optional[str]
-
-
-class PRFeedback(TypedDict):
-    """TypedDict for aggregated PR feedback (review threads, comments, alerts)."""
-
-    unresolved_threads: list[dict[str, Any]]
-    resolved_thread_count: int
-    changes_requested: list[dict[str, Any]]
-    conversation_comments: list[ConversationCommentData]
-    alerts: list[dict[str, Any]]
-    unavailable: dict[str, Exception]
-
-
-class MergeResult(TypedDict):
-    """Outcome of a merge attempt."""
-
-    merged: bool
-    outcome: Literal["merged", "refused", "error"]
-    sha: Optional[str]  # merge commit SHA when merged
-    message: str  # GitHub's message, or the local failure reason
-    status: Optional[int]  # HTTP status when GitHub answered (405, 409, 5xx...)
-
-
-def _failed_merge_result() -> MergeResult:
-    """Return a fresh MergeResult for the decorator default (outcome='error')."""
-    return {
-        "merged": False,
-        "outcome": "error",
-        "sha": None,
-        "message": "",
-        "status": None,
-    }
-
-
-def _empty_pr_feedback() -> PRFeedback:
-    """Return a fresh empty PRFeedback dict."""
-    return {
-        "unresolved_threads": [],
-        "resolved_thread_count": 0,
-        "changes_requested": [],
-        "conversation_comments": [],
-        "alerts": [],
-        "unavailable": {},
-    }
 
 
 def _pr_to_data(pr: PullRequest) -> PullRequestData:
@@ -120,7 +49,9 @@ def _pr_to_data(pr: PullRequest) -> PullRequestData:
     }
 
 
-class PullRequestManager(PRReviewMixin, BaseGitHubManager):
+class PullRequestManager(
+    PRReviewMixin, PRMergeMixin, PRFeedbackMixin, BaseGitHubManager
+):
     """Manages GitHub pull request operations using the GitHub API.
 
     This class provides methods for creating, retrieving, listing, closing,
@@ -454,274 +385,6 @@ class PullRequestManager(PRReviewMixin, BaseGitHubManager):
             pr.add_to_assignees(*logins)
 
         return _pr_to_data(pr)
-
-    @log_function_call
-    @_handle_github_errors(default_return=_failed_merge_result)
-    def merge_pull_request(
-        self,
-        pr_number: int,
-        merge_method: str = "squash",
-        sha: Optional[str] = None,
-        commit_title: Optional[str] = None,
-        commit_message: Optional[str] = None,
-    ) -> MergeResult:
-        """Merge a pull request, wrapping PyGithub's PullRequest.merge().
-
-        Performs one logical merge attempt (retry is the caller's
-        responsibility) and returns a MergeResult whose ``outcome`` field is the
-        sole cross-process contract:
-
-        =========================================  =========  ========  ========
-        HTTP / condition                           outcome    merged    status
-        =========================================  =========  ========  ========
-        200                                        merged     True      200
-        405 and re-fetched pr.merged is True       merged     True      405
-        405 (not merged / re-fetch failed),        refused    False     status
-        409, 422
-        404, 5xx, network, validation              error      False     status/None
-        401 / 403                                  *raises*   -         -
-        =========================================  =========  ========  ========
-
-        The ``sha`` race guard: forwarding an expected head SHA makes GitHub
-        return 409 if the branch moved since it was verified, preventing an
-        unverified merge; consumers can re-verify CI on the new HEAD.
-
-        The HTTP layer retries the merge PUT, so a merge whose response was lost
-        can re-issue the PUT and get 405 "not mergeable" because it is already
-        merged. On 405 the PR is therefore re-fetched once: ``merged=True``
-        reports that the PR is merged as of that read - not that this call
-        performed the merge.
-
-        ``status`` is diagnostic-only for 405 (GitHub returns 405 for several
-        distinct causes) but actionable for 409 (head SHA moved). No head-branch
-        deletion is performed (out of scope).
-
-        Args:
-            pr_number: Pull request number to merge
-            merge_method: Merge strategy, one of "squash", "merge", "rebase"
-            sha: Expected head SHA; when set, GitHub refuses (409) if HEAD moved
-            commit_title: Custom merge commit title (omitted when None)
-            commit_message: Custom merge commit message (omitted when None)
-
-        Returns:
-            MergeResult describing the outcome of the merge attempt.
-
-        Raises:
-            ValueError: If merge_method is not one of "squash", "merge", "rebase"
-            GithubException: If GitHub returns 401/403 (authentication or
-                permission error); re-raised to the caller instead of being
-                mapped to a MergeResult.
-        """
-        if merge_method not in {"squash", "merge", "rebase"}:
-            raise ValueError(
-                f"Invalid merge_method: {merge_method!r}. "
-                "Must be one of 'squash', 'merge', 'rebase'."
-            )
-
-        if not self._validate_pr_number(pr_number):
-            return _failed_merge_result()
-
-        repo = self._get_repository()
-        if repo is None:
-            return _failed_merge_result()
-
-        pr = repo.get_pull(pr_number)
-
-        # Omit sha/commit_title/commit_message when None: PyGithub asserts
-        # is_optional(v, str), so passing None surfaces as an AssertionError.
-        kwargs: dict[str, Any] = {"merge_method": merge_method}
-        for name, value in (
-            ("sha", sha),
-            ("commit_title", commit_title),
-            ("commit_message", commit_message),
-        ):
-            if value is not None:
-                kwargs[name] = value
-
-        try:
-            status = pr.merge(**kwargs)
-            return {
-                "merged": True,
-                "outcome": "merged",
-                "sha": status.sha,
-                "message": status.message,
-                "status": 200,
-            }
-        except GithubException as e:
-            if e.status in (401, 403):
-                raise  # config error — decorator re-raises to caller
-            if e.status == 405:
-                # HTTP-layer retry may have merged already; re-fetch once.
-                try:
-                    pr = repo.get_pull(pr_number)
-                except Exception:  # pylint: disable=broad-exception-caught
-                    # Any re-fetch failure (GithubException, network/socket
-                    # timeout, ...) is a refusal per spec, not an error.
-                    return {
-                        "merged": False,
-                        "outcome": "refused",
-                        "sha": None,
-                        "message": f"Merge refused (405); re-fetch failed: {e.data}",
-                        "status": 405,
-                    }
-                if pr.merged:
-                    return {
-                        "merged": True,
-                        "outcome": "merged",
-                        "sha": pr.merge_commit_sha,
-                        "message": "PR is merged as of re-fetch after 405.",
-                        "status": 405,
-                    }
-                return {
-                    "merged": False,
-                    "outcome": "refused",
-                    "sha": None,
-                    "message": f"Merge refused (405); PR not merged: {e.data}",
-                    "status": 405,
-                }
-            if e.status in (409, 422):
-                return {
-                    "merged": False,
-                    "outcome": "refused",
-                    "sha": None,
-                    "message": f"Merge refused ({e.status}): {e.data}",
-                    "status": e.status,
-                }
-            return {
-                "merged": False,
-                "outcome": "error",
-                "sha": None,
-                "message": f"Merge error ({e.status}): {e.data}",
-                "status": e.status,
-            }
-
-    @log_function_call
-    @_handle_github_errors(default_return=[])
-    def get_closing_issue_numbers(self, pr_number: int) -> List[int]:
-        """Query closing issue references for a PR via GraphQL.
-
-        Args:
-            pr_number: Pull request number to query
-
-        Returns:
-            List of issue numbers linked as closing references, or empty list on error
-        """
-        if not self._validate_pr_number(pr_number):
-            return []
-
-        repo = self._get_repository()
-        if repo is None:
-            return []
-
-        owner, repo_name = repo.owner.login, repo.name
-
-        query = """
-        query($owner: String!, $repo: String!, $prNumber: Int!) {
-          repository(owner: $owner, name: $repo) {
-            pullRequest(number: $prNumber) {
-              closingIssuesReferences(first: 10) {
-                nodes {
-                  number
-                }
-              }
-            }
-          }
-        }
-        """
-
-        variables = {
-            "owner": owner,
-            "repo": repo_name,
-            "prNumber": pr_number,
-        }
-
-        _, result = self._github_client._Github__requester.graphql_query(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public GraphQL API in PyGithub
-            query=query, variables=variables
-        )
-
-        try:
-            pr_data = result.get("data", {}).get("repository", {}).get("pullRequest")
-            if pr_data is None:
-                logger.warning(f"PR #{pr_number} not found")
-                return []
-
-            nodes = pr_data.get("closingIssuesReferences", {}).get("nodes", [])
-            return [node["number"] for node in nodes if node]
-
-        except (KeyError, TypeError) as e:
-            logger.error(f"Error parsing GraphQL response: {e}")
-            return []
-
-    @log_function_call
-    @_handle_github_errors(default_return=_empty_pr_feedback)
-    def get_pr_feedback(self, pr_number: int) -> PRFeedback:
-        """Fetch aggregated PR feedback (review threads, comments, alerts).
-
-        Args:
-            pr_number: Pull request number to query
-
-        Returns:
-            PRFeedback dict containing unresolved threads, resolved thread count,
-            CHANGES_REQUESTED reviews, conversation comments, code-scanning alerts,
-            and a dict mapping failed section names to the raised or returned
-            exception (excluding 403 on alerts, which is silently skipped).
-        """
-        if not self._validate_pr_number(pr_number):
-            return _empty_pr_feedback()
-
-        unavailable: dict[str, Exception] = {}
-
-        try:
-            threads, resolved_count, changes_requested, review_error = (
-                _pr_feedback_sources.fetch_review_data(self, pr_number)
-            )
-            if review_error is not None:
-                # Returned, not raised — the except below never sees it, so the
-                # WARNING has to be logged explicitly here.
-                logger.warning(
-                    f"Failed to fetch review data for PR #{pr_number}: {review_error}"
-                )
-                unavailable["threads"] = review_error
-        except (
-            Exception
-        ) as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
-            logger.warning(f"Failed to fetch review data for PR #{pr_number}: {e}")
-            threads, resolved_count, changes_requested = ([], 0, [])
-            unavailable["threads"] = e
-
-        try:
-            comments = _pr_feedback_sources.fetch_conversation_comments(self, pr_number)
-        except (
-            Exception
-        ) as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
-            logger.warning(
-                f"Failed to fetch conversation comments for PR #{pr_number}: {e}"
-            )
-            comments = []
-            unavailable["comments"] = e
-
-        try:
-            alerts_or_none = _pr_feedback_sources.fetch_code_scanning_alerts(
-                self, pr_number
-            )
-            alerts = alerts_or_none if alerts_or_none is not None else []
-        except (
-            Exception
-        ) as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
-            logger.warning(
-                f"Failed to fetch code-scanning alerts for PR #{pr_number}: {e}"
-            )
-            alerts = []
-            unavailable["alerts"] = e
-
-        return {
-            "unresolved_threads": threads,
-            "resolved_thread_count": resolved_count,
-            "changes_requested": changes_requested,
-            "conversation_comments": comments,
-            "alerts": alerts,
-            "unavailable": unavailable,
-        }
 
     @property
     def repository_name(self) -> str:

@@ -1029,7 +1029,7 @@ class TestGetPRFeedback:
         )
 
         with caplog.at_level(
-            logging.WARNING, logger="mcp_workspace.github_operations.pr_manager"
+            logging.WARNING, logger="mcp_workspace.github_operations.pr_feedback_mixin"
         ):
             mock_manager.get_pr_feedback(42)
 

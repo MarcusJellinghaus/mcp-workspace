@@ -6,8 +6,6 @@ pull requests, labels, and repository operations.
 
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 
-# GithubException is re-exported so callers outside this package can catch
-# PyGithub errors without importing PyGithub themselves (see .importlinter).
 from .base_manager import (
     BaseGitHubManager,
     GithubException,
@@ -16,8 +14,12 @@ from .base_manager import (
 )
 from .ci_results_manager import CIResultsManager, CIStatusData
 from .labels_manager import LabelData, LabelsManager
-from .pr_manager import MergeResult, PullRequestData, PullRequestManager
+from .pr_manager import PullRequestManager
+from .pr_types import MergeResult, PullRequestData
 from .verification import CheckResult, verify_github
+
+# GithubException is re-exported so callers outside this package can catch
+# PyGithub errors without importing PyGithub themselves (see .importlinter).
 
 # Issue-related imports REMOVED per Decision #1
 # Consumers must import from: mcp_workspace.github_operations.issues

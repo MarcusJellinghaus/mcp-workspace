@@ -15,7 +15,8 @@ from github.GithubException import GithubException, UnknownObjectException
 from github.Requester import Requester
 
 if TYPE_CHECKING:
-    from .pr_manager import ConversationCommentData, PullRequestManager
+    from .pr_manager import PullRequestManager
+    from .pr_types import ConversationCommentData
 
 logger = logging.getLogger(__name__)
 
