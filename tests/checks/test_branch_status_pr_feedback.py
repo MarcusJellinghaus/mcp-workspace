@@ -6,7 +6,10 @@ from unittest.mock import MagicMock
 from github.GithubException import GithubException
 
 from mcp_workspace.checks.pr_feedback import collect_pr_feedback, format_pr_feedback
-from mcp_workspace.github_operations.pr_manager import PRFeedback
+from mcp_workspace.github_operations.pr_types import (
+    ConversationCommentData,
+    PRFeedback,
+)
 
 
 def _empty_feedback() -> PRFeedback:
@@ -43,8 +46,15 @@ def _thread(
     return thread
 
 
-def _comment(author: str = "bob", body: str = "Looks good") -> dict[str, Any]:
-    return {"author": author, "body": body}
+def _comment(
+    author: str = "bob",
+    body: str = "Looks good",
+    comment_id: int = 1,
+    created_at: str | None = "2024-01-01T00:00:00",
+) -> ConversationCommentData:
+    return ConversationCommentData(
+        author=author, body=body, id=comment_id, created_at=created_at
+    )
 
 
 def _changes_requested(

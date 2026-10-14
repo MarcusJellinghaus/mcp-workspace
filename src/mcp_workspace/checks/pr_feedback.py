@@ -11,7 +11,8 @@ from typing import List, Optional, Tuple
 from mcp_workspace.github_operations.exception_renderer import (
     render_exception_for_display,
 )
-from mcp_workspace.github_operations.pr_manager import PRFeedback, PullRequestManager
+from mcp_workspace.github_operations.pr_manager import PullRequestManager
+from mcp_workspace.github_operations.pr_types import PRFeedback
 
 logger = logging.getLogger(__name__)
 

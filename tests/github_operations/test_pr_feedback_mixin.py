@@ -161,11 +161,19 @@ class TestGetPRFeedback:
 
         return mock_repo
 
-    def _make_comment(self, login: str, body: str) -> Mock:
+    def _make_comment(
+        self,
+        login: str,
+        body: str,
+        comment_id: int = 1,
+        created_at: str = "2024-01-01T00:00:00",
+    ) -> Mock:
         """Create a mock conversation comment."""
         comment = Mock()
         comment.user.login = login
         comment.body = body
+        comment.id = comment_id
+        comment.created_at.isoformat.return_value = created_at
         return comment
 
     def test_happy_path(self, mock_manager: PullRequestManager) -> None:
@@ -247,8 +255,18 @@ class TestGetPRFeedback:
             }
         }
         comments = [
-            self._make_comment("alice", "general comment 1"),
-            self._make_comment("bob", "general comment 2"),
+            self._make_comment(
+                "alice",
+                "general comment 1",
+                comment_id=101,
+                created_at="2024-01-01T00:00:00",
+            ),
+            self._make_comment(
+                "bob",
+                "general comment 2",
+                comment_id=102,
+                created_at="2024-01-02T00:00:00",
+            ),
         ]
         alerts_response = [
             {
@@ -285,6 +303,8 @@ class TestGetPRFeedback:
         assert len(result["conversation_comments"]) == 2
         assert result["conversation_comments"][0]["author"] == "alice"
         assert result["conversation_comments"][0]["body"] == "general comment 1"
+        assert result["conversation_comments"][0]["id"] == 101
+        assert result["conversation_comments"][0]["created_at"] == "2024-01-01T00:00:00"
         assert len(result["alerts"]) == 1
         assert result["alerts"][0]["rule_description"] == "SQL injection"
         assert result["alerts"][0]["message"] == "potential SQLi"
@@ -1009,7 +1029,7 @@ class TestGetPRFeedback:
         )
 
         with caplog.at_level(
-            logging.WARNING, logger="mcp_workspace.github_operations.pr_manager"
+            logging.WARNING, logger="mcp_workspace.github_operations.pr_feedback_mixin"
         ):
             mock_manager.get_pr_feedback(42)
 
@@ -1020,6 +1040,40 @@ class TestGetPRFeedback:
         assert "400" in caplog.text
         assert "FORBIDDEN" in caplog.text
         assert "Resource not accessible" in caplog.text
+
+    def test_fetch_conversation_comments_returns_all_four_keys(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """fetch_conversation_comments() builds author/body/id/created_at per comment."""
+        comment_with_date = self._make_comment(
+            "alice", "hello", comment_id=55, created_at="2024-03-01T12:00:00"
+        )
+        comment_without_date = Mock()
+        comment_without_date.user.login = "bob"
+        comment_without_date.body = "hi"
+        comment_without_date.id = 56
+        comment_without_date.created_at = None
+
+        self._setup_mocks(
+            mock_manager, comments=[comment_with_date, comment_without_date]
+        )
+
+        result = fetch_conversation_comments(mock_manager, 42)
+
+        assert result == [
+            {
+                "author": "alice",
+                "body": "hello",
+                "id": 55,
+                "created_at": "2024-03-01T12:00:00",
+            },
+            {
+                "author": "bob",
+                "body": "hi",
+                "id": 56,
+                "created_at": None,
+            },
+        ]
 
     def test_conversation_comments_failure(
         self, mock_manager: PullRequestManager

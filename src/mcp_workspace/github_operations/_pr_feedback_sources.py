@@ -16,6 +16,7 @@ from github.Requester import Requester
 
 if TYPE_CHECKING:
     from .pr_manager import PullRequestManager
+    from .pr_types import ConversationCommentData
 
 logger = logging.getLogger(__name__)
 
@@ -227,12 +228,12 @@ def fetch_review_data(
 
 def fetch_conversation_comments(
     manager: "PullRequestManager", pr_number: int
-) -> list[dict[str, Any]]:
+) -> list["ConversationCommentData"]:
     """Fetch top-level PR conversation comments via REST.
 
     Returns:
-        List of dicts with ``author`` and ``body`` keys; empty list when the
-        repository is unavailable.
+        List of dicts with ``author``, ``body``, ``id`` and ``created_at``
+        keys; empty list when the repository is unavailable.
 
     Raises:
         IssueIdentityMismatchError: If GitHub returns an issue from another
@@ -249,6 +250,8 @@ def fetch_conversation_comments(
         {
             "author": c.user.login if c.user else "",
             "body": c.body or "",
+            "id": c.id,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
         }
         for c in comments
     ]

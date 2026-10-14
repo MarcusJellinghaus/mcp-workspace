@@ -7,6 +7,7 @@ No API calls or manager dependencies.
 from typing import Any, List, Optional, TypedDict
 
 from mcp_workspace.github_operations.issues.types import CommentData, IssueData
+from mcp_workspace.github_operations.pr_types import ConversationCommentData
 
 
 class ReviewData(TypedDict):
@@ -201,7 +202,7 @@ def format_issue_list(
 def format_pr_view(
     pr: dict[str, Any],
     reviews: Optional[list[ReviewData]] = None,
-    conversation_comments: Optional[list[CommentData]] = None,
+    conversation_comments: Optional[list[ConversationCommentData]] = None,
     inline_comments: Optional[list[InlineCommentData]] = None,
     max_lines: int = 200,
 ) -> str:
@@ -237,7 +238,7 @@ def format_pr_view(
         parts.append(f"## Comments ({len(conversation_comments)})")
         for comment in conversation_comments:
             parts.append(
-                f"**{comment['user']}** ({comment['created_at']}):\n{comment['body']}"
+                f"**{comment['author']}** ({comment['created_at']}):\n{comment['body']}"
             )
 
     if inline_comments:
