@@ -23,4 +23,31 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 <!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
 
+### Step 1: Pure classifier functions
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: `dependabot_alerts` probe via low-level `requestJson`
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: `verify_github_security()` orchestration
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 4: Export `verify_github_security` from the package
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy, lint-imports — fix all issues
+- [ ] Commit message prepared
+
 ## Pull Request
+
+- [ ] PR review
+- [ ] PR summary
