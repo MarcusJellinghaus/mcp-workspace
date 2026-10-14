@@ -122,9 +122,7 @@ class TestProbeDependabotAlerts:
 class TestVerifyGithubSecurity:
     """Tests for verify_github_security."""
 
-    def _make_repo(
-        self, *, security_and_analysis: Any, dependabot_status: int
-    ) -> Mock:
+    def _make_repo(self, *, security_and_analysis: Any, dependabot_status: int) -> Mock:
         repo = Mock()
         repo.url = "https://api.github.com/repos/owner/repo"
         repo.security_and_analysis = security_and_analysis

@@ -127,21 +127,27 @@ def verify_github_security(project_dir: Path) -> dict[str, CheckResult]:
     return {
         "dependabot_alerts": _probe_dependabot_alerts(repo),
         "dependabot_security_updates": _classify_security_feature(
-            None
-            if security_and_analysis is None
-            else security_and_analysis.dependabot_security_updates,
+            (
+                None
+                if security_and_analysis is None
+                else security_and_analysis.dependabot_security_updates
+            ),
             "Dependabot security updates",
         ),
         "secret_scanning": _classify_security_feature(
-            None
-            if security_and_analysis is None
-            else security_and_analysis.secret_scanning,
+            (
+                None
+                if security_and_analysis is None
+                else security_and_analysis.secret_scanning
+            ),
             "Secret scanning",
         ),
         "secret_scanning_push_protection": _classify_security_feature(
-            None
-            if security_and_analysis is None
-            else security_and_analysis.secret_scanning_push_protection,
+            (
+                None
+                if security_and_analysis is None
+                else security_and_analysis.secret_scanning_push_protection
+            ),
             "Secret scanning push protection",
         ),
     }
