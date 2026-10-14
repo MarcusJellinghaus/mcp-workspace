@@ -12,7 +12,7 @@ orchestration tests first, confirm they fail, then implement.
 ## WHERE
 
 - Modify `src/mcp_workspace/github_operations/_security_probes.py`
-  (add one function + two imports)
+  (add one function + three imports)
 - Modify `tests/github_operations/test_security_probes.py` (add tests)
 
 ## WHAT
@@ -23,8 +23,10 @@ def verify_github_security(project_dir: Path) -> dict[str, CheckResult]: ...
 
 ## HOW
 
-- Add imports: `from pathlib import Path` and
+- Add imports: `import logging`, `from pathlib import Path`, and
   `from mcp_workspace.github_operations.base_manager import BaseGitHubManager`.
+  Add a module-level `logger = logging.getLogger(__name__)`, matching
+  `verification.py` / `base_manager.py`.
 - Builds its own `BaseGitHubManager(project_dir=project_dir)` and calls
   `manager._get_repository()` — same two calls `verify_github()` makes,
   but resolved independently here, not threaded through. This mirrors
@@ -38,6 +40,13 @@ def verify_github_security(project_dir: Path) -> dict[str, CheckResult]: ...
   explicit lines, not a loop over attribute names (exactly three fixed
   fields; explicit attribute access is clearer and more mypy-friendly than
   `getattr` by string name).
+- The `except Exception as exc:` around `BaseGitHubManager`/`_get_repository`
+  construction only guards the constructor (`_get_repository()` itself never
+  raises — it already catches and logs internally). Log the exception via
+  `logger.debug` and mark it with
+  `# noqa: BLE001  # pylint: disable=broad-exception-caught`, matching the
+  existing style in `base_manager.py` / `verification.py` (and Step 2's
+  network-error branch).
 
 ## ALGORITHM
 
@@ -45,7 +54,8 @@ def verify_github_security(project_dir: Path) -> dict[str, CheckResult]: ...
 try:
     manager = BaseGitHubManager(project_dir=project_dir)
     repo = manager._get_repository()
-except Exception:
+except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+    logger.debug("verify_github_security manager/repo resolution failed: %s", exc)
     repo = None
 
 if repo is None:
