@@ -6,6 +6,7 @@ pull requests, labels, and repository operations.
 
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 
+from ._security_probes import verify_github_security
 from .base_manager import (
     BaseGitHubManager,
     GithubException,
@@ -40,4 +41,5 @@ __all__ = [
     "RepoIdentifier",
     "get_authenticated_username",
     "verify_github",
+    "verify_github_security",
 ]
