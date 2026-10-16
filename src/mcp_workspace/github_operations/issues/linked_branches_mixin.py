@@ -8,7 +8,7 @@ issue, plus the issue-number validation helper they share with the manager.
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
+from typing import List, NamedTuple, Optional, Tuple
 
 from mcp_coder_utils.log_utils import log_function_call
 
@@ -17,7 +17,15 @@ from .base import validate_issue_number_or_log
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["LinkedBranchesMixin"]
+__all__ = ["ClosingPRRef", "LinkedBranchesMixin"]
+
+
+class ClosingPRRef(NamedTuple):
+    """An open pull request that would close an issue (e.g. via `Closes #N`)."""
+
+    number: int
+    head_ref_name: str
+
 
 # GraphQL query returning the ref names of an issue's linked branches.
 _LINKED_BRANCHES_QUERY = """
@@ -47,6 +55,31 @@ query($owner: String!, $repo: String!, $issueNumber: Int!) {
           ref {
             name
           }
+        }
+      }
+    }
+  }
+}
+"""
+
+# Combined query returning both linked branches and open closing PRs for an
+# issue, so _collect_linked_branch_status can resolve its fallback state in
+# one request.
+_LINKED_BRANCH_AND_CLOSING_PRS_QUERY = """
+query($owner: String!, $repo: String!, $issueNumber: Int!) {
+  repository(owner: $owner, name: $repo) {
+    issue(number: $issueNumber) {
+      linkedBranches(first: 100) {
+        nodes {
+          ref {
+            name
+          }
+        }
+      }
+      closedByPullRequestsReferences(first: 100, includeClosedPrs: false) {
+        nodes {
+          number
+          headRefName
         }
       }
     }
@@ -120,6 +153,70 @@ def _query_linked_branches(
         return None
 
 
+def _query_linked_branch_and_closing_prs(
+    manager: BaseGitHubManager, issue_number: int
+) -> Optional[Tuple[List[str], List[ClosingPRRef]]]:
+    """Query linked branches and open closing PRs for an issue, undecorated.
+
+    Mirrors _query_linked_branches: failure is signalled with a None
+    sentinel rather than an exception.
+
+    Args:
+        manager: Manager providing repository access and the GitHub client
+        issue_number: Issue number to query
+
+    Returns:
+        Tuple of (branch_names, closing_prs) on success (either list possibly
+        empty), or None when the lookup could not be completed
+    """
+    if not validate_issue_number_or_log(issue_number):
+        return None
+
+    repo = manager._get_repository()
+    if repo is None:
+        logger.error("Failed to get repository")
+        return None
+
+    owner, repo_name = repo.owner.login, repo.name
+
+    variables = {
+        "owner": owner,
+        "repo": repo_name,
+        "issueNumber": issue_number,
+    }
+
+    _, result = manager._github_client._Github__requester.graphql_query(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public GraphQL API in PyGithub
+        query=_LINKED_BRANCH_AND_CLOSING_PRS_QUERY, variables=variables
+    )
+
+    try:
+        issue_data = result.get("data", {}).get("repository", {}).get("issue")
+        if issue_data is None:
+            logger.warning(f"Issue #{issue_number} not found")
+            return None
+
+        linked_branches = issue_data.get("linkedBranches", {}).get("nodes", [])
+        branch_names = [
+            node["ref"]["name"] for node in linked_branches if node and node.get("ref")
+        ]
+
+        closing_pr_nodes = issue_data.get("closedByPullRequestsReferences", {}).get(
+            "nodes", []
+        )
+        closing_prs = [
+            ClosingPRRef(node["number"], node["headRefName"])
+            for node in closing_pr_nodes
+        ]
+
+        return branch_names, closing_prs
+
+    # AttributeError covers a GraphQL error response ({"data": None, "errors": [...]}),
+    # where the walk above calls .get() on None.
+    except (AttributeError, KeyError, TypeError) as e:
+        logger.error(f"Error parsing GraphQL response: {e}")
+        return None
+
+
 class LinkedBranchesMixin:
     """Mixin providing an issue's linked-branch query and unlink operations.
 
@@ -176,6 +273,41 @@ class LinkedBranchesMixin:
             return _query_linked_branches(self, issue_number)
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"Failed to query linked branches for #{issue_number}: {e}")
+            return None
+
+    @log_function_call
+    def get_linked_branch_and_closing_prs_or_none(
+        self: "BaseGitHubManager", issue_number: int
+    ) -> Optional[Tuple[List[str], List[ClosingPRRef]]]:
+        """Query linked branches and open closing PRs for an issue.
+
+        Combines two pieces of data in one GraphQL request: the issue's
+        linked branches, and open pull requests that would close it (e.g.
+        via `Closes #N`). Used as the data source for the closing-PR
+        fallback when an issue has no linked branch.
+
+        Auth errors (401/403) are reported as None rather than re-raised: for
+        callers of this method an auth failure is simply an undeterminable
+        lookup.
+
+        Args:
+            issue_number: Issue number to query
+
+        Returns:
+            Tuple of (branch_names, closing_prs) on success (either list
+            possibly empty), or None when the lookup could not be completed
+
+        Example:
+            >>> manager = IssueBranchManager(Path.cwd())
+            >>> manager.get_linked_branch_and_closing_prs_or_none(123)
+            ([], [ClosingPRRef(number=42, head_ref_name='123-feature-branch')])
+        """
+        try:
+            return _query_linked_branch_and_closing_prs(self, issue_number)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(
+                f"Failed to query linked branches/closing PRs for #{issue_number}: {e}"
+            )
             return None
 
     @log_function_call

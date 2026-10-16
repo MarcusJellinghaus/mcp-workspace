@@ -24,7 +24,7 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 <!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
 
 ### Step 1: Combined linked-branch / closing-PR GraphQL query ([step_1.md](./steps/step_1.md))
-- [ ] Implementation (tests + production code)
+- [x] Implementation (tests + production code)
 - [ ] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 
