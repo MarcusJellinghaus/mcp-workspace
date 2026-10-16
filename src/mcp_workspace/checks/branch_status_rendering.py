@@ -350,11 +350,28 @@ def _format_linked_branch_line(report: "BranchStatusReport") -> Optional[str]:
     )
     if status == LinkedBranchStatus.OK:
         text = f"OK ('{current}')"
-    elif status == LinkedBranchStatus.MISMATCH:
-        linked = report.linked_branches[0] if report.linked_branches else ""
+    elif status == LinkedBranchStatus.LINKED_VIA_PR:
+        pr = report.closing_pr_candidate
+        assert pr is not None
+        text = f"LINKED_VIA_PR — {issue} closed by PR #{pr.number} ('{current}')"
+    elif status == LinkedBranchStatus.MISMATCH and report.linked_branches:
+        linked = report.linked_branches[0]
         text = (
             f"MISMATCH — {issue} links '{linked}', "
             f"not current branch '{current}' — relink in the Development panel"
+        )
+    elif status == LinkedBranchStatus.MISMATCH and report.closing_pr_candidate:
+        pr = report.closing_pr_candidate
+        text = (
+            f"MISMATCH — PR #{pr.number} points at branch '{pr.head_ref_name}', "
+            f"not current branch '{current}' — point the PR at '{current}' or "
+            "open a new PR from this branch"
+        )
+    elif status == LinkedBranchStatus.MISMATCH:
+        text = (
+            "MISMATCH — no linked branch and no open closing PR matches "
+            f"current branch '{current}' — link '{current}' in the Development "
+            "panel, or open a PR from it with 'Closes #N'"
         )
     elif status == LinkedBranchStatus.AMBIGUOUS:
         names = ", ".join(f"'{name}'" for name in report.linked_branches)
@@ -364,9 +381,14 @@ def _format_linked_branch_line(report: "BranchStatusReport") -> Optional[str]:
             "extra branches in the Development panel so exactly one remains"
         )
     elif status == LinkedBranchStatus.NOT_LINKED:
+        closes_clause = (
+            f", or open a PR with 'Closes #{report.linked_branch_issue_number}'"
+            if report.linked_branch_issue_number is not None
+            else ""
+        )
         text = (
-            f"NOT_LINKED — {issue} links no branch — "
-            f"link '{current}' in the Development panel"
+            f"NOT_LINKED — {issue} links no branch and no open PR closes it — "
+            f"link '{current}' in the Development panel{closes_clause}"
         )
     else:
         text = f"UNKNOWN — could not determine the linked branch for {issue}"

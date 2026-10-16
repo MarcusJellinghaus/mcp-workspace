@@ -39,6 +39,7 @@ def _make_report(
     branch_name: str = "255-feature",
     ci_status: CIStatus = CIStatus.PASSED,
     linked_branch_issue_number: Optional[int] = 255,
+    closing_pr_candidate: Optional[ClosingPRRef] = None,
 ) -> BranchStatusReport:
     """Build an otherwise-clean report carrying the given linked-branch state."""
     return BranchStatusReport(
@@ -56,6 +57,7 @@ def _make_report(
         linked_branch_status=linked_branch_status,
         linked_branches=linked_branches,
         linked_branch_issue_number=linked_branch_issue_number,
+        closing_pr_candidate=closing_pr_candidate,
     )
 
 
@@ -245,37 +247,87 @@ class TestLinkedBranchRendering:
 
     @pytest.mark.parametrize("formatter", _FORMATTERS)
     @pytest.mark.parametrize(
-        "status, linked, expected_substrings",
+        "status, linked, closing_pr_candidate, expected_substrings, "
+        "forbidden_substrings",
         [
-            (LinkedBranchStatus.OK, ("255-feature",), ["255-feature"]),
+            (
+                LinkedBranchStatus.OK,
+                ("255-feature",),
+                None,
+                ["255-feature"],
+                [],
+            ),
             (
                 LinkedBranchStatus.MISMATCH,
                 ("255-old",),
+                None,
                 ["#255", "255-old", "255-feature"],
+                [],
             ),
             (
                 LinkedBranchStatus.AMBIGUOUS,
                 ("255-old", "255-feature"),
+                None,
                 ["#255", "255-old", "255-feature", "2 branches"],
+                [],
             ),
-            (LinkedBranchStatus.NOT_LINKED, (), ["#255", "255-feature"]),
-            (LinkedBranchStatus.UNKNOWN, (), ["#255", "could not determine"]),
+            (
+                LinkedBranchStatus.NOT_LINKED,
+                (),
+                None,
+                ["#255", "255-feature", "Closes #255"],
+                [],
+            ),
+            (
+                LinkedBranchStatus.UNKNOWN,
+                (),
+                None,
+                ["#255", "could not determine"],
+                [],
+            ),
+            (
+                LinkedBranchStatus.LINKED_VIA_PR,
+                (),
+                ClosingPRRef(10, "255-feature"),
+                ["#255", "PR #10", "255-feature"],
+                [],
+            ),
+            (
+                LinkedBranchStatus.MISMATCH,
+                (),
+                ClosingPRRef(10, "255-other"),
+                ["PR #10", "255-other", "255-feature"],
+                [],
+            ),
+            (
+                LinkedBranchStatus.MISMATCH,
+                (),
+                None,
+                ["no open closing PR"],
+                ["PR #"],
+            ),
         ],
     )
     def test_state_renders_one_line(
         self,
         status: LinkedBranchStatus,
         linked: Tuple[str, ...],
+        closing_pr_candidate: Optional[ClosingPRRef],
         expected_substrings: List[str],
+        forbidden_substrings: List[str],
         formatter: Formatter,
     ) -> None:
-        rendered = formatter(_make_report(status, linked))
+        rendered = formatter(
+            _make_report(status, linked, closing_pr_candidate=closing_pr_candidate)
+        )
 
         lines = _linked_lines(rendered)
         assert len(lines) == 1
         assert lines[0].startswith(f"Linked Branch: {status.value}")
         for substring in expected_substrings:
             assert substring in lines[0]
+        for substring in forbidden_substrings:
+            assert substring not in lines[0]
 
     @pytest.mark.parametrize("formatter", _FORMATTERS)
     def test_not_checked_renders_no_line(self, formatter: Formatter) -> None:
@@ -337,6 +389,17 @@ class TestLinkedBranchRendering:
         assert "Development panel" in line
         assert "lookup failed" not in line
 
+    def test_branch_sourced_mismatch_wording_is_unchanged(self) -> None:
+        """Locks in the pre-step-4 wording for the branch-sourced MISMATCH case."""
+        line = _format_linked_branch_line(
+            _make_report(LinkedBranchStatus.MISMATCH, ("255-old",))
+        )
+
+        assert line == (
+            "Linked Branch: MISMATCH — issue #255 links '255-old', "
+            "not current branch '255-feature' — relink in the Development panel"
+        )
+
 
 class TestLinkedBranchReviewGate:
     """`Review Gate: BLOCKED (linked branch)` and its precedence."""
@@ -394,16 +457,27 @@ class TestLinkedBranchReviewGate:
         assert _review_gate_header(report, fail_on_reviews=False) is None
 
     @pytest.mark.parametrize(
-        "status, linked",
+        "status, linked, closing_pr_candidate",
         [
-            (LinkedBranchStatus.OK, ("255-feature",)),
-            (LinkedBranchStatus.NOT_CHECKED, ()),
+            (LinkedBranchStatus.OK, ("255-feature",), None),
+            (LinkedBranchStatus.NOT_CHECKED, (), None),
+            (
+                LinkedBranchStatus.LINKED_VIA_PR,
+                (),
+                ClosingPRRef(10, "255-feature"),
+            ),
         ],
     )
     def test_non_blocking_states_stay_clean(
-        self, status: LinkedBranchStatus, linked: Tuple[str, ...]
+        self,
+        status: LinkedBranchStatus,
+        linked: Tuple[str, ...],
+        closing_pr_candidate: Optional[ClosingPRRef],
     ) -> None:
-        header = _review_gate_header(_make_report(status, linked), fail_on_reviews=True)
+        header = _review_gate_header(
+            _make_report(status, linked, closing_pr_candidate=closing_pr_candidate),
+            fail_on_reviews=True,
+        )
 
         assert header == "Review Gate: clean"
 
