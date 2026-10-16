@@ -62,8 +62,12 @@ class LinkedBranchesMixin:
 - `get_linked_branch_and_closing_prs_or_none` mirrors
   `get_linked_branches_or_none` exactly: `@log_function_call` decorator, try/except
   around the private parser, logs and returns `None` on any `Exception`.
-- Add `ClosingPRRef` to `__all__` in `linked_branches_mixin.py`, and to both the
-  import block and `__all__` in `issues/__init__.py` (alongside `IssueBranchManager`).
+- Add `ClosingPRRef` to `__all__` in `linked_branches_mixin.py`.
+- In `issues/__init__.py`, add a separate import line,
+  `from .linked_branches_mixin import ClosingPRRef` — it is not importable from
+  `branch_manager.py` alongside `IssueBranchManager`, since `ClosingPRRef` is defined
+  in `linked_branches_mixin.py`, not re-exported by `branch_manager.py`. Add
+  `ClosingPRRef` to `__all__` in `issues/__init__.py` as well.
 - Do not modify `_LINKED_BRANCHES_QUERY`, `_query_linked_branches`,
   `get_linked_branches`, `get_linked_branches_or_none`, `delete_linked_branch`, or
   `_LINKED_BRANCHES_WITH_IDS_QUERY`.
