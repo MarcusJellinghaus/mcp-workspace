@@ -22,7 +22,10 @@ naming the mismatch and stop.
   rewrite `_collect_linked_branch_status`; update its one call site in
   `collect_branch_status`.
 - `tests/checks/test_branch_status_linked_branch.py` — extend
-  `TestCollectLinkedBranchStatus` and `TestLinkedBranchWiring`.
+  `TestCollectLinkedBranchStatus`, `TestLinkedBranchWiring`, and
+  `TestLinkedBranchSuppressesMergeVerdict`.
+- `tests/checks/test_branch_status.py` — update ten existing 3-tuple mocks of
+  `_collect_linked_branch_status` to 4-tuples.
 
 ## WHAT
 
@@ -123,3 +126,17 @@ retargeted to the new mocked method name; their expected tuples gain a trailing
 In `TestLinkedBranchWiring.test_report_carries_linked_branch_state`, extend the mocked
 `_collect_linked_branch_status` return value to a 4-tuple and add an assertion that
 `report.closing_pr_candidate` matches.
+
+Changing `_collect_linked_branch_status`'s return arity and `collect_branch_status`'s
+unpacking breaks every existing mock of `_collect_linked_branch_status` that still
+returns a 3-tuple. Update all of them in the same commit, appending a trailing `None`
+to each `return_value`:
+
+- In this file, `TestLinkedBranchSuppressesMergeVerdict.test_mismatch_suppresses_ready_to_merge`
+  (~line 417) and `test_ok_still_yields_ready_to_merge` (~line 459) — both mock
+  `_collect_linked_branch_status` with a 3-tuple.
+- In `tests/checks/test_branch_status.py` — ten separate
+  `@patch("mcp_workspace.checks.branch_status._collect_linked_branch_status", return_value=(...))`
+  decorators (around lines 547, 622, 675, 723, 766, 814, 866, 936, 1005, 1064), each
+  currently `return_value=(LinkedBranchStatus.OK, ("123-feature",), 123)`. Change each
+  to `return_value=(LinkedBranchStatus.OK, ("123-feature",), 123, None)`.
