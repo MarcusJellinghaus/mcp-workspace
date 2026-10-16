@@ -25,6 +25,7 @@ from .cache import (
     get_all_cached_issues,
     update_issue_labels_in_cache,
 )
+from .linked_branches_mixin import ClosingPRRef
 
 # Main managers
 from .manager import IssueManager
@@ -51,6 +52,7 @@ __all__ = [
     "IssueBranchManager",
     "BranchCreationResult",
     "generate_branch_name_from_issue",
+    "ClosingPRRef",
     # Cache
     "CacheData",
     "get_all_cached_issues",

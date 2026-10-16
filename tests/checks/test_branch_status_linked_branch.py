@@ -25,6 +25,7 @@ from mcp_workspace.checks.branch_status_rendering import (
     format_report_for_llm,
     linked_branch_blocks,
 )
+from mcp_workspace.github_operations.issues import ClosingPRRef
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
 Formatter = Callable[[BranchStatusReport], str]
@@ -38,6 +39,7 @@ def _make_report(
     branch_name: str = "255-feature",
     ci_status: CIStatus = CIStatus.PASSED,
     linked_branch_issue_number: Optional[int] = 255,
+    closing_pr_candidate: Optional[ClosingPRRef] = None,
 ) -> BranchStatusReport:
     """Build an otherwise-clean report carrying the given linked-branch state."""
     return BranchStatusReport(
@@ -55,6 +57,7 @@ def _make_report(
         linked_branch_status=linked_branch_status,
         linked_branches=linked_branches,
         linked_branch_issue_number=linked_branch_issue_number,
+        closing_pr_candidate=closing_pr_candidate,
     )
 
 
@@ -67,33 +70,73 @@ class TestCollectLinkedBranchStatus:
     """State matrix for `_collect_linked_branch_status`."""
 
     @pytest.mark.parametrize(
-        "linked, expected",
+        "linked_and_prs, expected",
         [
-            (["255-feature"], (LinkedBranchStatus.OK, ("255-feature",), 255)),
-            (["255-old"], (LinkedBranchStatus.MISMATCH, ("255-old",), 255)),
             (
-                ["255-a", "255-b"],
-                (LinkedBranchStatus.AMBIGUOUS, ("255-a", "255-b"), 255),
+                (["255-feature"], []),
+                (LinkedBranchStatus.OK, ("255-feature",), 255, None),
             ),
-            ([], (LinkedBranchStatus.NOT_LINKED, (), 255)),
-            (None, (LinkedBranchStatus.UNKNOWN, (), 255)),
+            (
+                (["255-old"], []),
+                (LinkedBranchStatus.MISMATCH, ("255-old",), 255, None),
+            ),
+            (
+                (["255-a", "255-b"], []),
+                (LinkedBranchStatus.AMBIGUOUS, ("255-a", "255-b"), 255, None),
+            ),
+            (([], []), (LinkedBranchStatus.NOT_LINKED, (), 255, None)),
+            (
+                ([], [ClosingPRRef(10, "255-feature")]),
+                (
+                    LinkedBranchStatus.LINKED_VIA_PR,
+                    (),
+                    255,
+                    ClosingPRRef(10, "255-feature"),
+                ),
+            ),
+            (
+                ([], [ClosingPRRef(10, "255-other")]),
+                (
+                    LinkedBranchStatus.MISMATCH,
+                    (),
+                    255,
+                    ClosingPRRef(10, "255-other"),
+                ),
+            ),
+            (
+                (
+                    [],
+                    [
+                        ClosingPRRef(10, "255-other"),
+                        ClosingPRRef(11, "255-other2"),
+                    ],
+                ),
+                (LinkedBranchStatus.MISMATCH, (), 255, None),
+            ),
+            (
+                (["255-old"], [ClosingPRRef(10, "255-feature")]),
+                (LinkedBranchStatus.MISMATCH, ("255-old",), 255, None),
+            ),
+            (None, (LinkedBranchStatus.UNKNOWN, (), 255, None)),
         ],
     )
     @patch("mcp_workspace.checks.branch_status.IssueBranchManager")
     def test_state_matrix(
         self,
         mock_mgr_cls: MagicMock,
-        linked: Optional[List[str]],
-        expected: Tuple[LinkedBranchStatus, Tuple[str, ...], Optional[int]],
+        linked_and_prs: Optional[Tuple[List[str], List[ClosingPRRef]]],
+        expected: Tuple[
+            LinkedBranchStatus, Tuple[str, ...], Optional[int], Optional[ClosingPRRef]
+        ],
     ) -> None:
         mock_mgr = MagicMock()
-        mock_mgr.get_linked_branches_or_none.return_value = linked
+        mock_mgr.get_linked_branch_and_closing_prs_or_none.return_value = linked_and_prs
         mock_mgr_cls.return_value = mock_mgr
 
         result = _collect_linked_branch_status(Path("/tmp"), "255-feature")
 
         assert result == expected
-        mock_mgr.get_linked_branches_or_none.assert_called_once_with(255)
+        mock_mgr.get_linked_branch_and_closing_prs_or_none.assert_called_once_with(255)
 
     @patch("mcp_workspace.checks.branch_status.IssueBranchManager")
     def test_non_issue_branch_is_not_checked_and_makes_no_request(
@@ -102,7 +145,7 @@ class TestCollectLinkedBranchStatus:
         """A branch name with no issue number costs zero requests."""
         result = _collect_linked_branch_status(Path("/tmp"), "main")
 
-        assert result == (LinkedBranchStatus.NOT_CHECKED, (), None)
+        assert result == (LinkedBranchStatus.NOT_CHECKED, (), None, None)
         mock_mgr_cls.assert_not_called()
 
     @patch("mcp_workspace.checks.branch_status.IssueBranchManager")
@@ -112,17 +155,19 @@ class TestCollectLinkedBranchStatus:
 
         result = _collect_linked_branch_status(Path("/tmp"), "255-feature")
 
-        assert result == (LinkedBranchStatus.UNKNOWN, (), 255)
+        assert result == (LinkedBranchStatus.UNKNOWN, (), 255, None)
 
     @patch("mcp_workspace.checks.branch_status.IssueBranchManager")
     def test_lookup_exception_is_unknown(self, mock_mgr_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
-        mock_mgr.get_linked_branches_or_none.side_effect = RuntimeError("boom")
+        mock_mgr.get_linked_branch_and_closing_prs_or_none.side_effect = RuntimeError(
+            "boom"
+        )
         mock_mgr_cls.return_value = mock_mgr
 
         result = _collect_linked_branch_status(Path("/tmp"), "255-feature")
 
-        assert result == (LinkedBranchStatus.UNKNOWN, (), 255)
+        assert result == (LinkedBranchStatus.UNKNOWN, (), 255, None)
 
 
 class TestLinkedBranchWiring:
@@ -151,7 +196,13 @@ class TestLinkedBranchWiring:
         mock_label: MagicMock,
         mock_pr_info: MagicMock,
     ) -> None:
-        mock_linked.return_value = (LinkedBranchStatus.MISMATCH, ("255-old",), 255)
+        closing_pr = ClosingPRRef(10, "255-other")
+        mock_linked.return_value = (
+            LinkedBranchStatus.MISMATCH,
+            ("255-old",),
+            255,
+            closing_pr,
+        )
         mock_branch.return_value = "255-feature"
         mock_issue_mgr = MagicMock()
         mock_issue_mgr.get_issue.return_value = {"number": 255, "labels": []}
@@ -169,6 +220,7 @@ class TestLinkedBranchWiring:
         assert report.linked_branch_status == LinkedBranchStatus.MISMATCH
         assert report.linked_branches == ("255-old",)
         assert report.linked_branch_issue_number == 255
+        assert report.closing_pr_candidate == closing_pr
 
 
 class TestLinkedBranchBlocks:
@@ -179,6 +231,7 @@ class TestLinkedBranchBlocks:
         [
             (LinkedBranchStatus.OK, False),
             (LinkedBranchStatus.NOT_CHECKED, False),
+            (LinkedBranchStatus.LINKED_VIA_PR, False),
             (LinkedBranchStatus.MISMATCH, True),
             (LinkedBranchStatus.AMBIGUOUS, True),
             (LinkedBranchStatus.NOT_LINKED, True),
@@ -194,37 +247,87 @@ class TestLinkedBranchRendering:
 
     @pytest.mark.parametrize("formatter", _FORMATTERS)
     @pytest.mark.parametrize(
-        "status, linked, expected_substrings",
+        "status, linked, closing_pr_candidate, expected_substrings, "
+        "forbidden_substrings",
         [
-            (LinkedBranchStatus.OK, ("255-feature",), ["255-feature"]),
+            (
+                LinkedBranchStatus.OK,
+                ("255-feature",),
+                None,
+                ["255-feature"],
+                [],
+            ),
             (
                 LinkedBranchStatus.MISMATCH,
                 ("255-old",),
+                None,
                 ["#255", "255-old", "255-feature"],
+                [],
             ),
             (
                 LinkedBranchStatus.AMBIGUOUS,
                 ("255-old", "255-feature"),
+                None,
                 ["#255", "255-old", "255-feature", "2 branches"],
+                [],
             ),
-            (LinkedBranchStatus.NOT_LINKED, (), ["#255", "255-feature"]),
-            (LinkedBranchStatus.UNKNOWN, (), ["#255", "could not determine"]),
+            (
+                LinkedBranchStatus.NOT_LINKED,
+                (),
+                None,
+                ["#255", "255-feature", "Closes #255"],
+                [],
+            ),
+            (
+                LinkedBranchStatus.UNKNOWN,
+                (),
+                None,
+                ["#255", "could not determine"],
+                [],
+            ),
+            (
+                LinkedBranchStatus.LINKED_VIA_PR,
+                (),
+                ClosingPRRef(10, "255-feature"),
+                ["#255", "PR #10", "255-feature"],
+                [],
+            ),
+            (
+                LinkedBranchStatus.MISMATCH,
+                (),
+                ClosingPRRef(10, "255-other"),
+                ["PR #10", "255-other", "255-feature"],
+                [],
+            ),
+            (
+                LinkedBranchStatus.MISMATCH,
+                (),
+                None,
+                ["no open closing PR"],
+                ["PR #"],
+            ),
         ],
     )
     def test_state_renders_one_line(
         self,
         status: LinkedBranchStatus,
         linked: Tuple[str, ...],
+        closing_pr_candidate: Optional[ClosingPRRef],
         expected_substrings: List[str],
+        forbidden_substrings: List[str],
         formatter: Formatter,
     ) -> None:
-        rendered = formatter(_make_report(status, linked))
+        rendered = formatter(
+            _make_report(status, linked, closing_pr_candidate=closing_pr_candidate)
+        )
 
         lines = _linked_lines(rendered)
         assert len(lines) == 1
         assert lines[0].startswith(f"Linked Branch: {status.value}")
         for substring in expected_substrings:
             assert substring in lines[0]
+        for substring in forbidden_substrings:
+            assert substring not in lines[0]
 
     @pytest.mark.parametrize("formatter", _FORMATTERS)
     def test_not_checked_renders_no_line(self, formatter: Formatter) -> None:
@@ -286,6 +389,17 @@ class TestLinkedBranchRendering:
         assert "Development panel" in line
         assert "lookup failed" not in line
 
+    def test_branch_sourced_mismatch_wording_is_unchanged(self) -> None:
+        """Locks in the pre-step-4 wording for the branch-sourced MISMATCH case."""
+        line = _format_linked_branch_line(
+            _make_report(LinkedBranchStatus.MISMATCH, ("255-old",))
+        )
+
+        assert line == (
+            "Linked Branch: MISMATCH — issue #255 links '255-old', "
+            "not current branch '255-feature' — relink in the Development panel"
+        )
+
 
 class TestLinkedBranchReviewGate:
     """`Review Gate: BLOCKED (linked branch)` and its precedence."""
@@ -343,16 +457,27 @@ class TestLinkedBranchReviewGate:
         assert _review_gate_header(report, fail_on_reviews=False) is None
 
     @pytest.mark.parametrize(
-        "status, linked",
+        "status, linked, closing_pr_candidate",
         [
-            (LinkedBranchStatus.OK, ("255-feature",)),
-            (LinkedBranchStatus.NOT_CHECKED, ()),
+            (LinkedBranchStatus.OK, ("255-feature",), None),
+            (LinkedBranchStatus.NOT_CHECKED, (), None),
+            (
+                LinkedBranchStatus.LINKED_VIA_PR,
+                (),
+                ClosingPRRef(10, "255-feature"),
+            ),
         ],
     )
     def test_non_blocking_states_stay_clean(
-        self, status: LinkedBranchStatus, linked: Tuple[str, ...]
+        self,
+        status: LinkedBranchStatus,
+        linked: Tuple[str, ...],
+        closing_pr_candidate: Optional[ClosingPRRef],
     ) -> None:
-        header = _review_gate_header(_make_report(status, linked), fail_on_reviews=True)
+        header = _review_gate_header(
+            _make_report(status, linked, closing_pr_candidate=closing_pr_candidate),
+            fail_on_reviews=True,
+        )
 
         assert header == "Review Gate: clean"
 
@@ -414,7 +539,12 @@ class TestLinkedBranchSuppressesMergeVerdict:
         mock_label: MagicMock,
         mock_pr_info: MagicMock,
     ) -> None:
-        mock_linked.return_value = (LinkedBranchStatus.MISMATCH, ("255-old",), 255)
+        mock_linked.return_value = (
+            LinkedBranchStatus.MISMATCH,
+            ("255-old",),
+            255,
+            None,
+        )
 
         report = self._collect(
             (
@@ -456,7 +586,12 @@ class TestLinkedBranchSuppressesMergeVerdict:
         mock_label: MagicMock,
         mock_pr_info: MagicMock,
     ) -> None:
-        mock_linked.return_value = (LinkedBranchStatus.OK, ("255-feature",), 255)
+        mock_linked.return_value = (
+            LinkedBranchStatus.OK,
+            ("255-feature",),
+            255,
+            None,
+        )
 
         report = self._collect(
             (

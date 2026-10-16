@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from mcp_workspace.github_operations.issues import (
+    ClosingPRRef,
     IssueBranchManager,
 )
 
@@ -421,3 +422,173 @@ class TestGetLinkedBranchesOrNone:
         )
 
         assert mock_manager.get_linked_branches_or_none(123) is None
+
+
+class TestGetLinkedBranchAndClosingPRsOrNone:
+    """Test suite for IssueBranchManager.get_linked_branch_and_closing_prs_or_none().
+
+    This method queries both linked branches and closing PR references in a
+    single GraphQL request, returning a tuple of (branch_names, closing_prs).
+    """
+
+    @pytest.fixture
+    def mock_manager(self) -> IssueBranchManager:
+        """Create a mock IssueBranchManager for testing."""
+        mock_path = Mock(spec=Path)
+        mock_path.exists.return_value = True
+        mock_path.is_dir.return_value = True
+
+        with (
+            patch("mcp_workspace.git_operations.is_git_repository", return_value=True),
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch("mcp_workspace.github_operations._client.Github") as mock_github_cls,
+        ):
+            manager = IssueBranchManager(mock_path)
+            # Set cached github client so lazy property doesn't trigger outside patch
+            manager._cached_github_client = mock_github_cls.return_value
+            return manager
+
+    @staticmethod
+    def _set_graphql_response(
+        mock_manager: IssueBranchManager, response: dict[str, Any]
+    ) -> None:
+        """Point the mocked GraphQL requester at a canned response."""
+        mock_repo = Mock()
+        mock_repo.owner.login = "test-owner"
+        mock_repo.name = "test-repo"
+        mock_manager._repository = mock_repo
+
+        mock_manager._github_client._Github__requester = Mock()  # type: ignore[attr-defined]
+        mock_manager._github_client._Github__requester.graphql_query = Mock(  # type: ignore[attr-defined]
+            return_value=({}, response)
+        )
+
+    def test_both_present(self, mock_manager: IssueBranchManager) -> None:
+        """Both a linked branch and a closing PR are returned."""
+        self._set_graphql_response(
+            mock_manager,
+            {
+                "data": {
+                    "repository": {
+                        "issue": {
+                            "linkedBranches": {
+                                "nodes": [{"ref": {"name": "255-feature"}}]
+                            },
+                            "closedByPullRequestsReferences": {
+                                "nodes": [{"number": 42, "headRefName": "255-feature"}]
+                            },
+                        }
+                    }
+                }
+            },
+        )
+
+        result = mock_manager.get_linked_branch_and_closing_prs_or_none(255)
+        assert result == (["255-feature"], [ClosingPRRef(42, "255-feature")])
+
+    def test_no_closing_prs(self, mock_manager: IssueBranchManager) -> None:
+        """No closing PRs: branch list as given, closing-PR list empty."""
+        self._set_graphql_response(
+            mock_manager,
+            {
+                "data": {
+                    "repository": {
+                        "issue": {
+                            "linkedBranches": {
+                                "nodes": [{"ref": {"name": "255-feature"}}]
+                            },
+                            "closedByPullRequestsReferences": {"nodes": []},
+                        }
+                    }
+                }
+            },
+        )
+
+        result = mock_manager.get_linked_branch_and_closing_prs_or_none(255)
+        assert result == (["255-feature"], [])
+
+    def test_no_linked_branches(self, mock_manager: IssueBranchManager) -> None:
+        """No linked branches: branch list empty, closing-PR list populated."""
+        self._set_graphql_response(
+            mock_manager,
+            {
+                "data": {
+                    "repository": {
+                        "issue": {
+                            "linkedBranches": {"nodes": []},
+                            "closedByPullRequestsReferences": {
+                                "nodes": [{"number": 42, "headRefName": "255-feature"}]
+                            },
+                        }
+                    }
+                }
+            },
+        )
+
+        result = mock_manager.get_linked_branch_and_closing_prs_or_none(255)
+        assert result == ([], [ClosingPRRef(42, "255-feature")])
+
+    def test_multiple_closing_prs(self, mock_manager: IssueBranchManager) -> None:
+        """Multiple closing PR nodes come back as ClosingPRRef entries in order."""
+        self._set_graphql_response(
+            mock_manager,
+            {
+                "data": {
+                    "repository": {
+                        "issue": {
+                            "linkedBranches": {"nodes": []},
+                            "closedByPullRequestsReferences": {
+                                "nodes": [
+                                    {"number": 42, "headRefName": "255-feature"},
+                                    {"number": 43, "headRefName": "255-other"},
+                                ]
+                            },
+                        }
+                    }
+                }
+            },
+        )
+
+        result = mock_manager.get_linked_branch_and_closing_prs_or_none(255)
+        assert result == (
+            [],
+            [ClosingPRRef(42, "255-feature"), ClosingPRRef(43, "255-other")],
+        )
+
+    def test_issue_not_found(self, mock_manager: IssueBranchManager) -> None:
+        """A null GraphQL issue returns None."""
+        self._set_graphql_response(
+            mock_manager, {"data": {"repository": {"issue": None}}}
+        )
+
+        assert mock_manager.get_linked_branch_and_closing_prs_or_none(999) is None
+
+    def test_invalid_issue_number(self, mock_manager: IssueBranchManager) -> None:
+        """Invalid issue numbers return None without touching the mocked query."""
+        assert mock_manager.get_linked_branch_and_closing_prs_or_none(0) is None
+        assert mock_manager.get_linked_branch_and_closing_prs_or_none(-1) is None
+
+    def test_malformed_response_returns_none(
+        self, mock_manager: IssueBranchManager
+    ) -> None:
+        """A PR node missing headRefName triggers the KeyError branch."""
+        self._set_graphql_response(
+            mock_manager,
+            {
+                "data": {
+                    "repository": {
+                        "issue": {
+                            "linkedBranches": {"nodes": []},
+                            "closedByPullRequestsReferences": {
+                                "nodes": [{"number": 42}]
+                            },
+                        }
+                    }
+                }
+            },
+        )
+
+        assert mock_manager.get_linked_branch_and_closing_prs_or_none(123) is None
