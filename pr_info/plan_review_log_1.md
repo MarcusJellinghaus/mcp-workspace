@@ -1,0 +1,13 @@
+# review-plan review log 1
+
+## Round 1 — 2026-10-16
+**Findings**:
+I'll start by loading the MCP tools I need, then gather context: knowledge base files, the issue chain, and the plan files.Confirmed. This is a real plan gap that will break the TDD step. Now let me check the mcp-coder reference project issue #1146 briefly to verify the "no companion change" decision, and also double check `extract_issue_number_from_branch` import availability per step 3 (already used, fine).Confirmed — same 3-tuple pattern repeated at all 10 call sites in `tests/checks/test_branch_status.py`. This is a solid, well-corroborated finding. I have enough to write the report now.Pattern confirmed consistently across the file. Here's my report.
+
+`pr_info/steps/step_3.md` — critical — `_collect_linked_branch_status` return arity changes from 3-tuple to 4-tuple and `collect_branch_status`'s unpacking changes accordingly, but the step's test-update list only names `tests/checks/test_branch_status_linked_branch.py`. It omits `tests/checks/test_branch_status.py`, which has 10 separate `@patch("mcp_workspace.checks.branch_status._collect_linked_branch_status", return_value=(LinkedBranchStatus.OK, (...), N))` decorators (e.g. lines 547, 622, 675, 723, 766, 814, 866, 936, 1005, 1064) — all 3-tuples. Once the unpacking line expects 4 values, every one of these tests raises `ValueError: not enough values to unpack`, so the step cannot land with a green test suite as scoped.
+
+`pr_info/steps/step_3.md` — high — same gap recurs within the step's own target file: `TestLinkedBranchSuppressesMergeVerdict.test_mismatch_suppresses_ready_to_merge` (line ~417) and `test_ok_still_yields_ready_to_merge` (line ~459) in `tests/checks/test_branch_status_linked_branch.py` also mock `_collect_linked_branch_status` with a 3-tuple and are not in the step's listed updates (only `TestCollectLinkedBranchStatus` and `TestLinkedBranchWiring.test_report_carries_linked_branch_state` are named).
+**Decisions**:
+Verdict(decision='tasks', tasks=['In pr_info/steps/step_3.md, add tests/checks/test_branch_status.py to the step\'s test-update list and update all 10 `@patch("mcp_workspace.checks.branch_status._collect_linked_branch_status", return_value=(...))` decorators (around lines 547, 622, 675, 723, 766, 814, 866, 936, 1005, 1064) from 3-tuples to 4-tuples matching the new return signature.', "In pr_info/steps/step_3.md, also list tests/checks/test_branch_status_linked_branch.py's TestLinkedBranchSuppressesMergeVerdict.test_mismatch_suppresses_ready_to_merge (~line 417) and test_ok_still_yields_ready_to_merge (~line 459) in the step's test-update list, and update their 3-tuple mocks of _collect_linked_branch_status to 4-tuples."], escalate_reason=None)
+**Changes**:
+applied
