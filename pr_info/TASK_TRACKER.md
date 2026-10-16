@@ -44,8 +44,8 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 5: Update the `check_branch_status` skill's follow-up-action table ([step_5.md](./steps/step_5.md))
-- [ ] Implementation (documentation-only change)
-- [ ] Commit message prepared
+- [x] Implementation (documentation-only change)
+- [x] Commit message prepared
 
 ## Pull Request
 
