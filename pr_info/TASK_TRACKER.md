@@ -34,8 +34,8 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 3: Resolve the closing-PR fallback in `_collect_linked_branch_status` ([step_3.md](./steps/step_3.md))
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 
 ### Step 4: Render `LINKED_VIA_PR` and PR-sourced `MISMATCH` ([step_4.md](./steps/step_4.md))

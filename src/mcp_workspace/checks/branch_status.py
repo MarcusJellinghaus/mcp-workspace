@@ -39,6 +39,7 @@ from mcp_workspace.github_operations.ci_log_parser import (
 from mcp_workspace.github_operations.ci_results_manager import CIResultsManager
 from mcp_workspace.github_operations.formatters import find_latest_marked_comment
 from mcp_workspace.github_operations.issues import (
+    ClosingPRRef,
     IssueBranchManager,
     IssueData,
     IssueManager,
@@ -98,6 +99,7 @@ class BranchStatusReport:
     linked_branches: tuple[str, ...] = ()
     linked_branch_issue_number: Optional[int] = None
     last_automated_note: Optional[str] = None
+    closing_pr_candidate: Optional[ClosingPRRef] = None
 
     def format_for_human(
         self,
@@ -396,7 +398,7 @@ def _collect_pr_info(
 
 def _collect_linked_branch_status(
     project_dir: Path, branch_name: str
-) -> tuple[LinkedBranchStatus, tuple[str, ...], Optional[int]]:
+) -> tuple[LinkedBranchStatus, tuple[str, ...], Optional[int], Optional[ClosingPRRef]]:
     """Compare the issue's linked branches against the current branch.
 
     The issue number is extracted from the branch name here and returned to
@@ -406,39 +408,57 @@ def _collect_linked_branch_status(
     ``IssueBranchManager(...)`` itself raises ``ValueError`` when no token is
     configured.
 
+    A linked branch (``linkedBranches``) always wins over a closing PR, even
+    if stale or ambiguous — the fallback below is only ever reached when
+    ``linkedBranches`` is empty. If no branch is linked, an open PR that
+    would close the issue (``Closes #N``) and whose head matches the current
+    branch counts as a valid link too.
+
     Args:
         project_dir: Path to the project directory.
         branch_name: The current branch name.
 
     Returns:
-        Tuple of (state, linked branch names, issue number). The names tuple is
-        empty for NOT_CHECKED, UNKNOWN and NOT_LINKED; the issue number is None
-        only for NOT_CHECKED.
+        Tuple of (state, linked branch names, issue number, closing PR
+        candidate). The names tuple is empty for everything except OK,
+        MISMATCH and AMBIGUOUS sourced from a linked branch. The closing PR
+        candidate is non-None only for LINKED_VIA_PR and for a MISMATCH
+        sourced from exactly one non-matching closing PR. The issue number is
+        None only for NOT_CHECKED.
     """
     issue_number = extract_issue_number_from_branch(branch_name)
     if issue_number is None:
-        return (LinkedBranchStatus.NOT_CHECKED, (), None)
+        return (LinkedBranchStatus.NOT_CHECKED, (), None, None)
 
     try:
         manager = IssueBranchManager(project_dir=project_dir)
-        branches = manager.get_linked_branches_or_none(issue_number)
+        result = manager.get_linked_branch_and_closing_prs_or_none(issue_number)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.debug("Linked branch lookup failed", exc_info=True)
-        return (LinkedBranchStatus.UNKNOWN, (), issue_number)
+        return (LinkedBranchStatus.UNKNOWN, (), issue_number, None)
 
-    if branches is None:
-        return (LinkedBranchStatus.UNKNOWN, (), issue_number)
+    if result is None:
+        return (LinkedBranchStatus.UNKNOWN, (), issue_number, None)
+    branches, closing_prs = result
+
     if len(branches) > 1:
-        return (LinkedBranchStatus.AMBIGUOUS, tuple(branches), issue_number)
-    if not branches:
-        return (LinkedBranchStatus.NOT_LINKED, (), issue_number)
+        return (LinkedBranchStatus.AMBIGUOUS, tuple(branches), issue_number, None)
+    if branches:
+        state = (
+            LinkedBranchStatus.OK
+            if branches[0] == branch_name
+            else LinkedBranchStatus.MISMATCH
+        )
+        return (state, tuple(branches), issue_number, None)
 
-    state = (
-        LinkedBranchStatus.OK
-        if branches[0] == branch_name
-        else LinkedBranchStatus.MISMATCH
-    )
-    return (state, tuple(branches), issue_number)
+    matches = [pr for pr in closing_prs if pr.head_ref_name == branch_name]
+    if matches:
+        return (LinkedBranchStatus.LINKED_VIA_PR, (), issue_number, matches[0])
+    if not closing_prs:
+        return (LinkedBranchStatus.NOT_LINKED, (), issue_number, None)
+    if len(closing_prs) == 1:
+        return (LinkedBranchStatus.MISMATCH, (), issue_number, closing_prs[0])
+    return (LinkedBranchStatus.MISMATCH, (), issue_number, None)
 
 
 def _apply_pr_merge_override(
@@ -613,6 +633,7 @@ def collect_branch_status(
             linked_branch_status,
             linked_branches,
             linked_branch_issue_number,
+            closing_pr_candidate,
         ) = _collect_linked_branch_status(project_dir, branch_name)
 
         # 5. Collect CI status
@@ -701,6 +722,7 @@ def collect_branch_status(
             linked_branches=linked_branches,
             linked_branch_issue_number=linked_branch_issue_number,
             last_automated_note=last_automated_note,
+            closing_pr_candidate=closing_pr_candidate,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error collecting branch status: {e}")

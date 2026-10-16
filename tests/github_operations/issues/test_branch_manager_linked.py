@@ -478,9 +478,7 @@ class TestGetLinkedBranchAndClosingPRsOrNone:
                                 "nodes": [{"ref": {"name": "255-feature"}}]
                             },
                             "closedByPullRequestsReferences": {
-                                "nodes": [
-                                    {"number": 42, "headRefName": "255-feature"}
-                                ]
+                                "nodes": [{"number": 42, "headRefName": "255-feature"}]
                             },
                         }
                     }
@@ -522,9 +520,7 @@ class TestGetLinkedBranchAndClosingPRsOrNone:
                         "issue": {
                             "linkedBranches": {"nodes": []},
                             "closedByPullRequestsReferences": {
-                                "nodes": [
-                                    {"number": 42, "headRefName": "255-feature"}
-                                ]
+                                "nodes": [{"number": 42, "headRefName": "255-feature"}]
                             },
                         }
                     }

@@ -25,6 +25,7 @@ from mcp_workspace.checks.branch_status_rendering import (
     format_report_for_llm,
     linked_branch_blocks,
 )
+from mcp_workspace.github_operations.issues import ClosingPRRef
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
 Formatter = Callable[[BranchStatusReport], str]
@@ -67,33 +68,73 @@ class TestCollectLinkedBranchStatus:
     """State matrix for `_collect_linked_branch_status`."""
 
     @pytest.mark.parametrize(
-        "linked, expected",
+        "linked_and_prs, expected",
         [
-            (["255-feature"], (LinkedBranchStatus.OK, ("255-feature",), 255)),
-            (["255-old"], (LinkedBranchStatus.MISMATCH, ("255-old",), 255)),
             (
-                ["255-a", "255-b"],
-                (LinkedBranchStatus.AMBIGUOUS, ("255-a", "255-b"), 255),
+                (["255-feature"], []),
+                (LinkedBranchStatus.OK, ("255-feature",), 255, None),
             ),
-            ([], (LinkedBranchStatus.NOT_LINKED, (), 255)),
-            (None, (LinkedBranchStatus.UNKNOWN, (), 255)),
+            (
+                (["255-old"], []),
+                (LinkedBranchStatus.MISMATCH, ("255-old",), 255, None),
+            ),
+            (
+                (["255-a", "255-b"], []),
+                (LinkedBranchStatus.AMBIGUOUS, ("255-a", "255-b"), 255, None),
+            ),
+            (([], []), (LinkedBranchStatus.NOT_LINKED, (), 255, None)),
+            (
+                ([], [ClosingPRRef(10, "255-feature")]),
+                (
+                    LinkedBranchStatus.LINKED_VIA_PR,
+                    (),
+                    255,
+                    ClosingPRRef(10, "255-feature"),
+                ),
+            ),
+            (
+                ([], [ClosingPRRef(10, "255-other")]),
+                (
+                    LinkedBranchStatus.MISMATCH,
+                    (),
+                    255,
+                    ClosingPRRef(10, "255-other"),
+                ),
+            ),
+            (
+                (
+                    [],
+                    [
+                        ClosingPRRef(10, "255-other"),
+                        ClosingPRRef(11, "255-other2"),
+                    ],
+                ),
+                (LinkedBranchStatus.MISMATCH, (), 255, None),
+            ),
+            (
+                (["255-old"], [ClosingPRRef(10, "255-feature")]),
+                (LinkedBranchStatus.MISMATCH, ("255-old",), 255, None),
+            ),
+            (None, (LinkedBranchStatus.UNKNOWN, (), 255, None)),
         ],
     )
     @patch("mcp_workspace.checks.branch_status.IssueBranchManager")
     def test_state_matrix(
         self,
         mock_mgr_cls: MagicMock,
-        linked: Optional[List[str]],
-        expected: Tuple[LinkedBranchStatus, Tuple[str, ...], Optional[int]],
+        linked_and_prs: Optional[Tuple[List[str], List[ClosingPRRef]]],
+        expected: Tuple[
+            LinkedBranchStatus, Tuple[str, ...], Optional[int], Optional[ClosingPRRef]
+        ],
     ) -> None:
         mock_mgr = MagicMock()
-        mock_mgr.get_linked_branches_or_none.return_value = linked
+        mock_mgr.get_linked_branch_and_closing_prs_or_none.return_value = linked_and_prs
         mock_mgr_cls.return_value = mock_mgr
 
         result = _collect_linked_branch_status(Path("/tmp"), "255-feature")
 
         assert result == expected
-        mock_mgr.get_linked_branches_or_none.assert_called_once_with(255)
+        mock_mgr.get_linked_branch_and_closing_prs_or_none.assert_called_once_with(255)
 
     @patch("mcp_workspace.checks.branch_status.IssueBranchManager")
     def test_non_issue_branch_is_not_checked_and_makes_no_request(
@@ -102,7 +143,7 @@ class TestCollectLinkedBranchStatus:
         """A branch name with no issue number costs zero requests."""
         result = _collect_linked_branch_status(Path("/tmp"), "main")
 
-        assert result == (LinkedBranchStatus.NOT_CHECKED, (), None)
+        assert result == (LinkedBranchStatus.NOT_CHECKED, (), None, None)
         mock_mgr_cls.assert_not_called()
 
     @patch("mcp_workspace.checks.branch_status.IssueBranchManager")
@@ -112,17 +153,19 @@ class TestCollectLinkedBranchStatus:
 
         result = _collect_linked_branch_status(Path("/tmp"), "255-feature")
 
-        assert result == (LinkedBranchStatus.UNKNOWN, (), 255)
+        assert result == (LinkedBranchStatus.UNKNOWN, (), 255, None)
 
     @patch("mcp_workspace.checks.branch_status.IssueBranchManager")
     def test_lookup_exception_is_unknown(self, mock_mgr_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
-        mock_mgr.get_linked_branches_or_none.side_effect = RuntimeError("boom")
+        mock_mgr.get_linked_branch_and_closing_prs_or_none.side_effect = RuntimeError(
+            "boom"
+        )
         mock_mgr_cls.return_value = mock_mgr
 
         result = _collect_linked_branch_status(Path("/tmp"), "255-feature")
 
-        assert result == (LinkedBranchStatus.UNKNOWN, (), 255)
+        assert result == (LinkedBranchStatus.UNKNOWN, (), 255, None)
 
 
 class TestLinkedBranchWiring:
@@ -151,7 +194,13 @@ class TestLinkedBranchWiring:
         mock_label: MagicMock,
         mock_pr_info: MagicMock,
     ) -> None:
-        mock_linked.return_value = (LinkedBranchStatus.MISMATCH, ("255-old",), 255)
+        closing_pr = ClosingPRRef(10, "255-other")
+        mock_linked.return_value = (
+            LinkedBranchStatus.MISMATCH,
+            ("255-old",),
+            255,
+            closing_pr,
+        )
         mock_branch.return_value = "255-feature"
         mock_issue_mgr = MagicMock()
         mock_issue_mgr.get_issue.return_value = {"number": 255, "labels": []}
@@ -169,6 +218,7 @@ class TestLinkedBranchWiring:
         assert report.linked_branch_status == LinkedBranchStatus.MISMATCH
         assert report.linked_branches == ("255-old",)
         assert report.linked_branch_issue_number == 255
+        assert report.closing_pr_candidate == closing_pr
 
 
 class TestLinkedBranchBlocks:
@@ -415,7 +465,12 @@ class TestLinkedBranchSuppressesMergeVerdict:
         mock_label: MagicMock,
         mock_pr_info: MagicMock,
     ) -> None:
-        mock_linked.return_value = (LinkedBranchStatus.MISMATCH, ("255-old",), 255)
+        mock_linked.return_value = (
+            LinkedBranchStatus.MISMATCH,
+            ("255-old",),
+            255,
+            None,
+        )
 
         report = self._collect(
             (
@@ -457,7 +512,12 @@ class TestLinkedBranchSuppressesMergeVerdict:
         mock_label: MagicMock,
         mock_pr_info: MagicMock,
     ) -> None:
-        mock_linked.return_value = (LinkedBranchStatus.OK, ("255-feature",), 255)
+        mock_linked.return_value = (
+            LinkedBranchStatus.OK,
+            ("255-feature",),
+            255,
+            None,
+        )
 
         report = self._collect(
             (

@@ -14,7 +14,6 @@ from .base import parse_base_branch
 # Branch manager and utilities
 from .branch_manager import IssueBranchManager
 from .branch_naming import BranchCreationResult, generate_branch_name_from_issue
-from .linked_branches_mixin import ClosingPRRef
 
 # Cache functions and types
 from .cache import (
@@ -26,6 +25,7 @@ from .cache import (
     get_all_cached_issues,
     update_issue_labels_in_cache,
 )
+from .linked_branches_mixin import ClosingPRRef
 
 # Main managers
 from .manager import IssueManager
