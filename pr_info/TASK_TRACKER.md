@@ -23,4 +23,32 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 <!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
 
+### Step 1: Combined linked-branch / closing-PR GraphQL query ([step_1.md](./steps/step_1.md))
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Add `LINKED_VIA_PR` status ([step_2.md](./steps/step_2.md))
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: Resolve the closing-PR fallback in `_collect_linked_branch_status` ([step_3.md](./steps/step_3.md))
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 4: Render `LINKED_VIA_PR` and PR-sourced `MISMATCH` ([step_4.md](./steps/step_4.md))
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 5: Update the `check_branch_status` skill's follow-up-action table ([step_5.md](./steps/step_5.md))
+- [ ] Implementation (documentation-only change)
+- [ ] Commit message prepared
+
 ## Pull Request
+
+- [ ] Review full diff against summary.md for consistency
+- [ ] Write PR title and description
+- [ ] Create pull request
