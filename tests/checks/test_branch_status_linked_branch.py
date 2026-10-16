@@ -179,6 +179,7 @@ class TestLinkedBranchBlocks:
         [
             (LinkedBranchStatus.OK, False),
             (LinkedBranchStatus.NOT_CHECKED, False),
+            (LinkedBranchStatus.LINKED_VIA_PR, False),
             (LinkedBranchStatus.MISMATCH, True),
             (LinkedBranchStatus.AMBIGUOUS, True),
             (LinkedBranchStatus.NOT_LINKED, True),

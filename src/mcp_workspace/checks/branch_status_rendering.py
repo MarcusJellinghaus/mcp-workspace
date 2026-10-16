@@ -38,6 +38,7 @@ class LinkedBranchStatus(str, Enum):
     """Whether the issue's linked branch matches the current branch."""
 
     OK = "OK"  # exactly one linked branch, equals current
+    LINKED_VIA_PR = "LINKED_VIA_PR"  # no linked branch, but a closing PR matches
     MISMATCH = "MISMATCH"  # exactly one linked branch, differs
     AMBIGUOUS = "AMBIGUOUS"  # more than one linked branch
     NOT_LINKED = "NOT_LINKED"  # queried fine, no linked branch
@@ -52,9 +53,14 @@ def linked_branch_blocks(status: LinkedBranchStatus) -> bool:
         status: The collected linked-branch state.
 
     Returns:
-        True for every state other than ``OK`` and ``NOT_CHECKED``.
+        True for every state other than ``OK``, ``NOT_CHECKED`` and
+        ``LINKED_VIA_PR``.
     """
-    return status not in (LinkedBranchStatus.OK, LinkedBranchStatus.NOT_CHECKED)
+    return status not in (
+        LinkedBranchStatus.OK,
+        LinkedBranchStatus.NOT_CHECKED,
+        LinkedBranchStatus.LINKED_VIA_PR,
+    )
 
 
 @dataclass(frozen=True)
