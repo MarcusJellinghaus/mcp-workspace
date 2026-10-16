@@ -11,3 +11,13 @@ I'll start by loading the MCP tools I need, then gather context: knowledge base 
 Verdict(decision='tasks', tasks=['In pr_info/steps/step_3.md, add tests/checks/test_branch_status.py to the step\'s test-update list and update all 10 `@patch("mcp_workspace.checks.branch_status._collect_linked_branch_status", return_value=(...))` decorators (around lines 547, 622, 675, 723, 766, 814, 866, 936, 1005, 1064) from 3-tuples to 4-tuples matching the new return signature.', "In pr_info/steps/step_3.md, also list tests/checks/test_branch_status_linked_branch.py's TestLinkedBranchSuppressesMergeVerdict.test_mismatch_suppresses_ready_to_merge (~line 417) and test_ok_still_yields_ready_to_merge (~line 459) in the step's test-update list, and update their 3-tuple mocks of _collect_linked_branch_status to 4-tuples."], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 2 — 2026-10-16
+**Findings**:
+I'll start by loading the MCP tool schemas I need, then gather the knowledge base, issue, and plan files.`pr_info/steps/step_1.md:60` — low — instruction to export `ClosingPRRef` "to both the import block and `__all__` in `issues/__init__.py` (alongside `IssueBranchManager`)" is imprecise: `IssueBranchManager` is imported via `from .branch_manager import IssueBranchManager`, but `ClosingPRRef` lives in `linked_branches_mixin.py` (not re-exported by `branch_manager.py`), so it needs its own `from .linked_branches_mixin import ClosingPRRef` import line rather than literally joining the existing one.
+
+No other substantive findings — the critical/high issues from round 1 (3-tuple→4-tuple mock breakage across `test_branch_status.py` and the two `TestLinkedBranchSuppressesMergeVerdict` tests) are already fixed in the current `step_3.md`. The plan's state-resolution table, priority rules, and rendering split match the issue's decisions and constraints, and each step's preconditions accurately describe the current source.
+**Decisions**:
+Verdict(decision='tasks', tasks=['In pr_info/steps/step_1.md around line 60, correct the export instruction for ClosingPRRef: it is not importable from branch_manager.py alongside IssueBranchManager. Add a separate import line `from .linked_branches_mixin import ClosingPRRef` in issues/__init__.py, then add `ClosingPRRef` to `__all__`.'], escalate_reason=None)
+**Changes**:
+applied
