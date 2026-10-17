@@ -546,6 +546,8 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
         recommendations.append("Configure CI pipeline")
     elif ci_status == CIStatus.UNAVAILABLE:
         recommendations.append(f"Set a GitHub token ({GITHUB_TOKEN_HINT})")
+    elif ci_status == CIStatus.UNKNOWN:
+        recommendations.append("CI status could not be determined — retry")
 
     if tasks_status == TaskTrackerStatus.INCOMPLETE:
         recommendations.append(f"Complete remaining tasks ({tasks_reason})")
