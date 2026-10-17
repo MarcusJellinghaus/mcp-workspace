@@ -1,4 +1,4 @@
-"""Tests for branch_status._collect_ci_status."""
+"""Tests for branch_status_ci._collect_ci_status."""
 
 from collections.abc import Iterator
 from pathlib import Path
@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mcp_workspace.checks.branch_status import _collect_ci_status
+from mcp_workspace.checks.branch_status_ci import _collect_ci_status
 from mcp_workspace.checks.branch_status_rendering import CIStatus
 
 
@@ -17,12 +17,12 @@ class TestCollectCIStatus:
     def _github_token(self) -> Iterator[None]:
         """Provide a token so the missing-token gate does not short-circuit."""
         with patch(
-            "mcp_workspace.checks.branch_status.get_github_token",
+            "mcp_workspace.checks.branch_status_ci.get_github_token",
             return_value="tok",
         ):
             yield
 
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_passed(self, mock_ci_cls: MagicMock) -> None:
         mock_ci = MagicMock()
         mock_ci.get_latest_ci_status.return_value = {
@@ -35,8 +35,8 @@ class TestCollectCIStatus:
         assert details is None
         assert failing_names == []
 
-    @patch("mcp_workspace.checks.branch_status.build_ci_error_details")
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.build_ci_error_details")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_failed(self, mock_ci_cls: MagicMock, mock_build: MagicMock) -> None:
         mock_ci = MagicMock()
         mock_ci.get_latest_ci_status.return_value = {
@@ -50,7 +50,7 @@ class TestCollectCIStatus:
         assert details == "error details"
         assert failing_names == []
 
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_pending(self, mock_ci_cls: MagicMock) -> None:
         mock_ci = MagicMock()
         mock_ci.get_latest_ci_status.return_value = {
@@ -62,7 +62,7 @@ class TestCollectCIStatus:
         assert status == CIStatus.PENDING
         assert failing_names == []
 
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_not_configured(self, mock_ci_cls: MagicMock) -> None:
         mock_ci = MagicMock()
         mock_ci.get_latest_ci_status.return_value = {"run": {}, "jobs": []}
@@ -71,8 +71,8 @@ class TestCollectCIStatus:
         assert status == CIStatus.NOT_CONFIGURED
         assert failing_names == []
 
-    @patch("mcp_workspace.checks.branch_status.build_ci_error_details")
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.build_ci_error_details")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_failed_with_details_exception(
         self, mock_ci_cls: MagicMock, mock_build: MagicMock
     ) -> None:
@@ -89,7 +89,7 @@ class TestCollectCIStatus:
         assert details is None
         assert failing_names == []
 
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_pending_via_status_fallback(self, mock_ci_cls: MagicMock) -> None:
         """conclusion=None, status='in_progress' should return PENDING."""
         mock_ci = MagicMock()
@@ -103,14 +103,14 @@ class TestCollectCIStatus:
         assert details is None
         assert failing_names == []
 
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_exception_returns_unknown(self, mock_ci_cls: MagicMock) -> None:
         mock_ci_cls.side_effect = Exception("fail")
         status, _, failing_names = _collect_ci_status(Path("/tmp"), "main", 300)
         assert status == CIStatus.UNKNOWN
         assert failing_names == []
 
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_lookup_failed_returns_unknown(self, mock_ci_cls: MagicMock) -> None:
         mock_ci = MagicMock()
         mock_ci.get_latest_ci_status.return_value = {
@@ -123,15 +123,19 @@ class TestCollectCIStatus:
         assert status == CIStatus.UNKNOWN
         assert failing_names == []
 
-    @patch("mcp_workspace.checks.branch_status.build_ci_error_details")
-    @patch("mcp_workspace.checks.branch_status._is_stale_ci_run")
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.build_ci_error_details")
+    @patch("mcp_workspace.checks.branch_status_ci._is_stale_ci_run")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_stale_run_returns_pending(
         self, mock_ci_cls: MagicMock, mock_is_stale: MagicMock, mock_build: MagicMock
     ) -> None:
         mock_ci = MagicMock()
         mock_ci.get_latest_ci_status.return_value = {
-            "run": {"conclusion": "success", "status": "completed", "commit_sha": "old"},
+            "run": {
+                "conclusion": "success",
+                "status": "completed",
+                "commit_sha": "old",
+            },
             "jobs": [],
         }
         mock_ci_cls.return_value = mock_ci
@@ -142,13 +146,17 @@ class TestCollectCIStatus:
         assert failing_names == []
         mock_build.assert_not_called()
 
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_mismatched_sha_but_unpushed_head_keeps_current_behavior(
         self, mock_ci_cls: MagicMock
     ) -> None:
         mock_ci = MagicMock()
         mock_ci.get_latest_ci_status.return_value = {
-            "run": {"conclusion": "success", "status": "completed", "commit_sha": "old"},
+            "run": {
+                "conclusion": "success",
+                "status": "completed",
+                "commit_sha": "old",
+            },
             "jobs": [],
         }
         mock_ci_cls.return_value = mock_ci
@@ -156,8 +164,8 @@ class TestCollectCIStatus:
         assert status == CIStatus.PASSED
         assert failing_names == []
 
-    @patch("mcp_workspace.checks.branch_status.build_ci_error_details")
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.build_ci_error_details")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_workflow_success_with_failed_job_returns_failed(
         self, mock_ci_cls: MagicMock, mock_build: MagicMock
     ) -> None:
@@ -174,8 +182,8 @@ class TestCollectCIStatus:
         assert details == "error details"
         assert failing_names == ["mssql-integration"]
 
-    @patch("mcp_workspace.checks.branch_status.build_ci_error_details")
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.build_ci_error_details")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_workflow_success_with_cancelled_job_returns_failed(
         self, mock_ci_cls: MagicMock, mock_build: MagicMock
     ) -> None:
@@ -191,8 +199,8 @@ class TestCollectCIStatus:
         assert status == CIStatus.FAILED
         assert failing_names == ["lint"]
 
-    @patch("mcp_workspace.checks.branch_status.build_ci_error_details")
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.build_ci_error_details")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_workflow_success_with_timed_out_job_returns_failed(
         self, mock_ci_cls: MagicMock, mock_build: MagicMock
     ) -> None:
@@ -208,7 +216,7 @@ class TestCollectCIStatus:
         assert status == CIStatus.FAILED
         assert failing_names == ["tests"]
 
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_workflow_success_clean_returns_passed_with_empty_names(
         self, mock_ci_cls: MagicMock
     ) -> None:
@@ -224,7 +232,7 @@ class TestCollectCIStatus:
         assert details is None
         assert failing_names == []
 
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     def test_workflow_success_with_jobs_fetch_warning_returns_pending(
         self, mock_ci_cls: MagicMock
     ) -> None:
