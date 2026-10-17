@@ -39,14 +39,23 @@ Current code inside the polling loop:
 becomes:
 ```python
             run = result.get("run") if isinstance(result, dict) else None
-            if (
-                run
-                and run.get("conclusion") in ("success", "failure")
-                and not _is_stale_ci_run(project_dir, branch_name, run.get("commit_sha"))
-            ):
-                logger.info("CI reached terminal state for branch=%s", branch_name)
-                return time.monotonic() - start
+            if run and run.get("conclusion") in ("success", "failure"):
+                stale = await asyncio.to_thread(
+                    _is_stale_ci_run, project_dir, branch_name, run.get("commit_sha")
+                )
+                if not stale:
+                    logger.info(
+                        "CI reached terminal state for branch=%s", branch_name
+                    )
+                    return time.monotonic() - start
 ```
+The staleness check does local git repo/ref reads (same cost class as
+`ci_manager.get_latest_ci_status` just above it), so it is wrapped in its own
+`asyncio.to_thread` call rather than invoked directly on the event loop —
+matching the convention already used for `ci_manager.get_latest_ci_status`
+in this function and `remote_branch_exists` in `async_poll_branch_status`.
+It is only called when the run is already terminal, so non-terminal polls
+incur no extra thread hop.
 No other lines change — a stale terminal run simply falls through to the
 existing `remaining = deadline - time.monotonic()` / `asyncio.sleep(...)` tail
 of the loop, exactly like the current `in_progress`/`queued` case.
@@ -57,10 +66,11 @@ falsy) — no code change needed for that case, only a pinning test below.
 
 ```
 loop until deadline:
-    result = get_latest_ci_status(branch)
+    result = get_latest_ci_status(branch)  # via asyncio.to_thread
     run = result.get("run")
-    if run and run.conclusion in (success, failure) and not stale(run):
-        return elapsed  # terminal and fresh
+    if run and run.conclusion in (success, failure):
+        if not stale(run):  # via asyncio.to_thread
+            return elapsed  # terminal and fresh
     # else: in_progress / stale / lookup_failed — keep polling
     sleep(min(poll_interval, remaining))
 ```
@@ -76,7 +86,9 @@ In `tests/checks/test_branch_status_polling.py`, add to `TestWaitForCI`:
 
 1. `test_stale_terminal_run_does_not_end_wait` — `ci_manager.get_latest_ci_status.return_value = {"run": {"conclusion": "success", "commit_sha": "old"}}`;
    patch `mcp_workspace.checks.branch_status_polling._is_stale_ci_run` to
-   `return_value=True`; reuse the deadline-aware `time.monotonic` /
+   `return_value=True` (patching the module-level name works the same whether
+   the call happens directly or via `asyncio.to_thread` — the mock still runs,
+   just on a worker thread); reuse the deadline-aware `time.monotonic` /
    `asyncio.sleep` mocking pattern already used in
    `test_returns_after_timeout_when_in_progress` (a `times` iterator feeding
    several values ending at/after the deadline) with `timeout=60`; assert
