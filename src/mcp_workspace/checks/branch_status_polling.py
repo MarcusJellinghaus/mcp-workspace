@@ -12,7 +12,10 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Optional
 
-from mcp_workspace.checks.branch_status import collect_branch_status
+from mcp_workspace.checks.branch_status import (
+    _is_stale_ci_run,
+    collect_branch_status,
+)
 from mcp_workspace.checks.branch_status_rendering import WaitContext
 from mcp_workspace.git_operations.branch_queries import (
     get_current_branch_name,
@@ -49,8 +52,14 @@ async def _wait_for_ci(project_dir: Path, branch_name: str, timeout: int) -> flo
             errors = 0
             run = result.get("run") if isinstance(result, dict) else None
             if run and run.get("conclusion") in ("success", "failure"):
-                logger.info("CI reached terminal state for branch=%s", branch_name)
-                return time.monotonic() - start
+                stale = await asyncio.to_thread(
+                    _is_stale_ci_run, project_dir, branch_name, run.get("commit_sha")
+                )
+                if not stale:
+                    logger.info(
+                        "CI reached terminal state for branch=%s", branch_name
+                    )
+                    return time.monotonic() - start
         except Exception as exc:  # pylint: disable=broad-exception-caught
             errors += 1
             logger.warning("CI poll error for branch=%s: %s", branch_name, exc)
