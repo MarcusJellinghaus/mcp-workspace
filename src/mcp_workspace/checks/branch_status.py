@@ -267,7 +267,12 @@ def _collect_ci_status(
         run_data = status_result.get("run")
 
         if run_data is None or len(run_data) == 0:
+            if status_result.get("lookup_failed"):
+                return CIStatus.UNKNOWN, None, []
             return CIStatus.NOT_CONFIGURED, None, []
+
+        if _is_stale_ci_run(project_dir, branch_name, run_data.get("commit_sha")):
+            return CIStatus.PENDING, None, []
 
         jobs_data = status_result.get("jobs", [])
         failing_names = [
@@ -302,7 +307,7 @@ def _collect_ci_status(
 
     except Exception:  # pylint: disable=broad-exception-caught
         logger.debug("CI status collection failed", exc_info=True)
-        return CIStatus.NOT_CONFIGURED, None, []
+        return CIStatus.UNKNOWN, None, []
 
 
 def _collect_rebase_status(project_dir: Path, base_branch: str) -> tuple[bool, str]:

@@ -104,10 +104,56 @@ class TestCollectCIStatus:
         assert failing_names == []
 
     @patch("mcp_workspace.checks.branch_status.CIResultsManager")
-    def test_exception_returns_not_configured(self, mock_ci_cls: MagicMock) -> None:
+    def test_exception_returns_unknown(self, mock_ci_cls: MagicMock) -> None:
         mock_ci_cls.side_effect = Exception("fail")
         status, _, failing_names = _collect_ci_status(Path("/tmp"), "main", 300)
-        assert status == CIStatus.NOT_CONFIGURED
+        assert status == CIStatus.UNKNOWN
+        assert failing_names == []
+
+    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    def test_lookup_failed_returns_unknown(self, mock_ci_cls: MagicMock) -> None:
+        mock_ci = MagicMock()
+        mock_ci.get_latest_ci_status.return_value = {
+            "run": {},
+            "jobs": [],
+            "lookup_failed": True,
+        }
+        mock_ci_cls.return_value = mock_ci
+        status, _, failing_names = _collect_ci_status(Path("/tmp"), "main", 300)
+        assert status == CIStatus.UNKNOWN
+        assert failing_names == []
+
+    @patch("mcp_workspace.checks.branch_status.build_ci_error_details")
+    @patch("mcp_workspace.checks.branch_status._is_stale_ci_run")
+    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    def test_stale_run_returns_pending(
+        self, mock_ci_cls: MagicMock, mock_is_stale: MagicMock, mock_build: MagicMock
+    ) -> None:
+        mock_ci = MagicMock()
+        mock_ci.get_latest_ci_status.return_value = {
+            "run": {"conclusion": "success", "status": "completed", "commit_sha": "old"},
+            "jobs": [],
+        }
+        mock_ci_cls.return_value = mock_ci
+        mock_is_stale.return_value = True
+        status, details, failing_names = _collect_ci_status(Path("/tmp"), "main", 300)
+        assert status == CIStatus.PENDING
+        assert details is None
+        assert failing_names == []
+        mock_build.assert_not_called()
+
+    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    def test_mismatched_sha_but_unpushed_head_keeps_current_behavior(
+        self, mock_ci_cls: MagicMock
+    ) -> None:
+        mock_ci = MagicMock()
+        mock_ci.get_latest_ci_status.return_value = {
+            "run": {"conclusion": "success", "status": "completed", "commit_sha": "old"},
+            "jobs": [],
+        }
+        mock_ci_cls.return_value = mock_ci
+        status, _, failing_names = _collect_ci_status(Path("/tmp"), "main", 300)
+        assert status == CIStatus.PASSED
         assert failing_names == []
 
     @patch("mcp_workspace.checks.branch_status.build_ci_error_details")
