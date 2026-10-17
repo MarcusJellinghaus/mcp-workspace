@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server import (
     _check_not_gitignored,
     append_file,
@@ -16,6 +17,7 @@ from mcp_workspace.server import (
     git,
     move_file,
     read_file,
+    run_server,
     save_file,
     set_project_dir,
 )
@@ -538,3 +540,30 @@ class TestCheckBranchStatusTool:
                 await check_branch_status()
         finally:
             srv._project_dir = original
+
+
+# --- run_server tests ---
+
+
+class TestRunServer:
+    """Tests for run_server."""
+
+    def test_run_server_with_reference_projects(self) -> None:
+        """Test run_server accepts reference projects parameter."""
+        test_projects = {
+            "proj1": ReferenceProject(
+                name="proj1", path=Path("/path/to/proj1").resolve()
+            ),
+            "proj2": ReferenceProject(
+                name="proj2", path=Path("/path/to/proj2").resolve()
+            ),
+        }
+
+        # Mock the mcp.run() call to avoid actually starting the server
+        with patch("mcp_workspace.server.mcp.run") as mock_run:
+            with patch("mcp_workspace.server.set_reference_projects") as mock_set_ref:
+                run_server(Path("/test/project"), reference_projects=test_projects)
+
+                # Verify that set_reference_projects was called with the correct arguments
+                mock_set_ref.assert_called_once_with(test_projects)
+                mock_run.assert_called_once()
