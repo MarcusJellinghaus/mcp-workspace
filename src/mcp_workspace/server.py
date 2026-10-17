@@ -1272,7 +1272,9 @@ def github_issue_create(
     those are applied with `mcp-coder gh-tool set-status <label>` from the
     target repository's own checkout. Other label names are validated against
     the target repository's labels before writing, so a typo cannot silently
-    create a new label.
+    create a new label. A malformed `### Base Branch` section (more than one
+    line) is rejected before any write, unless the server was started with
+    `--no-enforce-base-branch-format`.
 
     Args:
         title: Issue title (required, cannot be empty)
@@ -1289,6 +1291,9 @@ def github_issue_create(
         assignees, or error message string.
     """
     try:
+        body_error = _check_base_branch(body)
+        if body_error:
+            return body_error
         manager = _issue_manager(reference_name)
         label_error = _check_labels(manager, labels or [], [], reference_name)
         if label_error:
