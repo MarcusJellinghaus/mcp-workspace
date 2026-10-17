@@ -6,10 +6,10 @@ from unittest.mock import MagicMock, patch
 
 from mcp_workspace.checks.branch_status import (
     BranchStatusReport,
-    _collect_ci_status,
     _generate_recommendations,
     collect_branch_status,
 )
+from mcp_workspace.checks.branch_status_ci import _collect_ci_status
 from mcp_workspace.checks.branch_status_rendering import (
     GITHUB_TOKEN_HINT,
     CIStatus,
@@ -42,9 +42,9 @@ class TestUnavailableCIStatus:
         assert CIStatus.UNAVAILABLE == "UNAVAILABLE"
         assert CIStatus.UNAVAILABLE.value == "UNAVAILABLE"
 
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     @patch(
-        "mcp_workspace.checks.branch_status.get_github_token",
+        "mcp_workspace.checks.branch_status_ci.get_github_token",
         return_value=None,
     )
     def test_collect_ci_status_no_token_returns_unavailable(
@@ -55,9 +55,9 @@ class TestUnavailableCIStatus:
         assert result == (CIStatus.UNAVAILABLE, None, [])
         mock_ci_cls.assert_not_called()
 
-    @patch("mcp_workspace.checks.branch_status.CIResultsManager")
+    @patch("mcp_workspace.checks.branch_status_ci.CIResultsManager")
     @patch(
-        "mcp_workspace.checks.branch_status.get_github_token",
+        "mcp_workspace.checks.branch_status_ci.get_github_token",
         return_value="tok",
     )
     def test_collect_ci_status_with_token_still_works(
@@ -241,7 +241,7 @@ class TestReviewGateHeader:
             assert "Review Gate: BLOCKED" not in output
 
     @patch(
-        "mcp_workspace.checks.branch_status.get_github_token",
+        "mcp_workspace.checks.branch_status_ci.get_github_token",
         return_value="tok",
     )
     def test_undeterminable_paths_do_not_misattribute_missing_token(

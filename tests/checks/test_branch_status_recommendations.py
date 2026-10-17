@@ -73,6 +73,19 @@ class TestGenerateRecommendations:
         )
         assert "Configure CI pipeline" in recs
 
+    def test_ci_unknown(self) -> None:
+        recs = _generate_recommendations(
+            {
+                "ci_status": CIStatus.UNKNOWN,
+                "rebase_needed": False,
+                "tasks_status": TaskTrackerStatus.COMPLETE,
+                "tasks_reason": "All done",
+                "tasks_is_blocking": False,
+            }
+        )
+        assert "CI status could not be determined — retry" in recs
+        assert "Ready to merge" not in recs
+
     def test_rebase_needed(self) -> None:
         recs = _generate_recommendations(
             {

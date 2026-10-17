@@ -1,6 +1,6 @@
 """Tests for CIResultsManager get_latest_ci_status method."""
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from github import GithubException
@@ -529,3 +529,62 @@ class TestGetLatestCIStatusSteps:
         assert result["jobs"] == []
 
         mock_run.jobs.assert_called_once()
+
+
+class TestLookupFailedFlag:
+    """Tests for the lookup_failed flag on CIStatusData."""
+
+    def test_lookup_failed_set_on_non_auth_github_exception(
+        self, mock_repo: Mock, ci_manager: CIResultsManager
+    ) -> None:
+        """A non-auth GithubException sets lookup_failed True on the default return."""
+        mock_repo.get_workflow_runs.side_effect = GithubException(500, "boom", {})
+
+        result = ci_manager.get_latest_ci_status("main")
+
+        assert result["run"] == {}  # type: ignore[comparison-overlap]
+        assert result.get("lookup_failed") is True
+
+    def test_lookup_failed_set_on_generic_exception(
+        self, mock_repo: Mock, ci_manager: CIResultsManager
+    ) -> None:
+        """A generic exception sets lookup_failed True on the default return."""
+        mock_repo.get_workflow_runs.side_effect = RuntimeError("boom")
+
+        result = ci_manager.get_latest_ci_status("main")
+
+        assert result["run"] == {}  # type: ignore[comparison-overlap]
+        assert result.get("lookup_failed") is True
+
+    def test_lookup_failed_set_when_repository_inaccessible(
+        self, ci_manager: CIResultsManager
+    ) -> None:
+        """An inaccessible repository sets lookup_failed True."""
+        with patch.object(ci_manager, "_get_repository", return_value=None):
+            result = ci_manager.get_latest_ci_status("main")
+
+        assert result["run"] == {}  # type: ignore[comparison-overlap]
+        assert result.get("lookup_failed") is True
+
+    def test_lookup_failed_absent_on_success(
+        self, mock_repo: Mock, ci_manager: CIResultsManager
+    ) -> None:
+        """A successful lookup does not set lookup_failed at all."""
+        mock_run = Mock()
+        mock_run.id = 123456789
+        mock_run.status = "completed"
+        mock_run.conclusion = "success"
+        mock_run.name = "CI"
+        mock_run.event = "push"
+        mock_run.path = ".github/workflows/ci.yml"
+        mock_run.head_sha = "abc123def456"
+        mock_run.head_branch = "main"
+        mock_run.created_at = Mock()
+        mock_run.created_at.isoformat.return_value = "2024-01-15T10:30:00Z"
+        mock_run.html_url = "https://github.com/test/repo/actions/runs/123456789"
+        mock_run.jobs.return_value = []
+        mock_repo.get_workflow_runs.return_value = [mock_run]
+
+        result = ci_manager.get_latest_ci_status("main")
+
+        assert "lookup_failed" not in result

@@ -155,6 +155,75 @@ class TestWaitForCI:
         assert elapsed == pytest.approx(0.0, abs=0.5)
 
     @pytest.mark.asyncio
+    async def test_stale_terminal_run_does_not_end_wait(
+        self, project_dir: Path
+    ) -> None:
+        ci_manager = MagicMock()
+        ci_manager.get_latest_ci_status.return_value = {
+            "run": {"conclusion": "success", "commit_sha": "old"}
+        }
+        counter = {"n": 0}
+
+        def fake_monotonic() -> float:
+            counter["n"] += 1
+            return float(counter["n"])
+
+        with (
+            patch(
+                "mcp_workspace.checks.branch_status_polling.CIResultsManager",
+                return_value=ci_manager,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling.asyncio.sleep",
+                new_callable=AsyncMock,
+            ) as mock_sleep,
+            patch(
+                "mcp_workspace.checks.branch_status_polling.time.monotonic",
+                side_effect=fake_monotonic,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling._is_stale_ci_run",
+                return_value=True,
+            ),
+        ):
+            elapsed = await _wait_for_ci(project_dir, "feature/x", timeout=60)
+        assert ci_manager.get_latest_ci_status.call_count > 1
+        mock_sleep.assert_called()
+        assert isinstance(elapsed, float)
+
+    @pytest.mark.asyncio
+    async def test_lookup_failed_keeps_polling(self, project_dir: Path) -> None:
+        ci_manager = MagicMock()
+        ci_manager.get_latest_ci_status.return_value = {
+            "run": {},
+            "lookup_failed": True,
+        }
+        counter = {"n": 0}
+
+        def fake_monotonic() -> float:
+            counter["n"] += 1
+            return float(counter["n"])
+
+        with (
+            patch(
+                "mcp_workspace.checks.branch_status_polling.CIResultsManager",
+                return_value=ci_manager,
+            ),
+            patch(
+                "mcp_workspace.checks.branch_status_polling.asyncio.sleep",
+                new_callable=AsyncMock,
+            ) as mock_sleep,
+            patch(
+                "mcp_workspace.checks.branch_status_polling.time.monotonic",
+                side_effect=fake_monotonic,
+            ),
+        ):
+            elapsed = await _wait_for_ci(project_dir, "feature/x", timeout=60)
+        assert ci_manager.get_latest_ci_status.call_count > 1
+        mock_sleep.assert_called()
+        assert isinstance(elapsed, float)
+
+    @pytest.mark.asyncio
     async def test_ci_deadline_aware_sleep_caps_at_remaining_time(
         self, project_dir: Path
     ) -> None:

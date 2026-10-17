@@ -8,8 +8,12 @@ check_branch_status MCP tool.
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Optional
 
+from mcp_workspace.checks.branch_status_ci import (
+    _collect_ci_status,
+    get_failed_jobs_summary,
+)
 from mcp_workspace.checks.branch_status_rendering import (
     GITHUB_TOKEN_HINT,
     CIStatus,
@@ -20,7 +24,6 @@ from mcp_workspace.checks.branch_status_rendering import (
     linked_branch_blocks,
 )
 from mcp_workspace.checks.pr_feedback import collect_pr_feedback
-from mcp_workspace.config import get_github_token
 from mcp_workspace.git_operations.base_branch import detect_base_branch
 from mcp_workspace.git_operations.branch_queries import (
     extract_issue_number_from_branch,
@@ -29,14 +32,6 @@ from mcp_workspace.git_operations.branch_queries import (
 )
 from mcp_workspace.git_operations.workflows import needs_rebase
 from mcp_workspace.github_operations import IssueIdentityMismatchError
-from mcp_workspace.github_operations.ci_log_parser import (
-    _extract_failed_step_log,
-    _find_log_content,
-    _strip_timestamps,
-    build_ci_error_details,
-    truncate_ci_details,
-)
-from mcp_workspace.github_operations.ci_results_manager import CIResultsManager
 from mcp_workspace.github_operations.formatters import find_latest_marked_comment
 from mcp_workspace.github_operations.issues import (
     ClosingPRRef,
@@ -68,7 +63,6 @@ EMPTY_RECOMMENDATIONS: List[str] = []
 # once so the two sides cannot drift.
 _LINKED_BRANCH_BLOCKS_KEY = "linked_branch_blocks"
 
-_JOB_FAIL_CONCLUSIONS: frozenset[str] = frozenset({"failure", "cancelled", "timed_out"})
 _BLOCKING_MERGE_STATES: frozenset[str] = frozenset({"unstable", "blocked", "dirty"})
 
 
@@ -168,124 +162,6 @@ def create_empty_report(
         current_github_label=DEFAULT_LABEL,
         recommendations=EMPTY_RECOMMENDATIONS,
     )
-
-
-def get_failed_jobs_summary(
-    jobs: Sequence[Mapping[str, Any]], logs: Mapping[str, str]
-) -> Dict[str, Any]:
-    """Summarize failed jobs from CI results.
-
-    Args:
-        jobs: List of job data dictionaries from CI status.
-        logs: Dictionary mapping log filenames to contents.
-
-    Returns:
-        Dictionary with job_name, step_name, step_number, log_excerpt,
-        and other_failed_jobs list.
-    """
-    failed = [j for j in jobs if j.get("conclusion") == "failure"]
-    if not failed:
-        return {
-            "job_name": "",
-            "step_name": "",
-            "step_number": 0,
-            "log_excerpt": "",
-            "other_failed_jobs": [],
-        }
-
-    # Get first failed job
-    first_failed = failed[0]
-    job_name = str(first_failed.get("name", ""))
-
-    # Find first step with conclusion == "failure"
-    step_name = ""
-    step_number = 0
-    steps = first_failed.get("steps", [])
-    for step in steps:
-        if step.get("conclusion") == "failure":
-            step_name = str(step.get("name", ""))
-            step_number = step.get("number", 0)
-            break
-
-    log_content = _find_log_content(logs, job_name, step_number, step_name)
-
-    # Strip timestamps first so ##[group] markers are parseable
-    if log_content:
-        log_content = _strip_timestamps(log_content)
-
-    # Extract just the failed step's section from the full job log
-    if log_content:
-        extracted = _extract_failed_step_log(log_content, step_name)
-        if extracted:
-            log_content = extracted
-
-    log_excerpt = truncate_ci_details(log_content)
-
-    # Other failed jobs
-    other_failed_jobs = [str(j.get("name", "")) for j in failed[1:]]
-
-    return {
-        "job_name": job_name,
-        "step_name": step_name,
-        "step_number": step_number,
-        "log_excerpt": log_excerpt,
-        "other_failed_jobs": other_failed_jobs,
-    }
-
-
-def _collect_ci_status(
-    project_dir: Path, branch_name: str, max_log_lines: int
-) -> tuple[CIStatus, Optional[str], List[str]]:
-    """Collect CI status and details.
-
-    Returns:
-        Tuple of (CIStatus, optional details string, failing job names).
-    """
-    if get_github_token() is None:
-        logger.info("GitHub token not configured — CI status unavailable")
-        return CIStatus.UNAVAILABLE, None, []
-    try:
-        ci_manager = CIResultsManager(project_dir=project_dir)
-        status_result = ci_manager.get_latest_ci_status(branch_name)
-        run_data = status_result.get("run")
-
-        if run_data is None or len(run_data) == 0:
-            return CIStatus.NOT_CONFIGURED, None, []
-
-        jobs_data = status_result.get("jobs", [])
-        failing_names = [
-            j["name"] for j in jobs_data if j.get("conclusion") in _JOB_FAIL_CONCLUSIONS
-        ]
-        conclusion = run_data.get("conclusion")
-        status = run_data.get("status", "")
-
-        if conclusion == "success":
-            if failing_names:
-                try:
-                    details = build_ci_error_details(
-                        ci_manager, status_result, max_lines=max_log_lines
-                    )
-                except Exception:  # pylint: disable=broad-exception-caught
-                    details = None
-                return CIStatus.FAILED, details, failing_names
-            if run_data.get("jobs_fetch_warning"):
-                return CIStatus.PENDING, None, []
-            return CIStatus.PASSED, None, []
-        if conclusion == "failure":
-            try:
-                details = build_ci_error_details(
-                    ci_manager, status_result, max_lines=max_log_lines
-                )
-            except Exception:  # pylint: disable=broad-exception-caught
-                details = None
-            return CIStatus.FAILED, details, failing_names
-        if status in ("in_progress", "queued", "pending"):
-            return CIStatus.PENDING, None, []
-        return CIStatus.NOT_CONFIGURED, None, []
-
-    except Exception:  # pylint: disable=broad-exception-caught
-        logger.debug("CI status collection failed", exc_info=True)
-        return CIStatus.NOT_CONFIGURED, None, []
 
 
 def _collect_rebase_status(project_dir: Path, base_branch: str) -> tuple[bool, str]:
@@ -524,6 +400,8 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
         recommendations.append("Configure CI pipeline")
     elif ci_status == CIStatus.UNAVAILABLE:
         recommendations.append(f"Set a GitHub token ({GITHUB_TOKEN_HINT})")
+    elif ci_status == CIStatus.UNKNOWN:
+        recommendations.append("CI status could not be determined — retry")
 
     if tasks_status == TaskTrackerStatus.INCOMPLETE:
         recommendations.append(f"Complete remaining tasks ({tasks_reason})")
