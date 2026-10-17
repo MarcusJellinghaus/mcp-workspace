@@ -76,6 +76,7 @@ class CIStatusData(TypedDict):
 
     run: RunData
     jobs: List[JobData]
+    lookup_failed: NotRequired[bool]
 
 
 def filter_runs_by_head_sha(runs: List[Any], max_runs: int = 25) -> List[Any]:
@@ -188,7 +189,9 @@ class CIResultsManager(BaseGitHubManager):
         return True
 
     @log_function_call
-    @_handle_github_errors(default_return=CIStatusData(run={}, jobs=[]))  # type: ignore[typeddict-item]
+    @_handle_github_errors(
+        default_return=lambda: CIStatusData(run={}, jobs=[], lookup_failed=True)  # type: ignore[typeddict-item]
+    )
     def get_latest_ci_status(self, branch: str) -> CIStatusData:
         """Get latest CI run status and job results for a branch.
 
@@ -214,7 +217,7 @@ class CIResultsManager(BaseGitHubManager):
         repo = self._get_repository()
         if not repo:
             logger.error("Could not access GitHub repository")
-            return CIStatusData(run={}, jobs=[])  # type: ignore[typeddict-item]
+            return CIStatusData(run={}, jobs=[], lookup_failed=True)  # type: ignore[typeddict-item]
 
         # Get workflow runs for the branch
         try:
