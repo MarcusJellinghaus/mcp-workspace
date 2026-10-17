@@ -9,7 +9,7 @@ This package provides:
 """
 
 # Base utilities
-from .base import parse_base_branch
+from .base import MalformedBaseBranchError, parse_base_branch
 
 # Branch manager and utilities
 from .branch_manager import IssueBranchManager
@@ -59,6 +59,7 @@ __all__ = [
     "update_issue_labels_in_cache",
     # Utility functions (exported for testing)
     "parse_base_branch",
+    "MalformedBaseBranchError",
     # Private cache functions (exported for testing)
     "_get_cache_file_path",
     "_load_cache_file",
