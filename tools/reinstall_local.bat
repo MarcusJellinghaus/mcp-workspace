@@ -39,7 +39,7 @@ echo [OK] Target environment: !VENV_DIR!
 echo.
 
 echo [1/6] Uninstalling existing packages...
-uv pip uninstall mcp-workspace mcp-coder-utils mcp-config-tool mcp-tools-py mcp-coder --python "!VENV_SCRIPTS!\python.exe" 2>nul
+uv pip uninstall mcp-workspace mcp-coder-utils mcp-tools-py mcp-coder --python "!VENV_SCRIPTS!\python.exe" 2>nul
 echo [OK] Packages uninstalled
 
 echo.
