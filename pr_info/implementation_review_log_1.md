@@ -1,0 +1,14 @@
+# review-implementation review log 1
+
+## Round 1 — 2026-10-17
+**Findings**:
+I'll start by loading the MCP tool schemas I need for this review.Now gathering context: knowledge base, issue #318, pr_info summary, and the diff against main.Now let's get the actual diff against main.Now let's check the `_handle_github_errors` decorator to confirm it supports a callable `default_return` factory, and look at remaining diffs (ci_results_manager tests, branch_queries tests, polling tests, recommendations tests, review_gate test, main.py, vulture_whitelist, reference_projects/startup tests).Good — this confirms main.py, vulture_whitelist.py, README.md, test_reference_projects.py, test_startup.py changes are from unrelated upstream commit #323, not this branch. Now let's review the remaining relevant diffs: ci_results_manager tests, branch_queries tests, polling tests, recommendations tests, review_gate test, and test_branch_status_ci.py.Now let's check the remaining test files and the branch_status_ci/polling/recommendations/review_gate tests.Good, this all matches the design. Now let's verify `get_latest_commit_sha` exists with the expected signature, and double check the `_is_stale_ci_run` design decision about "only apply when HEAD equals origin/<branch>" — re-verify test for mismatched commit_sha where origin matches HEAD gives PENDING correctly, already confirmed. Let's check step files briefly for any discrepancy, and check `tests/checks/test_branch_status_ci.py:109-110` mentioned in issue to confirm test updated correctly (already seen: `test_exception_returns_unknown`).Good — confirms CIStatus.UNKNOWN pre-existed and is used consistently. Everything checks out against design. Let me verify the git log to see the 5 commits match the 6 planned steps (noting a later refactor commit was added beyond the original 6-step plan).Good, imports are fine. The implementation faithfully matches the design in summary.md and issue #318, tests cover all specified cases, and the refactor commit cleanly separated CI collection into `branch_status_ci.py`. I found no substantive defects.The implementation matches the planned steps and issue requirements faithfully, including the later refactor commit that moved the CI logic into `branch_status_ci.py` (which the step files didn't anticipate but is consistent with the issue's constraint that the helper "must live in `branch_status.py` or a lower-level module"). All planned test cases are present and correctly implemented.
+
+Review complete. The diff against `main` (using the merge-base, since `main` has advanced with an unrelated commit #323 that touched `main.py`) contains only in-scope implementation changes for issue #318, matching the design in `pr_info/steps/summary.md` and the issue's proposed fix/constraints. No substantive defects found.
+
+NO FINDINGS
+**Decisions**:
+Verdict(decision='dismiss', tasks=[], escalate_reason=None)
+**Changes**:
+rebase-needed
+**Escalate reason**: rebase
