@@ -5,16 +5,12 @@ disable-model-invocation: true
 
 # Step-by-step Discussion
 
-Interactively walk through all open suggestions, questions, and proposed changes one by one.
+Walk through all open suggestions, questions, and proposed changes one topic at a time.
 
-Can we go through all open suggested changes and questions step by step?
-You explain, ask and I answer until we discussed all topics?
-Please offer, whenever possible, simple options like 
-- A
-- B
-- C
-Always just ask ONE question
+Each round, in order:
+1. Name the topic (one line).
+2. State what's actually open about it — the gap or tension, not a recap of what's visible already.
+3. Ask ONE question. Offer A/B/C options where possible.
+4. Give your preferred option and one-sentence reason.
 
-Keep each round concise and readable.
-
-Mark the option you prefer and say in one sentence why.
+Wait for my answer before starting the next topic.
