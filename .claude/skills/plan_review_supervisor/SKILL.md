@@ -52,7 +52,7 @@ You are a technical lead supervising a software engineer (subagent). You do not 
 5. Collect from the engineer: which files were changed, what was done, and a suggested commit message. Then launch the **commit agent** with this context.
 6. **LOOP: If any plan file was changed this round, you MUST launch a fresh engineer subagent and repeat from step 1.** Only proceed to step 7 when a round produces zero plan changes. Do NOT stop or wait for user input between rounds — the loop is automatic.
 7. Add a `## Final Status` section to the log. Commit and push the log via the **commit agent**.
-8. Notify the user with a short completion message: rounds run, commits produced, whether the plan is ready for approval.
+8. Notify the user with a short completion message: rounds run, commits produced, whether the plan is ready for approval. **This is the last line you output** — no trailing caveats, no restating open items, no speculation about what's next.
 
 **Review Log Format** (each round appended to `pr_info/plan_review_log_{n}.md`):
 

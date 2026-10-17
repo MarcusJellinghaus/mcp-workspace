@@ -123,7 +123,6 @@ convention = "google"
 [tool.mcp-coder.install-from-github]
 # Installed WITH deps (picks up external deps like jedi)
 packages = [
-    "mcp-config-tool @ git+https://github.com/MarcusJellinghaus/mcp-config.git",
     "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git",
     "mcp-tools-py @ git+https://github.com/MarcusJellinghaus/mcp-tools-py.git",
 ]

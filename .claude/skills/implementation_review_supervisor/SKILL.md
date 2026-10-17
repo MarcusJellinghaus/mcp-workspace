@@ -61,7 +61,7 @@ You are a technical lead supervising a software engineer (subagent). You do not 
 9. Add a `## Final Status` section to the log. Commit and push the log via the **commit agent**.
 10. Launch the engineer → `/check_branch_status` to verify CI, rebase need, and overall readiness. Include the result in the completion message.
 11. Perform any PR-section tasks this skill covers — typically `PR review` or `Code review`. Once done, tick them in `pr_info/TASK_TRACKER.md` and commit via the **commit agent** (separate commit from the log). Leave unrelated tasks like `PR summary` alone.
-12. Notify the user with a short completion message: rounds run, commits produced, whether any issues remain, and branch status (CI, rebase needed).
+12. Notify the user with a short completion message: rounds run, commits produced, whether any issues remain, and branch status (CI, rebase needed). **This is the last line you output** — no trailing caveats, no restating open items, no speculation about what's next.
 
 **Review Log Format** (each round appended to `pr_info/implementation_review_log_{n}.md`):
 
