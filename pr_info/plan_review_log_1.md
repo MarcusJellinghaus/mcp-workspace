@@ -13,3 +13,11 @@ Now I'll check one more thing: whether `_check_base_branch`'s step 3 unit tests 
 Verdict(decision='tasks', tasks=["In pr_info/steps/step_5.md's TDD list for github_issue_edit (around line 73), add two test cases matching step 4's create-side coverage: (1) a body with no `### Base Branch` heading is accepted, and (2) a body with an empty Base Branch section is accepted. This closes the gap against issue #320's 'Done when' requirement that both create and edit cover the no-section and empty-section acceptance cases at the tool level."], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 2 — 2026-10-17
+**Findings**:
+I'll gather context: knowledge base files, issue #320, and the plan files.Now let me read all the step files.Line 82 is where test case 2 (valid base branch, non-CRLF) sits; the missing CRLF-valid-accepted case belongs near line 96-99.pr_info/steps/step_5.md:96 — medium — TDD list for `github_issue_edit` has a CRLF-malformed-rejected test but no CRLF-valid-accepted test, unlike `step_4.md`'s case 6 (`test_github_issue_create_accepts_valid_base_branch_crlf`) for `github_issue_create`. Issue #320's "Done when" requires tests covering "valid" and "CRLF bodies: malformed is rejected, valid is accepted" for create and edit symmetrically; the edit tool leaves this acceptance path unverified at the tool level.
+**Decisions**:
+Verdict(decision='tasks', tasks=["In pr_info/steps/step_5.md's TDD list for github_issue_edit (near line 96), add a CRLF-valid-accepted test case mirroring step_4.md's test_github_issue_create_accepts_valid_base_branch_crlf, so a CRLF-formatted body with a valid Base Branch section is verified as accepted for github_issue_edit, matching the CRLF-malformed-rejected case already present."], escalate_reason=None)
+**Changes**:
+applied
