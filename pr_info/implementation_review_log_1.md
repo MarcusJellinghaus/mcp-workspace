@@ -1,0 +1,16 @@
+# review-implementation review log 1
+
+## Round 1 — 2026-10-17
+**Findings**:
+I'll gather context in parallel: knowledge base files, issue #319, pr_info files, and the diff against main.Now let me get the actual diff against main.Good — confirms those unrelated files (.claude/, pyproject.toml, tools/) are drift from main moving ahead, not part of this branch. The real implementation diff is `src/mcp_workspace/main.py`, `tests/test_reference_projects.py`, `tests/test_startup.py`, and `README.md`. Let me view the remaining diffs.This matches step 1 & 4 exactly. Now the test_startup.py diff (new file, large) — let me read it fully.This matches the design closely. Here is the final report.
+
+`src/mcp_workspace/main.py:178-194` — medium — `_has_real_file_handler` was specified in `pr_info/steps/step_2.md` as a plain `isinstance(handler, logging.FileHandler)` check, but production code was changed to also exclude any `FileHandler` whose `baseFilename` resolves to `os.devnull`, with a docstring explaining this is to ignore `_pytest.logging._FileHandler`. This couples a production startup-logging decision to a test-runner internal (`_pytest.logging._FileHandler`'s devnull behavior) rather than disabling pytest's live-log capture in test setup (e.g. `-p no:logging`/log-capture config). It's fragile to pytest internals changing and is a layering violation (test concern leaking into `main.py`).
+
+`src/mcp_workspace/main.py:348-356` — low — if the bootstrap `setup_logging("INFO", log_file)` call (used to report an invalid `--log-level`) itself raises `OSError` (e.g. unwritable log directory combined with an invalid `--log-level`), the original `ValueError` about the bad log level is lost; only the `OSError` propagates to `_handle_startup_failure`, so the resulting fallback log reports the directory problem but not the invalid level. Untested combination, minor.
+
+NO other findings — diff matches `pr_info/steps/summary.md`/`step_1-4.md` precisely, all `pytest`/`pylint`/`mypy` checks pass, and the issue's "Done when" criteria are all covered by the new tests in `tests/test_startup.py`.
+**Decisions**:
+Verdict(decision='tasks', tasks=["In src/mcp_workspace/main.py `_has_real_file_handler` (~line 178-194): remove the devnull/`_pytest.logging._FileHandler` exclusion logic from production code; restore the plain `isinstance(handler, logging.FileHandler)` check as specified in pr_info/steps/step_2.md. Instead, suppress pytest's live-log capture in the test suite configuration (e.g. `-p no:logging` or equivalent logging addopts in pytest.ini/pyproject.toml) so tests don't inject a devnull FileHandler in the first place.", 'In src/mcp_workspace/main.py around line 348-356: when the bootstrap `setup_logging("INFO", log_file)` call used to report an invalid `--log-level` itself raises `OSError`, preserve the original `ValueError` (invalid log level) instead of letting it be lost — e.g. catch the `OSError`, chain/include the original `ValueError` message, and ensure `_handle_startup_failure` logs both the invalid-log-level problem and the log-directory problem. Add a test covering this combination (invalid `--log-level` plus unwritable log directory).'], escalate_reason=None)
+**Changes**:
+rebase-needed
+**Escalate reason**: rebase

@@ -71,13 +71,17 @@ mcp-workspace --project-dir /path/to/project [--reference-project NAME=/path/to/
 
 ### Command Line Arguments:
 
-- `--project-dir`: (Required) Directory to serve files from
+- `--project-dir`: Directory to serve files from. The server exits with code 1 if it is missing or not a valid directory.
 - `--reference-project`: (Optional) Add reference project in format name=/path/to/dir (repeatable, auto-renames duplicates)
 - `--log-level`: (Optional) Set logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 - `--log-file`: (Optional) Path for structured JSON logs. If not specified, logs to mcp_workspace_{timestamp}.log in project_dir/logs/.
 - `--file-size-limit`: (Optional) Default line limit for `check_file_size` when `max_lines` is omitted; must be > 0. Falls back to 600 when not set.
 
-The server uses FastMCP for operation. The project directory parameter (`--project-dir`) is **required** for security reasons. All file operations will be restricted to this directory. Attempts to access files outside this directory will result in an error.
+Unrecognized arguments are ignored at startup rather than stopping the server; each one is logged as a `WARNING`, plus a startup `INFO` line summarizing them. Abbreviated flags such as `--project` are no longer accepted as prefixes of `--project-dir`; they are treated as unknown arguments and ignored.
+
+Startup errors are written to stderr and, when no normal log is available, to `logs/mcp_workspace_startup_error.log` in the working directory.
+
+The server uses FastMCP for operation. All file operations are restricted to the `--project-dir` directory for security reasons, and attempts to access files outside it result in an error.
 
 ## Structured Logging
 

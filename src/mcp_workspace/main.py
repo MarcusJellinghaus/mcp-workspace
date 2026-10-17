@@ -5,7 +5,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, NoReturn, Optional, Tuple
 
 # Import logging utilities
 from mcp_coder_utils.log_utils import setup_logging
@@ -17,34 +17,44 @@ from mcp_workspace.reference_projects import ReferenceProject, detect_and_verify
 # Create loggers
 stdlogger = logging.getLogger(__name__)
 
+_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+_FALLBACK_LOG_FILE = "logs/mcp_workspace_startup_error.log"
+_HELP_TOKENS = frozenset({"-h", "--help", "--version"})
 
-def parse_args() -> argparse.Namespace:
-    """Parse command line arguments.
+
+class StartupArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser that raises ValueError instead of printing and exiting."""
+
+    def error(self, message: str) -> NoReturn:
+        """Raise ValueError(message) instead of printing and exiting.
+
+        Raises:
+            ValueError: Always.
+        """
+        raise ValueError(message)
+
+
+def _shared_options_parser() -> argparse.ArgumentParser:
+    """Build the four startup options needed to configure logging.
+
+    Used as a ``parents=[...]`` template by both the pre-parser and the full
+    parser, so the four option definitions live in exactly one place.
 
     Returns:
-        Parsed arguments
+        An ``ArgumentParser`` holding ``--project-dir``, ``--log-level``,
+        ``--log-file``, and ``--console-only``.
     """
-    parser = argparse.ArgumentParser(
-        description="MCP File System Server - A Model Context Protocol server providing file operation tools"
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"mcp-workspace {__version__}",
-        help="Show version number and exit",
-    )
+    parser = StartupArgumentParser(add_help=False, allow_abbrev=False)
     parser.add_argument(
         "--project-dir",
         type=str,
-        required=True,
         help="Base directory for all file operations (required)",
     )
     parser.add_argument(
         "--log-level",
         type=str,
         default="INFO",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Set logging level (default: INFO)",
+        help="Set logging level (default: INFO). One of: DEBUG, INFO, WARNING, ERROR, CRITICAL.",
     )
     parser.add_argument(
         "--log-file",
@@ -56,6 +66,28 @@ def parse_args() -> argparse.Namespace:
         "--console-only",
         action="store_true",
         help="Log only to console, ignore --log-file parameter.",
+    )
+    return parser
+
+
+def parse_args(
+    argv: Optional[List[str]] = None,
+) -> Tuple[argparse.Namespace, List[str]]:
+    """Parse command line arguments.
+
+    Returns:
+        Tuple of the parsed arguments and any tokens argparse did not recognize.
+    """
+    parser = StartupArgumentParser(
+        description="MCP File System Server - A Model Context Protocol server providing file operation tools",
+        allow_abbrev=False,
+        parents=[_shared_options_parser()],
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"mcp-workspace {__version__}",
+        help="Show version number and exit",
     )
     parser.add_argument(
         "--reference-project",
@@ -75,7 +107,94 @@ def parse_args() -> argparse.Namespace:
         help="Default for check_branch_status' review gate; the tool "
         "parameter overrides per call.",
     )
-    return parser.parse_args()
+    return parser.parse_known_args(argv if argv is not None else sys.argv[1:])
+
+
+def _pre_parse(argv: List[str]) -> argparse.Namespace:
+    """Tolerantly extract the four options logging needs, ignoring the rest.
+
+    Returns:
+        The parsed namespace; unrecognized tokens are discarded.
+    """
+    parser = StartupArgumentParser(
+        add_help=False, allow_abbrev=False, parents=[_shared_options_parser()]
+    )
+    return parser.parse_known_args(argv)[0]
+
+
+def _validate_log_level(log_level: str) -> str:
+    """Normalize and validate a log level string.
+
+    Returns:
+        The upper-cased, canonical level name.
+
+    Raises:
+        ValueError: If `log_level` is not one of the known level names.
+    """
+    normalized = log_level.upper()
+    if normalized not in _LOG_LEVELS:
+        raise ValueError(
+            f"Invalid --log-level: {log_level}. Must be one of: {', '.join(_LOG_LEVELS)}"
+        )
+    return normalized
+
+
+def _resolve_project_dir(project_dir_arg: Optional[str]) -> Optional[Path]:
+    """Resolve the project directory, or None if missing/invalid.
+
+    Returns:
+        The resolved, canonical project directory, or None.
+    """
+    if not project_dir_arg:
+        return None
+    project_dir = Path(project_dir_arg)
+    if not project_dir.exists() or not project_dir.is_dir():
+        return None
+    return project_dir.resolve()
+
+
+def _resolve_log_file(
+    pre_args: argparse.Namespace, project_dir: Optional[Path]
+) -> Optional[str]:
+    """Resolve the log file path to pass to `setup_logging`, or None.
+
+    Returns:
+        The log file path, or None for console-only / unresolved project dir.
+    """
+    console_only: bool = pre_args.console_only
+    if console_only:
+        return None
+    log_file_arg: Optional[str] = pre_args.log_file
+    if log_file_arg:
+        return log_file_arg
+    if project_dir is not None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        logs_dir = project_dir / "logs"
+        return str(logs_dir / f"mcp_workspace_{timestamp}.log")
+    return None
+
+
+def _has_real_file_handler() -> bool:
+    """True if a FileHandler is attached to the root logger.
+
+    Returns:
+        True if a FileHandler is attached.
+    """
+    return any(
+        isinstance(handler, logging.FileHandler)
+        for handler in logging.getLogger().handlers
+    )
+
+
+def _handle_startup_failure(exc: Exception) -> None:
+    """Log a startup failure, bootstrapping a fallback log file if needed."""
+    if not _has_real_file_handler():
+        try:
+            setup_logging("INFO", _FALLBACK_LOG_FILE)
+        except OSError:
+            pass
+    stdlogger.error("Startup failed", exc_info=exc)
+    print(f"Error: {exc}", file=sys.stderr)
 
 
 def validate_reference_projects(
@@ -201,45 +320,66 @@ def validate_reference_projects(
     return validated_projects
 
 
-def main() -> None:
-    """Main entry point for the MCP server."""
-    # Parse command line arguments
-    args = parse_args()
+def _main() -> None:
+    """Parse arguments, configure logging, and start the server.
 
-    # Validate project directory first
-    project_dir = Path(args.project_dir)
-    if not project_dir.exists() or not project_dir.is_dir():
-        print(
-            f"Error: Project directory does not exist or is not a directory: {project_dir}"
+    Raises:
+        ValueError: On any CLI parse error or startup validation failure.
+        OSError: If the fallback logging bootstrap fails after an invalid
+            --log-level (e.g. an unwritable log directory).
+    """
+    argv = sys.argv[1:]
+    if any(token in _HELP_TOKENS for token in argv):
+        # -h/--help/--version are handled by argparse's own action, which
+        # exits the process directly (SystemExit) — nothing below ever runs.
+        parse_args(argv)
+        return
+
+    pre = _pre_parse(argv)
+    project_dir = _resolve_project_dir(pre.project_dir)
+    log_file = _resolve_log_file(pre, project_dir)
+
+    if log_file is not None or pre.console_only:
+        try:
+            log_level = _validate_log_level(pre.log_level)
+        except ValueError as log_level_error:
+            # Bootstrap a sink with a known-good level so the bad value still
+            # lands in a real log file instead of triggering the fallback. If
+            # the bootstrap itself fails (e.g. an unwritable log directory),
+            # chain the two errors so neither is lost.
+            try:
+                setup_logging("INFO", log_file)
+            except OSError as os_error:
+                raise OSError(
+                    f"{os_error}; additionally, invalid --log-level: {log_level_error}"
+                ) from log_level_error
+            raise log_level_error
+        setup_logging(log_level, log_file)
+
+    stdlogger.debug("Logger initialized in main")
+
+    if project_dir is None:
+        raise ValueError(
+            f"--project-dir is required and must be an existing directory: {pre.project_dir!r}"
         )
-        sys.exit(1)
 
-    # Convert to canonical resolved path
-    project_dir = project_dir.resolve()
+    args, unknown = parse_args(argv)
+
+    for token in unknown:
+        stdlogger.warning("Ignoring unknown startup argument: %s", token)
+    stdlogger.info(
+        "Starting mcp-workspace %s: python=%s project_dir=%s ignored_args=%s",
+        __version__,
+        sys.executable,
+        project_dir,
+        unknown,
+    )
 
     # Validate file size limit (must be a positive integer when provided)
     if args.file_size_limit is not None and args.file_size_limit <= 0:
-        print(
-            f"Error: --file-size-limit must be a positive integer: {args.file_size_limit}"
+        raise ValueError(
+            f"--file-size-limit must be a positive integer: {args.file_size_limit}"
         )
-        sys.exit(1)
-
-    # Generate default log file path if not specified
-    if args.console_only:
-        log_file = None
-    elif args.log_file:
-        log_file = args.log_file
-    else:
-        # Create default log file in project_dir/logs/ with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        logs_dir = project_dir / "logs"
-        log_file = str(logs_dir / f"mcp_workspace_{timestamp}.log")
-
-    # Configure logging now that we have the project directory
-    setup_logging(args.log_level, log_file)
-
-    # Add debug logging after logger is initialized
-    stdlogger.debug("Logger initialized in main")
 
     # Activate the OS trust store BEFORE any TLS handshake can occur. This is a
     # hard guarantee owned by the entry point (not left to client call sites):
@@ -252,13 +392,9 @@ def main() -> None:
     # Parse reference projects
     reference_projects: Dict[str, ReferenceProject] = {}
     if args.reference_project:
-        try:
-            reference_projects = validate_reference_projects(
-                args.reference_project, project_dir
-            )
-        except ValueError as e:
-            print(f"Error: {e}")
-            sys.exit(1)
+        reference_projects = validate_reference_projects(
+            args.reference_project, project_dir
+        )
 
     # Import here to avoid circular imports (after logging is configured)
     from mcp_workspace.server import run_server
@@ -277,6 +413,15 @@ def main() -> None:
         file_size_limit=args.file_size_limit,
         fail_on_reviews=args.fail_on_reviews,
     )
+
+
+def main() -> None:
+    """Main entry point for the MCP server."""
+    try:
+        _main()
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        _handle_startup_failure(exc)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
