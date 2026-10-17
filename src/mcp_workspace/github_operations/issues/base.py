@@ -15,7 +15,18 @@ __all__ = [
     "validate_issue_number_or_log",
     "validate_comment_id",
     "parse_base_branch",
+    "MalformedBaseBranchError",
 ]
+
+
+class MalformedBaseBranchError(ValueError):
+    """Raised when a Base Branch section in an issue body spans multiple lines."""
+
+    def __init__(self, content: str) -> None:
+        self.content = content
+        super().__init__(
+            f"Base branch section contains multiple lines (malformed): {content!r}"
+        )
 
 
 def validate_issue_number(issue_number: int) -> bool:
@@ -83,7 +94,8 @@ def parse_base_branch(body: str) -> Optional[str]:
         Branch name if found and valid, None if not specified or empty
 
     Raises:
-        ValueError: If base branch section contains multiple lines (malformed input)
+        MalformedBaseBranchError: If base branch section contains multiple lines
+            (malformed input). Subclasses ValueError.
 
     Example:
         >>> parse_base_branch("### Base Branch\\n\\nfeature/v2\\n\\n### Description")
@@ -109,8 +121,6 @@ def parse_base_branch(body: str) -> Optional[str]:
 
     # Check for multi-line content (malformed input)
     if "\n" in content:
-        raise ValueError(
-            f"Base branch section contains multiple lines (malformed): {content!r}"
-        )
+        raise MalformedBaseBranchError(content)
 
     return content

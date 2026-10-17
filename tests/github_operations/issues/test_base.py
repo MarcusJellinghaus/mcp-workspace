@@ -5,6 +5,7 @@ import logging
 import pytest
 
 from mcp_workspace.github_operations.issues.base import (
+    MalformedBaseBranchError,
     parse_base_branch,
     validate_comment_id,
     validate_issue_number,
@@ -100,3 +101,21 @@ def test_parse_base_branch_multiline_raises() -> None:
     """Test that multi-line content raises ValueError."""
     with pytest.raises(ValueError):
         parse_base_branch("### Base Branch\n\nline1\nline2\n")
+
+
+def test_parse_base_branch_multiline_raises_malformed_base_branch_error() -> None:
+    """Test that multi-line content raises MalformedBaseBranchError specifically."""
+    with pytest.raises(MalformedBaseBranchError):
+        parse_base_branch("### Base Branch\n\nline1\nline2\n")
+
+
+def test_malformed_base_branch_error_is_a_value_error() -> None:
+    """Test that MalformedBaseBranchError is a ValueError subclass."""
+    assert issubclass(MalformedBaseBranchError, ValueError)
+
+
+def test_malformed_base_branch_error_carries_content() -> None:
+    """Test that MalformedBaseBranchError carries the raw section content."""
+    with pytest.raises(MalformedBaseBranchError) as exc_info:
+        parse_base_branch("### Base Branch\n\nline1\nline2\n")
+    assert exc_info.value.content == "line1\nline2"
