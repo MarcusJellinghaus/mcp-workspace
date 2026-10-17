@@ -168,6 +168,8 @@ _.outcome
 _.error_category
 # CacheData TypedDict field - accessed via subscript
 _.cached_at
+# CIStatusData TypedDict field - accessed via subscript
+_.lookup_failed
 
 # Test fixtures
 _.mock_zip_content
