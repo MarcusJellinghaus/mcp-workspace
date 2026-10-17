@@ -1341,7 +1341,9 @@ def github_issue_edit(
     changes are additive and subtractive, never a replacement of the whole set.
     Workflow status labels (status-*) are rejected on the add and the remove
     side — those are applied with `mcp-coder gh-tool set-status <label>` from
-    the target repository's own checkout.
+    the target repository's own checkout. When `body` is passed, a malformed
+    `### Base Branch` section (more than one line) is rejected before any
+    write, unless the server was started with `--no-enforce-base-branch-format`.
 
     The edit is not a transaction: if a later part fails, the earlier part
     stays applied. The result then opens with a warning naming which requested
@@ -1381,6 +1383,9 @@ def github_issue_edit(
             return "Error: Issue title cannot be empty"
         if state not in (None, "open", "closed"):
             return f"Error: state must be 'open' or 'closed', got: {state}"
+        body_error = _check_base_branch(body)
+        if body_error:
+            return body_error
 
         manager = _issue_manager(reference_name)
         label_error = _check_labels(
