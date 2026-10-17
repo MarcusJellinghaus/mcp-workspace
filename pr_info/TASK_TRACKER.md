@@ -61,5 +61,5 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Pull Request
 
-- [ ] PR review (self-review diff against summary/steps)
+- [x] PR review (self-review diff against summary/steps)
 - [ ] PR summary written
