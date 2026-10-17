@@ -26,7 +26,9 @@ from mcp_workspace.git_operations.branch_queries import (
     extract_issue_number_from_branch,
     get_current_branch_name,
     get_default_branch_name,
+    get_remote_branch_commit_sha,
 )
+from mcp_workspace.git_operations.commits import get_latest_commit_sha
 from mcp_workspace.git_operations.workflows import needs_rebase
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.ci_log_parser import (
@@ -231,6 +233,21 @@ def get_failed_jobs_summary(
         "log_excerpt": log_excerpt,
         "other_failed_jobs": other_failed_jobs,
     }
+
+
+def _is_stale_ci_run(
+    project_dir: Path, branch_name: str, run_commit_sha: Optional[str]
+) -> bool:
+    """Return True only when HEAD is pushed and the run predates it."""
+    if not run_commit_sha:
+        return False
+    head_sha = get_latest_commit_sha(project_dir)
+    if head_sha is None:
+        return False
+    origin_sha = get_remote_branch_commit_sha(project_dir, branch_name)
+    if origin_sha is None or origin_sha != head_sha:
+        return False
+    return run_commit_sha != head_sha
 
 
 def _collect_ci_status(
