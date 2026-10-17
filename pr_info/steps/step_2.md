@@ -18,7 +18,7 @@ either does not match, write one line to `pr_info/.blocked.txt` and stop.
 - `src/mcp_workspace/server.py` (modify)
 - `src/mcp_workspace/main.py` (modify)
 - `tests/test_server_enforce_base_branch_format.py` (new)
-- `tests/test_reference_projects.py` (modify)
+- `tests/test_main.py` (modify — `parse_args` and `main()` tests; was `tests/test_reference_projects.py`, split to stay under the 750-line limit and mirror `src/mcp_workspace/main.py`)
 
 ## WHAT
 
@@ -107,14 +107,14 @@ set_enforce_base_branch_format(value): global _enforce_base_branch_format = valu
      assert `mock_setter.assert_called_once_with(False)`.
    - `test_run_server_default_is_true`: call `run_server(Path("/test/project"))`
      with the setter patched, assert `mock_setter.assert_called_once_with(True)`.
-2. In `tests/test_reference_projects.py`, add next to
+2. In `tests/test_main.py`, add next to `TestParseArgs`'s
    `test_parse_fail_on_reviews` / `test_parse_fail_on_reviews_default`:
    - `test_parse_enforce_base_branch_format_default`: no flag passed, assert
      `args.enforce_base_branch_format is True`.
    - `test_parse_no_enforce_base_branch_format`: pass
      `--no-enforce-base-branch-format`, assert
      `args.enforce_base_branch_format is False`.
-   Add next to `test_main_passes_fail_on_reviews` /
+   Add next to `TestMain`'s `test_main_passes_fail_on_reviews` /
    `test_main_fail_on_reviews_default_false`:
    - `test_main_passes_no_enforce_base_branch_format`: `sys.argv` includes
      `--no-enforce-base-branch-format`; assert
@@ -127,7 +127,9 @@ set_enforce_base_branch_format(value): global _enforce_base_branch_format = valu
    argparse flag plus pass-through.
 5. Re-run; all pass. Also run the full existing
    `tests/test_server_fail_on_reviews.py` and
-   `tests/test_reference_projects.py` suites to confirm no regression from
+   `tests/test_main.py`, `tests/test_main_validate_reference_projects.py`,
+   `tests/test_server_reference_tools.py` and `tests/test_server.py` suites to
+   confirm no regression from
    the new `run_server` parameter (e.g. any test that asserts the full kwargs
    of a mocked `run_server`/`main()` call) — if any such assertion breaks,
    add `enforce_base_branch_format=True` (or `False`, matching the scenario)
@@ -155,7 +157,7 @@ Defaults to True throughout. No tool reads the flag yet.
 Read pr_info/steps/summary.md for context, then implement
 pr_info/steps/step_2.md exactly as written. Follow TDD: write the new/updated
 tests first (tests/test_server_enforce_base_branch_format.py,
-tests/test_reference_projects.py), confirm they fail, then add the module
+tests/test_main.py), confirm they fail, then add the module
 global, setter, run_server parameter in src/mcp_workspace/server.py and the
 --enforce-base-branch-format / --no-enforce-base-branch-format flag plus
 pass-through in src/mcp_workspace/main.py. Do not add any helper that reads

@@ -72,7 +72,7 @@ Reject the malformed section at write time, in `github_issue_create` and
 | `src/mcp_workspace/main.py` | new `--enforce-base-branch-format` / `--no-enforce-base-branch-format` flag, pass-through to `run_server` |
 | `tests/github_operations/issues/test_base.py` | tests for `MalformedBaseBranchError` |
 | `tests/test_server_enforce_base_branch_format.py` | **new** — flag plumbing tests + `_check_base_branch` helper tests |
-| `tests/test_reference_projects.py` | new `parse_args` tests + `main()` pass-through tests for the new flag |
+| `tests/test_main.py` | **split out of `tests/test_reference_projects.py`** (file-size limit; tests now mirror `main.py` / `server.py` / `server_reference_tools.py`: `test_main.py`, `test_main_validate_reference_projects.py`, `test_server_reference_tools.py`, `run_server` test in `test_server.py`). New `parse_args` tests + `main()` pass-through tests for the new flag |
 | `tests/github_operations/test_github_write_tools_issues.py` | new tests for `github_issue_create` rejection/acceptance |
 | `tests/github_operations/test_github_write_tools_issue_edit.py` | new tests for `github_issue_edit` rejection/acceptance |
 | `README.md` | usage synopsis + flag bullet list |
