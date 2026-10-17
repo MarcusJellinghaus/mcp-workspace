@@ -96,7 +96,10 @@ Add to `tests/github_operations/test_github_write_tools_issue_edit.py`:
 6. `test_github_issue_edit_rejects_malformed_base_branch_crlf`: body
    `"### Base Branch\r\n\r\nline1\r\nline2\r\n"`; assert rejected with
    `"line1"` and no trailing `\r` in the embedded first line.
-7. `test_github_issue_edit_with_flag_off_writes_malformed_base_branch`:
+7. `test_github_issue_edit_accepts_valid_base_branch_crlf`: body
+   `"### Base Branch\r\n\r\nfeature/v2\r\n"`; manager returns `_make_issue()`;
+   assert result starts with "Updated issue".
+8. `test_github_issue_edit_with_flag_off_writes_malformed_base_branch`:
    `with patch("mcp_workspace.server._enforce_base_branch_format", False):`
    call with the malformed body from case 1; assert result starts with
    "Updated issue".
