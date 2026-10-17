@@ -10,6 +10,7 @@ from mcp_workspace.git_operations.branch_queries import (
     extract_issue_number_from_branch,
     get_current_branch_name,
     get_default_branch_name,
+    get_remote_branch_commit_sha,
     remote_branch_exists,
     validate_branch_name,
 )
@@ -118,6 +119,48 @@ class TestBranchExistence:
         """Test remote_branch_exists returns False for empty branch name."""
         _, project_dir, _ = git_repo_with_remote
         assert remote_branch_exists(project_dir, "") is False
+
+
+@pytest.mark.git_integration
+class TestGetRemoteBranchCommitSha:
+    """Tests for get_remote_branch_commit_sha."""
+
+    def test_returns_sha_for_existing_remote_branch(
+        self, git_repo_with_remote: tuple[Repo, Path, Path]
+    ) -> None:
+        """Test returns the sha origin/<branch> points to."""
+        repo, project_dir, _ = git_repo_with_remote
+        current_branch = repo.active_branch.name
+        repo.git.push("-u", "origin", current_branch)
+        assert (
+            get_remote_branch_commit_sha(project_dir, current_branch)
+            == repo.active_branch.commit.hexsha
+        )
+
+    def test_returns_none_for_nonexistent_branch(
+        self, git_repo_with_remote: tuple[Repo, Path, Path]
+    ) -> None:
+        """Test returns None when the remote branch does not exist."""
+        _, project_dir, _ = git_repo_with_remote
+        assert get_remote_branch_commit_sha(project_dir, "nonexistent-branch") is None
+
+    def test_returns_none_no_origin(
+        self, git_repo_with_commit: tuple[Repo, Path]
+    ) -> None:
+        """Test returns None when there is no origin remote."""
+        _, project_dir = git_repo_with_commit
+        assert get_remote_branch_commit_sha(project_dir, "master") is None
+
+    def test_returns_none_not_a_repo(self, tmp_path: Path) -> None:
+        """Test returns None when the directory is not a git repository."""
+        assert get_remote_branch_commit_sha(tmp_path, "master") is None
+
+    def test_returns_none_empty_branch_name(
+        self, git_repo_with_remote: tuple[Repo, Path, Path]
+    ) -> None:
+        """Test returns None for an empty branch name."""
+        _, project_dir, _ = git_repo_with_remote
+        assert get_remote_branch_commit_sha(project_dir, "") is None
 
 
 @pytest.mark.git_integration

@@ -86,6 +86,53 @@ def remote_branch_exists(project_dir: Path, branch_name: str) -> bool:
         return False
 
 
+def get_remote_branch_commit_sha(project_dir: Path, branch_name: str) -> Optional[str]:
+    """Get the commit sha that origin/<branch_name> currently points to.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+        branch_name: Name of the branch to check (without 'origin/' prefix)
+
+    Returns:
+        Full commit sha as string, or None if the repo, the origin remote,
+        or the specific branch ref cannot be resolved
+    """
+    logger.debug(
+        "Getting remote commit sha for branch '%s' in %s", branch_name, project_dir
+    )
+
+    if not is_git_repository(project_dir):
+        logger.debug("Not a git repository: %s", project_dir)
+        return None
+
+    if not branch_name or not branch_name.strip():
+        logger.debug("Branch name is empty")
+        return None
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            if "origin" not in [remote.name for remote in repo.remotes]:
+                logger.debug("No origin remote found in %s", project_dir)
+                return None
+
+            remote_branch_name = f"origin/{branch_name}"
+            for ref in repo.remotes.origin.refs:
+                if ref.name == remote_branch_name:
+                    return ref.commit.hexsha
+
+            logger.debug("Remote branch '%s' does not exist", remote_branch_name)
+            return None
+
+    except (InvalidGitRepositoryError, GitCommandError) as e:
+        logger.debug("Git error getting remote branch commit sha: %s", e)
+        return None
+    except (
+        Exception
+    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+        logger.warning("Unexpected error getting remote branch commit sha: %s", e)
+        return None
+
+
 def branch_exists(project_dir: Path, branch_name: str) -> bool:
     """Check if a git branch exists locally.
 
