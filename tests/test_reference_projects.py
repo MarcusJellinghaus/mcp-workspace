@@ -26,8 +26,9 @@ class TestReferenceProjectCLI:
                 "name=proj1,path=/path/to/proj1",
             ],
         ):
-            args = parse_args()
+            args, unknown = parse_args()
             assert args.reference_project == ["name=proj1,path=/path/to/proj1"]
+            assert unknown == []
 
     def test_parse_multiple_reference_projects(self) -> None:
         """Test parsing multiple reference project arguments."""
@@ -43,11 +44,12 @@ class TestReferenceProjectCLI:
                 "name=proj2,path=/path/to/proj2",
             ],
         ):
-            args = parse_args()
+            args, unknown = parse_args()
             assert args.reference_project == [
                 "name=proj1,path=/path/to/proj1",
                 "name=proj2,path=/path/to/proj2",
             ]
+            assert unknown == []
 
     def test_parse_file_size_limit(self) -> None:
         """Test parsing the --file-size-limit argument."""
@@ -61,14 +63,16 @@ class TestReferenceProjectCLI:
                 "750",
             ],
         ):
-            args = parse_args()
+            args, unknown = parse_args()
             assert args.file_size_limit == 750
+            assert unknown == []
 
     def test_parse_file_size_limit_default(self) -> None:
         """Test --file-size-limit defaults to None when omitted."""
         with patch("sys.argv", ["script.py", "--project-dir", "/tmp"]):
-            args = parse_args()
+            args, unknown = parse_args()
             assert args.file_size_limit is None
+            assert unknown == []
 
     def test_parse_file_size_limit_rejects_non_integer(self) -> None:
         """Test argparse rejects a non-integer --file-size-limit value."""
@@ -82,7 +86,7 @@ class TestReferenceProjectCLI:
                 "abc",
             ],
         ):
-            with pytest.raises(SystemExit):
+            with pytest.raises(ValueError):
                 parse_args()
 
     def test_parse_fail_on_reviews(self) -> None:
@@ -96,14 +100,33 @@ class TestReferenceProjectCLI:
                 "--fail-on-reviews",
             ],
         ):
-            args = parse_args()
+            args, unknown = parse_args()
             assert args.fail_on_reviews is True
+            assert unknown == []
 
     def test_parse_fail_on_reviews_default(self) -> None:
         """Test --fail-on-reviews defaults to False when omitted."""
         with patch("sys.argv", ["script.py", "--project-dir", "/tmp"]):
-            args = parse_args()
+            args, unknown = parse_args()
             assert args.fail_on_reviews is False
+            assert unknown == []
+
+    def test_parse_abbreviated_flag_is_unknown(self) -> None:
+        """Test that an abbreviated flag is not resolved and lands in unknown."""
+        with patch(
+            "sys.argv",
+            [
+                "script.py",
+                "--project-dir",
+                "/tmp",
+                "--project",
+                "/other",
+            ],
+        ):
+            args, unknown = parse_args()
+            assert args.project_dir == "/tmp"
+            assert "--project" in unknown
+            assert "/other" in unknown
 
     @patch("mcp_workspace.main.detect_and_verify_url", return_value=None)
     @patch("mcp_workspace.main.Path.exists")

@@ -185,3 +185,5 @@ _.reset_login_cache
 _._github_token
 _._reset_global
 _._setup
+# Autouse fixture restoring root logger state in test_startup.py (pytest collection only)
+_._snapshot_logging
