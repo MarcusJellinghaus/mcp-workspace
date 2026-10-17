@@ -105,6 +105,26 @@ class TestReferenceProjectCLI:
             args = parse_args()
             assert args.fail_on_reviews is False
 
+    def test_parse_enforce_base_branch_format_default(self) -> None:
+        """Test --enforce-base-branch-format defaults to True when omitted."""
+        with patch("sys.argv", ["script.py", "--project-dir", "/tmp"]):
+            args = parse_args()
+            assert args.enforce_base_branch_format is True
+
+    def test_parse_no_enforce_base_branch_format(self) -> None:
+        """Test --no-enforce-base-branch-format sets the flag to False."""
+        with patch(
+            "sys.argv",
+            [
+                "script.py",
+                "--project-dir",
+                "/tmp",
+                "--no-enforce-base-branch-format",
+            ],
+        ):
+            args = parse_args()
+            assert args.enforce_base_branch_format is False
+
     @patch("mcp_workspace.main.detect_and_verify_url", return_value=None)
     @patch("mcp_workspace.main.Path.exists")
     @patch("mcp_workspace.main.Path.is_dir")
@@ -716,3 +736,54 @@ class TestReferenceProjectIntegration:
 
                 mock_run_server.assert_called_once()
                 assert mock_run_server.call_args[1]["fail_on_reviews"] is False
+
+    @patch("mcp_workspace.server.run_server")
+    @patch("mcp_workspace.main.Path.exists")
+    @patch("mcp_workspace.main.Path.is_dir")
+    def test_main_passes_no_enforce_base_branch_format(
+        self, mock_is_dir: MagicMock, mock_exists: MagicMock, mock_run_server: MagicMock
+    ) -> None:
+        """Test main() passes --no-enforce-base-branch-format through to run_server()."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        test_args = [
+            "script.py",
+            "--project-dir",
+            "/test/project",
+            "--no-enforce-base-branch-format",
+        ]
+
+        with patch("sys.argv", test_args):
+            with patch("mcp_workspace.main.setup_logging"):
+                from mcp_workspace.main import main
+
+                main()
+
+                mock_run_server.assert_called_once()
+                assert (
+                    mock_run_server.call_args[1]["enforce_base_branch_format"] is False
+                )
+
+    @patch("mcp_workspace.server.run_server")
+    @patch("mcp_workspace.main.Path.exists")
+    @patch("mcp_workspace.main.Path.is_dir")
+    def test_main_enforce_base_branch_format_default_true(
+        self, mock_is_dir: MagicMock, mock_exists: MagicMock, mock_run_server: MagicMock
+    ) -> None:
+        """Test main() passes enforce_base_branch_format=True when the flag is omitted."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        test_args = ["script.py", "--project-dir", "/test/project"]
+
+        with patch("sys.argv", test_args):
+            with patch("mcp_workspace.main.setup_logging"):
+                from mcp_workspace.main import main
+
+                main()
+
+                mock_run_server.assert_called_once()
+                assert (
+                    mock_run_server.call_args[1]["enforce_base_branch_format"] is True
+                )

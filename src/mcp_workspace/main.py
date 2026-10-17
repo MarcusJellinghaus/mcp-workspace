@@ -75,6 +75,14 @@ def parse_args() -> argparse.Namespace:
         help="Default for check_branch_status' review gate; the tool "
         "parameter overrides per call.",
     )
+    parser.add_argument(
+        "--enforce-base-branch-format",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Reject a malformed `### Base Branch` section (more than one line) "
+        "when creating or editing an issue body. Disable with "
+        "--no-enforce-base-branch-format.",
+    )
     return parser.parse_args()
 
 
@@ -276,6 +284,7 @@ def main() -> None:
         reference_projects=reference_projects,
         file_size_limit=args.file_size_limit,
         fail_on_reviews=args.fail_on_reviews,
+        enforce_base_branch_format=args.enforce_base_branch_format,
     )
 
 
