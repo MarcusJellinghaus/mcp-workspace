@@ -82,16 +82,21 @@ Add to `tests/github_operations/test_github_write_tools_issue_edit.py`:
 2. `test_github_issue_edit_accepts_valid_base_branch`: body with a single-line
    section; manager returns `_make_issue()`; assert result starts with
    "Updated issue".
-3. `test_github_issue_edit_without_body_is_never_blocked`: call
+3. `test_github_issue_edit_accepts_body_without_base_branch_section`: body
+   with no `### Base Branch` heading at all; assert result starts with
+   "Updated issue".
+4. `test_github_issue_edit_accepts_empty_base_branch_section`: body with
+   `### Base Branch\n\n### Next`; assert result starts with "Updated issue".
+5. `test_github_issue_edit_without_body_is_never_blocked`: call
    `github_issue_edit(number=42, add_labels=["bug"])` (no `body` kwarg at
    all) with a malformed-looking state otherwise irrelevant; assert the
    result does NOT start with the `_check_base_branch` error text and that
    `manager.edit_issue` was called — i.e. the omitted-body path reaches the
    manager exactly as before this feature existed.
-4. `test_github_issue_edit_rejects_malformed_base_branch_crlf`: body
+6. `test_github_issue_edit_rejects_malformed_base_branch_crlf`: body
    `"### Base Branch\r\n\r\nline1\r\nline2\r\n"`; assert rejected with
    `"line1"` and no trailing `\r` in the embedded first line.
-5. `test_github_issue_edit_with_flag_off_writes_malformed_base_branch`:
+7. `test_github_issue_edit_with_flag_off_writes_malformed_base_branch`:
    `with patch("mcp_workspace.server._enforce_base_branch_format", False):`
    call with the malformed body from case 1; assert result starts with
    "Updated issue".
