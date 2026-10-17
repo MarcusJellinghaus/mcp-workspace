@@ -11,7 +11,11 @@ from unittest.mock import patch
 import pytest
 
 import mcp_workspace.server as server_module
-from mcp_workspace.server import run_server, set_enforce_base_branch_format
+from mcp_workspace.server import (
+    _check_base_branch,
+    run_server,
+    set_enforce_base_branch_format,
+)
 
 
 class TestSetEnforceBaseBranchFormat:
@@ -53,3 +57,57 @@ class TestRunServerEnforceBaseBranchFormat:
                     run_server(Path("/test/project"))
 
         mock_setter.assert_called_once_with(True)
+
+
+class TestCheckBaseBranch:
+    """Test the _check_base_branch helper."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_global(self) -> Generator[None, None, None]:
+        """Reset the module-level enforcement default after each test."""
+        yield
+        server_module._enforce_base_branch_format = True
+
+    def test_absent_section_is_none(self) -> None:
+        """A body with no Base Branch section returns None."""
+        assert _check_base_branch("### Description\n\nx") is None
+
+    def test_no_body_is_none(self) -> None:
+        """A None body returns None."""
+        assert _check_base_branch(None) is None
+
+    def test_empty_section_is_none(self) -> None:
+        """An empty Base Branch section returns None."""
+        assert _check_base_branch("### Base Branch\n\n### Next") is None
+
+    def test_valid_single_line_is_none(self) -> None:
+        """A valid single-line Base Branch section returns None."""
+        assert (
+            _check_base_branch("### Base Branch\n\nfeature/v2\n\n### Description")
+            is None
+        )
+
+    def test_malformed_returns_error_with_first_line(self) -> None:
+        """A multi-line Base Branch section returns an error naming the issue."""
+        result = _check_base_branch("### Base Branch\n\nline1\nline2\n")
+        assert result is not None
+        assert "### Base Branch" in result
+        assert "one line" in result
+        assert "line1" in result
+        assert "line2" not in result
+
+    def test_crlf_malformed_is_rejected(self) -> None:
+        """A CRLF multi-line section embeds the first line without a trailing \\r."""
+        result = _check_base_branch("### Base Branch\r\n\r\nline1\r\nline2\r\n")
+        assert result is not None
+        assert "line1" in result
+        assert "line1\r" not in result
+
+    def test_crlf_valid_is_accepted(self) -> None:
+        """A CRLF single-line Base Branch section returns None."""
+        assert _check_base_branch("### Base Branch\r\n\r\nfeature/v2\r\n") is None
+
+    def test_flag_off_always_none(self) -> None:
+        """When the flag is off, even a malformed section returns None."""
+        server_module._enforce_base_branch_format = False
+        assert _check_base_branch("### Base Branch\n\nline1\nline2\n") is None

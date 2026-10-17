@@ -161,6 +161,38 @@ def _check_labels(
     return None
 
 
+def _check_base_branch(body: Optional[str]) -> Optional[str]:
+    """Reject a multi-line ### Base Branch section before any write.
+
+    Args:
+        body: Candidate issue body, or None when the caller is not changing
+            the body (as in github_issue_edit).
+
+    Returns:
+        An error string naming the problem, the fix, and the section's first
+        line, or None when the section is absent, empty, a single valid
+        line, or the check is disabled.
+    """
+    if not _enforce_base_branch_format:
+        return None
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.issues.base import (
+        MalformedBaseBranchError,
+        parse_base_branch,
+    )
+
+    try:
+        parse_base_branch(body or "")
+    except MalformedBaseBranchError as exc:
+        first_line = exc.content.splitlines()[0]
+        return (
+            "Error: `### Base Branch` must contain only the branch name on "
+            "one line; move other text to another section. First line: "
+            f"{first_line!r}"
+        )
+    return None
+
+
 def _resolve_assignees(manager: Any, logins: List[str]) -> List[str]:
     """Resolve '@me' to the authenticated login, cached per GitHub host.
 
