@@ -68,6 +68,10 @@ _file_size_limit: Optional[int] = None
 # Per-server default for check_branch_status' review gate (set via --fail-on-reviews)
 _fail_on_reviews: bool = False
 
+# Server-wide default for rejecting a malformed Base Branch section
+# (set via --enforce-base-branch-format / --no-enforce-base-branch-format)
+_enforce_base_branch_format: bool = True
+
 # Per-file locks for concurrent edit safety
 _file_locks: dict[str, asyncio.Lock] = {}
 
@@ -322,6 +326,19 @@ def set_fail_on_reviews(value: bool) -> None:
     global _fail_on_reviews  # pylint: disable=global-statement
     _fail_on_reviews = value
     logger.info("Fail on reviews set to: %s", value)
+
+
+@log_function_call
+def set_enforce_base_branch_format(value: bool) -> None:
+    """Set the server-wide default for rejecting a malformed Base Branch section.
+
+    Args:
+        value: Whether a malformed `### Base Branch` section is rejected at
+            write time in github_issue_create / github_issue_edit.
+    """
+    global _enforce_base_branch_format  # pylint: disable=global-statement
+    _enforce_base_branch_format = value
+    logger.info("Enforce base branch format set to: %s", value)
 
 
 @mcp.tool()
@@ -1914,6 +1931,7 @@ def run_server(
     reference_projects: Optional[Dict[str, ReferenceProject]] = None,
     file_size_limit: Optional[int] = None,
     fail_on_reviews: bool = False,
+    enforce_base_branch_format: bool = True,
 ) -> None:
     """Run the MCP server with the given project directory and optional reference projects.
 
@@ -1922,6 +1940,8 @@ def run_server(
         reference_projects: Optional dictionary mapping project names to directory paths
         file_size_limit: Optional per-project default line limit for check_file_size
         fail_on_reviews: Per-server default for check_branch_status' review gate
+        enforce_base_branch_format: Server-wide default for rejecting a malformed
+            Base Branch section in github_issue_create / github_issue_edit
     """
     logger.debug("Entering run_server function")
 
@@ -1933,6 +1953,9 @@ def run_server(
 
     # Set the per-server review-gate default
     set_fail_on_reviews(fail_on_reviews)
+
+    # Set the server-wide base-branch-format enforcement default
+    set_enforce_base_branch_format(enforce_base_branch_format)
 
     # Set reference projects if provided
     if reference_projects:
