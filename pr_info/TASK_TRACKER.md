@@ -31,7 +31,7 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: Switch `stage_specific_files` to chunked `repo.git.add` ([details](./steps/step_2.md))
 
-- [ ] Implementation (tests + production code)
+- [x] Implementation (tests + production code)
 - [ ] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 

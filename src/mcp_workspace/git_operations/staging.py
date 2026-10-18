@@ -51,9 +51,16 @@ def stage_specific_files(files: list[Path], project_dir: Path) -> bool:
 
     Note:
         - Handles both absolute and relative file paths
-        - Validates files exist and are within project directory
+        - Validates files exist and are within project directory; validation
+          failures (missing file, outside project) return False before anything
+          is staged
         - Logs appropriate warnings/errors for failed operations
-        - Returns False if any files couldn't be staged (all-or-nothing approach)
+        - Staging is no longer all-or-nothing: once validation passes, files are
+          staged git-add-chunk by git-add-chunk, so a chunk can partially stage
+          valid paths and fail only on an ignored one, and a failure in a later
+          chunk leaves earlier chunks staged
+        - Staging is idempotent, so retrying after a False return is safe
+        - Directories are accepted and staged recursively by git
     """
     logger.debug("Staging %d specific files in %s", len(files), project_dir)
 
@@ -88,9 +95,12 @@ def stage_specific_files(files: list[Path], project_dir: Path) -> bool:
                     )
                     return False
 
-            # Stage all files at once
             logger.debug("Staging files: %s", relative_paths)
-            repo.index.add(relative_paths)
+            for chunk in _chunk_paths(relative_paths):
+                with repo.git.custom_environment(GIT_LITERAL_PATHSPECS="1"):
+                    # Stage through real git so clean filters and .gitattributes
+                    # apply - do not use repo.index.add.
+                    repo.git.add("--", *chunk)
 
             logger.debug(
                 "Successfully staged %d files: %s", len(relative_paths), relative_paths
