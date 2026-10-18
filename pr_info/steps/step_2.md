@@ -60,7 +60,10 @@ with safe_repo_context(project_dir) as repo:
 ## Test additions (one commit, TDD: write failing tests against current `index.add` code
 first conceptually — but since this step replaces the implementation in the same commit,
 write tests immediately against the target behaviour, run them to confirm they fail against
-the still-`index.add` code, then implement)
+the still-`index.add` code, then implement — except test 3 below: GitPython's `index.add`
+already takes paths literally with no glob expansion, so `test_stage_specific_files_literal_pathspec_bracket_filename`
+is expected to already pass against the current implementation; confirm it passes both before
+and after the rewrite, it does not need a red phase)
 
 Add one small non-fixture helper near the top of `test_staging.py` to avoid repeating setup:
 
@@ -78,17 +81,21 @@ test is never accidental.
 1. **`test_stage_specific_files_normalizes_crlf_for_new_file`** — write a new `.md` file with
    explicit `\r\n` line endings, stage it with `stage_specific_files`, read the blob back
    (`repo.git.show(f"HEAD:{path}")` after a commit, or `cat-file`/`ls-files -s` plus
-   `cat-file blob`) and assert no `\r` remains. In the same test, reset to a second,
-   otherwise-identical repo, stage the same CRLF file with `stage_all_changes` instead, and
-   assert the resulting blob is byte-identical to the one from `stage_specific_files` — this
-   covers the "new untracked file" equivalence case from the issue in the same test as the
-   CRLF assertion.
+   `cat-file blob`) and assert no `\r` remains. Then, in the same repo (no second repo
+   needed), run `repo.git.reset("HEAD")` to unstage — this only touches the index, so the
+   file's CRLF bytes on disk are untouched and it reverts to untracked — and stage the same
+   file with `stage_all_changes` instead; assert the resulting blob is byte-identical to the
+   one from `stage_specific_files`. This covers the "new untracked file" equivalence case
+   from the issue in the same test as the CRLF assertion, without needing a second repo.
 2. **`test_stage_specific_files_matches_stage_all_for_modified_tracked_file`** — commit an
-   `.md` file with LF content first, then in one repo modify it (append a line **and**
-   rewrite with CRLF) and stage via `stage_specific_files`; in a second, separately set-up
-   repo with the same starting commit, make the identical modification and stage via
-   `stage_all_changes`. Assert both staged blobs are identical (and LF). Needs two repos (or
-   an equivalent reset) since staging twice in one repo makes the second call a no-op.
+   `.md` file with LF content first, then modify it (append a line **and** rewrite with
+   CRLF) and stage via `stage_specific_files`; capture the staged blob (e.g. `ls-files -s`
+   plus `cat-file blob`, or `repo.git.rev_parse(f":{path}")`). Run `repo.git.reset("HEAD")`
+   to unstage — the working tree still has the identical modified-with-CRLF content, since
+   reset only touches the index — then stage the same working-tree state via
+   `stage_all_changes` and capture that blob. Assert both staged blobs are identical (and
+   LF). Resetting between the two staging calls in the same repo avoids the no-op problem of
+   staging twice without needing a second repo.
 3. **`test_stage_specific_files_literal_pathspec_bracket_filename`** — create `a[1].md` and a
    sibling file that the glob pattern `a[1].md` would also match (e.g. `a1.md`), call
    `stage_specific_files([a[1].md path])`, assert only the literal `a[1].md` is staged and
