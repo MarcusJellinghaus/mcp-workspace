@@ -66,7 +66,7 @@ pip install -e .
 Once installed, you can use the `mcp-workspace` command directly:
 
 ```bash
-mcp-workspace --project-dir /path/to/project [--reference-project NAME=/path/to/reference]... [--log-level LEVEL] [--log-file PATH] [--file-size-limit N]
+mcp-workspace --project-dir /path/to/project [--reference-project NAME=/path/to/reference]... [--log-level LEVEL] [--log-file PATH] [--file-size-limit N] [--fail-on-reviews] [--enforce-base-branch-format]
 ```
 
 ### Command Line Arguments:
@@ -76,6 +76,8 @@ mcp-workspace --project-dir /path/to/project [--reference-project NAME=/path/to/
 - `--log-level`: (Optional) Set logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 - `--log-file`: (Optional) Path for structured JSON logs. If not specified, logs to mcp_workspace_{timestamp}.log in project_dir/logs/.
 - `--file-size-limit`: (Optional) Default line limit for `check_file_size` when `max_lines` is omitted; must be > 0. Falls back to 600 when not set.
+- `--fail-on-reviews`: (Optional) Default for `check_branch_status`' review gate; the tool parameter overrides per call. Off unless set.
+- `--enforce-base-branch-format` / `--no-enforce-base-branch-format`: (Optional) Reject a malformed `### Base Branch` section (more than one line) when creating or editing an issue body, in `github_issue_create` and `github_issue_edit`. On by default.
 
 Unrecognized arguments are ignored at startup rather than stopping the server; each one is logged as a `WARNING`, plus a startup `INFO` line summarizing them. Abbreviated flags such as `--project` are no longer accepted as prefixes of `--project-dir`; they are treated as unknown arguments and ignored.
 

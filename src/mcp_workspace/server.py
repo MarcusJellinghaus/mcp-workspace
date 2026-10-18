@@ -68,6 +68,10 @@ _file_size_limit: Optional[int] = None
 # Per-server default for check_branch_status' review gate (set via --fail-on-reviews)
 _fail_on_reviews: bool = False
 
+# Server-wide default for rejecting a malformed Base Branch section
+# (set via --enforce-base-branch-format / --no-enforce-base-branch-format)
+_enforce_base_branch_format: bool = True
+
 # Per-file locks for concurrent edit safety
 _file_locks: dict[str, asyncio.Lock] = {}
 
@@ -153,6 +157,38 @@ def _check_labels(
         return (
             f"Error: unknown label(s){_ref_suffix(reference_name)}: "
             f"{', '.join(unknown)}"
+        )
+    return None
+
+
+def _check_base_branch(body: Optional[str]) -> Optional[str]:
+    """Reject a multi-line ### Base Branch section before any write.
+
+    Args:
+        body: Candidate issue body, or None when the caller is not changing
+            the body (as in github_issue_edit).
+
+    Returns:
+        An error string naming the problem, the fix, and the section's first
+        line, or None when the section is absent, empty, a single valid
+        line, or the check is disabled.
+    """
+    if not _enforce_base_branch_format:
+        return None
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.issues.base import (
+        MalformedBaseBranchError,
+        parse_base_branch,
+    )
+
+    try:
+        parse_base_branch(body or "")
+    except MalformedBaseBranchError as exc:
+        first_line = exc.content.splitlines()[0]
+        return (
+            "Error: `### Base Branch` must contain only the branch name on "
+            "one line; move other text to another section. First line: "
+            f"{first_line!r}"
         )
     return None
 
@@ -322,6 +358,19 @@ def set_fail_on_reviews(value: bool) -> None:
     global _fail_on_reviews  # pylint: disable=global-statement
     _fail_on_reviews = value
     logger.info("Fail on reviews set to: %s", value)
+
+
+@log_function_call
+def set_enforce_base_branch_format(value: bool) -> None:
+    """Set the server-wide default for rejecting a malformed Base Branch section.
+
+    Args:
+        value: Whether a malformed `### Base Branch` section is rejected at
+            write time in github_issue_create / github_issue_edit.
+    """
+    global _enforce_base_branch_format  # pylint: disable=global-statement
+    _enforce_base_branch_format = value
+    logger.info("Enforce base branch format set to: %s", value)
 
 
 @mcp.tool()
@@ -1223,7 +1272,9 @@ def github_issue_create(
     those are applied with `mcp-coder gh-tool set-status <label>` from the
     target repository's own checkout. Other label names are validated against
     the target repository's labels before writing, so a typo cannot silently
-    create a new label.
+    create a new label. A malformed `### Base Branch` section (more than one
+    line) is rejected before any write, unless the server was started with
+    `--no-enforce-base-branch-format`.
 
     Args:
         title: Issue title (required, cannot be empty)
@@ -1240,6 +1291,9 @@ def github_issue_create(
         assignees, or error message string.
     """
     try:
+        body_error = _check_base_branch(body)
+        if body_error:
+            return body_error
         manager = _issue_manager(reference_name)
         label_error = _check_labels(manager, labels or [], [], reference_name)
         if label_error:
@@ -1287,7 +1341,9 @@ def github_issue_edit(
     changes are additive and subtractive, never a replacement of the whole set.
     Workflow status labels (status-*) are rejected on the add and the remove
     side — those are applied with `mcp-coder gh-tool set-status <label>` from
-    the target repository's own checkout.
+    the target repository's own checkout. When `body` is passed, a malformed
+    `### Base Branch` section (more than one line) is rejected before any
+    write, unless the server was started with `--no-enforce-base-branch-format`.
 
     The edit is not a transaction: if a later part fails, the earlier part
     stays applied. The result then opens with a warning naming which requested
@@ -1327,6 +1383,9 @@ def github_issue_edit(
             return "Error: Issue title cannot be empty"
         if state not in (None, "open", "closed"):
             return f"Error: state must be 'open' or 'closed', got: {state}"
+        body_error = _check_base_branch(body)
+        if body_error:
+            return body_error
 
         manager = _issue_manager(reference_name)
         label_error = _check_labels(
@@ -1914,6 +1973,7 @@ def run_server(
     reference_projects: Optional[Dict[str, ReferenceProject]] = None,
     file_size_limit: Optional[int] = None,
     fail_on_reviews: bool = False,
+    enforce_base_branch_format: bool = True,
 ) -> None:
     """Run the MCP server with the given project directory and optional reference projects.
 
@@ -1922,6 +1982,8 @@ def run_server(
         reference_projects: Optional dictionary mapping project names to directory paths
         file_size_limit: Optional per-project default line limit for check_file_size
         fail_on_reviews: Per-server default for check_branch_status' review gate
+        enforce_base_branch_format: Server-wide default for rejecting a malformed
+            Base Branch section in github_issue_create / github_issue_edit
     """
     logger.debug("Entering run_server function")
 
@@ -1933,6 +1995,9 @@ def run_server(
 
     # Set the per-server review-gate default
     set_fail_on_reviews(fail_on_reviews)
+
+    # Set the server-wide base-branch-format enforcement default
+    set_enforce_base_branch_format(enforce_base_branch_format)
 
     # Set reference projects if provided
     if reference_projects:

@@ -157,6 +157,107 @@ def test_github_issue_create_rejects_status_label(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_rejects_malformed_base_branch(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A multi-line Base Branch section is rejected before any manager call."""
+    result = github_issue_create(
+        title="Test issue",
+        body="### Base Branch\n\nline1\nline2\n",
+    )
+
+    assert result.startswith("Error:")
+    assert "line1" in result
+    mock_manager_cls.assert_not_called()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_accepts_valid_base_branch(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A single-line Base Branch section is accepted."""
+    mock_manager_cls.return_value = _make_manager()
+
+    result = github_issue_create(
+        title="Test issue",
+        body="### Base Branch\n\nfeature/v2\n\n### Description",
+    )
+
+    assert result.startswith("Created issue")
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_accepts_body_without_base_branch_section(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A body with no Base Branch heading at all is accepted."""
+    mock_manager_cls.return_value = _make_manager()
+
+    result = github_issue_create(title="Test issue", body="### Description\n\nx")
+
+    assert result.startswith("Created issue")
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_accepts_empty_base_branch_section(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """An empty Base Branch section is accepted."""
+    mock_manager_cls.return_value = _make_manager()
+
+    result = github_issue_create(title="Test issue", body="### Base Branch\n\n### Next")
+
+    assert result.startswith("Created issue")
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_rejects_malformed_base_branch_crlf(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """CRLF line endings must not leak a trailing \\r into the error message."""
+    result = github_issue_create(
+        title="Test issue",
+        body="### Base Branch\r\n\r\nline1\r\nline2\r\n",
+    )
+
+    assert result.startswith("Error:")
+    assert "line1" in result
+    assert "line1\r" not in result
+    mock_manager_cls.assert_not_called()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_accepts_valid_base_branch_crlf(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A single-line Base Branch section with CRLF endings is accepted."""
+    mock_manager_cls.return_value = _make_manager()
+
+    result = github_issue_create(
+        title="Test issue",
+        body="### Base Branch\r\n\r\nfeature/v2\r\n",
+    )
+
+    assert result.startswith("Created issue")
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_with_flag_off_writes_malformed_base_branch(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """With the check disabled, the old pre-#320 behavior is preserved."""
+    mock_manager_cls.return_value = _make_manager()
+
+    with patch("mcp_workspace.server._enforce_base_branch_format", False):
+        result = github_issue_create(
+            title="Test issue",
+            body="### Base Branch\n\nline1\nline2\n",
+        )
+
+    assert result.startswith("Created issue")
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_create_rejects_unknown_label(
     mock_manager_cls: MagicMock,
 ) -> None:
