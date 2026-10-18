@@ -8,6 +8,37 @@ from .core import _normalize_git_path, logger, safe_repo_context
 from .repository_status import get_unstaged_changes, is_git_repository
 
 
+def _chunk_paths(paths: list[str], max_chars: int = 24000) -> list[list[str]]:
+    """Split paths into chunks whose joined length stays under max_chars.
+
+    Order-preserving: concatenating the returned chunks reproduces the input list
+    exactly. A single path longer than max_chars becomes the sole entry of its own
+    chunk rather than being dropped.
+
+    Args:
+        paths: Git-relative paths to chunk.
+        max_chars: Maximum total character length (space-joined) per chunk.
+
+    Returns:
+        List of path chunks. Empty input returns an empty list.
+    """
+    chunks: list[list[str]] = []
+    current: list[str] = []
+    current_len = 0
+    for path in paths:
+        added_len = len(path) + (1 if current else 0)
+        if current and current_len + added_len > max_chars:
+            chunks.append(current)
+            current = []
+            current_len = 0
+            added_len = len(path)
+        current.append(path)
+        current_len += added_len
+    if current:
+        chunks.append(current)
+    return chunks
+
+
 def stage_specific_files(files: list[Path], project_dir: Path) -> bool:
     """Stage specific files for commit.
 

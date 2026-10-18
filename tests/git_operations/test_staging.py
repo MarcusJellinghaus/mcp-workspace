@@ -6,9 +6,44 @@ import pytest
 from git import Repo
 
 from mcp_workspace.git_operations.staging import (
+    _chunk_paths,
     stage_all_changes,
     stage_specific_files,
 )
+
+
+class TestChunkPaths:
+    """Unit tests for the pure `_chunk_paths` helper."""
+
+    def test_empty_list_returns_empty_list(self) -> None:
+        """Empty input yields no chunks, not a single empty chunk."""
+        assert _chunk_paths([]) == []
+
+    def test_short_paths_fit_in_one_chunk(self) -> None:
+        """Paths well under max_chars stay together, in order."""
+        paths = ["a.py", "b.py", "c.py"]
+        assert _chunk_paths(paths, max_chars=100) == [paths]
+
+    def test_running_total_crosses_limit_splits_into_chunks(self) -> None:
+        """When the running total would exceed max_chars, a new chunk starts."""
+        paths = ["aaaaa", "bbbbb", "ccccc", "ddddd"]
+        # "aaaaa bbbbb" = 11 chars fits in max_chars=11; adding "ccccc" (+1) would
+        # exceed it, so it starts a new chunk.
+        result = _chunk_paths(paths, max_chars=11)
+        assert result == [["aaaaa", "bbbbb"], ["ccccc", "ddddd"]]
+        # Every path present exactly once, in order.
+        assert [p for chunk in result for p in chunk] == paths
+
+    def test_oversized_path_gets_its_own_chunk(self) -> None:
+        """A single path longer than max_chars is never dropped or merged."""
+        long_path = "x" * 50
+        paths = ["short1", long_path, "short2"]
+        result = _chunk_paths(paths, max_chars=10)
+        assert long_path in [chunk[0] for chunk in result if len(chunk) == 1]
+        assert [p for chunk in result for p in chunk] == paths
+        for chunk in result:
+            if long_path in chunk:
+                assert chunk == [long_path]
 
 
 @pytest.mark.git_integration
