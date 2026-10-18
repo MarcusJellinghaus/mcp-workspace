@@ -129,7 +129,7 @@ class TestParseArgs:
     def test_parse_enforce_base_branch_format_default(self) -> None:
         """Test --enforce-base-branch-format defaults to True when omitted."""
         with patch("sys.argv", ["script.py", "--project-dir", "/tmp"]):
-            args = parse_args()
+            args, _ = parse_args()
             assert args.enforce_base_branch_format is True
 
     def test_parse_no_enforce_base_branch_format(self) -> None:
@@ -143,7 +143,7 @@ class TestParseArgs:
                 "--no-enforce-base-branch-format",
             ],
         ):
-            args = parse_args()
+            args, _ = parse_args()
             assert args.enforce_base_branch_format is False
 
 
