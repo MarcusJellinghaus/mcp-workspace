@@ -25,9 +25,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: Extract the GraphQL retry loop into a reusable helper ([details](./steps/step_1.md))
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: Switch to `latestOpinionatedReviews`; add `submitted_at` and `ChangesRequestedData` ([details](./steps/step_2.md))
 

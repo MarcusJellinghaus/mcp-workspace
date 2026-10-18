@@ -14,6 +14,7 @@ from mcp_workspace.checks.pr_feedback import collect_pr_feedback
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations._pr_feedback_sources import (
     _has_permanent_error,
+    _request_review_page,
     fetch_code_scanning_alerts,
     fetch_conversation_comments,
 )
@@ -68,6 +69,133 @@ def test_has_permanent_error_keys_on_data_presence(
 ) -> None:
     """Errors without a `data` key are permanent; `data: null` is retryable."""
     assert _has_permanent_error(result) is expected
+
+
+def _mock_requester(body: Any = None, *, bodies: Any = None) -> Mock:
+    """Build a mock Requester for direct `_request_review_page` tests.
+
+    `body` is returned for every call (reused across retries with an
+    unchanging response); `bodies` supplies one body per successive call
+    (for a response that changes between attempts).
+    """
+    requester = Mock()
+    requester.graphql_url = "https://api.github.com/graphql"
+    requester.createException = Requester.createException
+    if bodies is not None:
+        bodies_iter = iter(bodies)
+        requester.requestJsonAndCheck = Mock(
+            side_effect=lambda *a, **k: ({}, next(bodies_iter))
+        )
+    else:
+        requester.requestJsonAndCheck = Mock(return_value=({}, body))
+    return requester
+
+
+class TestRequestReviewPage:
+    """Direct unit tests for `_request_review_page`."""
+
+    def test_success_first_attempt(self) -> None:
+        """Success on the first attempt → no sleep, pr_data populated, no error."""
+        requester = _mock_requester(
+            {"data": {"repository": {"pullRequest": {"a": 1}}}}
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            _, pr_data, error = _request_review_page(requester, "query", {})
+
+        assert pr_data == {"a": 1}
+        assert error is None
+        sleep.assert_not_called()
+        assert requester.requestJsonAndCheck.call_count == 1
+
+    def test_retry_then_success(self) -> None:
+        """Null pullRequest + non-permanent error, then success → one retry."""
+        requester = _mock_requester(
+            bodies=[
+                _null_pr_body({"message": "Could not resolve to a PullRequest"}),
+                {"data": {"repository": {"pullRequest": {"a": 1}}}},
+            ]
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            _, pr_data, error = _request_review_page(requester, "query", {})
+
+        assert pr_data == {"a": 1}
+        assert error is None
+        assert sleep.call_count == 1
+        assert requester.requestJsonAndCheck.call_count == 2
+
+    def test_retry_exhausted_synthesizes_status_200_error(self) -> None:
+        """Persisting null pullRequest, no errors → 3 attempts, synthesized 200."""
+        requester = _mock_requester(_null_pr_body())
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            _, pr_data, error = _request_review_page(requester, "query", {})
+
+        assert pr_data is None
+        assert sleep.call_count == 2
+        assert requester.requestJsonAndCheck.call_count == 3
+        assert isinstance(error, GithubException)
+        assert error.status == 200
+
+    def test_permanent_error_not_retried(self) -> None:
+        """A permanent error type (FORBIDDEN) → 1 attempt, no sleep."""
+        requester = _mock_requester(
+            _null_pr_body({"type": "FORBIDDEN", "message": "Resource not accessible"})
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            _, pr_data, error = _request_review_page(requester, "query", {})
+
+        assert pr_data is None
+        sleep.assert_not_called()
+        assert requester.requestJsonAndCheck.call_count == 1
+        assert isinstance(error, GithubException)
+
+    def test_single_not_found_yields_unknown_object_exception(self) -> None:
+        """A lone NOT_FOUND error → UnknownObjectException, status 404."""
+        requester = _mock_requester(
+            _null_pr_body(
+                {"type": "NOT_FOUND", "message": "Could not resolve to a PullRequest"}
+            )
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            _, pr_data, error = _request_review_page(requester, "query", {})
+
+        assert pr_data is None
+        assert sleep.call_count == 2
+        assert requester.requestJsonAndCheck.call_count == 3
+        assert isinstance(error, UnknownObjectException)
+        assert error.status == 404
+
+    def test_two_errors_yield_plain_github_exception(self) -> None:
+        """Two errors in one response → plain GithubException, status 400."""
+        requester = _mock_requester(
+            _null_pr_body(
+                {"type": "NOT_FOUND", "message": "first"},
+                {"type": "NOT_FOUND", "message": "second"},
+            )
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ):
+            _, pr_data, error = _request_review_page(requester, "query", {})
+
+        assert pr_data is None
+        assert type(error) is GithubException  # pylint: disable=unidiomatic-typecheck
+        assert error.status == 400
 
 
 @pytest.mark.git_integration

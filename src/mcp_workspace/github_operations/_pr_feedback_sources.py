@@ -91,6 +91,50 @@ def _build_graphql_exception(
     return requester.createException(400, headers, result)
 
 
+def _request_review_page(
+    requester: Requester, query: str, variables: dict[str, Any]
+) -> Tuple[dict[str, Any], Optional[dict[str, Any]], Optional[GithubException]]:
+    """Run one GraphQL request under the existing retry/permanent-error policy.
+
+    Returns:
+        (headers, pr_data, error) — pr_data is the repository.pullRequest
+        payload, or None; error is what graphql_query would have raised, or
+        None. Recovered pr_data is returned alongside error, never instead of it.
+    """
+    # Pre-initialised so they are never possibly-unbound after the loop.
+    headers: dict[str, Any] = {}
+    result: dict[str, Any] = {}
+    pr_data: Optional[dict[str, Any]] = None
+    for attempt in range(_REVIEW_DATA_MAX_ATTEMPTS):
+        # Outside any try: a genuine HTTP failure must propagate unretried.
+        headers, result = requester.requestJsonAndCheck(
+            "POST",
+            requester.graphql_url,
+            input={"query": query, "variables": variables},
+        )
+        # `or {}` at every level: a partial response nulls exactly the field
+        # that errored, and `.get(key, {})` would return None for it.
+        pr_data = ((result.get("data") or {}).get("repository") or {}).get(
+            "pullRequest"
+        )
+        if pr_data is not None:
+            break
+        if _has_permanent_error(result):
+            break
+        if attempt == _REVIEW_DATA_MAX_ATTEMPTS - 1:
+            break
+        time.sleep(_REVIEW_DATA_RETRY_BASE_DELAY_SECONDS * 2**attempt)
+
+    error = _build_graphql_exception(requester, headers, result)
+    if error is None and pr_data is None:
+        # Status 200 is the truth here: GitHub answered successfully and simply
+        # did not return the node. Fabricating a 400 would repeat the bug.
+        error = GithubException(
+            200, {"errors": [{"message": "pullRequest not returned"}]}, headers
+        )
+    return headers, pr_data, error
+
+
 def fetch_review_data(
     manager: "PullRequestManager", pr_number: int
 ) -> Tuple[list[dict[str, Any]], int, list[dict[str, Any]], Optional[GithubException]]:
@@ -147,37 +191,7 @@ def fetch_review_data(
 
     requester = manager._github_client._Github__requester  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public GraphQL API in PyGithub
 
-    # Pre-initialised so they are never possibly-unbound after the loop.
-    headers: dict[str, Any] = {}
-    result: dict[str, Any] = {}
-    pr_data: Optional[dict[str, Any]] = None
-    for attempt in range(_REVIEW_DATA_MAX_ATTEMPTS):
-        # Outside any try: a genuine HTTP failure must propagate unretried.
-        headers, result = requester.requestJsonAndCheck(
-            "POST",
-            requester.graphql_url,
-            input={"query": query, "variables": variables},
-        )
-        # `or {}` at every level: a partial response nulls exactly the field
-        # that errored, and `.get(key, {})` would return None for it.
-        pr_data = ((result.get("data") or {}).get("repository") or {}).get(
-            "pullRequest"
-        )
-        if pr_data is not None:
-            break
-        if _has_permanent_error(result):
-            break
-        if attempt == _REVIEW_DATA_MAX_ATTEMPTS - 1:
-            break
-        time.sleep(_REVIEW_DATA_RETRY_BASE_DELAY_SECONDS * 2**attempt)
-
-    error = _build_graphql_exception(requester, headers, result)
-    if error is None and pr_data is None:
-        # Status 200 is the truth here: GitHub answered successfully and simply
-        # did not return the node. Fabricating a 400 would repeat the bug.
-        error = GithubException(
-            200, {"errors": [{"message": "pullRequest not returned"}]}, headers
-        )
+    _, pr_data, error = _request_review_page(requester, query, variables)
     if pr_data is None:
         return ([], 0, [], error)
 
