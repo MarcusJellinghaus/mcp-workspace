@@ -80,9 +80,12 @@ test is never accidental.
 
 1. **`test_stage_specific_files_normalizes_crlf_for_new_file`** — write a new `.md` file with
    explicit `\r\n` line endings, stage it with `stage_specific_files`, read the blob back
-   (`repo.git.show(f"HEAD:{path}")` after a commit, or `cat-file`/`ls-files -s` plus
-   `cat-file blob`) and assert no `\r` remains. Then, in the same repo (no second repo
-   needed), run `repo.git.reset("HEAD")` to unstage — this only touches the index, so the
+   without committing (`ls-files -s` plus `cat-file blob`, or `repo.git.rev_parse(f":{path}")`)
+   and assert no `\r` remains. Do not commit before this read — a commit would make HEAD
+   equal the index, turning the next `reset("HEAD")` into a no-op and leaving the file
+   tracked/unchanged, which would make the later equivalence assertion vacuous. Then, in the
+   same repo (no second repo needed), run `repo.git.reset("HEAD")` to unstage — this only
+   touches the index, so the
    file's CRLF bytes on disk are untouched and it reverts to untracked — and stage the same
    file with `stage_all_changes` instead; assert the resulting blob is byte-identical to the
    one from `stage_specific_files`. This covers the "new untracked file" equivalence case
