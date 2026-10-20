@@ -1,12 +1,13 @@
 """Tests for the `format_pr_feedback` pure formatter."""
 
-from typing import Any
+from typing import Any, Optional
 from unittest.mock import MagicMock
 
 from github.GithubException import GithubException
 
 from mcp_workspace.checks.pr_feedback import collect_pr_feedback, format_pr_feedback
 from mcp_workspace.github_operations.pr_types import (
+    ChangesRequestedData,
     ConversationCommentData,
     PRFeedback,
 )
@@ -58,9 +59,11 @@ def _comment(
 
 
 def _changes_requested(
-    author: str = "carol", body: str = "Needs work"
-) -> dict[str, Any]:
-    return {"author": author, "body": body}
+    author: str = "carol",
+    body: str = "Needs work",
+    submitted_at: Optional[str] = None,
+) -> ChangesRequestedData:
+    return ChangesRequestedData(author=author, body=body, submitted_at=submitted_at)
 
 
 def _alert(
@@ -166,13 +169,27 @@ class TestChangesRequested:
     def test_changes_requested_rendered(self) -> None:
         feedback = _empty_feedback()
         feedback["changes_requested"] = [
-            _changes_requested(author="carol", body="Needs work")
+            _changes_requested(author="carol", body="Needs work", submitted_at=None)
         ]
         result = format_pr_feedback(feedback)
         assert result.startswith("PR Reviews:")
-        assert "[changes_requested]" in result
-        assert "carol" in result
-        assert "Needs work" in result
+        assert "[changes_requested] carol: Needs work" in result
+        assert "(" not in result.split("[changes_requested]")[1].split(":")[0]
+
+    def test_changes_requested_with_submitted_at_rendered(self) -> None:
+        feedback = _empty_feedback()
+        feedback["changes_requested"] = [
+            _changes_requested(
+                author="carol",
+                body="Needs work",
+                submitted_at="2025-01-01T00:00:00+00:00",
+            )
+        ]
+        result = format_pr_feedback(feedback)
+        assert (
+            "[changes_requested] carol (2025-01-01T00:00:00+00:00): Needs work"
+            in result
+        )
 
 
 class TestAlerts:

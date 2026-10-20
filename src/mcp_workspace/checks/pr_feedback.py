@@ -94,10 +94,12 @@ def format_pr_feedback(feedback: PRFeedback) -> str:
 
     for review in changes_requested:
         author = review.get("author", "")
+        submitted_at = review.get("submitted_at")
+        suffix = f" ({submitted_at})" if submitted_at else ""
         raw = review.get("body", "")
         body = _truncate_body(raw)
         body_cut = body_cut or body != raw
-        rendered.append(f"[changes_requested] {author}: {body}")
+        rendered.append(f"[changes_requested] {author}{suffix}: {body}")
 
     for alert in alerts:
         rule = alert.get("rule_description", "")

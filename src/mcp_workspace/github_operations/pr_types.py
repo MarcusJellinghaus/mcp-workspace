@@ -36,12 +36,20 @@ class ConversationCommentData(TypedDict):
     created_at: Optional[str]
 
 
+class ChangesRequestedData(TypedDict):
+    """TypedDict for one standing CHANGES_REQUESTED review."""
+
+    author: str
+    body: str
+    submitted_at: Optional[str]
+
+
 class PRFeedback(TypedDict):
-    """TypedDict for aggregated PR feedback (review threads, comments, alerts)."""
+    """TypedDict for aggregated PR feedback (review threads, standing CHANGES_REQUESTED reviews, comments, alerts)."""
 
     unresolved_threads: list[dict[str, Any]]
     resolved_thread_count: int
-    changes_requested: list[dict[str, Any]]
+    changes_requested: list[ChangesRequestedData]
     conversation_comments: list[ConversationCommentData]
     alerts: list[dict[str, Any]]
     unavailable: dict[str, Exception]

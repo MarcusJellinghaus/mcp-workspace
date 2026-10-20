@@ -111,7 +111,7 @@ class PRFeedbackMixin:
 
         Returns:
             PRFeedback dict containing unresolved threads, resolved thread count,
-            CHANGES_REQUESTED reviews, conversation comments, code-scanning alerts,
+            standing CHANGES_REQUESTED reviews, conversation comments, code-scanning alerts,
             and a dict mapping failed section names to the raised or returned
             exception (excluding 403 on alerts, which is silently skipped).
         """
