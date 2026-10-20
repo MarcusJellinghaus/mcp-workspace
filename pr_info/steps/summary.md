@@ -10,12 +10,11 @@ swallowed 5xx, a swallowed 429, and a swallowed network error all look identical
 ## Architectural / design changes
 
 1. **`_handle_github_errors` gains a second, independent, optional parameter**
-   `on_error: Optional[Callable[[BaseException, T], None]] = None`. It is called with
-   `(exception, resolved)` immediately after `resolved` is computed from
-   `default_return`, in the non-auth `GithubException` branch and the generic
+   `on_error: Optional[Callable[[BaseException], None]] = None`. It is called with
+   the caught exception only when supplied, immediately after `resolved` is computed
+   from `default_return`, in the non-auth `GithubException` branch and the generic
    `Exception` branch only (never on `ValueError` or 401/403, which re-raise before
-   `default_return` is touched). Passing `resolved` alongside the exception lets
-   `on_error` mutate it in place (it's a dict) without any shared-state machinery.
+   `default_return` is touched), so it can mutate the resolved value in place.
    `default_return`'s existing zero-arg-factory/plain-value calling convention is
    **unchanged** for every other caller — `on_error` is strictly additive.
 
