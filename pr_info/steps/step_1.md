@@ -74,13 +74,14 @@ Seconds in the message: `round(wait)`. Exact texts are in `summary.md`.
 
 ## Tests (`tests/github_operations/test_client.py`)
 
-Imports: `io`, `json`, `logging`, `time`, `pytest`, `urllib3`, and
-`_LoggingGithubRetry`. Reuse the existing `MODULE` constant.
+Imports: `io`, `json`, `logging`, `time`, `pytest`, `urllib3`,
+`from urllib3.util.retry import Retry`, and `_LoggingGithubRetry`. Reuse the
+existing `MODULE` constant.
 
 Helper:
 
 ```python
-def _run(caplog, headers: dict[str, str], message: str = "") -> tuple[float, list[str], Retry]:
+def _run(caplog: pytest.LogCaptureFixture, headers: dict[str, str], message: str = "") -> tuple[float, list[str], Retry]:
     """Run increment -> sleep on a 403 stub; return (slept, our messages, new retry)."""
     caplog.set_level(logging.INFO, logger=MODULE)
     body = io.BytesIO(json.dumps({"message": message}).encode())
@@ -97,7 +98,7 @@ Cases:
 1. **Primary** — message `"API rate limit exceeded for user ID 1."`, headers
    `X-RateLimit-Remaining: "0"`, `X-RateLimit-Reset: str(int(time.time()) + 600)`.
    Assert `595 < slept <= 602`, one message containing
-   `"rate limit exhausted"`, `"resets"`, `"(GET /user)"`, and
+   `"rate limit exhausted"`, `f"{round(slept)}s"`, `"resets"`, `"(GET /user)"`, and
    `type(new_retry) is _LoggingGithubRetry`.
 2. **Secondary** — message `"You have exceeded a secondary rate limit."`, no
    `Retry-After`, no `X-RateLimit-Remaining: 0`. Assert `slept == 60`, one
