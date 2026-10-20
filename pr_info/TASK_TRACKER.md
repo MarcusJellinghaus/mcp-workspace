@@ -21,6 +21,19 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: `_LoggingGithubRetry` with tests — [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: tests (primary, secondary, Retry-After, 14/15s boundary) + `_LoggingGithubRetry.sleep()` in `_client.py`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Use `_LoggingGithubRetry` in `build_github_client`; fix docstrings — [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: factory test asserts retry type + wire `_LoggingGithubRetry` into `build_github_client`, update both docstrings
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: review full branch diff against `main`, address findings
+- [ ] PR summary prepared
