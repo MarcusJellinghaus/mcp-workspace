@@ -625,6 +625,28 @@ class TestLookupFailedFlag:
         assert result.get("lookup_failed") is True
         assert result["lookup_error"] == "GitHub API error 500: down"
 
+    def test_lookup_error_set_from_real_get_repository_failure(self) -> None:
+        """A real _get_repository failure flows through to lookup_error."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="test_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_class.return_value.get_repo.side_effect = GithubException(
+                502, {"message": "Bad Gateway"}, {}
+            )
+            manager = CIResultsManager(repo_url="https://github.com/test/repo.git")
+
+            result = manager.get_latest_ci_status("main")
+
+        mock_github_class.return_value.get_repo.assert_called_once()
+        assert result.get("lookup_failed") is True
+        assert result["lookup_error"] == "GitHub API error 502: Bad Gateway"
+
     def test_lookup_error_absent_on_success(
         self, mock_repo: Mock, ci_manager: CIResultsManager
     ) -> None:
