@@ -23,9 +23,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: `_LoggingGithubRetry` with tests — [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: tests (primary, secondary, Retry-After, 14/15s boundary) + `_LoggingGithubRetry.sleep()` in `_client.py`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (primary, secondary, Retry-After, 14/15s boundary) + `_LoggingGithubRetry.sleep()` in `_client.py`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: Use `_LoggingGithubRetry` in `build_github_client`; fix docstrings — [step_2.md](./steps/step_2.md)
 
