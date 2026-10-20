@@ -96,9 +96,7 @@ class TestRequestReviewPage:
 
     def test_success_first_attempt(self) -> None:
         """Success on the first attempt → no sleep, pr_data populated, no error."""
-        requester = _mock_requester(
-            {"data": {"repository": {"pullRequest": {"a": 1}}}}
-        )
+        requester = _mock_requester({"data": {"repository": {"pullRequest": {"a": 1}}}})
 
         with patch(
             "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
@@ -188,9 +186,7 @@ class TestRequestReviewPage:
             )
         )
 
-        with patch(
-            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
-        ):
+        with patch("mcp_workspace.github_operations._pr_feedback_sources.time.sleep"):
             _, pr_data, error = _request_review_page(requester, "query", {})
 
         assert pr_data is None
