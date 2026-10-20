@@ -253,6 +253,98 @@ class TestHandleGitHubErrorsDecorator:
 
         assert result == {}
 
+    def test_on_error_called_with_exception_and_resolved_on_github_error(
+        self,
+    ) -> None:
+        """Test that on_error receives the exception and resolved default."""
+        on_error = Mock()
+        error = GithubException(500, {"message": "Internal error"}, None)
+
+        @_handle_github_errors(default_return={"error": "default"}, on_error=on_error)
+        def function_with_github_error() -> dict[str, str]:
+            raise error
+
+        result = function_with_github_error()
+
+        assert result == {"error": "default"}
+        on_error.assert_called_once()
+        called_exc, called_resolved = on_error.call_args.args
+        assert called_exc is error
+        assert called_resolved is result
+
+    def test_on_error_called_with_exception_and_resolved_on_generic_error(
+        self,
+    ) -> None:
+        """Test that on_error receives a generic exception and resolved default."""
+        on_error = Mock()
+        error = RuntimeError("Something went wrong")
+
+        @_handle_github_errors(default_return={"error": "default"}, on_error=on_error)
+        def function_with_generic_error() -> dict[str, str]:
+            raise error
+
+        result = function_with_generic_error()
+
+        assert result == {"error": "default"}
+        on_error.assert_called_once()
+        called_exc, called_resolved = on_error.call_args.args
+        assert called_exc is error
+        assert called_resolved is result
+
+    @pytest.mark.parametrize("status", [401, 403])
+    def test_on_error_not_called_on_auth_error(self, status: int) -> None:
+        """Test that on_error is not called for re-raised auth errors."""
+        on_error = Mock()
+
+        @_handle_github_errors(default_return={}, on_error=on_error)
+        def function_with_auth_error() -> dict[str, str]:
+            raise GithubException(status, {"message": "Denied"}, None)
+
+        with pytest.raises(GithubException) as exc_info:
+            function_with_auth_error()
+
+        assert exc_info.value.status == status
+        on_error.assert_not_called()
+
+    def test_on_error_not_called_on_success(self) -> None:
+        """Test that on_error is not called when the function succeeds."""
+        on_error = Mock()
+
+        @_handle_github_errors(default_return={}, on_error=on_error)
+        def successful_function() -> dict[str, str]:
+            return {"result": "success"}
+
+        assert successful_function() == {"result": "success"}
+        on_error.assert_not_called()
+
+    def test_on_error_can_mutate_resolved_dict_in_place(self) -> None:
+        """Test that on_error mutations on the resolved value are returned."""
+
+        def on_error(e: BaseException, resolved: dict[str, str]) -> None:
+            resolved["cause"] = type(e).__name__
+
+        @_handle_github_errors(default_return=dict, on_error=on_error)
+        def function_with_generic_error() -> dict[str, str]:
+            raise RuntimeError("boom")
+
+        result = function_with_generic_error()
+
+        assert result == {"cause": "RuntimeError"}
+
+    def test_on_error_optional_omitted_default_none(self) -> None:
+        """Test that omitting on_error leaves behavior unchanged."""
+
+        @_handle_github_errors(default_return={"error": "default"})
+        def function_with_github_error() -> dict[str, str]:
+            raise GithubException(500, {"message": "Internal error"}, None)
+
+        @_handle_github_errors(default_return={"error": "default"})
+        def function_with_generic_error() -> dict[str, str]:
+            raise RuntimeError("boom")
+
+        assert function_with_github_error() == {"error": "default"}
+        assert function_with_generic_error() == {"error": "default"}
+
 
 class TestBaseGitHubManagerWithProjectDir:
     """Test suite for BaseGitHubManager initialization with project_dir.

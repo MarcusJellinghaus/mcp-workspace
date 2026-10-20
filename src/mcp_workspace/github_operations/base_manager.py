@@ -42,6 +42,7 @@ class IssueIdentityMismatchError(ValueError):
 
 def _handle_github_errors(
     default_return: Any,
+    on_error: Optional[Callable[[BaseException, Any], None]] = None,
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """Decorator to handle GitHub API errors consistently.
 
@@ -56,6 +57,10 @@ def _handle_github_errors(
             zero-arg callable is provided, it is called (as a factory) to
             produce a fresh return value per failure; otherwise the value is
             returned as-is.
+        on_error: Optional callback invoked with the caught exception and the
+            resolved default value on the non-auth GithubException and generic
+            Exception paths only. Its return value is discarded; it may mutate
+            the resolved value in place.
 
     Returns:
         Decorator function that wraps the original function with error handling
@@ -87,6 +92,8 @@ def _handle_github_errors(
                 resolved = (
                     default_return() if callable(default_return) else default_return
                 )
+                if on_error is not None:
+                    on_error(e, resolved)
                 return cast(T, resolved)
             except (
                 Exception
@@ -96,6 +103,8 @@ def _handle_github_errors(
                 resolved = (
                     default_return() if callable(default_return) else default_return
                 )
+                if on_error is not None:
+                    on_error(e, resolved)
                 return cast(T, resolved)
 
         return wrapper

@@ -26,9 +26,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ### Step 1: `on_error` parameter on `_handle_github_errors`
 See [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: tests in `test_base_manager.py` + optional `on_error` parameter in `base_manager.py`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests in `test_base_manager.py` + optional `on_error` parameter in `base_manager.py`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `_last_repository_error` on `BaseGitHubManager`
 See [step_2.md](./steps/step_2.md)
