@@ -70,9 +70,11 @@ class _LoggingGithubRetry(GithubRetry):
 def build_github_client(token: str, base_url: str) -> Github:
     """Create a PyGithub client with bounded timeout/retry.
 
-    timeout=10 with GithubRetry(total=2) gives ~30s worst case on an
-    unreachable host (1 initial + 2 retries). total=2 also caps 403
-    secondary-rate-limit backoff to 2 attempts — deliberate, do NOT raise back.
+    timeout=10 with total=2 gives ~30s worst case on an unreachable host
+    (1 initial + 2 retries). total=2 also caps 403 secondary-rate-limit
+    retries to 2 attempts — deliberate, do NOT raise back. Rate-limit waits
+    are not capped by the timeout (a primary wait lasts until the quota
+    resets, up to 1h); ``_LoggingGithubRetry`` logs them.
 
     Args:
         token: GitHub personal access token.
@@ -85,5 +87,5 @@ def build_github_client(token: str, base_url: str) -> Github:
         auth=Auth.Token(token),
         base_url=base_url,
         timeout=GITHUB_REQUEST_TIMEOUT,
-        retry=GithubRetry(total=GITHUB_RETRY_TOTAL),
+        retry=_LoggingGithubRetry(total=GITHUB_RETRY_TOTAL),
     )

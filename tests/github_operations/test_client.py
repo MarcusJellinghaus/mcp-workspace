@@ -30,11 +30,17 @@ def test_build_github_client_applies_timeout_retry_and_base_url() -> None:
     assert call_kwargs["timeout"] == 10
     assert call_kwargs["base_url"] == "https://api.github.com"
     assert call_kwargs["retry"].total == 2
+    assert (
+        type(call_kwargs["retry"]) is _LoggingGithubRetry
+    )  # pylint: disable=unidiomatic-typecheck
     assert client is mock_github.return_value
 
 
 def test_factory_constants_are_load_bearing() -> None:
-    """Guard the 30s single-call timeout math (10 x (1 + 2 retries))."""
+    """Guard the 30s timeout math (10 x (1 + 2 retries)) on an unreachable host.
+
+    Rate-limit waits are longer, not capped by the timeout, and are logged.
+    """
     assert GITHUB_REQUEST_TIMEOUT == 10
     assert GITHUB_RETRY_TOTAL == 2
 

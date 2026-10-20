@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: Use `_LoggingGithubRetry` in `build_github_client`; fix docstrings — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: factory test asserts retry type + wire `_LoggingGithubRetry` into `build_github_client`, update both docstrings
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: factory test asserts retry type + wire `_LoggingGithubRetry` into `build_github_client`, update both docstrings
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 
