@@ -14,6 +14,8 @@ from mcp_workspace.checks.pr_feedback import collect_pr_feedback
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations._pr_feedback_sources import (
     _has_permanent_error,
+    _parse_changes_requested,
+    _parse_submitted_at,
     _request_review_page,
     fetch_code_scanning_alerts,
     fetch_conversation_comments,
@@ -34,7 +36,7 @@ _EMPTY_REVIEW_DATA: dict[str, Any] = {
         "repository": {
             "pullRequest": {
                 "reviewThreads": {"nodes": []},
-                "reviews": {"nodes": []},
+                "latestOpinionatedReviews": {"nodes": []},
             }
         }
     }
@@ -192,6 +194,84 @@ class TestRequestReviewPage:
         assert pr_data is None
         assert type(error) is GithubException  # pylint: disable=unidiomatic-typecheck
         assert error.status == 400
+
+
+class TestParseChangesRequested:
+    """Direct unit tests for `_parse_changes_requested` and `_parse_submitted_at`."""
+
+    def test_two_reviewers_both_kept_as_separate_entries(self) -> None:
+        """Two CHANGES_REQUESTED nodes from different reviewers -> two entries.
+
+        Documents that reduction to one entry per reviewer is GitHub's job
+        (via `latestOpinionatedReviews`), not new code here.
+        """
+        pr_data = {
+            "latestOpinionatedReviews": {
+                "nodes": [
+                    {
+                        "state": "CHANGES_REQUESTED",
+                        "author": {"login": "alice"},
+                        "body": "fix a",
+                        "submittedAt": None,
+                    },
+                    {
+                        "state": "CHANGES_REQUESTED",
+                        "author": {"login": "bob"},
+                        "body": "fix b",
+                        "submittedAt": None,
+                    },
+                ]
+            }
+        }
+
+        result = _parse_changes_requested(pr_data)
+
+        assert len(result) == 2
+        assert {entry["author"] for entry in result} == {"alice", "bob"}
+
+    def test_null_author_entries_both_kept_with_empty_string(self) -> None:
+        """Two null-author entries are both kept — no accidental de-duplication."""
+        pr_data = {
+            "latestOpinionatedReviews": {
+                "nodes": [
+                    {
+                        "state": "CHANGES_REQUESTED",
+                        "author": None,
+                        "body": "fix a",
+                        "submittedAt": None,
+                    },
+                    {
+                        "state": "CHANGES_REQUESTED",
+                        "author": None,
+                        "body": "fix b",
+                        "submittedAt": None,
+                    },
+                ]
+            }
+        }
+
+        result = _parse_changes_requested(pr_data)
+
+        assert len(result) == 2
+        assert result[0]["author"] == ""
+        assert result[1]["author"] == ""
+
+    def test_submitted_at_none_returns_none(self) -> None:
+        """A missing submittedAt gives None, no debug log."""
+        assert _parse_submitted_at(None) is None
+
+    def test_submitted_at_unparseable_returns_none_and_logs_debug(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """An unparseable submittedAt gives None and emits a DEBUG log line."""
+        with caplog.at_level(
+            logging.DEBUG,
+            logger="mcp_workspace.github_operations._pr_feedback_sources",
+        ):
+            result = _parse_submitted_at("not-a-date")
+
+        assert result is None
+        assert "unparseable submittedAt" in caplog.text
 
 
 @pytest.mark.git_integration
@@ -358,7 +438,7 @@ class TestGetPRFeedback:
                                 },
                             ]
                         },
-                        "reviews": {
+                        "latestOpinionatedReviews": {
                             "nodes": [
                                 {
                                     "state": "CHANGES_REQUESTED",
@@ -424,6 +504,10 @@ class TestGetPRFeedback:
         assert len(result["changes_requested"]) == 1
         assert result["changes_requested"][0]["author"] == "alice"
         assert result["changes_requested"][0]["body"] == "please fix"
+        assert (
+            result["changes_requested"][0]["submitted_at"]
+            == "2025-01-01T00:00:00+00:00"
+        )
         assert len(result["conversation_comments"]) == 2
         assert result["conversation_comments"][0]["author"] == "alice"
         assert result["conversation_comments"][0]["body"] == "general comment 1"
@@ -462,7 +546,7 @@ class TestGetPRFeedback:
                                 }
                             ]
                         },
-                        "reviews": {"nodes": []},
+                        "latestOpinionatedReviews": {"nodes": []},
                     }
                 }
             }
@@ -487,7 +571,7 @@ class TestGetPRFeedback:
                 "repository": {
                     "pullRequest": {
                         "reviewThreads": {"nodes": []},
-                        "reviews": {"nodes": []},
+                        "latestOpinionatedReviews": {"nodes": []},
                     }
                 }
             }
@@ -517,7 +601,7 @@ class TestGetPRFeedback:
                 "repository": {
                     "pullRequest": {
                         "reviewThreads": {"nodes": []},
-                        "reviews": {"nodes": []},
+                        "latestOpinionatedReviews": {"nodes": []},
                     }
                 }
             }
@@ -543,7 +627,7 @@ class TestGetPRFeedback:
                 "repository": {
                     "pullRequest": {
                         "reviewThreads": {"nodes": []},
-                        "reviews": {"nodes": []},
+                        "latestOpinionatedReviews": {"nodes": []},
                     }
                 }
             }
@@ -678,7 +762,7 @@ class TestGetPRFeedback:
                                 }
                             ]
                         },
-                        "reviews": {"nodes": []},
+                        "latestOpinionatedReviews": {"nodes": []},
                     }
                 }
             }
@@ -780,7 +864,7 @@ class TestGetPRFeedback:
                 "repository": {
                     "pullRequest": {
                         "reviewThreads": {"nodes": []},
-                        "reviews": {"nodes": []},
+                        "latestOpinionatedReviews": {"nodes": []},
                     }
                 }
             },
@@ -811,7 +895,7 @@ class TestGetPRFeedback:
                 "repository": {
                     "pullRequest": {
                         "reviewThreads": None,
-                        "reviews": {
+                        "latestOpinionatedReviews": {
                             "nodes": [
                                 {
                                     "state": "CHANGES_REQUESTED",
@@ -871,7 +955,7 @@ class TestGetPRFeedback:
                                 }
                             ]
                         },
-                        "reviews": None,
+                        "latestOpinionatedReviews": None,
                     }
                 }
             },
@@ -879,7 +963,7 @@ class TestGetPRFeedback:
                 {
                     "type": "FORBIDDEN",
                     "message": "Resource not accessible",
-                    "path": ["repository", "pullRequest", "reviews"],
+                    "path": ["repository", "pullRequest", "latestOpinionatedReviews"],
                 }
             ],
         }
@@ -929,7 +1013,7 @@ class TestGetPRFeedback:
                                 },
                             ]
                         },
-                        "reviews": {"nodes": []},
+                        "latestOpinionatedReviews": {"nodes": []},
                     }
                 }
             },
@@ -980,7 +1064,7 @@ class TestGetPRFeedback:
                                 }
                             ]
                         },
-                        "reviews": {
+                        "latestOpinionatedReviews": {
                             "nodes": [
                                 None,
                                 {
@@ -997,7 +1081,13 @@ class TestGetPRFeedback:
                 {
                     "type": "FORBIDDEN",
                     "message": "Resource not accessible",
-                    "path": ["repository", "pullRequest", "reviews", "nodes", 0],
+                    "path": [
+                        "repository",
+                        "pullRequest",
+                        "latestOpinionatedReviews",
+                        "nodes",
+                        0,
+                    ],
                 }
             ],
         }
@@ -1208,7 +1298,7 @@ class TestGetPRFeedback:
                 "repository": {
                     "pullRequest": {
                         "reviewThreads": {"nodes": []},
-                        "reviews": {"nodes": []},
+                        "latestOpinionatedReviews": {"nodes": []},
                     }
                 }
             }
@@ -1247,7 +1337,7 @@ class TestGetPRFeedback:
                 "repository": {
                     "pullRequest": {
                         "reviewThreads": {"nodes": []},
-                        "reviews": {"nodes": []},
+                        "latestOpinionatedReviews": {"nodes": []},
                     }
                 }
             }

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional, Tuple
 
 from github.GithubException import GithubException, UnknownObjectException
@@ -16,7 +17,7 @@ from github.Requester import Requester
 
 if TYPE_CHECKING:
     from .pr_manager import PullRequestManager
-    from .pr_types import ConversationCommentData
+    from .pr_types import ChangesRequestedData, ConversationCommentData
 
 logger = logging.getLogger(__name__)
 
@@ -135,10 +136,48 @@ def _request_review_page(
     return headers, pr_data, error
 
 
+def _parse_submitted_at(raw: Optional[str]) -> Optional[str]:
+    """Normalize a GraphQL submittedAt value to isoformat, or None on absence/bad input.
+
+    Returns:
+        The isoformat string, or None if `raw` is None or unparseable.
+    """
+    if raw is None:
+        return None
+    try:
+        return datetime.fromisoformat(raw).isoformat()
+    except ValueError:
+        logger.debug("unparseable submittedAt: %r", raw)
+        return None
+
+
+def _parse_changes_requested(pr_data: dict[str, Any]) -> list["ChangesRequestedData"]:
+    """Build standing CHANGES_REQUESTED entries from latestOpinionatedReviews nodes.
+
+    Returns:
+        One entry per CHANGES_REQUESTED node, each with author/body/submitted_at.
+    """
+    result: list["ChangesRequestedData"] = []
+    nodes = (pr_data.get("latestOpinionatedReviews") or {}).get("nodes") or []
+    for node in nodes:
+        if node is None or node.get("state") != "CHANGES_REQUESTED":
+            continue
+        result.append(
+            {
+                "author": (node.get("author") or {}).get("login") or "",
+                "body": node.get("body") or "",
+                "submitted_at": _parse_submitted_at(node.get("submittedAt")),
+            }
+        )
+    return result
+
+
 def fetch_review_data(
     manager: "PullRequestManager", pr_number: int
-) -> Tuple[list[dict[str, Any]], int, list[dict[str, Any]], Optional[GithubException]]:
-    """Fetch review threads + reviews via a single tolerant GraphQL call.
+) -> Tuple[
+    list[dict[str, Any]], int, list["ChangesRequestedData"], Optional[GithubException]
+]:
+    """Fetch review threads + standing CHANGES_REQUESTED reviews via a single tolerant GraphQL call.
 
     Calls `requestJsonAndCheck` directly rather than `graphql_query`, so `data`
     and `errors` arrive together and partial results survive instead of being
@@ -179,7 +218,7 @@ def fetch_review_data(
               }
             }
           }
-          reviews(first: 50) {
+          latestOpinionatedReviews(first: 50) {
             nodes { state author { login } body submittedAt }
           }
         }
@@ -224,15 +263,7 @@ def fetch_review_data(
             }
         )
 
-    changes_requested: list[dict[str, Any]] = []
-    review_nodes = (pr_data.get("reviews") or {}).get("nodes") or []
-    for review in review_nodes:
-        if review is None:  # nullable node, as above
-            continue
-        if review.get("state") != "CHANGES_REQUESTED":
-            continue
-        author = (review.get("author") or {}).get("login") or ""
-        changes_requested.append({"author": author, "body": review.get("body") or ""})
+    changes_requested = _parse_changes_requested(pr_data)
 
     # `error` is returned alongside recovered data, never instead of it: any
     # GraphQL error keeps `threads` flagged so a hidden blocking thread cannot

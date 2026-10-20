@@ -31,8 +31,8 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: Switch to `latestOpinionatedReviews`; add `submitted_at` and `ChangesRequestedData` ([details](./steps/step_2.md))
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 
 ### Step 3: Render `submitted_at` in `format_pr_feedback()` ([details](./steps/step_3.md))

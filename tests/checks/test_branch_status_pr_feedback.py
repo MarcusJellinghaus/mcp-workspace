@@ -1,12 +1,13 @@
 """Tests for the `format_pr_feedback` pure formatter."""
 
-from typing import Any
+from typing import Any, Optional
 from unittest.mock import MagicMock
 
 from github.GithubException import GithubException
 
 from mcp_workspace.checks.pr_feedback import collect_pr_feedback, format_pr_feedback
 from mcp_workspace.github_operations.pr_types import (
+    ChangesRequestedData,
     ConversationCommentData,
     PRFeedback,
 )
@@ -58,9 +59,11 @@ def _comment(
 
 
 def _changes_requested(
-    author: str = "carol", body: str = "Needs work"
-) -> dict[str, Any]:
-    return {"author": author, "body": body}
+    author: str = "carol",
+    body: str = "Needs work",
+    submitted_at: Optional[str] = None,
+) -> ChangesRequestedData:
+    return ChangesRequestedData(author=author, body=body, submitted_at=submitted_at)
 
 
 def _alert(
