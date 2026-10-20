@@ -16,7 +16,11 @@ from typing_extensions import NotRequired
 
 from mcp_workspace.git_operations.branch_queries import validate_branch_name
 
-from .base_manager import BaseGitHubManager, _handle_github_errors
+from .base_manager import (
+    BaseGitHubManager,
+    _format_error_message,
+    _handle_github_errors,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +81,17 @@ class CIStatusData(TypedDict):
     run: RunData
     jobs: List[JobData]
     lookup_failed: NotRequired[bool]
+    lookup_error: NotRequired[str]
+
+
+def _set_lookup_error(e: BaseException, data: CIStatusData) -> None:
+    """Record the cause of a swallowed lookup failure on the default return.
+
+    Args:
+        e: The exception swallowed by ``_handle_github_errors``.
+        data: The resolved default ``CIStatusData``, mutated in place.
+    """
+    data["lookup_error"] = _format_error_message(e)
 
 
 def filter_runs_by_head_sha(runs: List[Any], max_runs: int = 25) -> List[Any]:
@@ -190,7 +205,8 @@ class CIResultsManager(BaseGitHubManager):
 
     @log_function_call
     @_handle_github_errors(
-        default_return=lambda: CIStatusData(run={}, jobs=[], lookup_failed=True)  # type: ignore[typeddict-item]
+        default_return=lambda: CIStatusData(run={}, jobs=[], lookup_failed=True),  # type: ignore[typeddict-item]
+        on_error=_set_lookup_error,
     )
     def get_latest_ci_status(self, branch: str) -> CIStatusData:
         """Get latest CI run status and job results for a branch.
@@ -217,7 +233,10 @@ class CIResultsManager(BaseGitHubManager):
         repo = self._get_repository()
         if not repo:
             logger.error("Could not access GitHub repository")
-            return CIStatusData(run={}, jobs=[], lookup_failed=True)  # type: ignore[typeddict-item]
+            data = CIStatusData(run={}, jobs=[], lookup_failed=True)  # type: ignore[typeddict-item]
+            if self._last_repository_error is not None:
+                data["lookup_error"] = self._last_repository_error
+            return data
 
         # Get workflow runs for the branch
         try:

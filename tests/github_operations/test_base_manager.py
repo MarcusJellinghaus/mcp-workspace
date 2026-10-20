@@ -253,6 +253,98 @@ class TestHandleGitHubErrorsDecorator:
 
         assert result == {}
 
+    def test_on_error_called_with_exception_and_resolved_on_github_error(
+        self,
+    ) -> None:
+        """Test that on_error receives the exception and resolved default."""
+        on_error = Mock()
+        error = GithubException(500, {"message": "Internal error"}, None)
+
+        @_handle_github_errors(default_return={"error": "default"}, on_error=on_error)
+        def function_with_github_error() -> dict[str, str]:
+            raise error
+
+        result = function_with_github_error()
+
+        assert result == {"error": "default"}
+        on_error.assert_called_once()
+        called_exc, called_resolved = on_error.call_args.args
+        assert called_exc is error
+        assert called_resolved is result
+
+    def test_on_error_called_with_exception_and_resolved_on_generic_error(
+        self,
+    ) -> None:
+        """Test that on_error receives a generic exception and resolved default."""
+        on_error = Mock()
+        error = RuntimeError("Something went wrong")
+
+        @_handle_github_errors(default_return={"error": "default"}, on_error=on_error)
+        def function_with_generic_error() -> dict[str, str]:
+            raise error
+
+        result = function_with_generic_error()
+
+        assert result == {"error": "default"}
+        on_error.assert_called_once()
+        called_exc, called_resolved = on_error.call_args.args
+        assert called_exc is error
+        assert called_resolved is result
+
+    @pytest.mark.parametrize("status", [401, 403])
+    def test_on_error_not_called_on_auth_error(self, status: int) -> None:
+        """Test that on_error is not called for re-raised auth errors."""
+        on_error = Mock()
+
+        @_handle_github_errors(default_return={}, on_error=on_error)
+        def function_with_auth_error() -> dict[str, str]:
+            raise GithubException(status, {"message": "Denied"}, None)
+
+        with pytest.raises(GithubException) as exc_info:
+            function_with_auth_error()
+
+        assert exc_info.value.status == status
+        on_error.assert_not_called()
+
+    def test_on_error_not_called_on_success(self) -> None:
+        """Test that on_error is not called when the function succeeds."""
+        on_error = Mock()
+
+        @_handle_github_errors(default_return={}, on_error=on_error)
+        def successful_function() -> dict[str, str]:
+            return {"result": "success"}
+
+        assert successful_function() == {"result": "success"}
+        on_error.assert_not_called()
+
+    def test_on_error_can_mutate_resolved_dict_in_place(self) -> None:
+        """Test that on_error mutations on the resolved value are returned."""
+
+        def on_error(e: BaseException, resolved: dict[str, str]) -> None:
+            resolved["cause"] = type(e).__name__
+
+        @_handle_github_errors(default_return=dict, on_error=on_error)
+        def function_with_generic_error() -> dict[str, str]:
+            raise RuntimeError("boom")
+
+        result = function_with_generic_error()
+
+        assert result == {"cause": "RuntimeError"}
+
+    def test_on_error_optional_omitted_default_none(self) -> None:
+        """Test that omitting on_error leaves behavior unchanged."""
+
+        @_handle_github_errors(default_return={"error": "default"})
+        def function_with_github_error() -> dict[str, str]:
+            raise GithubException(500, {"message": "Internal error"}, None)
+
+        @_handle_github_errors(default_return={"error": "default"})
+        def function_with_generic_error() -> dict[str, str]:
+            raise RuntimeError("boom")
+
+        assert function_with_github_error() == {"error": "default"}
+        assert function_with_generic_error() == {"error": "default"}
+
 
 class TestBaseGitHubManagerWithProjectDir:
     """Test suite for BaseGitHubManager initialization with project_dir.
@@ -1564,3 +1656,78 @@ class TestGetIssueChecked:
         result = manager._get_issue_checked(repo, 72)
 
         assert result is issue
+
+
+class TestLastRepositoryError:
+    """Tests for BaseGitHubManager._last_repository_error set by _get_repository()."""
+
+    TOKEN = "ghp_secret_token_abcdef123456"
+
+    def _call_get_repository(
+        self, side_effect: BaseException
+    ) -> tuple[BaseGitHubManager, object]:
+        """Build a repo_url manager whose get_repo raises, then call it."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value=self.TOKEN,
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_client = Mock()
+            mock_github_client.get_repo.side_effect = side_effect
+            mock_github_class.return_value = mock_github_client
+
+            manager = BaseGitHubManager(
+                repo_url="https://github.com/test-owner/test-repo.git"
+            )
+            result = manager._get_repository()
+        return manager, result
+
+    def test_last_repository_error_none_before_any_failure(self) -> None:
+        """Test a fresh manager has no recorded repository error."""
+        with patch(
+            "mcp_workspace.github_operations.base_manager.get_github_token",
+            return_value=self.TOKEN,
+        ):
+            manager = BaseGitHubManager(
+                repo_url="https://github.com/test-owner/test-repo.git"
+            )
+
+        assert manager._last_repository_error is None
+
+    def test_last_repository_error_set_on_github_exception(self) -> None:
+        """Test a GithubException records status and message."""
+        manager, result = self._call_get_repository(
+            GithubException(
+                500, {"message": "boom"}, {"x-github-request-id": "ABCD:1234"}
+            )
+        )
+
+        assert result is None
+        assert manager._last_repository_error == "GitHub API error 500: boom"
+
+    def test_last_repository_error_set_on_generic_exception(self) -> None:
+        """Test a non-GitHub exception records only the exception type."""
+        manager, result = self._call_get_repository(RuntimeError("x"))
+
+        assert result is None
+        assert manager._last_repository_error == "network error: RuntimeError"
+
+    def test_last_repository_error_excludes_headers_and_token(self) -> None:
+        """Test the recorded error leaks neither header values nor the token."""
+        header_value = "SECRET-HEADER-VALUE-9876"
+        manager, _ = self._call_get_repository(
+            GithubException(
+                502,
+                {"message": "Bad Gateway"},
+                {"x-github-request-id": header_value, "authorization": self.TOKEN},
+            )
+        )
+
+        error = manager._last_repository_error
+        assert error is not None
+        assert header_value not in error
+        assert self.TOKEN not in error
