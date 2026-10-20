@@ -13,9 +13,11 @@ from github.Requester import Requester
 from mcp_workspace.checks.pr_feedback import collect_pr_feedback
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations._pr_feedback_sources import (
+    _MAX_REVIEW_THREAD_PAGES,
     _has_permanent_error,
     _parse_changes_requested,
     _parse_submitted_at,
+    _parse_thread_nodes,
     _request_review_page,
     fetch_code_scanning_alerts,
     fetch_conversation_comments,
@@ -57,6 +59,55 @@ def _post_call_count(manager: PullRequestManager) -> int:
     return sum(
         1 for c in requester.requestJsonAndCheck.call_args_list if c.args[0] == "POST"
     )
+
+
+def _review_threads_page(
+    page_num: int,
+    *,
+    has_next_page: bool,
+    end_cursor: Any = None,
+    omit_page_info: bool = False,
+    reviews: Any = None,
+) -> dict[str, Any]:
+    """Build a reviewThreads page body: 1 unresolved + 1 resolved thread.
+
+    `reviews` populates `latestOpinionatedReviews` (only meaningful for page
+    1, where `fetch_review_data` reads it); omitted (None) elsewhere.
+    """
+    review_threads: dict[str, Any] = {
+        "nodes": [
+            {
+                "id": f"THREAD_{page_num}_UNRESOLVED",
+                "isResolved": False,
+                "comments": {
+                    "nodes": [
+                        {
+                            "author": {"login": f"user{page_num}"},
+                            "body": f"issue on page {page_num}",
+                            "path": "src/foo.py",
+                            "line": page_num,
+                            "diffHunk": "@@ ... @@",
+                            "databaseId": page_num * 100,
+                        }
+                    ]
+                },
+            },
+            {
+                "id": f"THREAD_{page_num}_RESOLVED",
+                "isResolved": True,
+                "comments": {"nodes": []},
+            },
+        ]
+    }
+    if not omit_page_info:
+        review_threads["pageInfo"] = {
+            "hasNextPage": has_next_page,
+            "endCursor": end_cursor,
+        }
+    pull_request: dict[str, Any] = {"reviewThreads": review_threads}
+    if reviews is not None:
+        pull_request["latestOpinionatedReviews"] = {"nodes": reviews}
+    return {"data": {"repository": {"pullRequest": pull_request}}}
 
 
 @pytest.mark.parametrize(
@@ -272,6 +323,29 @@ class TestParseChangesRequested:
 
         assert result is None
         assert "unparseable submittedAt" in caplog.text
+
+
+class TestParseThreadNodes:
+    """Direct unit tests for `_parse_thread_nodes`."""
+
+    def test_resolved_and_unresolved_counted_separately(self) -> None:
+        """One resolved + one unresolved node -> 1 thread, resolved_count 1."""
+        pr_data = _review_threads_page(1, has_next_page=False)["data"]["repository"][
+            "pullRequest"
+        ]
+
+        threads, resolved_count = _parse_thread_nodes(pr_data)
+
+        assert len(threads) == 1
+        assert threads[0]["thread_id"] == "THREAD_1_UNRESOLVED"
+        assert resolved_count == 1
+
+    def test_missing_review_threads_returns_empty(self) -> None:
+        """No reviewThreads key -> ([], 0), not a KeyError."""
+        threads, resolved_count = _parse_thread_nodes({})
+
+        assert threads == []
+        assert resolved_count == 0
 
 
 @pytest.mark.git_integration
@@ -692,6 +766,8 @@ class TestGetPRFeedback:
             "owner": "test",
             "repo": "repo",
             "prNumber": 42,
+            "cursor": None,
+            "includeReviews": True,
         }
         assert "pullRequest(number: $prNumber)" in payload["query"]
 
@@ -1357,6 +1433,213 @@ class TestGetPRFeedback:
         assert isinstance(reason, IssueIdentityMismatchError)
         assert "was transferred to test/other-repo#220" in str(reason)
         transferred.get_comments.assert_not_called()
+
+    def test_review_threads_pagination_accumulates_across_pages(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Threads spanning 3 pages are all returned, resolved count summed."""
+        page1 = _review_threads_page(
+            1,
+            has_next_page=True,
+            end_cursor="CURSOR_1",
+            reviews=[
+                {
+                    "state": "CHANGES_REQUESTED",
+                    "author": {"login": "alice"},
+                    "body": "fix",
+                    "submittedAt": "2025-01-01T00:00:00Z",
+                }
+            ],
+        )
+        page2 = _review_threads_page(2, has_next_page=True, end_cursor="CURSOR_2")
+        page3 = _review_threads_page(3, has_next_page=False)
+        self._setup_mocks(
+            mock_manager,
+            graphql_responses=[page1, page2, page3],
+            comments=[],
+            alerts_response=[],
+        )
+
+        result = mock_manager.get_pr_feedback(42)
+
+        assert _post_call_count(mock_manager) == 3
+        assert [t["thread_id"] for t in result["unresolved_threads"]] == [
+            "THREAD_1_UNRESOLVED",
+            "THREAD_2_UNRESOLVED",
+            "THREAD_3_UNRESOLVED",
+        ]
+        assert result["resolved_thread_count"] == 3
+        assert len(result["changes_requested"]) == 1
+        assert "threads" not in result["unavailable"]
+
+    def test_missing_page_info_treated_as_single_page(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Page 1 missing pageInfo entirely -> no pagination, exactly 1 POST."""
+        page1 = _review_threads_page(
+            1, has_next_page=False, omit_page_info=True, reviews=[]
+        )
+        self._setup_mocks(
+            mock_manager, graphql_responses=[page1], comments=[], alerts_response=[]
+        )
+
+        result = mock_manager.get_pr_feedback(42)
+
+        assert _post_call_count(mock_manager) == 1
+        assert len(result["unresolved_threads"]) == 1
+        assert "threads" not in result["unavailable"]
+
+    def test_follow_up_page_requests_cursor_and_excludes_reviews(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Page 2's request carries includeReviews=False and page 1's endCursor."""
+        page1 = _review_threads_page(
+            1, has_next_page=True, end_cursor="CURSOR_1", reviews=[]
+        )
+        page2 = _review_threads_page(2, has_next_page=False)
+        self._setup_mocks(
+            mock_manager,
+            graphql_responses=[page1, page2],
+            comments=[],
+            alerts_response=[],
+        )
+
+        mock_manager.get_pr_feedback(42)
+
+        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
+        post_calls = [
+            c
+            for c in requester.requestJsonAndCheck.call_args_list
+            if c.args[0] == "POST"
+        ]
+        assert len(post_calls) == 2
+        page2_variables = post_calls[1].kwargs["input"]["variables"]
+        assert page2_variables["includeReviews"] is False
+        assert page2_variables["cursor"] == "CURSOR_1"
+
+    @pytest.mark.parametrize("follow_up_pages", [1, 2])
+    def test_post_count_matches_follow_up_pages(
+        self, mock_manager: PullRequestManager, follow_up_pages: int
+    ) -> None:
+        """POST count equals 1 (first page) plus the number of follow-up pages."""
+        total_pages = 1 + follow_up_pages
+        pages = []
+        for i in range(1, total_pages + 1):
+            has_next = i < total_pages
+            pages.append(
+                _review_threads_page(
+                    i,
+                    has_next_page=has_next,
+                    end_cursor=f"C{i}" if has_next else None,
+                    reviews=[] if i == 1 else None,
+                )
+            )
+        self._setup_mocks(
+            mock_manager, graphql_responses=pages, comments=[], alerts_response=[]
+        )
+
+        mock_manager.get_pr_feedback(42)
+
+        assert _post_call_count(mock_manager) == total_pages
+
+    def test_transient_not_found_on_follow_up_page_retried(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """A NOT_FOUND-then-success sequence on page 2 still yields page 2's threads."""
+        page1 = _review_threads_page(1, has_next_page=True, end_cursor="C1", reviews=[])
+        page2 = _review_threads_page(2, has_next_page=False)
+        self._setup_mocks(
+            mock_manager,
+            graphql_responses=[
+                page1,
+                _null_pr_body({"message": "Could not resolve to a PullRequest"}),
+                page2,
+            ],
+            comments=[],
+            alerts_response=[],
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources.time.sleep"
+        ) as sleep:
+            result = mock_manager.get_pr_feedback(42)
+
+        assert _post_call_count(mock_manager) == 3
+        assert sleep.call_count == 1
+        assert "threads" not in result["unavailable"]
+        assert any(
+            t["thread_id"] == "THREAD_2_UNRESOLVED"
+            for t in result["unresolved_threads"]
+        )
+
+    def test_follow_up_page_permanent_failure_keeps_earlier_pages(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Page 2 fails permanently -> page 1's data survives, threads flagged."""
+        page1 = _review_threads_page(
+            1,
+            has_next_page=True,
+            end_cursor="C1",
+            reviews=[
+                {
+                    "state": "CHANGES_REQUESTED",
+                    "author": {"login": "alice"},
+                    "body": "fix",
+                    "submittedAt": "2025-01-01T00:00:00Z",
+                }
+            ],
+        )
+        page2_error = _null_pr_body(
+            {"type": "FORBIDDEN", "message": "Resource not accessible"}
+        )
+        self._setup_mocks(
+            mock_manager,
+            graphql_responses=[page1, page2_error],
+            comments=[],
+            alerts_response=[],
+        )
+
+        result = mock_manager.get_pr_feedback(42)
+
+        assert _post_call_count(mock_manager) == 2
+        assert [t["thread_id"] for t in result["unresolved_threads"]] == [
+            "THREAD_1_UNRESOLVED"
+        ]
+        assert len(result["changes_requested"]) == 1
+        assert "threads" in result["unavailable"]
+        assert isinstance(result["unavailable"]["threads"], GithubException)
+
+    @pytest.mark.parametrize("page_10_has_next_page", [False, True])
+    def test_review_threads_page_cap(
+        self, mock_manager: PullRequestManager, page_10_has_next_page: bool
+    ) -> None:
+        """10th page not hasNextPage stops cleanly; hasNextPage synthesizes an error."""
+        pages = []
+        for i in range(1, _MAX_REVIEW_THREAD_PAGES + 1):
+            has_next = page_10_has_next_page if i == _MAX_REVIEW_THREAD_PAGES else True
+            pages.append(
+                _review_threads_page(
+                    i,
+                    has_next_page=has_next,
+                    end_cursor=f"C{i}" if has_next else None,
+                    reviews=[] if i == 1 else None,
+                )
+            )
+        self._setup_mocks(
+            mock_manager, graphql_responses=pages, comments=[], alerts_response=[]
+        )
+
+        result = mock_manager.get_pr_feedback(42)
+
+        assert _post_call_count(mock_manager) == _MAX_REVIEW_THREAD_PAGES
+        assert len(result["unresolved_threads"]) == _MAX_REVIEW_THREAD_PAGES
+        if page_10_has_next_page:
+            exc = result["unavailable"]["threads"]
+            assert isinstance(exc, GithubException)
+            assert exc.status == 200
+            assert "truncated after 10 pages" in render_exception_for_display(exc)
+        else:
+            assert "threads" not in result["unavailable"]
 
     def test_invalid_pr_number(self, mock_manager: PullRequestManager) -> None:
         """pr_number=0 → empty PRFeedback."""
