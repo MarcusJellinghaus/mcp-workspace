@@ -169,13 +169,27 @@ class TestChangesRequested:
     def test_changes_requested_rendered(self) -> None:
         feedback = _empty_feedback()
         feedback["changes_requested"] = [
-            _changes_requested(author="carol", body="Needs work")
+            _changes_requested(author="carol", body="Needs work", submitted_at=None)
         ]
         result = format_pr_feedback(feedback)
         assert result.startswith("PR Reviews:")
-        assert "[changes_requested]" in result
-        assert "carol" in result
-        assert "Needs work" in result
+        assert "[changes_requested] carol: Needs work" in result
+        assert "(" not in result.split("[changes_requested]")[1].split(":")[0]
+
+    def test_changes_requested_with_submitted_at_rendered(self) -> None:
+        feedback = _empty_feedback()
+        feedback["changes_requested"] = [
+            _changes_requested(
+                author="carol",
+                body="Needs work",
+                submitted_at="2025-01-01T00:00:00+00:00",
+            )
+        ]
+        result = format_pr_feedback(feedback)
+        assert (
+            "[changes_requested] carol (2025-01-01T00:00:00+00:00): Needs work"
+            in result
+        )
 
 
 class TestAlerts:
