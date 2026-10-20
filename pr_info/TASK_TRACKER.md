@@ -40,9 +40,9 @@ See [step_2.md](./steps/step_2.md)
 ### Step 3: Wire `lookup_error` into `CIStatusData` / `get_latest_ci_status`
 See [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: tests in `test_ci_results_manager_status.py` + `lookup_error` field, `_set_lookup_error` helper, decorator `on_error` wiring, and repo-inaccessible branch in `ci_results_manager.py`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests in `test_ci_results_manager_status.py` + `lookup_error` field, `_set_lookup_error` helper, decorator `on_error` wiring, and repo-inaccessible branch in `ci_results_manager.py`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

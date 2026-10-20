@@ -1,5 +1,6 @@
 """Tests for CIResultsManager get_latest_ci_status method."""
 
+from typing import Callable
 from unittest.mock import Mock, patch
 
 import pytest
@@ -588,3 +589,93 @@ class TestLookupFailedFlag:
         result = ci_manager.get_latest_ci_status("main")
 
         assert "lookup_failed" not in result
+
+    def test_lookup_error_set_on_swallowed_429_github_exception(
+        self, mock_repo: Mock, ci_manager: CIResultsManager
+    ) -> None:
+        """A swallowed 429 GithubException records status and message."""
+        mock_repo.get_workflow_runs.side_effect = GithubException(
+            429, {"message": "rate limited"}, {}
+        )
+
+        result = ci_manager.get_latest_ci_status("main")
+
+        assert result.get("lookup_failed") is True
+        assert result["lookup_error"] == "GitHub API error 429: rate limited"
+
+    def test_lookup_error_set_on_swallowed_generic_exception(
+        self, mock_repo: Mock, ci_manager: CIResultsManager
+    ) -> None:
+        """A swallowed generic exception records only the exception type name."""
+        mock_repo.get_workflow_runs.side_effect = RuntimeError("boom")
+
+        result = ci_manager.get_latest_ci_status("main")
+
+        assert result.get("lookup_failed") is True
+        assert result["lookup_error"] == "network error: RuntimeError"
+
+    def test_lookup_error_set_from_last_repository_error_when_repo_inaccessible(
+        self, ci_manager: CIResultsManager
+    ) -> None:
+        """An inaccessible repository carries the cause from _get_repository."""
+        ci_manager._last_repository_error = "GitHub API error 500: down"
+        with patch.object(ci_manager, "_get_repository", return_value=None):
+            result = ci_manager.get_latest_ci_status("main")
+
+        assert result.get("lookup_failed") is True
+        assert result["lookup_error"] == "GitHub API error 500: down"
+
+    def test_lookup_error_absent_on_success(
+        self, mock_repo: Mock, ci_manager: CIResultsManager
+    ) -> None:
+        """A successful lookup does not set lookup_error at all."""
+        mock_run = Mock()
+        mock_run.id = 123456789
+        mock_run.status = "completed"
+        mock_run.conclusion = "success"
+        mock_run.name = "CI"
+        mock_run.event = "push"
+        mock_run.path = ".github/workflows/ci.yml"
+        mock_run.head_sha = "abc123def456"
+        mock_run.head_branch = "main"
+        mock_run.created_at = Mock()
+        mock_run.created_at.isoformat.return_value = "2024-01-15T10:30:00Z"
+        mock_run.html_url = "https://github.com/test/repo/actions/runs/123456789"
+        mock_run.jobs.return_value = []
+        mock_repo.get_workflow_runs.return_value = [mock_run]
+
+        result = ci_manager.get_latest_ci_status("main")
+
+        assert "lookup_error" not in result
+
+    @pytest.mark.parametrize(
+        "exc_factory",
+        [
+            lambda token, header: GithubException(
+                500,
+                {"message": "server error"},
+                {"Authorization": f"Bearer {token}", "X-Secret": header},
+            ),
+            lambda token, header: RuntimeError(
+                f"failed with token {token} and header {header}"
+            ),
+        ],
+        ids=["github_exception", "generic_exception"],
+    )
+    def test_lookup_error_excludes_token_and_headers(
+        self,
+        exc_factory: Callable[[str, str], BaseException],
+        mock_repo: Mock,
+        ci_manager: CIResultsManager,
+    ) -> None:
+        """The recorded cause never contains the token or a header value."""
+        token = ci_manager.github_token
+        assert token
+        header_value = "secret-header-value"
+        mock_repo.get_workflow_runs.side_effect = exc_factory(token, header_value)
+
+        result = ci_manager.get_latest_ci_status("main")
+
+        lookup_error = result["lookup_error"]
+        assert token not in lookup_error
+        assert header_value not in lookup_error
