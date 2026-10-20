@@ -18,15 +18,15 @@ already has an `on_error` parameter, write one line to `pr_info/.blocked.txt` an
 ```python
 def _handle_github_errors(
     default_return: Any,
-    on_error: Optional[Callable[[BaseException], None]] = None,
+    on_error: Optional[Callable[[BaseException, T], None]] = None,
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
 ```
 
-`on_error`, when provided, is called with the caught exception right after
-`resolved` is computed from `default_return`, in both the non-auth `GithubException`
-branch and the generic `Exception` branch. Never called from the `ValueError` or
-401/403 branches. Its return value is discarded — it mutates the resolved value in
-place.
+`on_error`, when provided, is called with the caught exception and the resolved
+value right after `resolved` is computed from `default_return`, in both the
+non-auth `GithubException` branch and the generic `Exception` branch. Never called
+from the `ValueError` or 401/403 branches. Its return value is discarded — it
+mutates the resolved value in place.
 
 ## HOW
 
@@ -39,7 +39,7 @@ place.
 ```
 resolved = default_return() if callable(default_return) else default_return
 if on_error is not None:
-    on_error(e)
+    on_error(e, resolved)
 return cast(T, resolved)
 ```
 
@@ -49,7 +49,7 @@ generic `Exception` branch.
 ## DATA
 
 No change to `_handle_github_errors`'s own return type.
-`on_error: Optional[Callable[[BaseException], None]]`.
+`on_error: Optional[Callable[[BaseException, T], None]]`.
 
 ## Tests (write first)
 

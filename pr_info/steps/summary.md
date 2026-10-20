@@ -10,13 +10,14 @@ swallowed 5xx, a swallowed 429, and a swallowed network error all look identical
 ## Architectural / design changes
 
 1. **`_handle_github_errors` gains a second, independent, optional parameter**
-   `on_error: Optional[Callable[[BaseException], None]] = None`. It is called with
-   the caught exception only when supplied, immediately after `resolved` is computed
-   from `default_return`, in the non-auth `GithubException` branch and the generic
-   `Exception` branch only (never on `ValueError` or 401/403, which re-raise before
-   `default_return` is touched), so it can mutate the resolved value in place.
-   `default_return`'s existing zero-arg-factory/plain-value calling convention is
-   **unchanged** for every other caller — `on_error` is strictly additive.
+   `on_error: Optional[Callable[[BaseException, T], None]] = None`. It is called
+   with the caught exception and the resolved value only when supplied, immediately
+   after `resolved` is computed from `default_return`, in the non-auth
+   `GithubException` branch and the generic `Exception` branch only (never on
+   `ValueError` or 401/403, which re-raise before `default_return` is touched), so it
+   can mutate the resolved value in place. `default_return`'s existing
+   zero-arg-factory/plain-value calling convention is **unchanged** for every other
+   caller — `on_error` is strictly additive.
 
 2. **`BaseGitHubManager` gains a private instance attribute**
    `_last_repository_error: Optional[str]`, initialized to `None` in `__init__` and
@@ -29,13 +30,18 @@ swallowed 5xx, a swallowed 429, and a swallowed network error all look identical
 
 3. **`CIStatusData` gains `lookup_error: NotRequired[str]`**, set together with
    `lookup_failed=True` in `get_latest_ci_status`, via:
-   - a new module-level helper `_set_lookup_error(e, data)` passed as `on_error` to
-     the `@_handle_github_errors` decorator (covers the swallowed-exception path), and
+   - a new module-level helper `_set_lookup_error(e, data)` — delegating to
+     `base_manager.py`'s `_format_error_message` for the message text — passed as
+     `on_error` to the `@_handle_github_errors` decorator (covers the
+     swallowed-exception path), and
    - a direct read of `self._last_repository_error` on the manual
      `_get_repository()`-returned-`None` branch (covers the repository-inaccessible
      path).
 
-4. **Message format, no rate-limit special-casing:**
+4. **Message format, no rate-limit special-casing, lives in one place:**
+   a private helper `_format_error_message(e: BaseException) -> str` in
+   `base_manager.py` (added in step 2), used by both `_get_repository()` and
+   `ci_results_manager.py`'s `_set_lookup_error` — no second copy of this logic.
    - `GithubException`: `f"GitHub API error {e.status}: {message}"` where
      `message = e.data.get("message", "")`.
    - generic `Exception`: `f"network error: {type(e).__name__}"`.

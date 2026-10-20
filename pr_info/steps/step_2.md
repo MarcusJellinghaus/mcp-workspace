@@ -12,13 +12,20 @@ and stop.
 ## WHERE
 
 - `src/mcp_workspace/github_operations/base_manager.py` — `BaseGitHubManager.__init__`,
-  `BaseGitHubManager._get_repository`
+  `BaseGitHubManager._get_repository`, new module-level function
+  `_format_error_message`
 - `tests/github_operations/test_base_manager.py` — new test class
   `TestLastRepositoryError` (check first whether a `_get_repository` test class
   already exists and extend that instead, to avoid duplicate fixtures)
 
 ## WHAT
 
+- A new module-level private helper in `base_manager.py`:
+  `def _format_error_message(e: BaseException) -> str`. This is the single place
+  that derives the `"GitHub API error {status}: {message}"` /
+  `"network error: {type}"` text — `_get_repository()` (this step) and
+  `ci_results_manager.py`'s `_set_lookup_error` (step 3) both call it instead of
+  each re-deriving the format independently.
 - `self._last_repository_error: Optional[str] = None` — added in `__init__`,
   alongside the existing `self._repository: Optional[Repository] = None`.
 - `_get_repository()` keeps its `Optional[Repository]` signature unchanged. On
@@ -31,17 +38,24 @@ and stop.
 `try/except GithubException/except Exception` block. Each except branch gets one
 extra line, before the existing `return None`, with no other logic changed.
 
+```python
+def _format_error_message(e: BaseException) -> str:
+    if isinstance(e, GithubException):
+        message = e.data.get("message", "") if isinstance(e.data, dict) else ""
+        return f"GitHub API error {e.status}: {message}"
+    return f"network error: {type(e).__name__}"
+```
+
 ## ALGORITHM
 
 ```
 except GithubException as e:
     ... existing debug/error logging, unchanged ...
-    message = e.data.get("message", "") if isinstance(e.data, dict) else ""
-    self._last_repository_error = f"GitHub API error {e.status}: {message}"
+    self._last_repository_error = _format_error_message(e)
     return None
 except Exception as e:
     ... existing logging, unchanged ...
-    self._last_repository_error = f"network error: {type(e).__name__}"
+    self._last_repository_error = _format_error_message(e)
     return None
 ```
 
@@ -64,6 +78,10 @@ success — single consumer (`get_latest_ci_status`) reads it immediately after 
 - `test_last_repository_error_excludes_headers_and_token` — assert the stored string
   contains neither a header value nor the configured token.
 
+No separate direct test for `_format_error_message` — its two branches are already
+exercised by the two tests above through `_get_repository()`; a standalone test
+would be redundant.
+
 ## Commit
 
 One commit: tests plus the `base_manager.py` change. Run pytest (`-n auto`), pylint,
@@ -72,8 +90,9 @@ mypy — all must pass. Format, stage, commit.
 ## LLM Prompt
 
 Read `pr_info/steps/summary.md`, then implement `pr_info/steps/step_2.md` exactly:
-add `_last_repository_error` to `BaseGitHubManager` and populate it on both failure
-branches of `_get_repository()` in
+add the `_format_error_message` module-level helper, add `_last_repository_error`
+to `BaseGitHubManager`, and populate it on both failure branches of
+`_get_repository()` by calling `_format_error_message`, in
 `src/mcp_workspace/github_operations/base_manager.py`. `_get_repository()`'s return
 type/signature must not change. Write the tests listed under "Tests (write first)"
 in `tests/github_operations/test_base_manager.py` first, then the implementation.

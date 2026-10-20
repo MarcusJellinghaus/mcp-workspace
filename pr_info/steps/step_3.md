@@ -7,14 +7,19 @@ implements summary points 3 and 4, tying together steps 1 and 2.
 
 Read `src/mcp_workspace/github_operations/ci_results_manager.py`. If `CIStatusData`
 already defines `lookup_error`, write one line to `pr_info/.blocked.txt` and stop.
-This step requires step 1's `on_error` parameter and step 2's
-`_last_repository_error` attribute to already exist in `base_manager.py` — if either
-is missing, write one line to `pr_info/.blocked.txt` and stop.
+This step requires step 1's `on_error` parameter, step 2's
+`_last_repository_error` attribute, and step 2's `_format_error_message` helper to
+already exist in `base_manager.py` — if any is missing, write one line to
+`pr_info/.blocked.txt` and stop.
 
 ## WHERE
 
 - `src/mcp_workspace/github_operations/ci_results_manager.py` — `CIStatusData`,
-  `get_latest_ci_status`, new module-level helper `_set_lookup_error`
+  `get_latest_ci_status`, new module-level helper `_set_lookup_error`. Add
+  `from mcp_workspace.github_operations.base_manager import GithubException` to this
+  file's imports (not currently imported here — only `base_manager.py` imports it
+  directly, and re-exports it via `__all__`); needed for `_set_lookup_error`'s
+  `isinstance(e, GithubException)` check.
 - `tests/github_operations/test_ci_results_manager_status.py` — class
   `TestLookupFailedFlag` (extend)
 
@@ -63,15 +68,24 @@ if not repo:
 No change to the "no workflow runs found" branch (`CIStatusData(run={}, jobs=[])`) —
 that is not a failure; `lookup_failed`/`lookup_error` are not set there.
 
+The `# type: ignore[typeddict-item]` comments in both snippets above are reproduced
+unchanged from the existing code. They exist because of the pre-existing `run={}`
+field (an empty dict standing in for `RunData`), not because of `lookup_failed` or
+the new `lookup_error` field — nothing about this step's changes requires touching
+them. This is the plan's answer to issue point 4 ("update the
+`# type: ignore[typeddict-item]` comments"): confirmed no update needed, not left
+unaddressed.
+
 ## ALGORITHM (`_set_lookup_error`)
 
 ```
-if isinstance(e, GithubException):
-    message = e.data.get("message", "") if isinstance(e.data, dict) else ""
-    data["lookup_error"] = f"GitHub API error {e.status}: {message}"
-else:
-    data["lookup_error"] = f"network error: {type(e).__name__}"
+data["lookup_error"] = _format_error_message(e)
 ```
+
+`_format_error_message` (added to `base_manager.py` in step 2) is the single place
+that derives the `GithubException` vs. generic-`Exception` text — `_set_lookup_error`
+calls it instead of re-deriving the format inline, so the logic is not duplicated
+between `base_manager.py`'s `_get_repository()` and this module.
 
 ## DATA
 
@@ -106,10 +120,13 @@ pylint, mypy — all must pass. Format, stage, commit.
 ## LLM Prompt
 
 Read `pr_info/steps/summary.md`, then implement `pr_info/steps/step_3.md` exactly:
-add `lookup_error: NotRequired[str]` to `CIStatusData`, add the `_set_lookup_error`
-helper, wire it as `on_error` into the `@_handle_github_errors` decorator on
-`get_latest_ci_status`, and populate `lookup_error` from
-`self._last_repository_error` on the `_get_repository()`-None branch, all in
+add `lookup_error: NotRequired[str]` to `CIStatusData`, add the import
+`from mcp_workspace.github_operations.base_manager import GithubException`, add the
+`_set_lookup_error` helper (delegating to `base_manager.py`'s
+`_format_error_message`), wire it as `on_error` into the
+`@_handle_github_errors` decorator on `get_latest_ci_status`, and populate
+`lookup_error` from `self._last_repository_error` on the
+`_get_repository()`-None branch, all in
 `src/mcp_workspace/github_operations/ci_results_manager.py`. Write the tests listed
 under "Tests (write first)" in
 `tests/github_operations/test_ci_results_manager_status.py` first, then the
