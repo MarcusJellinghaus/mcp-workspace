@@ -40,6 +40,23 @@ class IssueIdentityMismatchError(ValueError):
     """Raised when a fetched issue is not the issue that was requested."""
 
 
+def _format_error_message(e: BaseException) -> str:
+    """Derive a short, secret-free description of a GitHub lookup failure.
+
+    Args:
+        e: The caught exception.
+
+    Returns:
+        ``"GitHub API error {status}: {message}"`` for a GithubException,
+        otherwise ``"network error: {exception type}"``. Headers, the token,
+        and non-GitHub exception text are never included.
+    """
+    if isinstance(e, GithubException):
+        message = e.data.get("message", "") if isinstance(e.data, dict) else ""
+        return f"GitHub API error {e.status}: {message}"
+    return f"network error: {type(e).__name__}"
+
+
 def _handle_github_errors(
     default_return: Any,
     on_error: Optional[Callable[[BaseException, Any], None]] = None,
@@ -240,6 +257,7 @@ class BaseGitHubManager:
         self.github_token = raw_token
         self._cached_github_client: Optional[Github] = None
         self._repository: Optional[Repository] = None
+        self._last_repository_error: Optional[str] = None
 
     @property
     def _repo_identifier(self) -> RepoIdentifier:
@@ -336,6 +354,7 @@ class BaseGitHubManager:
                     repo_url,
                     e,
                 )
+            self._last_repository_error = _format_error_message(e)
             return None
         except (
             Exception
@@ -346,6 +365,7 @@ class BaseGitHubManager:
                 self._repo_identifier.full_name,
                 e,
             )
+            self._last_repository_error = _format_error_message(e)
             return None
 
     def _get_issue_checked(self, repo: Repository, issue_number: int) -> Issue:

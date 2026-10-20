@@ -33,9 +33,9 @@ See [step_1.md](./steps/step_1.md)
 ### Step 2: `_last_repository_error` on `BaseGitHubManager`
 See [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: tests in `test_base_manager.py` + `_format_error_message` helper and `_last_repository_error` set in `_get_repository()`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests in `test_base_manager.py` + `_format_error_message` helper and `_last_repository_error` set in `_get_repository()`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: Wire `lookup_error` into `CIStatusData` / `get_latest_ci_status`
 See [step_3.md](./steps/step_3.md)

@@ -1656,3 +1656,78 @@ class TestGetIssueChecked:
         result = manager._get_issue_checked(repo, 72)
 
         assert result is issue
+
+
+class TestLastRepositoryError:
+    """Tests for BaseGitHubManager._last_repository_error set by _get_repository()."""
+
+    TOKEN = "ghp_secret_token_abcdef123456"
+
+    def _call_get_repository(
+        self, side_effect: BaseException
+    ) -> tuple[BaseGitHubManager, object]:
+        """Build a repo_url manager whose get_repo raises, then call it."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value=self.TOKEN,
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_client = Mock()
+            mock_github_client.get_repo.side_effect = side_effect
+            mock_github_class.return_value = mock_github_client
+
+            manager = BaseGitHubManager(
+                repo_url="https://github.com/test-owner/test-repo.git"
+            )
+            result = manager._get_repository()
+        return manager, result
+
+    def test_last_repository_error_none_before_any_failure(self) -> None:
+        """Test a fresh manager has no recorded repository error."""
+        with patch(
+            "mcp_workspace.github_operations.base_manager.get_github_token",
+            return_value=self.TOKEN,
+        ):
+            manager = BaseGitHubManager(
+                repo_url="https://github.com/test-owner/test-repo.git"
+            )
+
+        assert manager._last_repository_error is None
+
+    def test_last_repository_error_set_on_github_exception(self) -> None:
+        """Test a GithubException records status and message."""
+        manager, result = self._call_get_repository(
+            GithubException(
+                500, {"message": "boom"}, {"x-github-request-id": "ABCD:1234"}
+            )
+        )
+
+        assert result is None
+        assert manager._last_repository_error == "GitHub API error 500: boom"
+
+    def test_last_repository_error_set_on_generic_exception(self) -> None:
+        """Test a non-GitHub exception records only the exception type."""
+        manager, result = self._call_get_repository(RuntimeError("x"))
+
+        assert result is None
+        assert manager._last_repository_error == "network error: RuntimeError"
+
+    def test_last_repository_error_excludes_headers_and_token(self) -> None:
+        """Test the recorded error leaks neither header values nor the token."""
+        header_value = "SECRET-HEADER-VALUE-9876"
+        manager, _ = self._call_get_repository(
+            GithubException(
+                502,
+                {"message": "Bad Gateway"},
+                {"x-github-request-id": header_value, "authorization": self.TOKEN},
+            )
+        )
+
+        error = manager._last_repository_error
+        assert error is not None
+        assert header_value not in error
+        assert self.TOKEN not in error
