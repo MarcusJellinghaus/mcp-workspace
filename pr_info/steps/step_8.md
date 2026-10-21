@@ -26,8 +26,10 @@ def _apply_pr_merge_override(
 ) -> tuple[Optional[bool], str]: ...   # None passes through unchanged
 ```
 
-`report_data` gains `"base_branch": <raw detected base>` (the value passed to
-`_collect_rebase_status`).
+`report_data` gains `"base_branch": base_branch_result` — the raw `Optional[str]` returned by
+`detect_base_branch`, **not** the `"unknown"` placeholder that `collect_branch_status` passes
+to `_collect_rebase_status`. `None` lets the `or default_branch_name` fallback fire, so the
+recommendation never names `origin/unknown`.
 
 ## HOW
 
@@ -63,6 +65,9 @@ ready = ci_ok and tasks_ok and not pr_blocks and not merge_state_blocked
 New file:
 - `_generate_recommendations` with `rebase_needed=True`, `base_branch="epic/x"`,
   `default_branch_name="main"` → contains `Rebase onto origin/epic/x`, not `origin/main`.
+- `collect_branch_status` with `detect_base_branch` → `None`, `needs_rebase` → `(True, …)`,
+  `default_branch_name="main"` → recommendation `Rebase onto origin/main`, never
+  `origin/unknown`.
 - `rebase_needed=None` → no `Rebase onto …` / `Pull …`, no `Ready to merge`.
 - `_apply_pr_merge_override(None, "r", True)` → `(None, "r")`.
 - `format_report_for_llm` with `rebase_needed=None` → `Rebase=UNKNOWN`.
