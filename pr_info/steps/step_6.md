@@ -68,9 +68,12 @@ with `reset = int(time.time()) + 600`; expected `HH:MM` derived from `reset`.
   reply contains `` `core` `` and the `HH:MM`, and not "Could not access repository" /
   "issue creation failed".
 - `github_subissue_list` and `github_subissue_add` (in
-  `tests/github_operations/test_github_write_tools_subissues.py`): `list_sub_issues` / `add_sub_issue` raising
-  `requests.exceptions.RetryError("x")` → reply is the rate-limit message
-  ("retries exhausted"), no exception escapes.
+  `tests/github_operations/test_github_write_tools_subissues.py`): same real-`IssueManager`
+  setup as above, but `get_repo.side_effect = requests.exceptions.RetryError("x")`. Do not set
+  `side_effect` on `list_sub_issues` / `add_sub_issue`: the error must go through the
+  `_get_repository` / `_handle_github_errors` re-raise from step 4 into the widened
+  `except` → `_api_error`. Assert the reply is the rate-limit message ("retries exhausted"),
+  not "Could not access repository", and no exception escapes.
 - `github_issue_edit`: `edit_issue` records a write in `attempted_writes` then raises
   `RetryError` (reuse `_recording_edit_issue([...], error=RetryError("x"))`), `get_issue`
   returns the re-read issue → reply starts with "Warning: edit partially failed" and contains
