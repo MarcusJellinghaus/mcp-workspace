@@ -22,9 +22,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ## Tasks
 
 ### Step 1: Linked Branch wording for `LINKED_VIA_PR` — [step_1.md](./steps/step_1.md)
-- [ ] Implementation: tests (`OK via PR` prefix, substrings, long branch name in both formats) + `_format_linked_branch_line` change + SKILL.md row
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (`OK via PR` prefix, substrings, long branch name in both formats) + `_format_linked_branch_line` change + SKILL.md row
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `head_sha` on `PullRequestData` — [step_2.md](./steps/step_2.md)
 - [ ] Implementation: `get_pull_request` test for `head_sha` + `PullRequestData.head_sha` field + `_pr_to_data` mapping + docstring

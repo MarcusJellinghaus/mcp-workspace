@@ -367,7 +367,10 @@ def _format_linked_branch_line(report: "BranchStatusReport") -> Optional[str]:
     elif status == LinkedBranchStatus.LINKED_VIA_PR:
         pr = report.closing_pr_candidate
         assert pr is not None
-        text = f"LINKED_VIA_PR — {issue} closed by PR #{pr.number} ('{current}')"
+        text = (
+            f"OK via PR #{pr.number} — PR branch matches current branch '{current}' "
+            f"(closes {issue}; no branch linked in the Development panel)"
+        )
     elif status == LinkedBranchStatus.MISMATCH and report.linked_branches:
         linked = report.linked_branches[0]
         text = (
