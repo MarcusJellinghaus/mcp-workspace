@@ -52,9 +52,9 @@ See [step_4.md](./steps/step_4.md)
 ### Step 5: Server helper `_resolve_base_branch` + `get_base_branch`
 See [step_5.md](./steps/step_5.md)
 
-- [ ] Implementation: tests (`test_server_get_base_branch.py`) + `_resolve_base_branch`, `get_base_branch` rewrite
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (`test_server_get_base_branch.py`) + `_resolve_base_branch`, `get_base_branch` rewrite
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 6: Remove `issue_manager` from `detect_base_branch` (no double fetch)
 See [step_6.md](./steps/step_6.md)

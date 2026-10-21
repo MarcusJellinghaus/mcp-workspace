@@ -1852,43 +1852,92 @@ def github_pr_create(
         return f"Error: {e}"
 
 
+def _resolve_base_branch(
+    project_dir: Path, branch: str, pr_manager: Any
+) -> tuple[Optional[str], Optional[str]]:
+    """Resolve the base branch for ``branch`` from its issue, PR, merge-base or default.
+
+    Args:
+        project_dir: Path to the git repository.
+        branch: Branch whose base is wanted.
+        pr_manager: PullRequestManager for the PR lookup, or None to skip it.
+
+    Returns:
+        (base, None) — base may be None when detection found nothing — or
+        (None, "Error: issue #N: <sentence>") when the issue's Base Branch section
+        is malformed. Never falls back past a malformed section.
+    """
+    # Lazy imports: keep PyGithub/GitPython off the server startup import path
+    from mcp_workspace.git_operations.base_branch import detect_base_branch
+    from mcp_workspace.git_operations.branch_queries import (
+        extract_issue_number_from_branch,
+    )
+    from mcp_workspace.github_operations import IssueIdentityMismatchError
+    from mcp_workspace.github_operations.issues import IssueManager
+
+    issue_data = None
+    number = extract_issue_number_from_branch(branch)
+    if number is not None:
+        try:
+            fetched = IssueManager(project_dir=project_dir).get_issue(number)
+            issue_data = fetched if fetched.get("number", 0) > 0 else None
+        except IssueIdentityMismatchError as e:
+            # Must precede the broad catch: this is a ValueError subclass.
+            logger.warning("%s", e)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.debug("Issue fetch for base branch failed", exc_info=True)
+
+    if issue_data and issue_data.get("base_branch_error"):
+        return None, f"Error: issue #{number}: {issue_data['base_branch_error']}"
+
+    return (
+        detect_base_branch(
+            project_dir,
+            current_branch=branch,
+            issue_data=issue_data,
+            pr_manager=pr_manager,
+        ),
+        None,
+    )
+
+
 @mcp.tool()
 @log_function_call
 def get_base_branch() -> str:
     """Detect the base branch for the current branch.
 
     Returns:
-        Branch name string. Returns default branch name if detection fails.
+        Branch name string; "Error: issue #N: …" when the linked issue's Base
+        Branch section is malformed (no fallback); "main" when nothing could be
+        detected.
 
     Raises:
         ValueError: If the project directory has not been set.
     """
     # Lazy import: keeps PyGithub/GitPython off the server startup import path
-    from mcp_workspace.git_operations.base_branch import detect_base_branch
-    from mcp_workspace.github_operations.issues import IssueManager
+    from mcp_workspace.git_operations.branch_queries import get_current_branch_name
     from mcp_workspace.github_operations.pr_manager import PullRequestManager
 
     if _project_dir is None:
         raise ValueError("Project directory has not been set")
 
-    issue_manager: Optional[IssueManager] = None
     pr_manager: Optional[PullRequestManager] = None
 
     try:
-        issue_manager = IssueManager(project_dir=_project_dir)
         pr_manager = PullRequestManager(_project_dir)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.debug("GitHub manager initialization failed", exc_info=True)
 
     try:
-        result = detect_base_branch(
-            _project_dir,
-            issue_manager=issue_manager,
-            pr_manager=pr_manager,
-        )
-        if result is None:
+        branch = get_current_branch_name(_project_dir)
+        if branch is None:
             return "main"
-        return result
+        base, error = _resolve_base_branch(_project_dir, branch, pr_manager)
+        if error is not None:
+            return error
+        if base is None:
+            return "main"
+        return base
     except Exception:  # pylint: disable=broad-exception-caught
         logger.debug("Base branch detection failed", exc_info=True)
         return "main"
