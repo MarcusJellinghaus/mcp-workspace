@@ -38,9 +38,9 @@ See [step_2.md](./steps/step_2.md)
 ### Step 3: `IssueData.base_branch_error` + log-once in the manager
 See [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: tests (`test_manager_base_branch.py`, conftest reset fixture) + `base_branch_error` field, `_parse_base_branch_fields` in `get_issue`/`list_issues`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (`test_manager_base_branch.py`, conftest reset fixture) + `base_branch_error` field, `_parse_base_branch_fields` in `get_issue`/`list_issues`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: Public `origin_has_branch`
 See [step_4.md](./steps/step_4.md)

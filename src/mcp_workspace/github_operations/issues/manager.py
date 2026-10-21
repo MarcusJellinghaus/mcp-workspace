@@ -13,7 +13,12 @@ from github.Issue import Issue
 from mcp_coder_utils.log_utils import log_function_call
 
 from ..base_manager import BaseGitHubManager, _handle_github_errors
-from .base import parse_base_branch, validate_issue_number
+from .base import (
+    MalformedBaseBranchError,
+    format_malformed_base_branch,
+    parse_base_branch,
+    validate_issue_number,
+)
 from .comments_mixin import CommentsMixin
 from .events_mixin import EventsMixin
 from .labels_mixin import LabelsMixin
@@ -23,6 +28,39 @@ from .types import IssueData, create_empty_issue_data
 logger = logging.getLogger(__name__)
 
 __all__ = ["IssueManager"]
+
+# (repo, issue, message) keys already warned about, so repeat fetches of the
+# same malformed issue log at DEBUG instead of flooding the log
+_warned_malformed_base_branch: set[tuple[str, int, str]] = set()
+
+
+def _parse_base_branch_fields(
+    body: str, repo_full_name: str, issue_number: int
+) -> tuple[Optional[str], Optional[str]]:
+    """Return (base_branch, base_branch_error) for an issue body.
+
+    Args:
+        body: Issue body to parse
+        repo_full_name: Repository the issue belongs to, for the log-once key
+        issue_number: Issue number, for the log message and log-once key
+
+    Returns:
+        ``(branch, None)`` for a valid section, ``(None, None)`` for an absent
+        or empty one, and ``(None, message)`` for a malformed one.
+    """
+    try:
+        return parse_base_branch(body), None
+    except MalformedBaseBranchError as exc:
+        message = format_malformed_base_branch(exc)
+        key = (repo_full_name.lower(), issue_number, message)
+        level = (
+            logging.DEBUG if key in _warned_malformed_base_branch else logging.WARNING
+        )
+        _warned_malformed_base_branch.add(key)
+        logger.log(
+            level, "Issue #%d has malformed base branch: %s", issue_number, message
+        )
+        return None, message
 
 
 def _issue_to_data(github_issue: Issue) -> IssueData:
@@ -181,11 +219,9 @@ class IssueManager(
 
         # Parse base_branch from body
         body = github_issue.body or ""
-        try:
-            base_branch = parse_base_branch(body)
-        except ValueError as e:
-            logger.warning(f"Issue #{issue_number} has malformed base branch: {e}")
-            base_branch = None
+        base_branch, base_branch_error = _parse_base_branch_fields(
+            body, repo.full_name, issue_number
+        )
 
         # Convert to IssueData
         return IssueData(
@@ -205,6 +241,7 @@ class IssueManager(
             url=github_issue.html_url,
             locked=github_issue.locked,
             base_branch=base_branch,
+            base_branch_error=base_branch_error,
         )
 
     def _list_issues_no_error_handling(
@@ -252,11 +289,9 @@ class IssueManager(
 
             # Parse base_branch from body
             body = issue.body or ""
-            try:
-                base_branch = parse_base_branch(body)
-            except ValueError as e:
-                logger.warning(f"Issue #{issue.number} has malformed base branch: {e}")
-                base_branch = None
+            base_branch, base_branch_error = _parse_base_branch_fields(
+                body, repo.full_name, issue.number
+            )
 
             # Convert to IssueData
             issue_data = IssueData(
@@ -272,6 +307,7 @@ class IssueManager(
                 url=issue.html_url,
                 locked=issue.locked,
                 base_branch=base_branch,
+                base_branch_error=base_branch_error,
             )
             issues_list.append(issue_data)
 

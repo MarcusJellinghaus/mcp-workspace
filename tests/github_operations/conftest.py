@@ -13,6 +13,7 @@ from mcp_workspace import server
 from mcp_workspace.github_operations import CIResultsManager
 from mcp_workspace.github_operations._network import _reset_network_diagnostics_guard
 from mcp_workspace.github_operations.issues import CacheData, IssueData, IssueManager
+from mcp_workspace.github_operations.issues import manager as manager_module
 from mcp_workspace.server import set_project_dir
 
 
@@ -38,6 +39,15 @@ def reset_network_diagnostics_guard() -> Generator[None, None, None]:
     _reset_network_diagnostics_guard()
     yield
     _reset_network_diagnostics_guard()
+
+
+@pytest.fixture(autouse=True)
+def _reset_malformed_base_branch_warnings() -> Generator[None, None, None]:
+    """Reset the log-once set for malformed Base Branch warnings."""
+    # pylint: disable=protected-access
+    manager_module._warned_malformed_base_branch.clear()
+    yield
+    manager_module._warned_malformed_base_branch.clear()
 
 
 @pytest.fixture

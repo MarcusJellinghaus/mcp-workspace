@@ -66,6 +66,7 @@ class IssueData(TypedDict):
     url: str
     locked: bool
     base_branch: NotRequired[Optional[str]]
+    base_branch_error: NotRequired[Optional[str]]
 
 
 class CommentData(TypedDict):
