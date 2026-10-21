@@ -1,7 +1,11 @@
 """Tests for base-branch handling in branch status: tri-state rebase, rebase target."""
 
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from mcp_workspace.checks.branch_status import (
     BranchStatusReport,
@@ -128,3 +132,120 @@ class TestUnknownRebaseState:
         assert "Rebase=UP_TO_DATE" in _make_report(False).format_for_llm()
         assert "Rebase Status: ⚠️ BEHIND" in _make_report(True).format_for_human()
         assert "Rebase Status: ✅ UP TO DATE" in _make_report(False).format_for_human()
+
+
+_MALFORMED_BODY = "### Base Branch\n\nepic/x\nmore\n"
+_ERROR_SENTENCE = "Base Branch section spans multiple lines"
+_MALFORMED_BASE = "MALFORMED (issue #42: 'epic/x')"
+
+
+@pytest.fixture(name="status_mocks")
+def _status_mocks() -> Iterator[dict[str, MagicMock]]:
+    """Patch every collector ``collect_branch_status`` reaches out to."""
+    prefix = "mcp_workspace.checks.branch_status"
+    targets = {
+        "branch": "get_current_branch_name",
+        "issue_mgr_cls": "IssueManager",
+        "pr_mgr_cls": "PullRequestManager",
+        "detect": "detect_base_branch",
+        "needs_rebase": "needs_rebase",
+        "ci": "_collect_ci_status",
+        "linked": "_collect_linked_branch_status",
+        "tasks": "_collect_task_status",
+        "pr_info": "_collect_pr_info",
+        "default": "get_default_branch_name",
+    }
+    patchers = {key: patch(f"{prefix}.{name}") for key, name in targets.items()}
+    mocks = {key: p.start() for key, p in patchers.items()}
+    mocks["branch"].return_value = "42-feature"
+    mocks["issue_mgr_cls"].return_value.get_comments.return_value = []
+    mocks["detect"].return_value = "main"
+    mocks["needs_rebase"].return_value = (False, "up to date")
+    mocks["ci"].return_value = (CIStatus.PASSED, None, [])
+    mocks["linked"].return_value = (LinkedBranchStatus.OK, ("42-feature",), 42, None)
+    mocks["tasks"].return_value = (TaskTrackerStatus.COMPLETE, "All done", False)
+    mocks["pr_info"].return_value = (None, None, False, None, None)
+    mocks["default"].return_value = "main"
+    yield mocks
+    for p in patchers.values():
+        p.stop()
+
+
+def _set_issue(mocks: dict[str, MagicMock], issue: dict[str, Any]) -> None:
+    mocks["issue_mgr_cls"].return_value.get_issue.return_value = issue
+
+
+class TestMalformedBaseBranch:
+    """A malformed Base Branch is surfaced, never replaced by a guessed base."""
+
+    @pytest.fixture(name="report")
+    def _report(self, status_mocks: dict[str, MagicMock]) -> BranchStatusReport:
+        _set_issue(
+            status_mocks,
+            {
+                "number": 42,
+                "body": _MALFORMED_BODY,
+                "base_branch": None,
+                "base_branch_error": _ERROR_SENTENCE,
+            },
+        )
+        return collect_branch_status(Path("/tmp"))
+
+    def test_skips_detection_and_rebase(
+        self, report: BranchStatusReport, status_mocks: dict[str, MagicMock]
+    ) -> None:
+        assert report.base_branch == _MALFORMED_BASE
+        status_mocks["detect"].assert_not_called()
+        status_mocks["needs_rebase"].assert_not_called()
+
+    def test_report_fields(self, report: BranchStatusReport) -> None:
+        assert report.base_branch == _MALFORMED_BASE
+        assert report.base_branch_error == _ERROR_SENTENCE
+        assert report.rebase_needed is None
+        assert report.rebase_reason == "base branch malformed in issue #42"
+
+    def test_recommendations(self, report: BranchStatusReport) -> None:
+        recs = report.recommendations
+        assert "Fix the ### Base Branch section in issue #42" in recs
+        assert not any(r.startswith("Ready to merge") for r in recs)
+        assert not any(r.startswith("Rebase onto") for r in recs)
+        assert not any(r.startswith("Pull ") for r in recs)
+
+    def test_llm_output(self, report: BranchStatusReport) -> None:
+        output = report.format_for_llm(fail_on_reviews=True)
+        assert f"Base: {_MALFORMED_BASE}" in output
+        assert "Rebase=UNKNOWN" in output
+        assert "Review Gate: BLOCKED (base branch)" in output
+
+    def test_human_output(self, report: BranchStatusReport) -> None:
+        output = report.format_for_human(fail_on_reviews=True)
+        assert f"Base Branch: {_MALFORMED_BASE}" in output
+        assert "Rebase Status: ❓ UNKNOWN" in output
+        assert "- base branch malformed in issue #42" in output
+        assert "Review Gate: BLOCKED (base branch)" in output
+
+
+class TestValidBaseBranch:
+    """A valid issue goes through base-branch detection with the fetched data."""
+
+    def test_detect_called_with_fetched_issue(
+        self, status_mocks: dict[str, MagicMock]
+    ) -> None:
+        issue = {
+            "number": 42,
+            "body": "### Base Branch\n\nepic/x\n",
+            "base_branch": "epic/x",
+            "base_branch_error": None,
+        }
+        _set_issue(status_mocks, issue)
+        status_mocks["detect"].return_value = "epic/x"
+
+        report = collect_branch_status(Path("/tmp"))
+
+        status_mocks["detect"].assert_called_once()
+        kwargs = status_mocks["detect"].call_args.kwargs
+        assert kwargs["issue_data"] == issue
+        assert "issue_manager" not in kwargs
+        assert report.base_branch == "epic/x"
+        assert report.base_branch_error is None
+        assert report.rebase_needed is False

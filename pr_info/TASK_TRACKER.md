@@ -80,9 +80,9 @@ See [step_8.md](./steps/step_8.md)
 ### Step 9: Malformed Base Branch in `check_branch_status` (+ Review Gate)
 See [step_9.md](./steps/step_9.md)
 
-- [ ] Implementation: tests (`test_branch_status_base_branch.py`, `test_branch_status_review_gate.py`) + malformed state in `collect_branch_status`, fix recommendation, `BLOCKED (base branch)` gate
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (`test_branch_status_base_branch.py`, `test_branch_status_review_gate.py`) + malformed state in `collect_branch_status`, fix recommendation, `BLOCKED (base branch)` gate
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

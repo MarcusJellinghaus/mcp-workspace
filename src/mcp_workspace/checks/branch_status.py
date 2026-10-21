@@ -38,6 +38,8 @@ from mcp_workspace.github_operations.issues import (
     IssueBranchManager,
     IssueData,
     IssueManager,
+    MalformedBaseBranchError,
+    parse_base_branch,
 )
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
 from mcp_workspace.workflows.task_tracker import (
@@ -94,6 +96,7 @@ class BranchStatusReport:
     linked_branch_issue_number: Optional[int] = None
     last_automated_note: Optional[str] = None
     closing_pr_candidate: Optional[ClosingPRRef] = None
+    base_branch_error: Optional[str] = None
 
     def format_for_human(
         self,
@@ -176,6 +179,15 @@ def _collect_rebase_status(project_dir: Path, base_branch: str) -> tuple[bool, s
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.debug("Rebase check failed", exc_info=True)
         return False, f"Error checking rebase status: {e}"
+
+
+def _malformed_first_line(body: str) -> str:
+    """Return the first line of the malformed Base Branch section ('' if none)."""
+    try:
+        parse_base_branch(body)
+    except MalformedBaseBranchError as exc:
+        return exc.content.splitlines()[0]
+    return ""
 
 
 def _collect_task_status(
@@ -386,6 +398,12 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
     pr_mergeable_state = report_data.get("pr_mergeable_state")
     merge_state_blocked = pr_mergeable_state in _BLOCKING_MERGE_STATES
     linked_branch_blocking = report_data.get(_LINKED_BRANCH_BLOCKS_KEY, False)
+    base_branch_error_issue = report_data.get("base_branch_error_issue")
+
+    if base_branch_error_issue is not None:
+        recommendations.append(
+            f"Fix the ### Base Branch section in issue #{base_branch_error_issue}"
+        )
 
     if ci_status == CIStatus.FAILED:
         if ci_failing_job_names:
@@ -434,6 +452,7 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
         and not merge_state_blocked
         and rebase_needed is False
         and not linked_branch_blocking
+        and base_branch_error_issue is None
     ):
         if pr_mergeable is True:
             recommendations.append("Ready to merge (squash-merge safe)")
@@ -501,14 +520,25 @@ def collect_branch_status(
         except Exception:  # pylint: disable=broad-exception-caught
             logger.debug("GitHub manager initialization failed", exc_info=True)
 
-        # 3. Detect base branch (DI: pass managers)
-        base_branch_result = detect_base_branch(
-            project_dir,
-            current_branch=branch_name,
-            issue_data=issue_data,
-            pr_manager=pr_manager,
-        )
-        base_branch = base_branch_result if base_branch_result else "unknown"
+        # 3. Detect base branch (DI: pass managers). A malformed Base Branch
+        # section is surfaced as-is — never replaced by a guessed base.
+        base_branch_error = issue_data.get("base_branch_error") if issue_data else None
+        base_branch_error_issue: Optional[int] = None
+        base_branch_result: Optional[str] = None
+        if issue_data is not None and base_branch_error:
+            base_branch_error_issue = issue_data["number"]
+            first_line = _malformed_first_line(issue_data.get("body") or "")
+            base_branch = (
+                f"MALFORMED (issue #{base_branch_error_issue}: {first_line!r})"
+            )
+        else:
+            base_branch_result = detect_base_branch(
+                project_dir,
+                current_branch=branch_name,
+                issue_data=issue_data,
+                pr_manager=pr_manager,
+            )
+            base_branch = base_branch_result if base_branch_result else "unknown"
 
         # 4. Check the issue's linked branch (owns all of its error handling)
         (
@@ -525,7 +555,13 @@ def collect_branch_status(
 
         # 6. Check rebase status
         rebase_needed: Optional[bool]
-        rebase_needed, rebase_reason = _collect_rebase_status(project_dir, base_branch)
+        if base_branch_error_issue is not None:
+            rebase_needed = None
+            rebase_reason = f"base branch malformed in issue #{base_branch_error_issue}"
+        else:
+            rebase_needed, rebase_reason = _collect_rebase_status(
+                project_dir, base_branch
+            )
 
         # 7. Check task tracker
         tasks_status, tasks_reason, tasks_is_blocking = _collect_task_status(
@@ -570,8 +606,9 @@ def collect_branch_status(
             "ci_failing_job_names": ci_failing_job_names,
             "rebase_needed": rebase_needed,
             # Raw detection result: None lets the default-branch fallback
-            # fire instead of naming origin/unknown.
+            # fire instead of naming origin/unknown. None when malformed.
             "base_branch": base_branch_result,
+            "base_branch_error_issue": base_branch_error_issue,
             "tasks_status": tasks_status,
             "tasks_reason": tasks_reason,
             "tasks_is_blocking": tasks_is_blocking,
@@ -609,6 +646,7 @@ def collect_branch_status(
             linked_branch_issue_number=linked_branch_issue_number,
             last_automated_note=last_automated_note,
             closing_pr_candidate=closing_pr_candidate,
+            base_branch_error=base_branch_error,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error collecting branch status: {e}")
