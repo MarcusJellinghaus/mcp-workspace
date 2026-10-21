@@ -364,12 +364,12 @@ class BaseGitHubManager:
         Raises:
             GithubException: Rate-limit errors (403 rate limit, 429) propagate
                 to the caller.
-            requests.exceptions.RetryError: Retries exhausted on rate-limit
-                responses (or with an unknown status) propagate to the caller.
 
         Note:
             The repository object is cached after the first successful retrieval
-            to avoid unnecessary API calls.
+            to avoid unnecessary API calls. A requests RetryError from retries
+            exhausted on rate-limit responses (or with an unknown status) also
+            propagates to the caller.
         """
         if self._repository is not None:
             return self._repository
