@@ -14,6 +14,7 @@
 - `tests/github_operations/test_github_write_tools_issues.py`
 - `tests/github_operations/test_github_write_tools_issue_edit.py`
 - `tests/github_operations/test_github_write_tools_reference.py`
+- `tests/github_operations/test_github_write_tools_subissues.py`
 
 ## WHAT
 
@@ -38,7 +39,9 @@ Place it next to `_api_error`.
 2. `_api_error`: first line `if (msg := format_rate_limit_error(exc)) is not None: return f"{msg}{_ref_suffix(reference_name)}"`;
    the rest unchanged (don't move other sites onto `_api_error`).
 3. Widen to catch `RetryError` (import alongside the existing lazy `GithubException` import:
-   `from mcp_workspace.github_operations import GithubException, RetryError`):
+   `from mcp_workspace.github_operations import GithubException, RetryError,
+   format_rate_limit_error`). Every site that calls `format_rate_limit_error` (`_api_error`
+   in item 2, `github_issue_edit` in item 4) lazily imports it next to `RetryError`:
    - `github_issue_edit` inner `except (GithubException, ValueError)` →
      `except (GithubException, RetryError, ValueError)`;
    - `_subissue_write` and `github_subissue_list` `except (GithubException, ValueError)` → same.
@@ -58,12 +61,14 @@ Shared rate-limit fixture: `GithubException(403, {"message": "API rate limit exc
 {"x-ratelimit-remaining": "0", "x-ratelimit-resource": "core", "x-ratelimit-reset": str(reset)})`
 with `reset = int(time.time()) + 600`; expected `HH:MM` derived from `reset`.
 
-- `github_issue_create` and `github_issue_edit`: patch `IssueManager` so the tool's call
-  raises the 403 rate limit (simulate `get_repo` inside `_get_repository` re-raising — e.g.
-  `create_issue.side_effect` / `get_available_labels.side_effect`) → reply contains
-  `` `core` `` and the `HH:MM`, and not "Could not access repository" / "issue creation failed".
-- `github_subissue_list` and `github_subissue_add` (in `test_github_write_tools_reference.py`
-  or the issues file): `list_sub_issues` / `add_sub_issue` raising
+- `github_issue_create` and `github_issue_edit`: patch the server's `IssueManager` to return a
+  **real** `IssueManager` (built with `repo_url` and a token) whose `_cached_github_client` is a
+  `Mock` with `get_repo.side_effect` = the 403 rate limit. Do not set `side_effect` on manager
+  methods: the error must go through the `_get_repository` re-raise from step 4. Assert the
+  reply contains `` `core` `` and the `HH:MM`, and not "Could not access repository" /
+  "issue creation failed".
+- `github_subissue_list` and `github_subissue_add` (in
+  `tests/github_operations/test_github_write_tools_subissues.py`): `list_sub_issues` / `add_sub_issue` raising
   `requests.exceptions.RetryError("x")` → reply is the rate-limit message
   ("retries exhausted"), no exception escapes.
 - `github_issue_edit`: `edit_issue` records a write in `attempted_writes` then raises

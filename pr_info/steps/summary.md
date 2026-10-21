@@ -63,6 +63,7 @@ Modified (tests):
 - `tests/github_operations/test_github_write_tools_issue_edit.py`
 - `tests/github_operations/test_github_write_tools_issue_edit_base_branch.py`
 - `tests/github_operations/test_github_write_tools_reference.py`
+- `tests/github_operations/test_github_write_tools_subissues.py`
 - `vulture_whitelist.py` — only if vulture flags a new name
 
 ## Steps
