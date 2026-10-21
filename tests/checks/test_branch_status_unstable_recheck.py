@@ -45,7 +45,7 @@ def fixture_env() -> Iterator[dict[str, MagicMock]]:
         patch(f"{_MODULE}.get_default_branch_name", return_value="main"),
         patch(f"{_MODULE}._collect_ci_status") as ci,
         patch(f"{_MODULE}._collect_pr_info") as pr_info,
-        patch(f"{_MODULE}.time.sleep") as sleep,
+        patch("mcp_workspace.checks.branch_status_unstable.time.sleep") as sleep,
     ):
         yield {"pr_mgr": pr_mgr, "sleep": sleep, "ci": ci, "pr_info": pr_info}
 

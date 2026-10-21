@@ -29,7 +29,12 @@ PERMISSION_ERROR_TEXT = "token lacks permission (Checks: read / Commit statuses:
 
 
 def _classify_lookup_error(e: BaseException) -> str:
-    """Describe a failed check lookup: rate limit, permission, or generic error."""
+    """Describe a failed check lookup: rate limit, permission, or generic error.
+
+    Returns:
+        The rate-limit message, ``PERMISSION_ERROR_TEXT`` for 401/403, or the
+        generic formatted error message.
+    """
     msg = format_rate_limit_error(e)
     if msg is not None:
         return msg
