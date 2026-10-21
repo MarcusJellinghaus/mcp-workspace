@@ -24,9 +24,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ### Step 1: Parser on markdown-it-py (+ dependency, startup assertion)
 See [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: tests (`test_parse_base_branch_markdown.py`, startup assertion) + `parse_base_branch` rewrite, `markdown-it-py` dependency
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (`test_parse_base_branch_markdown.py`, startup assertion) + `parse_base_branch` rewrite, `markdown-it-py` dependency
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: Shared message helper `format_malformed_base_branch`
 See [step_2.md](./steps/step_2.md)
