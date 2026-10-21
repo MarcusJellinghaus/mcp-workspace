@@ -6,11 +6,13 @@ pull requests, labels, and repository operations.
 
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 
+from ._diagnostics import RetryError, format_rate_limit_error
 from ._security_probes import verify_github_security
 from .base_manager import (
     BaseGitHubManager,
     GithubException,
     IssueIdentityMismatchError,
+    clear_login_cache,
     get_authenticated_username,
 )
 from .ci_results_manager import CIResultsManager, CIStatusData
@@ -19,8 +21,9 @@ from .pr_manager import PullRequestManager
 from .pr_types import MergeResult, PullRequestData
 from .verification import CheckResult, verify_github
 
-# GithubException is re-exported so callers outside this package can catch
-# PyGithub errors without importing PyGithub themselves (see .importlinter).
+# GithubException, RetryError and format_rate_limit_error are re-exported so
+# callers outside this package can catch and describe PyGithub/requests errors
+# without importing PyGithub or requests themselves (see .importlinter).
 
 # Issue-related imports REMOVED per Decision #1
 # Consumers must import from: mcp_workspace.github_operations.issues
@@ -39,6 +42,9 @@ __all__ = [
     "PullRequestData",
     "PullRequestManager",
     "RepoIdentifier",
+    "RetryError",
+    "clear_login_cache",
+    "format_rate_limit_error",
     "get_authenticated_username",
     "verify_github",
     "verify_github_security",

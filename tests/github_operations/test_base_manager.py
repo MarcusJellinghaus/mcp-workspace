@@ -11,7 +11,9 @@ from github.GithubException import GithubException
 from mcp_workspace.github_operations.base_manager import (
     BaseGitHubManager,
     IssueIdentityMismatchError,
+    _cached_login,
     _handle_github_errors,
+    clear_login_cache,
     get_authenticated_username,
 )
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
@@ -1186,6 +1188,145 @@ class TestGetAuthenticatedUsername:
             mock_github_class.assert_called_once()
             call_kwargs = mock_github_class.call_args.kwargs
             assert call_kwargs["base_url"] == "https://ghe.corp.com/api/v3"
+
+
+def _mock_github_client(login: str = "testuser") -> Mock:
+    """Build a mock Github client whose get_user() returns ``login``."""
+    client = Mock()
+    client.get_user.return_value.login = login
+    return client
+
+
+class TestLoginCache:
+    """Tests for the shared (api_base_url, token) login cache."""
+
+    def test_repeated_calls_look_up_once(self) -> None:
+        """Two calls construct one client and call GET /user once."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_class.return_value = _mock_github_client()
+
+            assert get_authenticated_username() == "testuser"
+            assert get_authenticated_username() == "testuser"
+
+            mock_github_class.assert_called_once()
+            mock_github_class.return_value.get_user.assert_called_once()
+
+    def test_default_hostname_and_explicit_client_share_entry(self) -> None:
+        """None, "github.com" and an explicit api.github.com lookup share a key."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_class.return_value = _mock_github_client()
+            explicit_client = _mock_github_client("other")
+
+            assert get_authenticated_username() == "testuser"
+            assert get_authenticated_username(hostname="github.com") == "testuser"
+            assert (
+                _cached_login("fake_token", "https://api.github.com", explicit_client)
+                == "testuser"
+            )
+
+            mock_github_class.return_value.get_user.assert_called_once()
+            explicit_client.get_user.assert_not_called()
+
+    def test_different_token_looks_up_again(self) -> None:
+        """A different token gets its own cache entry."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                side_effect=["a", "b"],
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_class.side_effect = [
+                _mock_github_client("user_a"),
+                _mock_github_client("user_b"),
+            ]
+
+            assert get_authenticated_username() == "user_a"
+            assert get_authenticated_username() == "user_b"
+
+            assert mock_github_class.call_count == 2
+
+    def test_different_hostname_looks_up_again(self) -> None:
+        """A different API host gets its own cache entry."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_class.side_effect = [
+                _mock_github_client("dotcom_user"),
+                _mock_github_client("ghe_user"),
+            ]
+
+            assert get_authenticated_username() == "dotcom_user"
+            assert get_authenticated_username(hostname="ghe.corp.com") == "ghe_user"
+
+            assert mock_github_class.call_count == 2
+
+    def test_failure_is_not_cached(self) -> None:
+        """A failed lookup raises ValueError and the next call looks up again."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            client = _mock_github_client()
+            client.get_user.side_effect = [
+                GithubException(500, {"message": "Server Error"}, None),
+                Mock(login="testuser"),
+            ]
+            mock_github_class.return_value = client
+
+            with pytest.raises(ValueError):
+                get_authenticated_username()
+            assert get_authenticated_username() == "testuser"
+
+            assert client.get_user.call_count == 2
+
+    def test_clear_login_cache_forces_fresh_lookup(self) -> None:
+        """clear_login_cache() drops cached logins."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_class.return_value = _mock_github_client()
+
+            get_authenticated_username()
+            clear_login_cache()
+            get_authenticated_username()
+
+            assert mock_github_class.return_value.get_user.call_count == 2
 
 
 class TestGithubTokenForwarding:

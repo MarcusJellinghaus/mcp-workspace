@@ -5,6 +5,7 @@ functionality for all GitHub manager classes.
 """
 
 import functools
+import hashlib
 import logging
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar, cast
@@ -28,12 +29,43 @@ __all__ = [
     "BaseGitHubManager",
     "GithubException",
     "IssueIdentityMismatchError",
+    "clear_login_cache",
     "get_authenticated_username",
 ]
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+# (api_base_url, sha256(token) hexdigest) -> login. Never key by format_token_fingerprint.
+_login_cache: dict[tuple[str, str], str] = {}
+
+
+def _cached_login(token: str, base_url: str, client: Optional[Github] = None) -> str:
+    """Return the login for token on base_url, calling GET /user at most once per key.
+
+    Args:
+        token: GitHub token whose login is looked up.
+        base_url: GitHub API base URL the token belongs to.
+        client: Optional existing client for the lookup; built from token and
+            base_url when omitted.
+
+    Returns:
+        The authenticated user's login.
+
+    Raises:
+        Whatever ``get_user()`` raises; failures are not cached.
+    """
+    key = (base_url, hashlib.sha256(token.encode()).hexdigest())
+    if key not in _login_cache:
+        github = client if client is not None else build_github_client(token, base_url)
+        _login_cache[key] = github.get_user().login
+    return _login_cache[key]
+
+
+def clear_login_cache() -> None:
+    """Forget every cached login (used by tests)."""
+    _login_cache.clear()
 
 
 class IssueIdentityMismatchError(ValueError):
@@ -151,9 +183,7 @@ def get_authenticated_username(hostname: Optional[str] = None) -> str:
 
     base_url = hostname_to_api_base_url(hostname or "github.com")
     try:
-        github_client = build_github_client(raw_token, base_url)
-        user = github_client.get_user()
-        return user.login
+        return _cached_login(raw_token, base_url)
     except GithubException as e:
         logger.debug(
             "get_authenticated_username GithubException status=%s data=%s "

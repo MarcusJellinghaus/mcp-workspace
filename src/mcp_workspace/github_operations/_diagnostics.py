@@ -4,8 +4,9 @@ Covers both `GithubException` objects and raw response bodies. Used by
 failure-path DEBUG logging across the `github_operations` package to produce
 consistent, allow-listed header dumps without leaking secrets or proxy noise,
 to pull human-readable reasons out of GraphQL error payloads, and to recognise
-and describe GitHub rate-limit failures. This module is intentionally private
-to the package and is not re-exported via `github_operations/__init__.py`.
+and describe GitHub rate-limit failures. This module is private to the
+package; only `format_rate_limit_error` and `RetryError` are re-exported via
+`github_operations/__init__.py`.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from github.GithubException import GithubException, RateLimitExceededException
-from requests.exceptions import RetryError
+from requests.exceptions import RetryError as RetryError  # re-exported
 
 DIAGNOSTIC_HEADERS: frozenset[str] = frozenset(
     {

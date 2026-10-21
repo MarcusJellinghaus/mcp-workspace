@@ -38,9 +38,9 @@ See [step_2.md](./steps/step_2.md)
 ### Step 3: Shared login cache in `base_manager`
 See [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: autouse `reset_login_cache` fixture + `TestLoginCache` tests, then `_login_cache`, `_cached_login`, `clear_login_cache` in `base_manager.py`; re-exports in `__init__.py`; `_diagnostics.py` docstring
-- [ ] Quality checks: pylint, pytest, mypy, vulture — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: autouse `reset_login_cache` fixture + `TestLoginCache` tests, then `_login_cache`, `_cached_login`, `clear_login_cache` in `base_manager.py`; re-exports in `__init__.py`; `_diagnostics.py` docstring
+- [x] Quality checks: pylint, pytest, mypy, vulture — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: Rate-limit reporting and re-raise in `base_manager`
 See [step_4.md](./steps/step_4.md)

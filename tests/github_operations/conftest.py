@@ -10,7 +10,7 @@ import git
 import pytest
 
 from mcp_workspace import server
-from mcp_workspace.github_operations import CIResultsManager
+from mcp_workspace.github_operations import CIResultsManager, clear_login_cache
 from mcp_workspace.github_operations._network import _reset_network_diagnostics_guard
 from mcp_workspace.github_operations.issues import CacheData, IssueData, IssueManager
 from mcp_workspace.github_operations.issues import manager as manager_module
@@ -48,6 +48,14 @@ def _reset_malformed_base_branch_warnings() -> Generator[None, None, None]:
     manager_module._warned_malformed_base_branch.clear()
     yield
     manager_module._warned_malformed_base_branch.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_login_cache() -> Generator[None, None, None]:
+    """Clear the shared authenticated-login cache for test isolation."""
+    clear_login_cache()
+    yield
+    clear_login_cache()
 
 
 @pytest.fixture
