@@ -21,3 +21,6 @@ Checks CI status, rebase needs, task completion, and GitHub labels. Reports acti
 | Linked branch `OK via PR` | Already satisfies the check — no action needed |
 | CI green + tasks done | `/commit_push` or create PR |
 | Ready to merge | Create PR or merge via GitHub |
+| `mergeable_state=unstable — likely stale, re-check` | Re-run `check_branch_status` |
+| `Not ready to merge — non-green checks: …` | Wait for, or fix, the named checks |
+| `mergeable_state=unstable — could not list checks: …` | Grant the token "Checks: read" / "Commit statuses: read", or wait for the rate-limit reset shown |

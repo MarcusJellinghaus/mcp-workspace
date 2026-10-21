@@ -1,11 +1,16 @@
 """Tests for branch_status recommendation and PR merge override logic."""
 
+from typing import Any, Dict, List, Optional
+
+import pytest
+
 from mcp_workspace.checks.branch_status import (
     _LINKED_BRANCH_BLOCKS_KEY,
     _apply_pr_merge_override,
     _generate_recommendations,
 )
 from mcp_workspace.checks.branch_status_rendering import CIStatus
+from mcp_workspace.github_operations.pr_checks_mixin import PERMISSION_ERROR_TEXT
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
 
@@ -569,3 +574,79 @@ class TestMergeableStateGuard:
             }
         )
         assert "Address review comments" in recs
+
+
+_UNSTABLE_PREFIX = "CI passed but GitHub reports mergeable_state=unstable"
+
+
+def _lookup_recs(
+    ci_status: CIStatus,
+    state: str,
+    names: Optional[tuple[str, ...]],
+    error: Optional[str],
+) -> List[str]:
+    """Recommendations for a clean report with the given lookup result."""
+    report_data: Dict[str, Any] = {
+        "ci_status": ci_status,
+        "rebase_needed": False,
+        "tasks_status": TaskTrackerStatus.COMPLETE,
+        "tasks_reason": "All done",
+        "tasks_is_blocking": False,
+        "pr_mergeable": True,
+        "pr_mergeable_state": state,
+        "non_green_checks": names,
+        "non_green_checks_error": error,
+    }
+    return _generate_recommendations(report_data)
+
+
+def _assert_not_ready(recs: List[str]) -> None:
+    assert "Ready to merge" not in recs
+    assert "Ready to merge (squash-merge safe)" not in recs
+
+
+@pytest.mark.parametrize("ci_status", [CIStatus.PASSED, CIStatus.NOT_CONFIGURED])
+class TestUnstableLookupWording:
+    """`unstable` recommendation wording once the non-green check lookup ran."""
+
+    def test_names_listed(self, ci_status: CIStatus) -> None:
+        recs = _lookup_recs(ci_status, "unstable", ("codecov/patch (pending)",), None)
+        assert "Not ready to merge — non-green checks: codecov/patch (pending)" in recs
+        _assert_not_ready(recs)
+
+    def test_none_found_likely_stale(self, ci_status: CIStatus) -> None:
+        recs = _lookup_recs(ci_status, "unstable", (), None)
+        assert f"{_UNSTABLE_PREFIX} — likely stale, re-check" in recs
+        _assert_not_ready(recs)
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            PERMISSION_ERROR_TEXT,
+            "GitHub API rate limit exceeded; resets at 12:00:00 UTC",
+            "GitHub API error 500: boom",
+        ],
+    )
+    def test_lookup_error(self, ci_status: CIStatus, error: str) -> None:
+        recs = _lookup_recs(ci_status, "unstable", (), error)
+        assert f"{_UNSTABLE_PREFIX} — could not list checks: {error}" in recs
+        _assert_not_ready(recs)
+
+    def test_names_capped_at_ten(self, ci_status: CIStatus) -> None:
+        names = tuple(f"check-{i:02d}" for i in range(1, 13))
+        recs = _lookup_recs(ci_status, "unstable", names, None)
+        [rec] = [r for r in recs if r.startswith("Not ready to merge")]
+        for name in names[:10]:
+            assert name in rec
+        assert "check-11" not in rec
+        assert rec.endswith("… and 2 more")
+        _assert_not_ready(recs)
+
+    @pytest.mark.parametrize("state", ["blocked", "dirty"])
+    def test_other_states_keep_old_wording(
+        self, ci_status: CIStatus, state: str
+    ) -> None:
+        recs = _lookup_recs(ci_status, state, ("codecov/patch (pending)",), "boom")
+        assert f"Not ready to merge (GitHub mergeable_state: {state})" in recs
+        assert not any("non-green" in r or "could not list" in r for r in recs)
+        _assert_not_ready(recs)

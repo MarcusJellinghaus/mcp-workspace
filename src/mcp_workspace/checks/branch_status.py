@@ -19,6 +19,7 @@ from mcp_workspace.checks.branch_status_rendering import (
     CIStatus,
     LinkedBranchStatus,
     WaitContext,
+    format_check_names,
     format_report_for_human,
     format_report_for_llm,
     linked_branch_blocks,
@@ -97,6 +98,8 @@ class BranchStatusReport:
     last_automated_note: Optional[str] = None
     closing_pr_candidate: Optional[ClosingPRRef] = None
     base_branch_error: Optional[str] = None
+    non_green_checks: Optional[tuple[str, ...]] = None  # None = lookup not run
+    non_green_checks_error: Optional[str] = None
 
     def format_for_human(
         self,
@@ -376,6 +379,32 @@ def _apply_pr_merge_override(
     return (rebase_needed, rebase_reason)
 
 
+def _merge_state_recommendation(
+    state: str, names: Optional[tuple[str, ...]], error: Optional[str]
+) -> str:
+    """Build the ``Not ready to merge`` text for a blocking mergeable state.
+
+    The non-green check lookup only runs for ``unstable``; when it did not
+    run (both fields None) the generic wording is kept.
+
+    Args:
+        state: The blocking ``mergeable_state`` value.
+        names: Non-green check names from the lookup; None if it did not run.
+        error: Lookup failure reason, if any.
+
+    Returns:
+        The recommendation string.
+    """
+    if state != "unstable" or (names is None and error is None):
+        return f"Not ready to merge (GitHub mergeable_state: {state})"
+    prefix = "CI passed but GitHub reports mergeable_state=unstable"
+    if error:
+        return f"{prefix} — could not list checks: {error}"
+    if names:
+        return f"Not ready to merge — non-green checks: {format_check_names(names)}"
+    return f"{prefix} — likely stale, re-check"
+
+
 def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
     """Generate actionable recommendations based on status.
 
@@ -441,7 +470,11 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
         recommendations.append("Address review comments")
     if merge_state_blocked:
         recommendations.append(
-            f"Not ready to merge (GitHub mergeable_state: {pr_mergeable_state})"
+            _merge_state_recommendation(
+                str(pr_mergeable_state),
+                report_data.get("non_green_checks"),
+                report_data.get("non_green_checks_error"),
+            )
         )
 
     ci_ok = ci_status in (CIStatus.PASSED, CIStatus.NOT_CONFIGURED)

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional, Sequence
 
 from mcp_workspace.github_operations.ci_log_parser import truncate_ci_details
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
@@ -21,6 +21,22 @@ if TYPE_CHECKING:
     from mcp_workspace.checks.branch_status import BranchStatusReport
 
 GITHUB_TOKEN_HINT = "no GitHub token; set GITHUB_TOKEN or add to config.toml"
+
+MAX_CHECK_NAMES = 10
+
+
+def format_check_names(names: Sequence[str]) -> str:
+    """Join check names, capped at ``MAX_CHECK_NAMES`` plus ``… and N more``.
+
+    Args:
+        names: Non-green check names, in display order.
+
+    Returns:
+        The comma-separated names, with a count suffix when some were cut.
+    """
+    shown = ", ".join(names[:MAX_CHECK_NAMES])
+    extra = len(names) - MAX_CHECK_NAMES
+    return f"{shown}, … and {extra} more" if extra > 0 else shown
 
 
 class CIStatus(str, Enum):
@@ -151,6 +167,9 @@ def format_report_for_human(
                 lines.append("Merge Status: ⏳ Pending")
             if report.pr_mergeable_state is not None:
                 lines.append(f"Mergeable State: {report.pr_mergeable_state}")
+                non_green_line = _format_non_green_checks_line(report)
+                if non_green_line is not None:
+                    lines.append(non_green_line)
             if report.pr_feedback_text is not None:
                 lines.append("")
                 lines.append(report.pr_feedback_text)
@@ -261,6 +280,9 @@ def format_report_for_llm(
     wait_line = _format_wait_line(report, wait_context)
     if wait_line is not None:
         lines.append(wait_line)
+    non_green_line = _format_non_green_checks_line(report)
+    if non_green_line is not None:
+        lines.append(non_green_line)
     lines.append(f"GitHub Label: {report.current_github_label}")
     linked_branch_line = _format_linked_branch_line(report)
     if linked_branch_line is not None:
@@ -410,6 +432,20 @@ def _format_linked_branch_line(report: "BranchStatusReport") -> Optional[str]:
     else:
         text = f"UNKNOWN — could not determine the linked branch for {issue}"
     return f"Linked Branch: {text}"
+
+
+def _format_non_green_checks_line(report: "BranchStatusReport") -> Optional[str]:
+    """Build the ``Non-green checks: ...`` line, or None when nothing to render.
+
+    Returns:
+        The lookup error when it failed, the capped names when some were
+        found, else None (lookup not run, or ran and found nothing).
+    """
+    if report.non_green_checks_error:
+        return f"Non-green checks: lookup failed — {report.non_green_checks_error}"
+    if report.non_green_checks:
+        return f"Non-green checks: {format_check_names(report.non_green_checks)}"
+    return None
 
 
 def _format_last_automated_note_lines(report: "BranchStatusReport") -> List[str]:
