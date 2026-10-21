@@ -27,9 +27,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 2: `head_sha` on `PullRequestData` — [step_2.md](./steps/step_2.md)
-- [ ] Implementation: `get_pull_request` test for `head_sha` + `PullRequestData.head_sha` field + `_pr_to_data` mapping + docstring
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `get_pull_request` test for `head_sha` + `PullRequestData.head_sha` field + `_pr_to_data` mapping + docstring
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: `PRChecksMixin.get_non_green_checks` — [step_3.md](./steps/step_3.md)
 - [ ] Implementation: `tests/github_operations/test_pr_checks_mixin.py` + new `pr_checks_mixin.py` + add mixin to `PullRequestManager` bases

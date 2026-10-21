@@ -15,6 +15,7 @@ class PullRequestData(TypedDict):
     body: str
     state: str
     head_branch: str
+    head_sha: Optional[str]
     base_branch: str
     url: str
     created_at: Optional[str]

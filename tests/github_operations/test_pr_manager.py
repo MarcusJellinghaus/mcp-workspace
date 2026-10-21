@@ -313,6 +313,32 @@ class TestPullRequestManagerUnit:
             assert result["assignees"] == []
             mock_repo.get_pull.assert_called_once_with(123)
 
+    @patch("mcp_workspace.github_operations._client.Github")
+    def test_get_pull_request_includes_head_sha(
+        self, mock_github: Mock, tmp_path: Path
+    ) -> None:
+        """Test that the PR head commit SHA is returned as head_sha."""
+        git_dir = tmp_path / "git_dir"
+        git_dir.mkdir()
+        repo = git.Repo.init(git_dir)
+        repo.create_remote("origin", "https://github.com/test/repo.git")
+
+        mock_pr = create_mock_pr()
+        mock_pr.head.sha = "abc123"
+        mock_repo = MagicMock()
+        mock_repo.get_pull.return_value = mock_pr
+        mock_github_client = MagicMock()
+        mock_github_client.get_repo.return_value = mock_repo
+        mock_github.return_value = mock_github_client
+
+        with patch(
+            "mcp_workspace.github_operations.base_manager.get_github_token",
+            return_value="dummy-token",
+        ):
+            manager = PullRequestManager(git_dir)
+            result = manager.get_pull_request(123)
+            assert result["head_sha"] == "abc123"
+
     def test_get_pull_request_invalid_number(self, tmp_path: Path) -> None:
         """Test that invalid PR number returns empty dict."""
         git_dir = tmp_path / "git_dir"

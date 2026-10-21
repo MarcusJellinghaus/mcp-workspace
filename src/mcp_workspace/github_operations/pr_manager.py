@@ -36,6 +36,7 @@ def _pr_to_data(pr: PullRequest) -> PullRequestData:
         "body": pr.body,
         "state": pr.state,
         "head_branch": pr.head.ref,
+        "head_sha": pr.head.sha,
         "base_branch": pr.base.ref,
         "url": pr.html_url,
         "created_at": pr.created_at.isoformat() if pr.created_at else None,
@@ -176,6 +177,7 @@ class PullRequestManager(
             - body: PR description (str)
             - state: PR state, typically "open" (str)
             - head_branch: Source branch name (str)
+            - head_sha: Head commit SHA (str)
             - base_branch: Target branch name (str)
             - url: GitHub URL to the PR (str)
             - created_at: ISO timestamp (str)
