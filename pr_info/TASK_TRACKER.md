@@ -32,9 +32,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 3: `PRChecksMixin.get_non_green_checks` — [step_3.md](./steps/step_3.md)
-- [ ] Implementation: `tests/github_operations/test_pr_checks_mixin.py` + new `pr_checks_mixin.py` + add mixin to `PullRequestManager` bases
-- [ ] Quality checks: pylint, pytest, mypy, lint-imports — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `tests/github_operations/test_pr_checks_mixin.py` + new `pr_checks_mixin.py` + add mixin to `PullRequestManager` bases
+- [x] Quality checks: pylint, pytest, mypy, lint-imports — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: Report fields, `unstable` recommendation wording, `Non-green checks:` line — [step_4.md](./steps/step_4.md)
 - [ ] Implementation: recommendation + rendering tests + report fields, `_merge_state_recommendation`, `format_check_names`, `_format_non_green_checks_line`, both formats + SKILL.md rows

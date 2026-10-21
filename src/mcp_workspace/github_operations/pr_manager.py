@@ -15,6 +15,7 @@ from mcp_coder_utils.log_utils import log_function_call
 from mcp_workspace.git_operations import get_default_branch_name
 
 from .base_manager import BaseGitHubManager, _handle_github_errors
+from .pr_checks_mixin import PRChecksMixin
 from .pr_feedback_mixin import PRFeedbackMixin
 from .pr_merge_mixin import PRMergeMixin
 from .pr_review_mixin import PRReviewMixin
@@ -51,7 +52,7 @@ def _pr_to_data(pr: PullRequest) -> PullRequestData:
 
 
 class PullRequestManager(
-    PRReviewMixin, PRMergeMixin, PRFeedbackMixin, BaseGitHubManager
+    PRReviewMixin, PRMergeMixin, PRFeedbackMixin, PRChecksMixin, BaseGitHubManager
 ):
     """Manages GitHub pull request operations using the GitHub API.
 
