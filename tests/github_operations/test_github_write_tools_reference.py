@@ -95,6 +95,7 @@ def _make_manager() -> MagicMock:
     mock_mgr.create_issue.return_value = _make_issue()
     mock_mgr.edit_issue.return_value = _make_issue()
     mock_mgr.get_issue.return_value = _make_issue()
+    mock_mgr.github_token = "test-token"
     # pylint: disable-next=protected-access
     mock_mgr._github_client.get_user.return_value.login = "octocat"
     return mock_mgr

@@ -52,9 +52,9 @@ See [step_4.md](./steps/step_4.md)
 ### Step 5: Server `@me` uses the shared login cache
 See [step_5.md](./steps/step_5.md)
 
-- [ ] Implementation: update server write-tool tests (remove per-file fixtures, add `github_token`, new per-token test), then `_resolve_assignees` via `_cached_login` and remove `server._login_cache`
-- [ ] Quality checks: pylint, pytest, mypy, lint-imports, vulture — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: update server write-tool tests (remove per-file fixtures, add `github_token`, new per-token test), then `_resolve_assignees` via `_cached_login` and remove `server._login_cache`
+- [x] Quality checks: pylint, pytest, mypy, lint-imports, vulture — fix all issues
+- [x] Commit message prepared
 
 ### Step 6: Rate-limit replies in all `github_*` server tools
 See [step_6.md](./steps/step_6.md)

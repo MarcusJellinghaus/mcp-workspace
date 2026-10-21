@@ -78,13 +78,6 @@ _file_locks: dict[str, asyncio.Lock] = {}
 # Workflow status labels are owned by `mcp-coder gh-tool set-status`, not by these tools
 _STATUS_LABEL_PREFIX = "status-"
 
-# Authenticated login for "@me", resolved once per process and per GitHub host:
-# the same token names a different user on github.com than on another host, and a
-# reference project may live on one. Keyed by API base URL, which is also what
-# builds the client. A dict rather than a rebound global so pylint's
-# global-statement never applies and tests reset it with a single .clear().
-_login_cache: Dict[str, str] = {}
-
 
 def _ref_suffix(reference_name: Optional[str]) -> str:
     """Return the clause naming a reference project, or "" for the workspace.
@@ -190,7 +183,7 @@ def _check_base_branch(body: Optional[str]) -> Optional[str]:
 
 
 def _resolve_assignees(manager: Any, logins: List[str]) -> List[str]:
-    """Resolve '@me' to the authenticated login, cached per GitHub host.
+    """Resolve '@me' to the authenticated login, cached per GitHub host and token.
 
     Args:
         manager: An IssueManager instance used to read the authenticated user.
@@ -201,15 +194,20 @@ def _resolve_assignees(manager: Any, logins: List[str]) -> List[str]:
     """
     if "@me" not in logins:
         return list(logins)
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.base_manager import _cached_login
+
     # The manager's own host, so a reference project on a different GitHub host
     # resolves "@me" against that host rather than reusing another host's login.
+    # Not get_authenticated_username(): that re-reads the token via
+    # get_github_token() and would ignore a token passed to the manager.
     # pylint: disable=protected-access
-    host = manager._repo_identifier.api_base_url
-    if host not in _login_cache:
-        # Not get_authenticated_username(): that re-reads the token via
-        # get_github_token() and would ignore a token passed to the manager.
-        _login_cache[host] = manager._github_client.get_user().login
-    return [_login_cache[host] if name == "@me" else name for name in logins]
+    login = _cached_login(
+        manager.github_token,
+        manager._repo_identifier.api_base_url,
+        manager._github_client,
+    )
+    return [login if name == "@me" else name for name in logins]
 
 
 def _normalize_newlines(text: Optional[str]) -> str:

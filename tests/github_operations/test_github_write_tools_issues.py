@@ -11,7 +11,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from github import GithubException
 
-from mcp_workspace import server as server_module
 from mcp_workspace.github_operations.issues.types import (
     CommentData,
     IssueData,
@@ -29,14 +28,6 @@ def setup_server(project_dir: Path) -> Generator[None, None, None]:
     """Setup the server with the project directory."""
     set_project_dir(project_dir)
     yield
-
-
-@pytest.fixture(autouse=True)
-def reset_login_cache() -> Generator[None, None, None]:
-    """Clear the cached '@me' login so tests never leak it into each other."""
-    server_module._login_cache.clear()
-    yield
-    server_module._login_cache.clear()
 
 
 def _make_issue(
@@ -88,6 +79,7 @@ def _make_manager(
     mock_mgr = MagicMock()
     mock_mgr.create_issue.return_value = issue if issue is not None else _make_issue()
     mock_mgr.get_available_labels.return_value = available_labels or []
+    mock_mgr.github_token = "test-token"
     mock_mgr._github_client.get_user.return_value.login = login
     return mock_mgr
 
@@ -480,6 +472,33 @@ def test_github_issue_create_me_lookup_is_per_host(
 
     assert workspace.create_issue.call_args.kwargs["assignees"] == ["marcus"]
     assert other_host.create_issue.call_args.kwargs["assignees"] == ["marcus-ghe"]
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_me_lookup_is_per_token(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A second token on the same host resolves '@me' itself.
+
+    Different tokens can name different users, so the token is part of the
+    cache key alongside the host.
+    """
+    first = _make_manager(login="marcus")
+    first._repo_identifier.api_base_url = "https://api.github.com"
+    first.github_token = "token-a"
+    second = _make_manager(login="bot")
+    second._repo_identifier.api_base_url = "https://api.github.com"
+    second.github_token = "token-b"
+
+    mock_manager_cls.return_value = first
+    github_issue_create(title="First", assignees=["@me"])
+    mock_manager_cls.return_value = second
+    github_issue_create(title="Second", assignees=["@me"])
+
+    assert first.create_issue.call_args.kwargs["assignees"] == ["marcus"]
+    assert second.create_issue.call_args.kwargs["assignees"] == ["bot"]
+    first._github_client.get_user.assert_called_once()
+    second._github_client.get_user.assert_called_once()
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
