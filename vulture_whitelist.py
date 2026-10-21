@@ -189,3 +189,11 @@ _._reset_global
 _._setup
 # Autouse fixture restoring root logger state in test_startup.py (pytest collection only)
 _._snapshot_logging
+# Fixtures for issue #321 base-branch tests, reached through their name= alias
+_._status_mocks  # name="status_mocks"
+_._report  # name="report"
+_.fixture_manager  # name="manager"
+_.fixture_current  # name="current"
+# Autouse fixtures for issue #321 base-branch tests (referenced by pytest collection only)
+_._reset_malformed_base_branch_warnings
+_.origin_has_base
