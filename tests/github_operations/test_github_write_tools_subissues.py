@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import Callable, Generator, Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from github import GithubException
@@ -20,6 +20,7 @@ from mcp_workspace.server import (
 from mcp_workspace.server_reference_tools import set_reference_projects
 
 from ._issue_test_helpers import make_mock_issue
+from .conftest import make_retry_error
 
 _URL = "https://github.com/test/repo/issues/3"
 _DUPLICATE = (
@@ -63,6 +64,15 @@ def _make_child(number: int, state: str, title: str) -> MagicMock:
     child.state = state
     child.title = title
     return child
+
+
+def _retry_exhausted_manager() -> IssueManager:
+    """Build a real IssueManager whose repository lookup exhausts its retries."""
+    manager = IssueManager(repo_url="https://github.com/test/repo", github_token="t")
+    client = Mock()
+    client.get_repo.side_effect = make_retry_error(403)
+    manager._cached_github_client = client
+    return manager
 
 
 class TestSubissueAdd:
@@ -150,6 +160,15 @@ class TestSubissueAdd:
         result = github_subissue_add(parent_number=3, child_number=7)
 
         assert result == f"Error: {exc}"
+
+    @patch("mcp_workspace.github_operations.issues.IssueManager")
+    def test_retry_error_is_reported_as_rate_limit(self, mock_cls: MagicMock) -> None:
+        """Exhausted retries read as a rate limit, not as no repository access."""
+        mock_cls.return_value = _retry_exhausted_manager()
+
+        result = github_subissue_add(parent_number=3, child_number=7)
+
+        assert result == "GitHub rate limit: retries exhausted"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_pull_request_guard(self, mock_cls: MagicMock) -> None:
@@ -325,6 +344,15 @@ class TestSubissueList:
         result = github_subissue_list(parent_number=3)
 
         assert result.startswith("Error: Could not access repository")
+
+    @patch("mcp_workspace.github_operations.issues.IssueManager")
+    def test_retry_error_is_reported_as_rate_limit(self, mock_cls: MagicMock) -> None:
+        """Exhausted retries read as a rate limit, not as no repository access."""
+        mock_cls.return_value = _retry_exhausted_manager()
+
+        result = github_subissue_list(parent_number=3)
+
+        assert result == "GitHub rate limit: retries exhausted"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_invalid_number(self, mock_cls: MagicMock) -> None:

@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mcp_workspace import server as server_module
 from mcp_workspace.github_operations.issues.types import IssueData
 from mcp_workspace.server import github_issue_edit, set_project_dir
 
@@ -16,14 +15,6 @@ def setup_server(project_dir: Path) -> Generator[None, None, None]:
     """Setup the server with the project directory."""
     set_project_dir(project_dir)
     yield
-
-
-@pytest.fixture(autouse=True)
-def reset_login_cache() -> Generator[None, None, None]:
-    """Clear the cached '@me' login so tests never leak it into each other."""
-    server_module._login_cache.clear()
-    yield
-    server_module._login_cache.clear()
 
 
 def _make_issue(
@@ -64,6 +55,7 @@ def _make_manager(
     mock_mgr = MagicMock()
     mock_mgr.edit_issue.return_value = issue if issue is not None else _make_issue()
     mock_mgr.get_available_labels.return_value = available_labels or []
+    mock_mgr.github_token = "test-token"
     mock_mgr._github_client.get_user.return_value.login = login
     return mock_mgr
 

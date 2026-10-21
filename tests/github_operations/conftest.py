@@ -8,9 +8,11 @@ from unittest.mock import Mock, patch
 
 import git
 import pytest
+from requests.exceptions import RetryError
+from urllib3.exceptions import MaxRetryError, ResponseError
 
 from mcp_workspace import server
-from mcp_workspace.github_operations import CIResultsManager
+from mcp_workspace.github_operations import CIResultsManager, clear_login_cache
 from mcp_workspace.github_operations._network import _reset_network_diagnostics_guard
 from mcp_workspace.github_operations.issues import CacheData, IssueData, IssueManager
 from mcp_workspace.github_operations.issues import manager as manager_module
@@ -33,6 +35,12 @@ def setup_server(project_dir: Path) -> Generator[None, None, None]:
     server._project_dir = previous  # pylint: disable=protected-access
 
 
+def make_retry_error(status: int) -> RetryError:
+    """Build the RetryError requests raises once GithubRetry gives up on `status`."""
+    reason = ResponseError(ResponseError.SPECIFIC_ERROR.format(status_code=status))
+    return RetryError(MaxRetryError(None, "/repos/o/r", reason))  # type: ignore[arg-type]
+
+
 @pytest.fixture(autouse=True)
 def reset_network_diagnostics_guard() -> Generator[None, None, None]:
     """Reset the once-per-process network-diagnostics guard for test isolation."""
@@ -48,6 +56,14 @@ def _reset_malformed_base_branch_warnings() -> Generator[None, None, None]:
     manager_module._warned_malformed_base_branch.clear()
     yield
     manager_module._warned_malformed_base_branch.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_login_cache() -> Generator[None, None, None]:
+    """Clear the shared authenticated-login cache for test isolation."""
+    clear_login_cache()
+    yield
+    clear_login_cache()
 
 
 @pytest.fixture

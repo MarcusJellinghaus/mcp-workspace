@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 GITHUB_REQUEST_TIMEOUT = 10
 GITHUB_RETRY_TOTAL = 2
+GITHUB_MAX_RATE_LIMIT_WAIT = 60
 
 
 class _LoggingGithubRetry(GithubRetry):
@@ -73,8 +74,11 @@ def build_github_client(token: str, base_url: str) -> Github:
     timeout=10 with total=2 gives ~30s worst case on an unreachable host
     (1 initial + 2 retries). total=2 also caps 403 secondary-rate-limit
     retries to 2 attempts — deliberate, do NOT raise back. Rate-limit waits
-    are not capped by the timeout (a primary wait lasts until the quota
-    resets, up to 1h); ``_LoggingGithubRetry`` logs them.
+    are not capped by the timeout but by ``max_rate_limit_wait=60``: a
+    primary-limit wait longer than 60s (until the quota resets, up to 1h)
+    raises ``RateLimitExceededExceedsMaxWait`` immediately instead of
+    waiting. The cap must stay >= ``secondary_rate_wait`` (60s) so a
+    secondary limit still waits. ``_LoggingGithubRetry`` logs long waits.
 
     Args:
         token: GitHub personal access token.
@@ -87,5 +91,8 @@ def build_github_client(token: str, base_url: str) -> Github:
         auth=Auth.Token(token),
         base_url=base_url,
         timeout=GITHUB_REQUEST_TIMEOUT,
-        retry=_LoggingGithubRetry(total=GITHUB_RETRY_TOTAL),
+        retry=_LoggingGithubRetry(
+            total=GITHUB_RETRY_TOTAL,
+            max_rate_limit_wait=GITHUB_MAX_RATE_LIMIT_WAIT,
+        ),
     )

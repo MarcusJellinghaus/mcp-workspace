@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+import re
+import time
+from datetime import datetime, timezone
 from typing import Any
 
 import pytest
-from github.GithubException import GithubException
+from github.GithubException import GithubException, RateLimitExceededExceedsMaxWait
+from requests.exceptions import RetryError
 
 from mcp_workspace.github_operations._diagnostics import (
     DIAGNOSTIC_HEADERS,
     extract_diagnostic_headers,
     extract_graphql_errors,
+    format_rate_limit_error,
 )
+from tests.github_operations.conftest import make_retry_error
 
 
 def _make_exception(headers: Any) -> GithubException:
@@ -26,7 +32,7 @@ class TestDiagnosticHeadersConstant:
     def test_diagnostic_headers_is_frozenset(self) -> None:
         assert isinstance(DIAGNOSTIC_HEADERS, frozenset)
 
-    def test_diagnostic_headers_contains_expected_seven(self) -> None:
+    def test_diagnostic_headers_contains_expected_ten(self) -> None:
         expected = {
             "WWW-Authenticate",
             "X-OAuth-Scopes",
@@ -34,6 +40,9 @@ class TestDiagnosticHeadersConstant:
             "X-GitHub-Request-Id",
             "X-RateLimit-Remaining",
             "X-RateLimit-Limit",
+            "X-RateLimit-Reset",
+            "X-RateLimit-Used",
+            "X-RateLimit-Resource",
             "Date",
         }
         assert set(DIAGNOSTIC_HEADERS) == expected
@@ -108,6 +117,91 @@ class TestExtractDiagnosticHeaders:
         exc = _make_exception(headers)
         result = extract_diagnostic_headers(exc)
         assert result == {}
+
+
+def _hhmm(reset: int) -> str:
+    """Format a reset epoch as the HH:MM UTC string the helper emits."""
+    return datetime.fromtimestamp(reset, tz=timezone.utc).strftime("%H:%M")
+
+
+class TestFormatRateLimitError:
+    """Tests for format_rate_limit_error()."""
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            GithubException(403, {"message": "Forbidden"}, {}),
+            GithubException(500, {"message": "Server Error"}, {}),
+            ValueError("x"),
+            ConnectionError(),
+        ],
+    )
+    def test_non_rate_limit_returns_none(self, exc: BaseException) -> None:
+        assert format_rate_limit_error(exc) is None
+
+    def test_remaining_zero_lowercase_headers(self) -> None:
+        reset = int(time.time()) + 600
+        exc = GithubException(
+            403,
+            {"message": "API rate limit exceeded"},
+            {
+                "x-ratelimit-remaining": "0",
+                "x-ratelimit-resource": "core",
+                "x-ratelimit-reset": str(reset),
+            },
+        )
+        msg = format_rate_limit_error(exc)
+        assert msg is not None
+        assert "`core`" in msg
+        assert f"resets at {_hhmm(reset)} UTC" in msg
+        assert re.search(r"in \d+ min", msg)
+
+    def test_exceeds_max_wait_original_casing(self) -> None:
+        reset = int(time.time()) + 600
+        exc = RateLimitExceededExceedsMaxWait(
+            403,
+            {"message": "API rate limit exceeded"},
+            {
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Resource": "core",
+                "X-RateLimit-Reset": str(reset),
+            },
+            wait=600,
+        )
+        msg = format_rate_limit_error(exc)
+        assert msg is not None
+        assert "`core`" in msg
+        assert f"resets at {_hhmm(reset)} UTC" in msg
+        assert re.search(r"in \d+ min", msg)
+
+    def test_429_with_resource_only(self) -> None:
+        exc = GithubException(
+            429, {"message": "Too Many Requests"}, {"x-ratelimit-resource": "search"}
+        )
+        msg = format_rate_limit_error(exc)
+        assert msg is not None
+        assert "`search`" in msg
+        assert "resets" not in msg
+
+    def test_rate_limit_without_headers(self) -> None:
+        exc = RateLimitExceededExceedsMaxWait(403, {"message": "x"}, None)
+        assert format_rate_limit_error(exc) == "GitHub rate limit exhausted"
+
+    @pytest.mark.parametrize("status", [403, 429])
+    def test_retry_error_on_rate_limit_status(self, status: int) -> None:
+        assert (
+            format_rate_limit_error(make_retry_error(status))
+            == "GitHub rate limit: retries exhausted"
+        )
+
+    @pytest.mark.parametrize("status", [500, 502, 503])
+    def test_retry_error_on_server_error_returns_none(self, status: int) -> None:
+        assert format_rate_limit_error(make_retry_error(status)) is None
+
+    def test_retry_error_without_status_is_neutral(self) -> None:
+        assert format_rate_limit_error(RetryError("x")) == (
+            "GitHub request failed: retries exhausted (rate limit or server error)"
+        )
 
 
 class TestExtractGraphqlErrors:

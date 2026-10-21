@@ -5,6 +5,7 @@ functionality for all GitHub manager classes.
 """
 
 import functools
+import hashlib
 import logging
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar, cast
@@ -19,7 +20,10 @@ from mcp_coder_utils.user_app_data import get_user_app_data_dir
 from mcp_workspace import git_operations
 from mcp_workspace.config import get_github_token
 from mcp_workspace.github_operations._client import build_github_client
-from mcp_workspace.github_operations._diagnostics import extract_diagnostic_headers
+from mcp_workspace.github_operations._diagnostics import (
+    extract_diagnostic_headers,
+    format_rate_limit_error,
+)
 from mcp_workspace.github_operations._network import maybe_log_network_diagnostics
 from mcp_workspace.utils.repo_identifier import RepoIdentifier, hostname_to_api_base_url
 from mcp_workspace.utils.token_fingerprint import format_token_fingerprint
@@ -28,12 +32,43 @@ __all__ = [
     "BaseGitHubManager",
     "GithubException",
     "IssueIdentityMismatchError",
+    "clear_login_cache",
     "get_authenticated_username",
 ]
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+# (api_base_url, sha256(token) hexdigest) -> login. Never key by format_token_fingerprint.
+_login_cache: dict[tuple[str, str], str] = {}
+
+
+def _cached_login(token: str, base_url: str, client: Optional[Github] = None) -> str:
+    """Return the login for token on base_url, calling GET /user at most once per key.
+
+    Args:
+        token: GitHub token whose login is looked up.
+        base_url: GitHub API base URL the token belongs to.
+        client: Optional existing client for the lookup; built from token and
+            base_url when omitted.
+
+    Returns:
+        The authenticated user's login.
+
+    Raises:
+        Whatever ``get_user()`` raises; failures are not cached.
+    """
+    key = (base_url, hashlib.sha256(token.encode()).hexdigest())
+    if key not in _login_cache:
+        github = client if client is not None else build_github_client(token, base_url)
+        _login_cache[key] = github.get_user().login
+    return _login_cache[key]
+
+
+def clear_login_cache() -> None:
+    """Forget every cached login (used by tests)."""
+    _login_cache.clear()
 
 
 class IssueIdentityMismatchError(ValueError):
@@ -64,6 +99,7 @@ def _handle_github_errors(
     """Decorator to handle GitHub API errors consistently.
 
     This decorator handles GithubException and general Exception errors:
+    - Rate-limit errors (403 rate limit, 429, `RetryError`): logged and re-raised
     - ValueError: Re-raised to caller (validation errors should propagate)
     - Authentication/permission errors (401, 403): Re-raised to caller
     - Other GithubException errors: Logged and return default_return
@@ -98,6 +134,10 @@ def _handle_github_errors(
                 # Re-raise validation errors to caller
                 raise
             except GithubException as e:
+                msg = format_rate_limit_error(e)
+                if msg is not None:
+                    logger.error(f"{msg} in {func.__name__}")
+                    raise
                 # Re-raise authentication/permission errors
                 if e.status in (401, 403):
                     logger.error(
@@ -115,6 +155,10 @@ def _handle_github_errors(
             except (
                 Exception
             ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+                msg = format_rate_limit_error(e)
+                if msg is not None:
+                    logger.error(f"{msg} in {func.__name__}")
+                    raise
                 # Log and return default for unexpected errors
                 logger.error(f"Unexpected error in {func.__name__}: {e}")
                 resolved = (
@@ -151,9 +195,7 @@ def get_authenticated_username(hostname: Optional[str] = None) -> str:
 
     base_url = hostname_to_api_base_url(hostname or "github.com")
     try:
-        github_client = build_github_client(raw_token, base_url)
-        user = github_client.get_user()
-        return user.login
+        return _cached_login(raw_token, base_url)
     except GithubException as e:
         logger.debug(
             "get_authenticated_username GithubException status=%s data=%s "
@@ -164,10 +206,18 @@ def get_authenticated_username(hostname: Optional[str] = None) -> str:
             base_url,
             format_token_fingerprint(raw_token) if raw_token else "<none>",
         )
+        msg = format_rate_limit_error(e)
+        if msg is not None:
+            logger.error(msg)
+            raise ValueError(msg) from e
         raise ValueError(f"Failed to authenticate with GitHub: {e}") from e
     except (
         Exception
     ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+        msg = format_rate_limit_error(e)
+        if msg is not None:
+            logger.error(msg)
+            raise ValueError(msg) from e
         maybe_log_network_diagnostics(e, base_url)
         raise ValueError(f"Failed to authenticate with GitHub: {e}") from e
 
@@ -311,9 +361,15 @@ class BaseGitHubManager:
         Returns:
             Repository object if successful, None otherwise
 
+        Raises:
+            GithubException: Rate-limit errors (403 rate limit, 429) propagate
+                to the caller.
+
         Note:
             The repository object is cached after the first successful retrieval
-            to avoid unnecessary API calls.
+            to avoid unnecessary API calls. A requests RetryError from retries
+            exhausted on rate-limit responses (or with an unknown status) also
+            propagates to the caller.
         """
         if self._repository is not None:
             return self._repository
@@ -340,6 +396,10 @@ class BaseGitHubManager:
                 ),
             )
             repo_url = self._repo_identifier.https_url
+            msg = format_rate_limit_error(e)
+            if msg is not None:
+                logger.error("%s (repository %s)", msg, repo_url)
+                raise
             if e.status == 404:
                 config_path = get_user_app_data_dir("mcp_coder") / "config.toml"
                 logger.error(
@@ -359,6 +419,10 @@ class BaseGitHubManager:
         except (
             Exception
         ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+            msg = format_rate_limit_error(e)
+            if msg is not None:
+                logger.error("%s (repository %s)", msg, self._repo_identifier.full_name)
+                raise
             maybe_log_network_diagnostics(e, self._repo_identifier.api_base_url)
             logger.error(
                 "Unexpected error accessing repository '%s': %s",

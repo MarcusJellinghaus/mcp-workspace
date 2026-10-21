@@ -1,20 +1,56 @@
 """Unit tests for BaseGitHubManager error handling decorator."""
 
 import logging
+import time
 from pathlib import Path
+from typing import Callable
 from unittest.mock import Mock, patch
 
 import pytest
 from github import Auth
 from github.GithubException import GithubException
+from requests.exceptions import RetryError
 
 from mcp_workspace.github_operations.base_manager import (
     BaseGitHubManager,
     IssueIdentityMismatchError,
+    _cached_login,
     _handle_github_errors,
+    clear_login_cache,
     get_authenticated_username,
 )
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
+from tests.github_operations.conftest import make_retry_error
+
+
+def _rate_limit_403() -> GithubException:
+    """Build a 403 primary rate-limit error on the `core` resource."""
+    return GithubException(
+        403,
+        {"message": "API rate limit exceeded"},
+        {
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-resource": "core",
+            "x-ratelimit-reset": str(int(time.time()) + 600),
+        },
+    )
+
+
+def _rate_limit_429() -> GithubException:
+    """Build a 429 secondary rate-limit error."""
+    return GithubException(429, {"message": "Too Many Requests"}, {})
+
+
+def _retry_error() -> RetryError:
+    """Build the error requests raises once GithubRetry gives up on 403s."""
+    return make_retry_error(403)
+
+
+_RATE_LIMIT_ERRORS: list[Callable[[], BaseException]] = [
+    _rate_limit_403,
+    _rate_limit_429,
+    _retry_error,
+]
 
 
 class TestHandleGitHubErrorsDecorator:
@@ -344,6 +380,47 @@ class TestHandleGitHubErrorsDecorator:
 
         assert function_with_github_error() == {"error": "default"}
         assert function_with_generic_error() == {"error": "default"}
+
+    @pytest.mark.parametrize("make_error", [_rate_limit_429, _retry_error])
+    def test_rate_limit_error_is_reraised(
+        self, make_error: Callable[[], BaseException]
+    ) -> None:
+        """429 and RetryError are re-raised instead of returning the default."""
+        error = make_error()
+        on_error = Mock()
+
+        @_handle_github_errors(default_return={"error": "default"}, on_error=on_error)
+        def rate_limited() -> dict[str, str]:
+            raise error
+
+        with pytest.raises(type(error)):
+            rate_limited()
+        on_error.assert_not_called()
+
+    def test_5xx_retry_error_returns_default(self) -> None:
+        """RetryError after exhausted 5xx retries is not a rate limit: default returned."""
+
+        @_handle_github_errors(default_return={"error": "default"})
+        def server_error() -> dict[str, str]:
+            raise make_retry_error(502)
+
+        assert server_error() == {"error": "default"}
+
+    def test_rate_limit_403_is_reraised_and_logged(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """403 rate limit is re-raised; the ERROR log names the resource."""
+
+        @_handle_github_errors(default_return={"error": "default"})
+        def rate_limited() -> dict[str, str]:
+            raise _rate_limit_403()
+
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(GithubException):
+                rate_limited()
+
+        assert "`core`" in caplog.text
+        assert "rate_limited" in caplog.text
 
 
 class TestBaseGitHubManagerWithProjectDir:
@@ -1188,6 +1265,145 @@ class TestGetAuthenticatedUsername:
             assert call_kwargs["base_url"] == "https://ghe.corp.com/api/v3"
 
 
+def _mock_github_client(login: str = "testuser") -> Mock:
+    """Build a mock Github client whose get_user() returns ``login``."""
+    client = Mock()
+    client.get_user.return_value.login = login
+    return client
+
+
+class TestLoginCache:
+    """Tests for the shared (api_base_url, token) login cache."""
+
+    def test_repeated_calls_look_up_once(self) -> None:
+        """Two calls construct one client and call GET /user once."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_class.return_value = _mock_github_client()
+
+            assert get_authenticated_username() == "testuser"
+            assert get_authenticated_username() == "testuser"
+
+            mock_github_class.assert_called_once()
+            mock_github_class.return_value.get_user.assert_called_once()
+
+    def test_default_hostname_and_explicit_client_share_entry(self) -> None:
+        """None, "github.com" and an explicit api.github.com lookup share a key."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_class.return_value = _mock_github_client()
+            explicit_client = _mock_github_client("other")
+
+            assert get_authenticated_username() == "testuser"
+            assert get_authenticated_username(hostname="github.com") == "testuser"
+            assert (
+                _cached_login("fake_token", "https://api.github.com", explicit_client)
+                == "testuser"
+            )
+
+            mock_github_class.return_value.get_user.assert_called_once()
+            explicit_client.get_user.assert_not_called()
+
+    def test_different_token_looks_up_again(self) -> None:
+        """A different token gets its own cache entry."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                side_effect=["a", "b"],
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_class.side_effect = [
+                _mock_github_client("user_a"),
+                _mock_github_client("user_b"),
+            ]
+
+            assert get_authenticated_username() == "user_a"
+            assert get_authenticated_username() == "user_b"
+
+            assert mock_github_class.call_count == 2
+
+    def test_different_hostname_looks_up_again(self) -> None:
+        """A different API host gets its own cache entry."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_class.side_effect = [
+                _mock_github_client("dotcom_user"),
+                _mock_github_client("ghe_user"),
+            ]
+
+            assert get_authenticated_username() == "dotcom_user"
+            assert get_authenticated_username(hostname="ghe.corp.com") == "ghe_user"
+
+            assert mock_github_class.call_count == 2
+
+    def test_failure_is_not_cached(self) -> None:
+        """A failed lookup raises ValueError and the next call looks up again."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            client = _mock_github_client()
+            client.get_user.side_effect = [
+                GithubException(500, {"message": "Server Error"}, None),
+                Mock(login="testuser"),
+            ]
+            mock_github_class.return_value = client
+
+            with pytest.raises(ValueError):
+                get_authenticated_username()
+            assert get_authenticated_username() == "testuser"
+
+            assert client.get_user.call_count == 2
+
+    def test_clear_login_cache_forces_fresh_lookup(self) -> None:
+        """clear_login_cache() drops cached logins."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_class.return_value = _mock_github_client()
+
+            get_authenticated_username()
+            clear_login_cache()
+            get_authenticated_username()
+
+            assert mock_github_class.return_value.get_user.call_count == 2
+
+
 class TestGithubTokenForwarding:
     """Test suite for token forwarding through subclasses.
 
@@ -1583,6 +1799,108 @@ class TestGetAuthenticatedUsernameDebugLogging:
 
         assert raw_token not in caplog.text
         assert "ghp_..._xyz" in caplog.text
+
+
+class TestGetRepositoryRateLimit:
+    """Rate-limit errors propagate from `_get_repository()`; others still return None."""
+
+    @staticmethod
+    def _call_get_repository(error: BaseException) -> object:
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_client = Mock()
+            mock_github_client.get_repo.side_effect = error
+            mock_github_class.return_value = mock_github_client
+            manager = BaseGitHubManager(
+                repo_url="https://github.com/test-owner/test-repo.git"
+            )
+            return manager._get_repository()
+
+    @pytest.mark.parametrize("make_error", _RATE_LIMIT_ERRORS)
+    def test_rate_limit_error_propagates(
+        self, make_error: Callable[[], BaseException]
+    ) -> None:
+        """403 rate limit, 429 and RetryError are raised to the caller."""
+        error = make_error()
+        with pytest.raises(type(error)):
+            self._call_get_repository(error)
+
+    def test_rate_limit_error_logged_with_repository(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The ERROR log carries the rate-limit message and the repository."""
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(GithubException):
+                self._call_get_repository(_rate_limit_403())
+
+        assert "`core` rate limit" in caplog.text
+        assert "test-owner/test-repo" in caplog.text
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            GithubException(404, {"message": "Not Found"}, {}),
+            GithubException(500, {"message": "Internal Server Error"}, {}),
+            make_retry_error(503),
+            ConnectionError(),
+        ],
+    )
+    def test_other_errors_return_none(self, error: BaseException) -> None:
+        """Non-rate-limit errors keep returning None."""
+        assert self._call_get_repository(error) is None
+
+
+class TestGetAuthenticatedUsernameRateLimit:
+    """Rate-limit errors in `get_authenticated_username()` raise a rate-limit ValueError."""
+
+    @staticmethod
+    def _call(error: BaseException) -> str:
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_client = Mock()
+            mock_github_client.get_user.side_effect = error
+            mock_github_class.return_value = mock_github_client
+            return get_authenticated_username()
+
+    def test_403_rate_limit_raises_rate_limit_value_error(self) -> None:
+        """403 rate limit -> ValueError naming the resource, not an auth failure."""
+        with pytest.raises(ValueError) as exc_info:
+            self._call(_rate_limit_403())
+
+        assert "`core` rate limit" in str(exc_info.value)
+        assert "Failed to authenticate" not in str(exc_info.value)
+
+    def test_retry_error_raises_rate_limit_value_error(self) -> None:
+        """RetryError -> ValueError saying retries were exhausted."""
+        with pytest.raises(ValueError, match="rate limit: retries exhausted"):
+            self._call(_retry_error())
+
+    def test_5xx_retry_error_reports_authentication_failure(self) -> None:
+        """RetryError after exhausted 5xx retries keeps the generic failure message."""
+        with pytest.raises(ValueError) as exc_info:
+            self._call(make_retry_error(502))
+
+        assert "Failed to authenticate with GitHub" in str(exc_info.value)
+        assert "rate limit" not in str(exc_info.value)
+
+    def test_401_still_reports_authentication_failure(self) -> None:
+        """401 keeps the authentication failure message."""
+        with pytest.raises(ValueError, match="Failed to authenticate with GitHub"):
+            self._call(GithubException(401, {"message": "Bad credentials"}, {}))
 
 
 class TestGetIssueChecked:

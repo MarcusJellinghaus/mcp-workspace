@@ -4,14 +4,16 @@ Covers ``github_issue_create``, ``github_issue_comment`` and the two shared
 helpers ``_check_labels`` and ``_resolve_assignees``.
 """
 
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from github import GithubException
 
-from mcp_workspace import server as server_module
+from mcp_workspace.github_operations.issues import IssueManager
 from mcp_workspace.github_operations.issues.types import (
     CommentData,
     IssueData,
@@ -29,14 +31,6 @@ def setup_server(project_dir: Path) -> Generator[None, None, None]:
     """Setup the server with the project directory."""
     set_project_dir(project_dir)
     yield
-
-
-@pytest.fixture(autouse=True)
-def reset_login_cache() -> Generator[None, None, None]:
-    """Clear the cached '@me' login so tests never leak it into each other."""
-    server_module._login_cache.clear()
-    yield
-    server_module._login_cache.clear()
 
 
 def _make_issue(
@@ -88,6 +82,7 @@ def _make_manager(
     mock_mgr = MagicMock()
     mock_mgr.create_issue.return_value = issue if issue is not None else _make_issue()
     mock_mgr.get_available_labels.return_value = available_labels or []
+    mock_mgr.github_token = "test-token"
     mock_mgr._github_client.get_user.return_value.login = login
     return mock_mgr
 
@@ -480,6 +475,62 @@ def test_github_issue_create_me_lookup_is_per_host(
 
     assert workspace.create_issue.call_args.kwargs["assignees"] == ["marcus"]
     assert other_host.create_issue.call_args.kwargs["assignees"] == ["marcus-ghe"]
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_me_lookup_is_per_token(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A second token on the same host resolves '@me' itself.
+
+    Different tokens can name different users, so the token is part of the
+    cache key alongside the host.
+    """
+    first = _make_manager(login="marcus")
+    first._repo_identifier.api_base_url = "https://api.github.com"
+    first.github_token = "token-a"
+    second = _make_manager(login="bot")
+    second._repo_identifier.api_base_url = "https://api.github.com"
+    second.github_token = "token-b"
+
+    mock_manager_cls.return_value = first
+    github_issue_create(title="First", assignees=["@me"])
+    mock_manager_cls.return_value = second
+    github_issue_create(title="Second", assignees=["@me"])
+
+    assert first.create_issue.call_args.kwargs["assignees"] == ["marcus"]
+    assert second.create_issue.call_args.kwargs["assignees"] == ["bot"]
+    first._github_client.get_user.assert_called_once()
+    second._github_client.get_user.assert_called_once()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_rate_limit_names_bucket_and_reset(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A rate-limited repo lookup is reported as a rate limit, not as no access."""
+    reset = int(time.time()) + 600
+    manager = IssueManager(repo_url="https://github.com/test/repo", github_token="t")
+    client = Mock()
+    client.get_repo.side_effect = GithubException(
+        403,
+        {"message": "API rate limit exceeded"},
+        {
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-resource": "core",
+            "x-ratelimit-reset": str(reset),
+        },
+    )
+    manager._cached_github_client = client
+    mock_manager_cls.return_value = manager
+
+    result = github_issue_create(title="Test issue")
+
+    hhmm = f"{datetime.fromtimestamp(reset, tz=timezone.utc):%H:%M}"
+    assert "`core`" in result
+    assert hhmm in result
+    assert "Could not access repository" not in result
+    assert "issue creation failed" not in result
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
