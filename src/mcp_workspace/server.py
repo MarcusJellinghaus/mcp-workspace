@@ -1006,7 +1006,7 @@ def github_issue_view(
             include_linked_branches=include_linked_branches,
         )
     except Exception as e:
-        return f"Error: {e}"
+        return _tool_error(e)
 
 
 @mcp.tool()
@@ -1061,7 +1061,7 @@ def github_issue_list(
                 return _repo_access_error(manager)
         return format_issue_list(issues, capped, repo_full_name)
     except Exception as e:
-        return f"Error: {e}"
+        return _tool_error(e)
 
 
 @mcp.tool()
@@ -1138,7 +1138,7 @@ def github_pr_view(
             pr_dict, reviews, conversation_comments, inline_comments, max_lines
         )
     except Exception as e:
-        return f"Error: {e}"
+        return _tool_error(e)
 
 
 @mcp.tool()
@@ -1247,7 +1247,7 @@ def github_search(
             items, capped, results.totalCount if items else None
         )
     except Exception as e:
-        return f"Error: {e}"
+        return _tool_error(e)
 
 
 @mcp.tool()
@@ -1313,7 +1313,7 @@ def github_issue_create(
             f"Assignees: {', '.join(issue['assignees']) or '(none)'}"
         )
     except Exception as e:
-        return f"Error: {e}"
+        return _tool_error(e)
 
 
 @mcp.tool()
@@ -1364,7 +1364,11 @@ def github_issue_edit(
         instead of "Updated issue". Or error message string.
     """
     # Lazy imports: keep PyGithub off the server startup import path
-    from mcp_workspace.github_operations import GithubException
+    from mcp_workspace.github_operations import (
+        GithubException,
+        RetryError,
+        format_rate_limit_error,
+    )
     from mcp_workspace.github_operations.issues.types import create_empty_issue_data
 
     try:
@@ -1410,11 +1414,12 @@ def github_issue_edit(
             # Empty IssueData is the library's swallowed-failure sentinel
             if not issue["number"]:
                 reason = "swallowed API error"
-        except (GithubException, ValueError) as exc:
-            # _handle_github_errors re-raises 401/403 and every ValueError,
-            # including the identity check on edit_issue's own closing refetch.
-            # Both can happen after part of the write landed.
-            issue, reason = create_empty_issue_data(), str(exc)
+        except (GithubException, RetryError, ValueError) as exc:
+            # _handle_github_errors re-raises 401/403, rate limits and every
+            # ValueError, including the identity check on edit_issue's own
+            # closing refetch. All can happen after part of the write landed.
+            issue = create_empty_issue_data()
+            reason = format_rate_limit_error(exc) or str(exc)
 
         if reason:
             # The write sequence may have started and did not finish cleanly —
@@ -1423,7 +1428,8 @@ def github_issue_edit(
             try:
                 issue = manager.get_issue(number)
             except Exception as exc:
-                issue, reread_error = create_empty_issue_data(), f": {exc}"
+                issue = create_empty_issue_data()
+                reread_error = f": {format_rate_limit_error(exc) or exc}"
             if not issue["number"]:
                 if not attempted:
                     return (
@@ -1466,7 +1472,7 @@ def github_issue_edit(
         lines.append(f"Assignees: {', '.join(issue['assignees']) or '(none)'}")
         return "\n".join(lines)
     except Exception as e:
-        return f"Error: {e}"
+        return _tool_error(e)
 
 
 def _api_error(exc: Exception, reference_name: Optional[str]) -> str:
@@ -1477,13 +1483,27 @@ def _api_error(exc: Exception, reference_name: Optional[str]) -> str:
         reference_name: Reference project name, or None for the workspace.
 
     Returns:
-        "Error: <message>" using GitHub's message when the exception carries a
-        dict payload with one, otherwise str(exc).
+        The rate-limit description for a rate limit; otherwise "Error: <message>"
+        using GitHub's message when the exception carries a dict payload with
+        one, otherwise str(exc).
     """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations import format_rate_limit_error
+
+    if (msg := format_rate_limit_error(exc)) is not None:
+        return f"{msg}{_ref_suffix(reference_name)}"
     # exc.data is not reliably a dict with a "message" key
     data = getattr(exc, "data", None)
     message = data.get("message") if isinstance(data, dict) else None
     return f"Error: {message or exc}{_ref_suffix(reference_name)}"
+
+
+def _tool_error(e: Exception) -> str:
+    """Render a tool failure, naming bucket and reset time for a rate limit."""
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations import format_rate_limit_error
+
+    return format_rate_limit_error(e) or f"Error: {e}"
 
 
 def _subissue_write(
@@ -1504,7 +1524,7 @@ def _subissue_write(
         The success line, or error message string.
     """
     # Lazy import: keeps PyGithub off the server startup import path
-    from mcp_workspace.github_operations import GithubException
+    from mcp_workspace.github_operations import GithubException, RetryError
 
     suffix = _ref_suffix(reference_name)
     for number in (parent_number, child_number):
@@ -1529,7 +1549,7 @@ def _subissue_write(
             f"{verb} #{child_number} {relation} #{parent_number} "
             f"— {link.url}{count}"
         )
-    except (GithubException, ValueError) as exc:
+    except (GithubException, RetryError, ValueError) as exc:
         return _api_error(exc, reference_name)
 
 
@@ -1584,7 +1604,7 @@ def github_subissue_list(
         when there are none, or error message string.
     """
     # Lazy import: keeps PyGithub off the server startup import path
-    from mcp_workspace.github_operations import GithubException
+    from mcp_workspace.github_operations import GithubException, RetryError
 
     if parent_number <= 0:
         return (
@@ -1603,7 +1623,7 @@ def github_subissue_list(
         if not children:
             return "No sub-issues."
         return "\n".join(f"#{c.number}  {c.state}  {c.title}" for c in children)
-    except (GithubException, ValueError) as exc:
+    except (GithubException, RetryError, ValueError) as exc:
         return _api_error(exc, reference_name)
 
 
@@ -1667,7 +1687,7 @@ def github_issue_comment(
             )
         return f"Added comment to issue #{number} — {comment['url']}"
     except Exception as e:
-        return f"Error: {e}"
+        return _tool_error(e)
 
 
 @mcp.tool()
@@ -1706,7 +1726,7 @@ def github_review_comment_reply(
             f"{reply['url']}"
         )
     except Exception as e:
-        return f"Error: {e}"
+        return _tool_error(e)
 
 
 @mcp.tool()
@@ -1742,7 +1762,7 @@ def github_review_thread_resolve(
             f"{_ref_suffix(reference_name)}"
         )
     except Exception as e:
-        return f"Error: {e}"
+        return _tool_error(e)
 
 
 @mcp.tool()
@@ -1787,7 +1807,7 @@ def github_label_list(
             for label in labels
         )
     except Exception as e:
-        return f"Error: {e}"
+        return _tool_error(e)
 
 
 @mcp.tool()
@@ -1861,7 +1881,7 @@ def github_pr_create(
             return "Error: PR creation failed - no pull request was created"
         return f"Created PR #{pr['number']} — {pr['url']}"
     except Exception as e:
-        return f"Error: {e}"
+        return _tool_error(e)
 
 
 def _resolve_base_branch(

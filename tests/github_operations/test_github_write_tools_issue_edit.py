@@ -6,14 +6,18 @@ end on the warn-and-report path rather than as a bare ``Error:`` after a write
 that partially landed.
 """
 
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from github import GithubException
+from requests.exceptions import RetryError
 
 from mcp_workspace.github_operations.base_manager import IssueIdentityMismatchError
+from mcp_workspace.github_operations.issues import IssueManager
 from mcp_workspace.github_operations.issues.types import (
     IssueData,
     create_empty_issue_data,
@@ -252,6 +256,52 @@ def test_github_issue_edit_value_error_channel_warns_and_reports(
         "Updated issue #42 — https://github.com/test/repo/issues/42 (state: open)"
         in result
     )
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_edit_rate_limit_names_bucket_and_reset(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A rate-limited repo lookup is reported as a rate limit, not as no access."""
+    reset = int(time.time()) + 600
+    manager = IssueManager(repo_url="https://github.com/test/repo", github_token="t")
+    client = Mock()
+    client.get_repo.side_effect = GithubException(
+        403,
+        {"message": "API rate limit exceeded"},
+        {
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-resource": "core",
+            "x-ratelimit-reset": str(reset),
+        },
+    )
+    manager._cached_github_client = client
+    mock_manager_cls.return_value = manager
+
+    result = github_issue_edit(number=42, title="New title")
+
+    hhmm = f"{datetime.fromtimestamp(reset, tz=timezone.utc):%H:%M}"
+    assert "`core`" in result
+    assert hhmm in result
+    assert "Could not access repository" not in result
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_edit_retry_error_mid_sequence_warns_and_reports(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """Exhausted retries after a write landed is a partial write, not a crash."""
+    mock_mgr = _make_manager()
+    mock_mgr.edit_issue.side_effect = _recording_edit_issue(
+        ["scalars"], error=RetryError("x")
+    )
+    mock_mgr.get_issue.return_value = _make_issue(title="New title")
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_edit(number=42, title="New title")
+
+    assert result.startswith("Warning: edit partially failed")
+    assert "retries exhausted" in result
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")

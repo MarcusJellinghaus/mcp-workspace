@@ -59,9 +59,9 @@ See [step_5.md](./steps/step_5.md)
 ### Step 6: Rate-limit replies in all `github_*` server tools
 See [step_6.md](./steps/step_6.md)
 
-- [ ] Implementation: rate-limit reply tests, then `_tool_error`, `_api_error` rate-limit check, widened `RetryError` excepts, `github_issue_edit` reasons in `server.py`
-- [ ] Quality checks: pylint, pytest, mypy, lint-imports — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: rate-limit reply tests, then `_tool_error`, `_api_error` rate-limit check, widened `RetryError` excepts, `github_issue_edit` reasons in `server.py`
+- [x] Quality checks: pylint, pytest, mypy, lint-imports — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

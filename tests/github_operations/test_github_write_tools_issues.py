@@ -4,13 +4,16 @@ Covers ``github_issue_create``, ``github_issue_comment`` and the two shared
 helpers ``_check_labels`` and ``_resolve_assignees``.
 """
 
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from github import GithubException
 
+from mcp_workspace.github_operations.issues import IssueManager
 from mcp_workspace.github_operations.issues.types import (
     CommentData,
     IssueData,
@@ -499,6 +502,35 @@ def test_github_issue_create_me_lookup_is_per_token(
     assert second.create_issue.call_args.kwargs["assignees"] == ["bot"]
     first._github_client.get_user.assert_called_once()
     second._github_client.get_user.assert_called_once()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_rate_limit_names_bucket_and_reset(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A rate-limited repo lookup is reported as a rate limit, not as no access."""
+    reset = int(time.time()) + 600
+    manager = IssueManager(repo_url="https://github.com/test/repo", github_token="t")
+    client = Mock()
+    client.get_repo.side_effect = GithubException(
+        403,
+        {"message": "API rate limit exceeded"},
+        {
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-resource": "core",
+            "x-ratelimit-reset": str(reset),
+        },
+    )
+    manager._cached_github_client = client
+    mock_manager_cls.return_value = manager
+
+    result = github_issue_create(title="Test issue")
+
+    hhmm = f"{datetime.fromtimestamp(reset, tz=timezone.utc):%H:%M}"
+    assert "`core`" in result
+    assert hhmm in result
+    assert "Could not access repository" not in result
+    assert "issue creation failed" not in result
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")

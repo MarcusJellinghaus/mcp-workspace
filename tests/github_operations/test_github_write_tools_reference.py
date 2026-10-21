@@ -1,10 +1,13 @@
 """Tests for reference_name support in the GitHub write and label MCP tools."""
 
+import time
 from pathlib import Path
 from typing import Any, Callable, Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
+from github import GithubException
+from requests.exceptions import RetryError
 
 from mcp_workspace.github_operations.issues.types import (
     CommentData,
@@ -210,6 +213,47 @@ def test_no_labels_names_reference_project(
     result = github_label_list(reference_name="sibling")
 
     assert result == "No labels found in reference project 'sibling'."
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_label_list_rate_limit_names_bucket(
+    mock_manager_cls: MagicMock,
+    reference_projects: None,  # pylint: disable=unused-argument
+) -> None:
+    """A rate-limited read tool reply names the exhausted bucket."""
+    mock_mgr = _make_manager()
+    mock_mgr.get_available_labels.side_effect = GithubException(
+        403,
+        {"message": "API rate limit exceeded"},
+        {
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-resource": "core",
+            "x-ratelimit-reset": str(int(time.time()) + 600),
+        },
+    )
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_label_list(reference_name="sibling")
+
+    assert "`core`" in result
+    assert not result.startswith("Error:")
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_subissue_rate_limit_names_reference_project(
+    mock_manager_cls: MagicMock,
+    reference_projects: None,  # pylint: disable=unused-argument
+) -> None:
+    """A rate limit through _api_error keeps the reference-project suffix."""
+    mock_mgr = _make_manager()
+    mock_mgr.list_sub_issues.side_effect = RetryError("x")
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_subissue_list(parent_number=42, reference_name="sibling")
+
+    assert result == (
+        "GitHub rate limit: retries exhausted in reference project 'sibling'"
+    )
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
