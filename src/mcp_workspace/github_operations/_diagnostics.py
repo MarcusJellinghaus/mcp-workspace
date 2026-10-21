@@ -12,6 +12,7 @@ package; only `format_rate_limit_error` and `RetryError` are re-exported via
 from __future__ import annotations
 
 import math
+import re
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -48,20 +49,45 @@ def extract_diagnostic_headers(exc: GithubException) -> dict[str, str]:
     return {k: v for k, v in headers.items() if k.lower() in allow_lower}
 
 
+_RETRY_STATUS_RE = re.compile(r"too many (\d{3}) error responses")
+
+
+def _retry_error_status(exc: RetryError) -> int | None:
+    """Return the HTTP status whose retries were exhausted, or None if unknown.
+
+    requests wraps urllib3's `MaxRetryError`, whose `reason` is a
+    `ResponseError` reading "too many <status> error responses".
+    """
+    max_retry_error = exc.args[0] if exc.args else None
+    reason = getattr(max_retry_error, "reason", None)
+    match = _RETRY_STATUS_RE.search(str(reason)) if reason is not None else None
+    return int(match.group(1)) if match else None
+
+
 def format_rate_limit_error(exc: BaseException) -> str | None:
     """Describe a GitHub rate-limit failure, or return None for any other error.
 
-    A `RetryError` means urllib3 gave up retrying (GitHub's retry policy only
-    retries rate-limit and server responses). A `GithubException` counts as a
-    rate limit when it is a `RateLimitExceededException`, has status 429, or
-    reports `X-RateLimit-Remaining: 0`. Header lookup is case-insensitive.
+    A `RetryError` means GitHub's retry policy gave up; it retries 403 rate
+    limits and 5xx server errors. Exhausted 403/429 retries count as a rate
+    limit, exhausted 5xx retries do not, and an unknown status gets neutral
+    wording. A `GithubException` counts as a rate limit when it is a
+    `RateLimitExceededException`, has status 429, or reports
+    `X-RateLimit-Remaining: 0`. Header lookup is case-insensitive.
 
     Returns:
         A message describing the rate limit, or None if the exception is not
         a rate-limit error.
     """
     if isinstance(exc, RetryError):
-        return "GitHub rate limit: retries exhausted"
+        status = _retry_error_status(exc)
+        if status in (403, 429):
+            return "GitHub rate limit: retries exhausted"
+        if status is None:
+            return (
+                "GitHub request failed: retries exhausted "
+                "(rate limit or server error)"
+            )
+        return None
     if not isinstance(exc, GithubException):
         return None
     headers = {k.lower(): v for k, v in (exc.headers or {}).items()}

@@ -20,6 +20,7 @@ from mcp_workspace.github_operations.base_manager import (
     get_authenticated_username,
 )
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
+from tests.github_operations.conftest import make_retry_error
 
 
 def _rate_limit_403() -> GithubException:
@@ -41,8 +42,8 @@ def _rate_limit_429() -> GithubException:
 
 
 def _retry_error() -> RetryError:
-    """Build the error urllib3 raises once GithubRetry gives up."""
-    return RetryError("retries exhausted")
+    """Build the error requests raises once GithubRetry gives up on 403s."""
+    return make_retry_error(403)
 
 
 _RATE_LIMIT_ERRORS: list[Callable[[], BaseException]] = [
@@ -395,6 +396,15 @@ class TestHandleGitHubErrorsDecorator:
         with pytest.raises(type(error)):
             rate_limited()
         on_error.assert_not_called()
+
+    def test_5xx_retry_error_returns_default(self) -> None:
+        """RetryError after exhausted 5xx retries is not a rate limit: default returned."""
+
+        @_handle_github_errors(default_return={"error": "default"})
+        def server_error() -> dict[str, str]:
+            raise make_retry_error(502)
+
+        assert server_error() == {"error": "default"}
 
     def test_rate_limit_403_is_reraised_and_logged(
         self, caplog: pytest.LogCaptureFixture
@@ -1838,6 +1848,7 @@ class TestGetRepositoryRateLimit:
         [
             GithubException(404, {"message": "Not Found"}, {}),
             GithubException(500, {"message": "Internal Server Error"}, {}),
+            make_retry_error(503),
             ConnectionError(),
         ],
     )
@@ -1877,6 +1888,14 @@ class TestGetAuthenticatedUsernameRateLimit:
         """RetryError -> ValueError saying retries were exhausted."""
         with pytest.raises(ValueError, match="rate limit: retries exhausted"):
             self._call(_retry_error())
+
+    def test_5xx_retry_error_reports_authentication_failure(self) -> None:
+        """RetryError after exhausted 5xx retries keeps the generic failure message."""
+        with pytest.raises(ValueError) as exc_info:
+            self._call(make_retry_error(502))
+
+        assert "Failed to authenticate with GitHub" in str(exc_info.value)
+        assert "rate limit" not in str(exc_info.value)
 
     def test_401_still_reports_authentication_failure(self) -> None:
         """401 keeps the authentication failure message."""

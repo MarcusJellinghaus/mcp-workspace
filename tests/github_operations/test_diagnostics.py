@@ -17,6 +17,7 @@ from mcp_workspace.github_operations._diagnostics import (
     extract_graphql_errors,
     format_rate_limit_error,
 )
+from tests.github_operations.conftest import make_retry_error
 
 
 def _make_exception(headers: Any) -> GithubException:
@@ -186,10 +187,20 @@ class TestFormatRateLimitError:
         exc = RateLimitExceededExceedsMaxWait(403, {"message": "x"}, None)
         assert format_rate_limit_error(exc) == "GitHub rate limit exhausted"
 
-    def test_retry_error(self) -> None:
+    @pytest.mark.parametrize("status", [403, 429])
+    def test_retry_error_on_rate_limit_status(self, status: int) -> None:
         assert (
-            format_rate_limit_error(RetryError("x"))
+            format_rate_limit_error(make_retry_error(status))
             == "GitHub rate limit: retries exhausted"
+        )
+
+    @pytest.mark.parametrize("status", [500, 502, 503])
+    def test_retry_error_on_server_error_returns_none(self, status: int) -> None:
+        assert format_rate_limit_error(make_retry_error(status)) is None
+
+    def test_retry_error_without_status_is_neutral(self) -> None:
+        assert format_rate_limit_error(RetryError("x")) == (
+            "GitHub request failed: retries exhausted (rate limit or server error)"
         )
 
 

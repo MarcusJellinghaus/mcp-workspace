@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from github import GithubException
-from requests.exceptions import RetryError
 
 from mcp_workspace.github_operations.base_manager import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import IssueManager
@@ -21,6 +20,7 @@ from mcp_workspace.server import (
 from mcp_workspace.server_reference_tools import set_reference_projects
 
 from ._issue_test_helpers import make_mock_issue
+from .conftest import make_retry_error
 
 _URL = "https://github.com/test/repo/issues/3"
 _DUPLICATE = (
@@ -70,7 +70,7 @@ def _retry_exhausted_manager() -> IssueManager:
     """Build a real IssueManager whose repository lookup exhausts its retries."""
     manager = IssueManager(repo_url="https://github.com/test/repo", github_token="t")
     client = Mock()
-    client.get_repo.side_effect = RetryError("x")
+    client.get_repo.side_effect = make_retry_error(403)
     manager._cached_github_client = client
     return manager
 

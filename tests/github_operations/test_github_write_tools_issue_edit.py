@@ -14,7 +14,6 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from github import GithubException
-from requests.exceptions import RetryError
 
 from mcp_workspace.github_operations.base_manager import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import IssueManager
@@ -23,6 +22,7 @@ from mcp_workspace.github_operations.issues.types import (
     create_empty_issue_data,
 )
 from mcp_workspace.server import github_issue_edit, set_project_dir
+from tests.github_operations.conftest import make_retry_error
 
 
 @pytest.fixture(autouse=True)
@@ -293,7 +293,7 @@ def test_github_issue_edit_retry_error_mid_sequence_warns_and_reports(
     """Exhausted retries after a write landed is a partial write, not a crash."""
     mock_mgr = _make_manager()
     mock_mgr.edit_issue.side_effect = _recording_edit_issue(
-        ["scalars"], error=RetryError("x")
+        ["scalars"], error=make_retry_error(403)
     )
     mock_mgr.get_issue.return_value = _make_issue(title="New title")
     mock_manager_cls.return_value = mock_mgr

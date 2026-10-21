@@ -8,6 +8,8 @@ from unittest.mock import Mock, patch
 
 import git
 import pytest
+from requests.exceptions import RetryError
+from urllib3.exceptions import MaxRetryError, ResponseError
 
 from mcp_workspace import server
 from mcp_workspace.github_operations import CIResultsManager, clear_login_cache
@@ -31,6 +33,12 @@ def setup_server(project_dir: Path) -> Generator[None, None, None]:
     set_project_dir(project_dir)
     yield
     server._project_dir = previous  # pylint: disable=protected-access
+
+
+def make_retry_error(status: int) -> RetryError:
+    """Build the RetryError requests raises once GithubRetry gives up on `status`."""
+    reason = ResponseError(ResponseError.SPECIFIC_ERROR.format(status_code=status))
+    return RetryError(MaxRetryError(None, "/repos/o/r", reason))  # type: ignore[arg-type]
 
 
 @pytest.fixture(autouse=True)

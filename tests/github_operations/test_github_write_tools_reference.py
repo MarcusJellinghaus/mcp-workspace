@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from github import GithubException
-from requests.exceptions import RetryError
 
 from mcp_workspace.github_operations.issues.types import (
     CommentData,
@@ -25,6 +24,7 @@ from mcp_workspace.server import (
     github_subissue_remove,
 )
 from mcp_workspace.server_reference_tools import set_reference_projects
+from tests.github_operations.conftest import make_retry_error
 
 pytestmark = pytest.mark.usefixtures("setup_server")
 
@@ -246,7 +246,7 @@ def test_subissue_rate_limit_names_reference_project(
 ) -> None:
     """A rate limit through _api_error keeps the reference-project suffix."""
     mock_mgr = _make_manager()
-    mock_mgr.list_sub_issues.side_effect = RetryError("x")
+    mock_mgr.list_sub_issues.side_effect = make_retry_error(403)
     mock_manager_cls.return_value = mock_mgr
 
     result = github_subissue_list(parent_number=42, reference_name="sibling")
