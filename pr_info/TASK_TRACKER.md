@@ -59,9 +59,9 @@ See [step_5.md](./steps/step_5.md)
 ### Step 6: Remove `issue_manager` from `detect_base_branch` (no double fetch)
 See [step_6.md](./steps/step_6.md)
 
-- [ ] Implementation: tests (`TestDetectFromIssue` updated) + drop parameter/fetch path, update `collect_branch_status` call
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (`TestDetectFromIssue` updated) + drop parameter/fetch path, update `collect_branch_status` call
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 7: `github_pr_create` default base follows the issue
 See [step_7.md](./steps/step_7.md)

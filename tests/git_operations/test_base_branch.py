@@ -37,7 +37,7 @@ class TestDetectFromIssue:
             locked=False,
             base_branch="develop",
         )
-        result = _detect_from_issue("42-feature", issue_data, None)
+        result = _detect_from_issue(issue_data)
         assert result == "develop"
 
     def test_returns_none_when_issue_data_has_no_base_branch(self) -> None:
@@ -55,66 +55,12 @@ class TestDetectFromIssue:
             url="",
             locked=False,
         )
-        result = _detect_from_issue("42-feature", issue_data, None)
+        result = _detect_from_issue(issue_data)
         assert result is None
 
-    def test_fetches_issue_via_manager_when_no_issue_data(self) -> None:
-        """If no issue_data but issue_manager provided, fetch via branch number."""
-        mock_manager = MagicMock()
-        mock_manager.get_issue.return_value = {
-            "number": 42,
-            "title": "test",
-            "body": "",
-            "state": "open",
-            "labels": [],
-            "assignees": [],
-            "user": None,
-            "created_at": None,
-            "updated_at": None,
-            "url": "",
-            "locked": False,
-            "base_branch": "feature/parent",
-        }
-        result = _detect_from_issue("42-feature-name", None, mock_manager)
-        assert result == "feature/parent"
-        mock_manager.get_issue.assert_called_once_with(42)
-
-    def test_returns_none_when_branch_has_no_issue_number(self) -> None:
-        """If branch name doesn't start with issue number, skip."""
-        mock_manager = MagicMock()
-        result = _detect_from_issue("feature-branch", None, mock_manager)
-        assert result is None
-        mock_manager.get_issue.assert_not_called()
-
-    def test_returns_none_when_fetched_issue_is_empty(self) -> None:
-        """If fetched issue has number=0 (empty), return None."""
-        mock_manager = MagicMock()
-        mock_manager.get_issue.return_value = {
-            "number": 0,
-            "title": "",
-            "body": "",
-            "state": "",
-            "labels": [],
-            "assignees": [],
-            "user": None,
-            "created_at": None,
-            "updated_at": None,
-            "url": "",
-            "locked": False,
-        }
-        result = _detect_from_issue("42-feature", None, mock_manager)
-        assert result is None
-
-    def test_returns_none_when_manager_raises_exception(self) -> None:
-        """If issue_manager raises, catch and return None."""
-        mock_manager = MagicMock()
-        mock_manager.get_issue.side_effect = RuntimeError("API error")
-        result = _detect_from_issue("42-feature", None, mock_manager)
-        assert result is None
-
-    def test_returns_none_when_both_none(self) -> None:
-        """If neither issue_data nor issue_manager provided, return None."""
-        result = _detect_from_issue("42-feature", None, None)
+    def test_returns_none_when_issue_data_is_none(self) -> None:
+        """If no issue_data is provided, return None."""
+        result = _detect_from_issue(None)
         assert result is None
 
 

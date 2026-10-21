@@ -501,7 +501,6 @@ def collect_branch_status(
             project_dir,
             current_branch=branch_name,
             issue_data=issue_data,
-            issue_manager=issue_manager,
             pr_manager=pr_manager,
         )
         base_branch = base_branch_result if base_branch_result else "unknown"

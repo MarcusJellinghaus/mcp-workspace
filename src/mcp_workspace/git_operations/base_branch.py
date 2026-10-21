@@ -1,7 +1,9 @@
 """Base branch detection for feature branches.
 
 Detects the base branch using multiple strategies with priority ordering:
-1. Linked issue's base_branch field (explicit user intent)
+1. Linked issue's base_branch field (explicit user intent), read from the
+   caller-supplied ``issue_data``. Callers must check ``base_branch_error``
+   first; a malformed section is not this module's concern.
 2. GitHub PR base branch (if open PR exists for current branch)
 3. Git merge-base (heuristic fallback from git history)
 4. Default branch (main/master)
@@ -12,7 +14,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from mcp_workspace.git_operations.branch_queries import (
-    extract_issue_number_from_branch,
     get_current_branch_name,
     get_default_branch_name,
     remote_branch_exists,
@@ -24,60 +25,26 @@ from mcp_workspace.git_operations.parent_branch_detection import (
 )
 
 if TYPE_CHECKING:
-    from mcp_workspace.github_operations.issues import IssueData, IssueManager
+    from mcp_workspace.github_operations.issues import IssueData
     from mcp_workspace.github_operations.pr_manager import PullRequestManager
 
 logger = logging.getLogger(__name__)
 
 
-def _detect_from_issue(
-    current_branch: str,
-    issue_data: Optional["IssueData"],
-    issue_manager: Optional["IssueManager"],
-) -> Optional[str]:
-    """Try to detect base branch from a linked GitHub issue.
+def _detect_from_issue(issue_data: Optional["IssueData"]) -> Optional[str]:
+    """Try to detect base branch from caller-supplied issue data.
 
     Args:
-        current_branch: Current branch name (used to extract issue number)
         issue_data: Pre-fetched issue data (if available)
-        issue_manager: IssueManager instance for fetching issue data
 
     Returns:
         Base branch name from issue, or None if not found
     """
-    # If issue_data is provided, check its base_branch field
     if issue_data is not None:
         base = issue_data.get("base_branch")
         if base:
             logger.debug("Detected base branch from provided issue_data: '%s'", base)
             return base
-
-    # If issue_manager is provided, try to fetch issue data from branch name
-    if issue_manager is not None:
-        issue_number = extract_issue_number_from_branch(current_branch)
-        if issue_number is not None:
-            logger.debug(
-                "Extracted issue number %d from branch '%s'",
-                issue_number,
-                current_branch,
-            )
-            try:
-                fetched_issue = issue_manager.get_issue(issue_number)
-                if fetched_issue and fetched_issue.get("number", 0) > 0:
-                    base = fetched_issue.get("base_branch")
-                    if base:
-                        logger.debug(
-                            "Detected base branch from issue #%d: '%s'",
-                            issue_number,
-                            base,
-                        )
-                        return base
-            except Exception:  # pylint: disable=broad-exception-caught
-                logger.debug(
-                    "Failed to fetch issue #%d for base branch detection",
-                    issue_number,
-                )
-
     return None
 
 
@@ -194,7 +161,6 @@ def detect_base_branch(
     project_dir: Path,
     current_branch: Optional[str] = None,
     issue_data: Optional["IssueData"] = None,
-    issue_manager: Optional["IssueManager"] = None,
     pr_manager: Optional["PullRequestManager"] = None,
 ) -> Optional[str]:
     """Detect the base branch for the current feature branch.
@@ -209,9 +175,9 @@ def detect_base_branch(
     Args:
         project_dir: Path to git repository
         current_branch: Current branch name (auto-detected if None)
-        issue_data: Pre-fetched issue data (optional)
-        issue_manager: IssueManager instance for fetching issues (optional,
-            skipped if None — avoids upward import from git_operations)
+        issue_data: Pre-fetched issue data (optional); the only source of the
+            issue's base branch. Callers must check ``base_branch_error``
+            before calling — a malformed section is not this function's concern.
         pr_manager: PullRequestManager instance for finding PRs (optional,
             skipped if None — avoids upward import from git_operations)
 
@@ -228,7 +194,7 @@ def detect_base_branch(
     logger.debug("Detecting base branch for '%s'", current_branch)
 
     # Step 2: Try issue base_branch
-    result = _detect_from_issue(current_branch, issue_data, issue_manager)
+    result = _detect_from_issue(issue_data)
     if result is not None:
         return result
 
