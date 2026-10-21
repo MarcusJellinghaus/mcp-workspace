@@ -129,11 +129,9 @@ def origin_has_branch(project_dir: Path, branch_name: str) -> bool:
 
     Returns:
         True if origin lists the branch, False if origin answered and the
-        branch is absent.
-
-    Raises:
-        Exception: Whatever GitPython raises when origin cannot be reached or
-            authentication fails (callers distinguish "gone" from "unknown").
+        branch is absent. GitPython errors (origin unreachable, authentication
+        failure) propagate unchanged so callers can distinguish "gone" from
+        "unknown".
     """
     with safe_repo_context(project_dir) as repo:
         # The full ref, not the bare name: 'feature-A' would also match an
