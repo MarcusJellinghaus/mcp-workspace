@@ -197,3 +197,5 @@ _.fixture_current  # name="current"
 # Autouse fixtures for issue #321 base-branch tests (referenced by pytest collection only)
 _._reset_malformed_base_branch_warnings
 _.origin_has_base
+# Fixture for issue #338 unstable re-check tests, reached through its name= alias
+_.fixture_env  # name="env"
