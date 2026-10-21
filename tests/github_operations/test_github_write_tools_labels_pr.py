@@ -217,21 +217,30 @@ def _wire_manager(
     return manager
 
 
-@patch("mcp_workspace.git_operations.get_default_branch_name")
+@patch("mcp_workspace.server._resolve_base_branch")
 @patch("mcp_workspace.git_operations.get_current_branch_name")
 @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
 class TestGithubPrCreate:
     """Tests for the ``github_pr_create`` MCP tool."""
 
+    @pytest.fixture(autouse=True)
+    def origin_has_base(self) -> Generator[MagicMock, None, None]:
+        """Every resolved base exists on origin unless a test says otherwise."""
+        with patch(
+            "mcp_workspace.git_operations.base_branch.origin_has_branch",
+            return_value=True,
+        ) as mock_origin:
+            yield mock_origin
+
     def test_creates_pull_request(
         self,
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
-        mock_default: MagicMock,
+        mock_resolve: MagicMock,
     ) -> None:
         """A valid request reports the new PR number and URL."""
         mock_current.return_value = "feature/x"
-        mock_default.return_value = "main"
+        mock_resolve.return_value = ("main", None)
         manager = _wire_manager(mock_manager_cls)
 
         result = github_pr_create(title="Add feature", body="Body text")
@@ -248,11 +257,11 @@ class TestGithubPrCreate:
         self,
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
-        mock_default: MagicMock,
+        mock_resolve: MagicMock,
     ) -> None:
         """Without ``head`` the current branch is resolved and used."""
         mock_current.return_value = "feature/x"
-        mock_default.return_value = "main"
+        mock_resolve.return_value = ("main", None)
         manager = _wire_manager(mock_manager_cls)
 
         github_pr_create(title="Add feature", base="develop")
@@ -262,27 +271,28 @@ class TestGithubPrCreate:
             manager.create_pull_request.call_args.kwargs["head_branch"] == "feature/x"
         )
 
-    def test_base_omitted_uses_default_branch(
+    def test_base_omitted_is_resolved_for_head(
         self,
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
-        mock_default: MagicMock,
+        mock_resolve: MagicMock,
     ) -> None:
-        """Without ``base`` the repository default branch is resolved and used."""
+        """Without ``base`` the base is resolved for ``head`` and used."""
         mock_current.return_value = "feature/x"
-        mock_default.return_value = "main"
+        mock_resolve.return_value = ("main", None)
         manager = _wire_manager(mock_manager_cls)
 
         github_pr_create(title="Add feature", head="feature/y")
 
-        mock_default.assert_called_once()
+        mock_resolve.assert_called_once()
+        assert mock_resolve.call_args.args[1] == "feature/y"
         assert manager.create_pull_request.call_args.kwargs["base_branch"] == "main"
 
     def test_both_branches_supplied_skips_resolvers(
         self,
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
-        mock_default: MagicMock,
+        mock_resolve: MagicMock,
     ) -> None:
         """Explicit branches are used verbatim; neither resolver is called."""
         manager = _wire_manager(mock_manager_cls)
@@ -291,7 +301,7 @@ class TestGithubPrCreate:
 
         assert result.startswith("Created PR #7")
         mock_current.assert_not_called()
-        mock_default.assert_not_called()
+        mock_resolve.assert_not_called()
         manager.create_pull_request.assert_called_once_with(
             title="Add feature",
             head_branch="feature/y",
@@ -304,7 +314,7 @@ class TestGithubPrCreate:
         self,
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
-        mock_default: MagicMock,
+        mock_resolve: MagicMock,
         title: str,
     ) -> None:
         """An empty or whitespace-only title errors without writing."""
@@ -319,11 +329,11 @@ class TestGithubPrCreate:
         self,
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
-        mock_default: MagicMock,
+        mock_resolve: MagicMock,
     ) -> None:
         """A PR from a branch to itself errors and names the branch."""
         mock_current.return_value = "main"
-        mock_default.return_value = "main"
+        mock_resolve.return_value = ("main", None)
         manager = _wire_manager(mock_manager_cls)
 
         result = github_pr_create(title="Add feature")
@@ -336,7 +346,7 @@ class TestGithubPrCreate:
         self,
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
-        mock_default: MagicMock,
+        mock_resolve: MagicMock,
     ) -> None:
         """The library validator rejects a bad branch name before any write."""
         manager = _wire_manager(mock_manager_cls)
@@ -353,7 +363,7 @@ class TestGithubPrCreate:
         self,
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
-        mock_default: MagicMock,
+        mock_resolve: MagicMock,
     ) -> None:
         """The same validator also guards the base branch."""
         manager = _wire_manager(mock_manager_cls)
@@ -372,7 +382,7 @@ class TestGithubPrCreate:
         self,
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
-        mock_default: MagicMock,
+        mock_resolve: MagicMock,
     ) -> None:
         """Ordinary branch names survive the real rules, so the guard is not blanket."""
         manager = _wire_manager(mock_manager_cls)
@@ -389,11 +399,11 @@ class TestGithubPrCreate:
         self,
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
-        mock_default: MagicMock,
+        mock_resolve: MagicMock,
     ) -> None:
         """An unresolvable current branch errors instead of guessing."""
         mock_current.return_value = None
-        mock_default.return_value = "main"
+        mock_resolve.return_value = ("main", None)
         manager = _wire_manager(mock_manager_cls)
 
         result = github_pr_create(title="Add feature")
@@ -401,15 +411,15 @@ class TestGithubPrCreate:
         assert result.startswith("Error:")
         manager.create_pull_request.assert_not_called()
 
-    def test_unresolvable_default_branch(
+    def test_unresolvable_base_branch(
         self,
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
-        mock_default: MagicMock,
+        mock_resolve: MagicMock,
     ) -> None:
-        """An unresolvable default branch errors instead of assuming 'main'."""
+        """An unresolvable base branch errors instead of assuming 'main'."""
         mock_current.return_value = "feature/x"
-        mock_default.return_value = None
+        mock_resolve.return_value = (None, None)
         manager = _wire_manager(mock_manager_cls)
 
         result = github_pr_create(title="Add feature")
@@ -421,11 +431,11 @@ class TestGithubPrCreate:
         self,
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
-        mock_default: MagicMock,
+        mock_resolve: MagicMock,
     ) -> None:
         """The library's empty-dict failure sentinel reads as an error."""
         mock_current.return_value = "feature/x"
-        mock_default.return_value = "main"
+        mock_resolve.return_value = ("main", None)
         _wire_manager(mock_manager_cls, pr={})
 
         result = github_pr_create(title="Add feature")
@@ -437,7 +447,7 @@ class TestGithubPrCreate:
         self,
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
-        mock_default: MagicMock,
+        mock_resolve: MagicMock,
     ) -> None:
         """A ValueError from the manager constructor surfaces as an error string."""
         mock_manager_cls.side_effect = ValueError("project_dir is required")

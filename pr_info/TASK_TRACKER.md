@@ -66,9 +66,9 @@ See [step_6.md](./steps/step_6.md)
 ### Step 7: `github_pr_create` default base follows the issue
 See [step_7.md](./steps/step_7.md)
 
-- [ ] Implementation: tests (`test_github_pr_create_base.py`, `TestGithubPrCreate` patches) + resolve omitted `base` via `_resolve_base_branch`, verify with `origin_has_branch`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (`test_github_pr_create_base.py`, `TestGithubPrCreate` patches) + resolve omitted `base` via `_resolve_base_branch`, verify with `origin_has_branch`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 8: Tri-state `rebase_needed`; rebase recommendation names the detected base
 See [step_8.md](./steps/step_8.md)

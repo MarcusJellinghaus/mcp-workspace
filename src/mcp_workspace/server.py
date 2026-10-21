@@ -1806,16 +1806,21 @@ def github_pr_create(
         title: Pull request title (required, cannot be empty)
         body: Pull request description in Markdown (default: empty)
         head: Source branch (default: the currently checked-out branch)
-        base: Target branch (default: the repository's default branch)
+        base: Target branch (default: resolved for head — the issue's Base
+            Branch, an open PR's base, the merge-base parent, or the default
+            branch — and verified on origin)
 
     Returns:
-        "Created PR #<number> — <url>", or error message string.
+        "Created PR #<number> — <url>", or an error message string. When base
+        is omitted, these errors are returned without creating anything:
+        "Error: issue #N: <sentence>" (malformed Base Branch section),
+        "Error: could not determine base branch for <head>",
+        "Error: base branch '<base>' not found on origin",
+        "Error: could not verify base branch '<base>' on origin: <cause>".
     """
     # Lazy imports: keep PyGithub/GitPython off the server startup import path
-    from mcp_workspace.git_operations import (
-        get_current_branch_name,
-        get_default_branch_name,
-    )
+    from mcp_workspace.git_operations import get_current_branch_name
+    from mcp_workspace.git_operations.base_branch import origin_has_branch
     from mcp_workspace.github_operations.pr_manager import PullRequestManager
 
     try:
@@ -1826,11 +1831,20 @@ def github_pr_create(
         # The constructor rejects a missing project_dir, so it is a Path by now
         project_dir = cast(Path, _project_dir)
         head = head or get_current_branch_name(project_dir)
-        base = base or get_default_branch_name(project_dir)
         if not head:
             return "Error: could not determine the current branch for head"
         if not base:
-            return "Error: could not determine the repository default branch for base"
+            base, error = _resolve_base_branch(project_dir, head, manager)
+            if error:
+                return error
+            if not base:
+                return f"Error: could not determine base branch for {head}"
+            try:
+                exists = origin_has_branch(project_dir, base)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                return f"Error: could not verify base branch '{base}' on origin: {e}"
+            if not exists:
+                return f"Error: base branch '{base}' not found on origin"
         if head == base:
             return f"Error: head and base are the same branch ({head})"
         for name in (head, base):
