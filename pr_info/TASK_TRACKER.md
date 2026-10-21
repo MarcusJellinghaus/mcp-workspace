@@ -24,9 +24,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ### Step 1: `format_rate_limit_error` and extra diagnostic headers
 See [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: tests in `test_diagnostics.py`, then `format_rate_limit_error` + `X-RateLimit-Reset/-Used/-Resource` headers in `_diagnostics.py`
-- [ ] Quality checks: pylint, pytest, mypy, lint-imports — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests in `test_diagnostics.py`, then `format_rate_limit_error` + `X-RateLimit-Reset/-Used/-Resource` headers in `_diagnostics.py`
+- [x] Quality checks: pylint, pytest, mypy, lint-imports — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: Fail-fast rate-limit cap
 See [step_2.md](./steps/step_2.md)

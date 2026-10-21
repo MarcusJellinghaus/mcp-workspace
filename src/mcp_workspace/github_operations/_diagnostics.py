@@ -3,16 +3,20 @@
 Covers both `GithubException` objects and raw response bodies. Used by
 failure-path DEBUG logging across the `github_operations` package to produce
 consistent, allow-listed header dumps without leaking secrets or proxy noise,
-and to pull human-readable reasons out of GraphQL error payloads. This module
-is intentionally private to the package and is not re-exported via
-`github_operations/__init__.py`.
+to pull human-readable reasons out of GraphQL error payloads, and to recognise
+and describe GitHub rate-limit failures. This module is intentionally private
+to the package and is not re-exported via `github_operations/__init__.py`.
 """
 
 from __future__ import annotations
 
+import math
+import time
+from datetime import datetime, timezone
 from typing import Any
 
-from github.GithubException import GithubException
+from github.GithubException import GithubException, RateLimitExceededException
+from requests.exceptions import RetryError
 
 DIAGNOSTIC_HEADERS: frozenset[str] = frozenset(
     {
@@ -22,6 +26,9 @@ DIAGNOSTIC_HEADERS: frozenset[str] = frozenset(
         "X-GitHub-Request-Id",
         "X-RateLimit-Remaining",
         "X-RateLimit-Limit",
+        "X-RateLimit-Reset",
+        "X-RateLimit-Used",
+        "X-RateLimit-Resource",
         "Date",
     }
 )
@@ -38,6 +45,40 @@ def extract_diagnostic_headers(exc: GithubException) -> dict[str, str]:
         return {}
     allow_lower = {h.lower() for h in DIAGNOSTIC_HEADERS}
     return {k: v for k, v in headers.items() if k.lower() in allow_lower}
+
+
+def format_rate_limit_error(exc: BaseException) -> str | None:
+    """Describe a GitHub rate-limit failure, or return None for any other error.
+
+    A `RetryError` means urllib3 gave up retrying (GitHub's retry policy only
+    retries rate-limit and server responses). A `GithubException` counts as a
+    rate limit when it is a `RateLimitExceededException`, has status 429, or
+    reports `X-RateLimit-Remaining: 0`. Header lookup is case-insensitive.
+    """
+    if isinstance(exc, RetryError):
+        return "GitHub rate limit: retries exhausted"
+    if not isinstance(exc, GithubException):
+        return None
+    headers = {k.lower(): v for k, v in (exc.headers or {}).items()}
+    if not (
+        isinstance(exc, RateLimitExceededException)
+        or exc.status == 429
+        or headers.get("x-ratelimit-remaining") == "0"
+    ):
+        return None
+    resource = headers.get("x-ratelimit-resource")
+    msg = (
+        f"GitHub `{resource}` rate limit exhausted"
+        if resource
+        else "GitHub rate limit exhausted"
+    )
+    reset = headers.get("x-ratelimit-reset")
+    if reset and reset.isdigit():
+        reset_epoch = int(reset)
+        reset_at = datetime.fromtimestamp(reset_epoch, tz=timezone.utc)
+        minutes = max(0, math.ceil((reset_epoch - time.time()) / 60))
+        msg += f"; resets at {reset_at:%H:%M} UTC (in {minutes} min)"
+    return msg
 
 
 def _usable_str(value: Any) -> str | None:
