@@ -91,6 +91,7 @@ class TestGenerateRecommendations:
             {
                 "ci_status": CIStatus.PASSED,
                 "rebase_needed": True,
+                "base_branch": "main",
                 "tasks_status": TaskTrackerStatus.COMPLETE,
                 "tasks_reason": "All done",
                 "tasks_is_blocking": False,
@@ -117,6 +118,7 @@ class TestGenerateRecommendations:
             {
                 "ci_status": CIStatus.PASSED,
                 "rebase_needed": True,
+                "base_branch": "master",
                 "tasks_status": TaskTrackerStatus.COMPLETE,
                 "tasks_reason": "All done",
                 "tasks_is_blocking": False,

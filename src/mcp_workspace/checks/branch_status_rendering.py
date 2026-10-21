@@ -101,8 +101,12 @@ def format_report_for_human(
     }
     ci_icon = ci_icon_map.get(report.ci_status, "❓")
 
-    rebase_icon = "✅" if not report.rebase_needed else "⚠️"
-    rebase_status_text = "UP TO DATE" if not report.rebase_needed else "BEHIND"
+    if report.rebase_needed is None:
+        rebase_icon, rebase_status_text = "❓", "UNKNOWN"
+    elif report.rebase_needed:
+        rebase_icon, rebase_status_text = "⚠️", "BEHIND"
+    else:
+        rebase_icon, rebase_status_text = "✅", "UP TO DATE"
 
     tasks_icon_map = {
         TaskTrackerStatus.COMPLETE: "✅",
@@ -221,7 +225,12 @@ def format_report_for_llm(
         Compact formatted string optimized for LLM context windows.
     """
     # Convert rebase_needed to status string
-    rebase_status = "BEHIND" if report.rebase_needed else "UP_TO_DATE"
+    if report.rebase_needed is None:
+        rebase_status = "UNKNOWN"
+    elif report.rebase_needed:
+        rebase_status = "BEHIND"
+    else:
+        rebase_status = "UP_TO_DATE"
 
     # Build status summary line
     status_summary = (

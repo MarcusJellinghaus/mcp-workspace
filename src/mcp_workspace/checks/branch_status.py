@@ -74,7 +74,7 @@ class BranchStatusReport:
     base_branch: str
     ci_status: CIStatus
     ci_details: Optional[str]
-    rebase_needed: bool
+    rebase_needed: Optional[bool]  # None = UNKNOWN (rebase check skipped)
     rebase_reason: str
     tasks_status: TaskTrackerStatus
     tasks_reason: str
@@ -338,17 +338,19 @@ def _collect_linked_branch_status(
 
 
 def _apply_pr_merge_override(
-    rebase_needed: bool,
+    rebase_needed: Optional[bool],
     rebase_reason: str,
     pr_mergeable: Optional[bool],
-) -> tuple[bool, str]:
+) -> tuple[Optional[bool], str]:
     """Override rebase status when PR is mergeable on GitHub.
 
     When the branch is behind but GitHub confirms the PR is mergeable
-    (e.g. squash-merge), the local rebase check is overridden.
+    (e.g. squash-merge), the local rebase check is overridden. An UNKNOWN
+    (``None``) rebase state passes through unchanged.
 
     Args:
-        rebase_needed: Whether local git says rebase is needed.
+        rebase_needed: Whether local git says rebase is needed; ``None`` if
+            the rebase check was skipped.
         rebase_reason: Human-readable reason from local check.
         pr_mergeable: GitHub's mergeable status (True/False/None).
 
@@ -410,9 +412,12 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
     elif tasks_status == TaskTrackerStatus.ERROR:
         recommendations.append(f"Fix task tracker error: {tasks_reason}")
 
-    if rebase_needed and tasks_ok and ci_status != CIStatus.FAILED:
-        action = "Pull" if is_default_branch else "Rebase onto"
-        recommendations.append(f"{action} origin/{default_branch_name}")
+    if rebase_needed is True and tasks_ok and ci_status != CIStatus.FAILED:
+        if is_default_branch:
+            recommendations.append(f"Pull origin/{default_branch_name}")
+        else:
+            base = report_data.get("base_branch") or default_branch_name
+            recommendations.append(f"Rebase onto origin/{base}")
 
     if pr_blocks:
         recommendations.append("Address review comments")
@@ -427,7 +432,7 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
         and tasks_ok
         and not pr_blocks
         and not merge_state_blocked
-        and not rebase_needed
+        and rebase_needed is False
         and not linked_branch_blocking
     ):
         if pr_mergeable is True:
@@ -519,6 +524,7 @@ def collect_branch_status(
         )
 
         # 6. Check rebase status
+        rebase_needed: Optional[bool]
         rebase_needed, rebase_reason = _collect_rebase_status(project_dir, base_branch)
 
         # 7. Check task tracker
@@ -563,6 +569,9 @@ def collect_branch_status(
             "ci_details": ci_details,
             "ci_failing_job_names": ci_failing_job_names,
             "rebase_needed": rebase_needed,
+            # Raw detection result: None lets the default-branch fallback
+            # fire instead of naming origin/unknown.
+            "base_branch": base_branch_result,
             "tasks_status": tasks_status,
             "tasks_reason": tasks_reason,
             "tasks_is_blocking": tasks_is_blocking,

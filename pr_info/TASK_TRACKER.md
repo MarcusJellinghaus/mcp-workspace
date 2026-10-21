@@ -73,9 +73,9 @@ See [step_7.md](./steps/step_7.md)
 ### Step 8: Tri-state `rebase_needed`; rebase recommendation names the detected base
 See [step_8.md](./steps/step_8.md)
 
-- [ ] Implementation: tests (`test_branch_status_base_branch.py`, recommendations tests) + `Optional[bool]` rebase state, UNKNOWN rendering, `Rebase onto origin/<base>`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (`test_branch_status_base_branch.py`, recommendations tests) + `Optional[bool]` rebase state, UNKNOWN rendering, `Rebase onto origin/<base>`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 9: Malformed Base Branch in `check_branch_status` (+ Review Gate)
 See [step_9.md](./steps/step_9.md)
