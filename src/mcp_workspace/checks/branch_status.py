@@ -6,6 +6,7 @@ check_branch_status MCP tool.
 """
 
 import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -67,6 +68,9 @@ EMPTY_RECOMMENDATIONS: List[str] = []
 _LINKED_BRANCH_BLOCKS_KEY = "linked_branch_blocks"
 
 _BLOCKING_MERGE_STATES: frozenset[str] = frozenset({"unstable", "blocked", "dirty"})
+
+# GitHub computes mergeable_state lazily; one re-read after this delay.
+_UNSTABLE_REREAD_DELAY_SECONDS = 5.0
 
 
 @dataclass(frozen=True)
@@ -352,6 +356,50 @@ def _collect_linked_branch_status(
     return (LinkedBranchStatus.MISMATCH, (), issue_number, None)
 
 
+def _recheck_unstable(
+    pr_manager: Optional[PullRequestManager],
+    ci_status: CIStatus,
+    pr_number: Optional[int],
+    pr_mergeable: Optional[bool],
+    pr_mergeable_state: Optional[str],
+) -> tuple[Optional[bool], Optional[str], Optional[tuple[str, ...]], Optional[str]]:
+    """Re-read a possibly stale ``unstable`` once, then look up non-green checks.
+
+    Runs only when CI is PASSED or NOT_CONFIGURED and the state is
+    ``unstable``. A re-read is accepted only if it returns a definite state
+    (a non-empty string other than ``unknown``), so it can never turn
+    ``unstable`` into ``Ready to merge`` by accident. Never raises.
+
+    Returns:
+        Tuple of (pr_mergeable, pr_mergeable_state, non_green_checks,
+        non_green_checks_error). The last two are None when the lookup did
+        not run.
+    """
+    if (
+        pr_manager is None
+        or pr_number is None
+        or pr_mergeable_state != "unstable"
+        or ci_status not in (CIStatus.PASSED, CIStatus.NOT_CONFIGURED)
+    ):
+        return pr_mergeable, pr_mergeable_state, None, None
+    time.sleep(_UNSTABLE_REREAD_DELAY_SECONDS)
+    head_sha: Optional[str] = None
+    try:
+        pr = pr_manager.get_pull_request(pr_number)
+        sha = pr.get("head_sha")
+        head_sha = sha if isinstance(sha, str) else None
+        state = pr.get("mergeable_state")
+        if isinstance(state, str) and state and state != "unknown":
+            pr_mergeable, pr_mergeable_state = pr.get("mergeable"), state
+    except Exception:  # pylint: disable=broad-exception-caught
+        # Every error keeps "unstable".
+        logger.debug("PR re-read failed", exc_info=True)
+    if pr_mergeable_state != "unstable":
+        return pr_mergeable, pr_mergeable_state, None, None
+    names, error = pr_manager.get_non_green_checks(pr_number, head_sha)
+    return pr_mergeable, pr_mergeable_state, names, error
+
+
 def _apply_pr_merge_override(
     rebase_needed: Optional[bool],
     rebase_reason: str,
@@ -611,6 +659,13 @@ def collect_branch_status(
             else (None, None, None, None, None)
         )
 
+        # 9b. Re-read a possibly stale "unstable" and look up non-green checks
+        pr_mergeable, pr_mergeable_state, non_green_checks, non_green_checks_error = (
+            _recheck_unstable(
+                pr_manager, ci_status, pr_number, pr_mergeable, pr_mergeable_state
+            )
+        )
+
         # 10. Apply PR merge override
         rebase_needed, rebase_reason = _apply_pr_merge_override(
             rebase_needed, rebase_reason, pr_mergeable if pr_found else None
@@ -647,6 +702,8 @@ def collect_branch_status(
             "tasks_is_blocking": tasks_is_blocking,
             "pr_mergeable": pr_mergeable,
             "pr_mergeable_state": pr_mergeable_state,
+            "non_green_checks": non_green_checks,
+            "non_green_checks_error": non_green_checks_error,
             "pr_feedback_blocks_merge": pr_feedback_blocks_merge,
             "is_default_branch": branch_name == default_branch_name,
             "default_branch_name": default_branch_name,
@@ -680,6 +737,8 @@ def collect_branch_status(
             last_automated_note=last_automated_note,
             closing_pr_candidate=closing_pr_candidate,
             base_branch_error=base_branch_error,
+            non_green_checks=non_green_checks,
+            non_green_checks_error=non_green_checks_error,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error collecting branch status: {e}")

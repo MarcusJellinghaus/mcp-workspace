@@ -42,9 +42,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 5: Re-read `unstable` once, then look up checks, in `collect_branch_status` — [step_5.md](./steps/step_5.md)
-- [ ] Implementation: `tests/checks/test_branch_status_unstable_recheck.py` + `_recheck_unstable` + step 9b wiring + report fields passed through (`branch_status.py` ≤ 750 lines)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `tests/checks/test_branch_status_unstable_recheck.py` + `_recheck_unstable` + step 9b wiring + report fields passed through (`branch_status.py` ≤ 750 lines)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 - [ ] PR review: review full branch diff against `main`, address findings
