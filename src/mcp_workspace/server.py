@@ -1499,7 +1499,15 @@ def _api_error(exc: Exception, reference_name: Optional[str]) -> str:
 
 
 def _tool_error(e: Exception) -> str:
-    """Render a tool failure, naming bucket and reset time for a rate limit."""
+    """Render a tool failure as a user-facing error string.
+
+    Args:
+        e: The exception raised by the tool.
+
+    Returns:
+        The error string shown to the user; for rate limits it names the
+        bucket and reset time.
+    """
     # Lazy import: keeps PyGithub off the server startup import path
     from mcp_workspace.github_operations import format_rate_limit_error
 

@@ -362,7 +362,8 @@ class BaseGitHubManager:
             Repository object if successful, None otherwise
 
         Raises:
-            GithubException, RetryError: Rate-limit errors propagate to the caller.
+            GithubException: Rate-limit errors (and urllib3 RetryError)
+                propagate to the caller.
 
         Note:
             The repository object is cached after the first successful retrieval

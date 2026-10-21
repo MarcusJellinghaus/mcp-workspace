@@ -55,6 +55,10 @@ def format_rate_limit_error(exc: BaseException) -> str | None:
     retries rate-limit and server responses). A `GithubException` counts as a
     rate limit when it is a `RateLimitExceededException`, has status 429, or
     reports `X-RateLimit-Remaining: 0`. Header lookup is case-insensitive.
+
+    Returns:
+        A message describing the rate limit, or None if the exception is not
+        a rate-limit error.
     """
     if isinstance(exc, RetryError):
         return "GitHub rate limit: retries exhausted"
