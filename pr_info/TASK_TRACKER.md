@@ -31,9 +31,9 @@ See [step_1.md](./steps/step_1.md)
 ### Step 2: Shared message helper `format_malformed_base_branch`
 See [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: tests (helper sentence, fenced heading accepted on write) + helper in `issues/base.py`, `_check_base_branch` uses it
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (helper sentence, fenced heading accepted on write) + helper in `issues/base.py`, `_check_base_branch` uses it
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: `IssueData.base_branch_error` + log-once in the manager
 See [step_3.md](./steps/step_3.md)

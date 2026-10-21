@@ -24,6 +24,7 @@ __all__ = [
     "validate_comment_id",
     "parse_base_branch",
     "MalformedBaseBranchError",
+    "format_malformed_base_branch",
 ]
 
 
@@ -35,6 +36,23 @@ class MalformedBaseBranchError(ValueError):
         super().__init__(
             f"Base branch section contains multiple lines (malformed): {content!r}"
         )
+
+
+def format_malformed_base_branch(error: MalformedBaseBranchError) -> str:
+    """Return the ready-to-show sentence for a malformed Base Branch section.
+
+    Args:
+        error: The error raised by parse_base_branch
+
+    Returns:
+        The bare sentence naming the problem, the fix, and the section's first
+        line; callers add their own prefix (e.g. ``Error:``).
+    """
+    first_line = error.content.splitlines()[0]
+    return (
+        "`### Base Branch` must contain only the branch name on one line; "
+        f"move other text to another section. First line: {first_line!r}"
+    )
 
 
 def validate_issue_number(issue_number: int) -> bool:

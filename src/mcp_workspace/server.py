@@ -178,18 +178,14 @@ def _check_base_branch(body: Optional[str]) -> Optional[str]:
     # Lazy import: keeps PyGithub off the server startup import path
     from mcp_workspace.github_operations.issues.base import (
         MalformedBaseBranchError,
+        format_malformed_base_branch,
         parse_base_branch,
     )
 
     try:
         parse_base_branch(body or "")
     except MalformedBaseBranchError as exc:
-        first_line = exc.content.splitlines()[0]
-        return (
-            "Error: `### Base Branch` must contain only the branch name on "
-            "one line; move other text to another section. First line: "
-            f"{first_line!r}"
-        )
+        return f"Error: {format_malformed_base_branch(exc)}"
     return None
 
 

@@ -107,6 +107,11 @@ class TestCheckBaseBranch:
         """A CRLF single-line Base Branch section returns None."""
         assert _check_base_branch("### Base Branch\r\n\r\nfeature/v2\r\n") is None
 
+    def test_fenced_heading_is_none(self) -> None:
+        """A Base Branch heading quoted only inside a code fence returns None."""
+        body = "### Description\n\n```\n### Base Branch\n\nline1\nline2\n```\n"
+        assert _check_base_branch(body) is None
+
     def test_flag_off_always_none(self) -> None:
         """When the flag is off, even a malformed section returns None."""
         server_module._enforce_base_branch_format = False
