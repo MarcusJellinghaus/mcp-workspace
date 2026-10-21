@@ -8,7 +8,15 @@ import logging
 import re
 from typing import Optional
 
+from markdown_it import MarkdownIt
+
 logger = logging.getLogger(__name__)
+
+_MARKDOWN = MarkdownIt("commonmark")
+_BASE_BRANCH_HEADING = re.compile(r"base\s*branch", re.IGNORECASE)
+# markdown-it's own newline normalisation; str.splitlines() would also split on
+# \x0b, \x0c, U+2028 ... and shift token.map line indices.
+_LINE_BREAK = re.compile(r"\r\n|\r|\n")
 
 __all__ = [
     "validate_issue_number",
@@ -16,6 +24,7 @@ __all__ = [
     "validate_comment_id",
     "parse_base_branch",
     "MalformedBaseBranchError",
+    "format_malformed_base_branch",
 ]
 
 
@@ -27,6 +36,23 @@ class MalformedBaseBranchError(ValueError):
         super().__init__(
             f"Base branch section contains multiple lines (malformed): {content!r}"
         )
+
+
+def format_malformed_base_branch(error: MalformedBaseBranchError) -> str:
+    """Return the ready-to-show sentence for a malformed Base Branch section.
+
+    Args:
+        error: The error raised by parse_base_branch
+
+    Returns:
+        The bare sentence naming the problem, the fix, and the section's first
+        line; callers add their own prefix (e.g. ``Error:``).
+    """
+    first_line = error.content.splitlines()[0]
+    return (
+        "`### Base Branch` must contain only the branch name on one line; "
+        f"move other text to another section. First line: {first_line!r}"
+    )
 
 
 def validate_issue_number(issue_number: int) -> bool:
@@ -84,8 +110,10 @@ def validate_comment_id(comment_id: int) -> bool:
 def parse_base_branch(body: str) -> Optional[str]:
     r"""Parse base branch from issue body.
 
-    Looks for a markdown heading (any level) containing "Base Branch" (case-insensitive)
-    and extracts the content until the next heading.
+    Looks for a top-level ATX heading (``#`` to ``######``) reading "Base Branch"
+    (case-insensitive) and extracts the raw content until the next top-level ATX
+    heading of any level. Headings inside fenced code blocks, blockquotes, list
+    items or HTML comments are ignored. The first matching section wins.
 
     Args:
         body: GitHub issue body text
@@ -106,21 +134,38 @@ def parse_base_branch(body: str) -> Optional[str]:
     if not body:
         return None
 
-    # Case-insensitive match for any heading level (# to ######) with "Base Branch"
-    # MULTILINE flag for ^ to match line starts, DOTALL for . to match newlines
-    pattern = r"^#{1,6}\s*base\s*branch\s*\n(.*?)(?=^#{1,6}\s|\Z)"
-    match = re.search(pattern, body, re.MULTILINE | re.DOTALL | re.IGNORECASE)
+    tokens = _MARKDOWN.parse(body)
+    lines = _LINE_BREAK.split(body)
 
-    if not match:
-        return None
+    # Top-level ATX headings only: level 0 excludes blockquotes and list items,
+    # "#" markup excludes setext headings.
+    headings = [
+        (index, token)
+        for index, token in enumerate(tokens)
+        if token.type == "heading_open"
+        and token.level == 0
+        and token.markup.startswith("#")
+    ]
 
-    content = match.group(1).strip()
+    for position, (index, token) in enumerate(headings):
+        if not _BASE_BRANCH_HEADING.fullmatch(tokens[index + 1].content.strip()):
+            continue
+        assert token.map is not None
+        if position + 1 < len(headings):
+            next_map = headings[position + 1][1].map
+            assert next_map is not None
+            end = next_map[0]
+        else:
+            end = len(lines)
+        content = "\n".join(lines[token.map[1] : end]).strip()
 
-    if not content:
-        return None
+        if not content:
+            return None
 
-    # Check for multi-line content (malformed input)
-    if "\n" in content:
-        raise MalformedBaseBranchError(content)
+        # Check for multi-line content (malformed input)
+        if "\n" in content:
+            raise MalformedBaseBranchError(content)
 
-    return content
+        return content
+
+    return None

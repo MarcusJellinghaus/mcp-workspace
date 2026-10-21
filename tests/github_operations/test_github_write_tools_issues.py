@@ -211,6 +211,21 @@ def test_github_issue_create_accepts_empty_base_branch_section(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_create_accepts_fenced_base_branch_heading(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A Base Branch heading quoted only inside a code fence is not a section."""
+    mock_manager_cls.return_value = _make_manager()
+
+    result = github_issue_create(
+        title="Test issue",
+        body="### Description\n\n```\n### Base Branch\n\nline1\nline2\n```\n",
+    )
+
+    assert result.startswith("Created issue")
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_create_rejects_malformed_base_branch_crlf(
     mock_manager_cls: MagicMock,
 ) -> None:

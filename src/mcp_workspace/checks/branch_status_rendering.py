@@ -101,8 +101,12 @@ def format_report_for_human(
     }
     ci_icon = ci_icon_map.get(report.ci_status, "❓")
 
-    rebase_icon = "✅" if not report.rebase_needed else "⚠️"
-    rebase_status_text = "UP TO DATE" if not report.rebase_needed else "BEHIND"
+    if report.rebase_needed is None:
+        rebase_icon, rebase_status_text = "❓", "UNKNOWN"
+    elif report.rebase_needed:
+        rebase_icon, rebase_status_text = "⚠️", "BEHIND"
+    else:
+        rebase_icon, rebase_status_text = "✅", "UP TO DATE"
 
     tasks_icon_map = {
         TaskTrackerStatus.COMPLETE: "✅",
@@ -221,7 +225,12 @@ def format_report_for_llm(
         Compact formatted string optimized for LLM context windows.
     """
     # Convert rebase_needed to status string
-    rebase_status = "BEHIND" if report.rebase_needed else "UP_TO_DATE"
+    if report.rebase_needed is None:
+        rebase_status = "UNKNOWN"
+    elif report.rebase_needed:
+        rebase_status = "BEHIND"
+    else:
+        rebase_status = "UP_TO_DATE"
 
     # Build status summary line
     status_summary = (
@@ -288,12 +297,15 @@ def _review_gate_header(
 
     Pure function of ``report.ci_status``,
     ``report.pr_feedback_blocks_merge``, ``report.pr_feedback_undeterminable``,
-    ``report.linked_branch_status`` and the flag. No token lookup — an
-    undeterminable review state yields the UNKNOWN verdict and takes precedence
-    over the blocked/clean states. This happens when the CI status is
-    undeterminable (``UNAVAILABLE`` for a missing token, ``UNKNOWN`` for a
-    collection failure) or when a blocking-relevant PR-feedback section was
-    unavailable.
+    ``report.base_branch_error``, ``report.linked_branch_status`` and the flag.
+    No token lookup — an undeterminable review state yields the UNKNOWN verdict
+    and takes precedence over the blocked/clean states. This happens when the
+    CI status is undeterminable (``UNAVAILABLE`` for a missing token,
+    ``UNKNOWN`` for a collection failure) or when a blocking-relevant
+    PR-feedback section was unavailable.
+
+    A malformed Base Branch section is checked after those UNKNOWN causes and
+    before the linked branch: without a base there is no rebase verdict.
 
     A blocking linked-branch state is checked after those UNKNOWN causes, so a
     linked-branch ``UNKNOWN`` renders BLOCKED rather than UNKNOWN — every
@@ -313,6 +325,8 @@ def _review_gate_header(
         return "Review Gate: UNKNOWN (no token)"
     if report.ci_status == CIStatus.UNKNOWN or report.pr_feedback_undeterminable:
         return "Review Gate: UNKNOWN (undeterminable)"
+    if report.base_branch_error:
+        return "Review Gate: BLOCKED (base branch)"
     if linked_branch_blocks(report.linked_branch_status):
         return "Review Gate: BLOCKED (linked branch)"
     if report.pr_feedback_blocks_merge:

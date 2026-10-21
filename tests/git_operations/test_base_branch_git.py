@@ -6,7 +6,6 @@ gone. The topology involved is ref state, which mocks cannot express.
 """
 
 from pathlib import Path
-from typing import Optional
 
 import pytest
 from git import Repo
@@ -14,6 +13,7 @@ from git import Repo
 from mcp_workspace.git_operations.base_branch import (
     _detect_from_merge_base,
     detect_base_branch,
+    origin_has_branch,
 )
 
 pytestmark = pytest.mark.git_integration
@@ -81,12 +81,12 @@ def test_default_branch_winner_skips_the_remote_check(
 
     asked: list[str] = []
 
-    def _record(_project_dir: Path, branch_name: str) -> Optional[bool]:
+    def _record(_project_dir: Path, branch_name: str) -> bool:
         asked.append(branch_name)
-        return None
+        return True
 
     monkeypatch.setattr(
-        "mcp_workspace.git_operations.base_branch._origin_still_has_branch", _record
+        "mcp_workspace.git_operations.base_branch.origin_has_branch", _record
     )
 
     # Asserting on _detect_from_merge_base too: only that function returning
@@ -120,3 +120,39 @@ def test_unreachable_origin_keeps_the_winner(
     repo.git.remote("set-url", "origin", str(tmp_path / "gone.git"))
 
     assert detect_base_branch(project_dir, current_branch="feature-B") == "feature-A"
+
+
+def test_origin_has_branch_true_for_pushed_branch(
+    git_repo_with_remote: tuple[Repo, Path, Path],
+) -> None:
+    """origin_has_branch is True for a branch origin lists."""
+    repo, project_dir, _bare_remote_dir = git_repo_with_remote
+
+    _stack_on_feature_a(repo, project_dir)
+
+    assert origin_has_branch(project_dir, "feature-A") is True
+
+
+def test_origin_has_branch_false_for_absent_branch(
+    git_repo_with_remote: tuple[Repo, Path, Path],
+) -> None:
+    """origin_has_branch is False when origin answers without the branch."""
+    repo, project_dir, _bare_remote_dir = git_repo_with_remote
+
+    _stack_on_feature_a(repo, project_dir, push_feature_a=False)
+
+    assert origin_has_branch(project_dir, "feature-A") is False
+
+
+def test_origin_has_branch_raises_when_origin_unreachable(
+    git_repo_with_remote: tuple[Repo, Path, Path],
+    tmp_path: Path,
+) -> None:
+    """An unanswerable origin raises instead of reporting the branch as gone."""
+    repo, project_dir, _bare_remote_dir = git_repo_with_remote
+
+    _stack_on_feature_a(repo, project_dir)
+    repo.git.remote("set-url", "origin", str(tmp_path / "gone.git"))
+
+    with pytest.raises(Exception):
+        origin_has_branch(project_dir, "feature-A")

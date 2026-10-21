@@ -13,6 +13,7 @@ from mcp_workspace.checks.branch_status_ci import _collect_ci_status
 from mcp_workspace.checks.branch_status_rendering import (
     GITHUB_TOKEN_HINT,
     CIStatus,
+    LinkedBranchStatus,
     _review_gate_header,
 )
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
@@ -281,3 +282,27 @@ class TestReviewGateHeader:
                 assert "UNAVAILABLE" not in output
             assert "CI Status: ❓ UNKNOWN" in human
             assert "CI=UNKNOWN" in llm
+
+
+class TestReviewGateBaseBranch:
+    """A malformed Base Branch blocks the gate, after the UNKNOWN causes."""
+
+    def test_base_branch_wins_over_linked_branch(self) -> None:
+        report = replace(
+            _make_report(CIStatus.PASSED),
+            base_branch_error="malformed",
+            linked_branch_status=LinkedBranchStatus.MISMATCH,
+        )
+        assert _review_gate_header(report, True) == "Review Gate: BLOCKED (base branch)"
+
+    def test_ci_unknown_wins_over_base_branch(self) -> None:
+        report = replace(_make_report(CIStatus.UNKNOWN), base_branch_error="malformed")
+        assert (
+            _review_gate_header(report, True) == "Review Gate: UNKNOWN (undeterminable)"
+        )
+
+    def test_ci_unavailable_wins_over_base_branch(self) -> None:
+        report = replace(
+            _make_report(CIStatus.UNAVAILABLE), base_branch_error="malformed"
+        )
+        assert _review_gate_header(report, True) == "Review Gate: UNKNOWN (no token)"

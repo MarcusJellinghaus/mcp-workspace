@@ -6,6 +6,7 @@ import pytest
 
 from mcp_workspace.github_operations.issues.base import (
     MalformedBaseBranchError,
+    format_malformed_base_branch,
     parse_base_branch,
     validate_comment_id,
     validate_issue_number,
@@ -119,3 +120,12 @@ def test_malformed_base_branch_error_carries_content() -> None:
     with pytest.raises(MalformedBaseBranchError) as exc_info:
         parse_base_branch("### Base Branch\n\nline1\nline2\n")
     assert exc_info.value.content == "line1\nline2"
+
+
+def test_format_malformed_base_branch_sentence() -> None:
+    """Test that the helper returns the bare sentence naming the first line."""
+    error = MalformedBaseBranchError("epic/multi-language\nmore")
+    assert format_malformed_base_branch(error) == (
+        "`### Base Branch` must contain only the branch name on one line; "
+        "move other text to another section. First line: 'epic/multi-language'"
+    )

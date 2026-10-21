@@ -120,6 +120,21 @@ def test_github_issue_edit_accepts_empty_base_branch_section(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_edit_accepts_fenced_base_branch_heading(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A Base Branch heading quoted only inside a code fence is not a section."""
+    mock_manager_cls.return_value = _make_manager(issue=_make_issue())
+
+    result = github_issue_edit(
+        number=42,
+        body="### Description\n\n```\n### Base Branch\n\nline1\nline2\n```\n",
+    )
+
+    assert result.startswith("Updated issue")
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_without_body_is_never_blocked(
     mock_manager_cls: MagicMock,
 ) -> None:
