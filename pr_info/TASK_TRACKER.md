@@ -45,9 +45,9 @@ See [step_3.md](./steps/step_3.md)
 ### Step 4: Public `origin_has_branch`
 See [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: tests (`test_base_branch_git.py`) + replace `_origin_still_has_branch`, inline catch in `_detect_from_merge_base`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (`test_base_branch_git.py`) + replace `_origin_still_has_branch`, inline catch in `_detect_from_merge_base`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 5: Server helper `_resolve_base_branch` + `get_base_branch`
 See [step_5.md](./steps/step_5.md)

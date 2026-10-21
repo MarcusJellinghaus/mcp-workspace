@@ -120,30 +120,30 @@ def _detect_from_pr(
 _LS_REMOTE_ENV = {"GIT_TERMINAL_PROMPT": "0"}
 
 
-def _origin_still_has_branch(project_dir: Path, branch_name: str) -> Optional[bool]:
-    """Ask origin whether a branch still exists there.
+def origin_has_branch(project_dir: Path, branch_name: str) -> bool:
+    """Ask origin (git ls-remote, no fetch) whether refs/heads/<branch_name> exists.
 
     Args:
         project_dir: Path to git repository
         branch_name: Branch name to look for (without 'origin/' prefix)
 
     Returns:
-        True if origin still lists the branch, False if origin answered and the
-        branch is gone, None if the question could not be answered.
+        True if origin lists the branch, False if origin answered and the
+        branch is absent.
+
+    Raises:
+        Exception: Whatever GitPython raises when origin cannot be reached or
+            authentication fails (callers distinguish "gone" from "unknown").
     """
-    try:
-        with safe_repo_context(project_dir) as repo:
-            # The full ref, not the bare name: 'feature-A' would also match an
-            # unrelated 'refs/heads/team/feature-A' and mask the deletion.
-            output = str(
-                repo.git.ls_remote(
-                    "--heads", "origin", f"refs/heads/{branch_name}", env=_LS_REMOTE_ENV
-                )
+    with safe_repo_context(project_dir) as repo:
+        # The full ref, not the bare name: 'feature-A' would also match an
+        # unrelated 'refs/heads/team/feature-A' and mask the deletion.
+        output = str(
+            repo.git.ls_remote(
+                "--heads", "origin", f"refs/heads/{branch_name}", env=_LS_REMOTE_ENV
             )
-            return bool(output.strip())
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.debug("Could not ask origin about branch '%s': %s", branch_name, e)
-        return None
+        )
+        return bool(output.strip())
 
 
 def _detect_from_merge_base(
@@ -181,7 +181,12 @@ def _detect_from_merge_base(
     if default is None or default == result:
         return result
 
-    if _origin_still_has_branch(project_dir, result) is False:
+    try:
+        still_there = origin_has_branch(project_dir, result)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.debug("Could not ask origin about branch '%s': %s", result, e)
+        return result
+    if not still_there:
         logger.debug("Discarding merge-base winner '%s': deleted on origin", result)
         return None
     return result
