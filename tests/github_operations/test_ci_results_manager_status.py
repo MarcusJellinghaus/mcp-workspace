@@ -590,18 +590,18 @@ class TestLookupFailedFlag:
 
         assert "lookup_failed" not in result
 
-    def test_lookup_error_set_on_swallowed_429_github_exception(
+    def test_lookup_error_set_on_swallowed_502_github_exception(
         self, mock_repo: Mock, ci_manager: CIResultsManager
     ) -> None:
-        """A swallowed 429 GithubException records status and message."""
+        """A swallowed 502 GithubException records status and message."""
         mock_repo.get_workflow_runs.side_effect = GithubException(
-            429, {"message": "rate limited"}, {}
+            502, {"message": "Bad Gateway"}, {}
         )
 
         result = ci_manager.get_latest_ci_status("main")
 
         assert result.get("lookup_failed") is True
-        assert result["lookup_error"] == "GitHub API error 429: rate limited"
+        assert result["lookup_error"] == "GitHub API error 502: Bad Gateway"
 
     def test_lookup_error_set_on_swallowed_generic_exception(
         self, mock_repo: Mock, ci_manager: CIResultsManager

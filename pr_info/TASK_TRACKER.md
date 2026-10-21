@@ -45,9 +45,9 @@ See [step_3.md](./steps/step_3.md)
 ### Step 4: Rate-limit reporting and re-raise in `base_manager`
 See [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: tests in `test_base_manager.py`, then rate-limit checks in `_handle_github_errors`, `_get_repository`, `get_authenticated_username`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests in `test_base_manager.py`, then rate-limit checks in `_handle_github_errors`, `_get_repository`, `get_authenticated_username`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 5: Server `@me` uses the shared login cache
 See [step_5.md](./steps/step_5.md)

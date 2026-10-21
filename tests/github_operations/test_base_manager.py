@@ -1,12 +1,15 @@
 """Unit tests for BaseGitHubManager error handling decorator."""
 
 import logging
+import time
 from pathlib import Path
+from typing import Callable
 from unittest.mock import Mock, patch
 
 import pytest
 from github import Auth
 from github.GithubException import GithubException
+from requests.exceptions import RetryError
 
 from mcp_workspace.github_operations.base_manager import (
     BaseGitHubManager,
@@ -17,6 +20,36 @@ from mcp_workspace.github_operations.base_manager import (
     get_authenticated_username,
 )
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
+
+
+def _rate_limit_403() -> GithubException:
+    """Build a 403 primary rate-limit error on the `core` resource."""
+    return GithubException(
+        403,
+        {"message": "API rate limit exceeded"},
+        {
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-resource": "core",
+            "x-ratelimit-reset": str(int(time.time()) + 600),
+        },
+    )
+
+
+def _rate_limit_429() -> GithubException:
+    """Build a 429 secondary rate-limit error."""
+    return GithubException(429, {"message": "Too Many Requests"}, {})
+
+
+def _retry_error() -> RetryError:
+    """Build the error urllib3 raises once GithubRetry gives up."""
+    return RetryError("retries exhausted")
+
+
+_RATE_LIMIT_ERRORS: list[Callable[[], BaseException]] = [
+    _rate_limit_403,
+    _rate_limit_429,
+    _retry_error,
+]
 
 
 class TestHandleGitHubErrorsDecorator:
@@ -346,6 +379,38 @@ class TestHandleGitHubErrorsDecorator:
 
         assert function_with_github_error() == {"error": "default"}
         assert function_with_generic_error() == {"error": "default"}
+
+    @pytest.mark.parametrize("make_error", [_rate_limit_429, _retry_error])
+    def test_rate_limit_error_is_reraised(
+        self, make_error: Callable[[], BaseException]
+    ) -> None:
+        """429 and RetryError are re-raised instead of returning the default."""
+        error = make_error()
+        on_error = Mock()
+
+        @_handle_github_errors(default_return={"error": "default"}, on_error=on_error)
+        def rate_limited() -> dict[str, str]:
+            raise error
+
+        with pytest.raises(type(error)):
+            rate_limited()
+        on_error.assert_not_called()
+
+    def test_rate_limit_403_is_reraised_and_logged(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """403 rate limit is re-raised; the ERROR log names the resource."""
+
+        @_handle_github_errors(default_return={"error": "default"})
+        def rate_limited() -> dict[str, str]:
+            raise _rate_limit_403()
+
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(GithubException):
+                rate_limited()
+
+        assert "`core`" in caplog.text
+        assert "rate_limited" in caplog.text
 
 
 class TestBaseGitHubManagerWithProjectDir:
@@ -1724,6 +1789,99 @@ class TestGetAuthenticatedUsernameDebugLogging:
 
         assert raw_token not in caplog.text
         assert "ghp_..._xyz" in caplog.text
+
+
+class TestGetRepositoryRateLimit:
+    """Rate-limit errors propagate from `_get_repository()`; others still return None."""
+
+    @staticmethod
+    def _call_get_repository(error: BaseException) -> object:
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_client = Mock()
+            mock_github_client.get_repo.side_effect = error
+            mock_github_class.return_value = mock_github_client
+            manager = BaseGitHubManager(
+                repo_url="https://github.com/test-owner/test-repo.git"
+            )
+            return manager._get_repository()
+
+    @pytest.mark.parametrize("make_error", _RATE_LIMIT_ERRORS)
+    def test_rate_limit_error_propagates(
+        self, make_error: Callable[[], BaseException]
+    ) -> None:
+        """403 rate limit, 429 and RetryError are raised to the caller."""
+        error = make_error()
+        with pytest.raises(type(error)):
+            self._call_get_repository(error)
+
+    def test_rate_limit_error_logged_with_repository(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The ERROR log carries the rate-limit message and the repository."""
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(GithubException):
+                self._call_get_repository(_rate_limit_403())
+
+        assert "`core` rate limit" in caplog.text
+        assert "test-owner/test-repo" in caplog.text
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            GithubException(404, {"message": "Not Found"}, {}),
+            GithubException(500, {"message": "Internal Server Error"}, {}),
+            ConnectionError(),
+        ],
+    )
+    def test_other_errors_return_none(self, error: BaseException) -> None:
+        """Non-rate-limit errors keep returning None."""
+        assert self._call_get_repository(error) is None
+
+
+class TestGetAuthenticatedUsernameRateLimit:
+    """Rate-limit errors in `get_authenticated_username()` raise a rate-limit ValueError."""
+
+    @staticmethod
+    def _call(error: BaseException) -> str:
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+            patch(
+                "mcp_workspace.github_operations._client.Github"
+            ) as mock_github_class,
+        ):
+            mock_github_client = Mock()
+            mock_github_client.get_user.side_effect = error
+            mock_github_class.return_value = mock_github_client
+            return get_authenticated_username()
+
+    def test_403_rate_limit_raises_rate_limit_value_error(self) -> None:
+        """403 rate limit -> ValueError naming the resource, not an auth failure."""
+        with pytest.raises(ValueError) as exc_info:
+            self._call(_rate_limit_403())
+
+        assert "`core` rate limit" in str(exc_info.value)
+        assert "Failed to authenticate" not in str(exc_info.value)
+
+    def test_retry_error_raises_rate_limit_value_error(self) -> None:
+        """RetryError -> ValueError saying retries were exhausted."""
+        with pytest.raises(ValueError, match="rate limit: retries exhausted"):
+            self._call(_retry_error())
+
+    def test_401_still_reports_authentication_failure(self) -> None:
+        """401 keeps the authentication failure message."""
+        with pytest.raises(ValueError, match="Failed to authenticate with GitHub"):
+            self._call(GithubException(401, {"message": "Bad credentials"}, {}))
 
 
 class TestGetIssueChecked:

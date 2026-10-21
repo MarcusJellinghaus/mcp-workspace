@@ -20,7 +20,10 @@ from mcp_coder_utils.user_app_data import get_user_app_data_dir
 from mcp_workspace import git_operations
 from mcp_workspace.config import get_github_token
 from mcp_workspace.github_operations._client import build_github_client
-from mcp_workspace.github_operations._diagnostics import extract_diagnostic_headers
+from mcp_workspace.github_operations._diagnostics import (
+    extract_diagnostic_headers,
+    format_rate_limit_error,
+)
 from mcp_workspace.github_operations._network import maybe_log_network_diagnostics
 from mcp_workspace.utils.repo_identifier import RepoIdentifier, hostname_to_api_base_url
 from mcp_workspace.utils.token_fingerprint import format_token_fingerprint
@@ -96,6 +99,7 @@ def _handle_github_errors(
     """Decorator to handle GitHub API errors consistently.
 
     This decorator handles GithubException and general Exception errors:
+    - Rate-limit errors (403 rate limit, 429, `RetryError`): logged and re-raised
     - ValueError: Re-raised to caller (validation errors should propagate)
     - Authentication/permission errors (401, 403): Re-raised to caller
     - Other GithubException errors: Logged and return default_return
@@ -130,6 +134,10 @@ def _handle_github_errors(
                 # Re-raise validation errors to caller
                 raise
             except GithubException as e:
+                msg = format_rate_limit_error(e)
+                if msg is not None:
+                    logger.error(f"{msg} in {func.__name__}")
+                    raise
                 # Re-raise authentication/permission errors
                 if e.status in (401, 403):
                     logger.error(
@@ -147,6 +155,10 @@ def _handle_github_errors(
             except (
                 Exception
             ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+                msg = format_rate_limit_error(e)
+                if msg is not None:
+                    logger.error(f"{msg} in {func.__name__}")
+                    raise
                 # Log and return default for unexpected errors
                 logger.error(f"Unexpected error in {func.__name__}: {e}")
                 resolved = (
@@ -194,10 +206,18 @@ def get_authenticated_username(hostname: Optional[str] = None) -> str:
             base_url,
             format_token_fingerprint(raw_token) if raw_token else "<none>",
         )
+        msg = format_rate_limit_error(e)
+        if msg is not None:
+            logger.error(msg)
+            raise ValueError(msg) from e
         raise ValueError(f"Failed to authenticate with GitHub: {e}") from e
     except (
         Exception
     ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+        msg = format_rate_limit_error(e)
+        if msg is not None:
+            logger.error(msg)
+            raise ValueError(msg) from e
         maybe_log_network_diagnostics(e, base_url)
         raise ValueError(f"Failed to authenticate with GitHub: {e}") from e
 
@@ -341,6 +361,9 @@ class BaseGitHubManager:
         Returns:
             Repository object if successful, None otherwise
 
+        Raises:
+            GithubException, RetryError: Rate-limit errors propagate to the caller.
+
         Note:
             The repository object is cached after the first successful retrieval
             to avoid unnecessary API calls.
@@ -370,6 +393,10 @@ class BaseGitHubManager:
                 ),
             )
             repo_url = self._repo_identifier.https_url
+            msg = format_rate_limit_error(e)
+            if msg is not None:
+                logger.error("%s (repository %s)", msg, repo_url)
+                raise
             if e.status == 404:
                 config_path = get_user_app_data_dir("mcp_coder") / "config.toml"
                 logger.error(
@@ -389,6 +416,10 @@ class BaseGitHubManager:
         except (
             Exception
         ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+            msg = format_rate_limit_error(e)
+            if msg is not None:
+                logger.error("%s (repository %s)", msg, self._repo_identifier.full_name)
+                raise
             maybe_log_network_diagnostics(e, self._repo_identifier.api_base_url)
             logger.error(
                 "Unexpected error accessing repository '%s': %s",
