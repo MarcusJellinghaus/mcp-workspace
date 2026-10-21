@@ -21,6 +21,49 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: `format_rate_limit_error` and extra diagnostic headers
+See [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: tests in `test_diagnostics.py`, then `format_rate_limit_error` + `X-RateLimit-Reset/-Used/-Resource` headers in `_diagnostics.py`
+- [ ] Quality checks: pylint, pytest, mypy, lint-imports — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Fail-fast rate-limit cap
+See [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: verify `GithubRetry(max_rate_limit_wait=...)` exists; tests in `test_client.py`, then `GITHUB_MAX_RATE_LIMIT_WAIT = 60` in `_client.py` and `PyGithub>=2.10.0` in `pyproject.toml`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: Shared login cache in `base_manager`
+See [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation: autouse `reset_login_cache` fixture + `TestLoginCache` tests, then `_login_cache`, `_cached_login`, `clear_login_cache` in `base_manager.py`; re-exports in `__init__.py`; `_diagnostics.py` docstring
+- [ ] Quality checks: pylint, pytest, mypy, vulture — fix all issues
+- [ ] Commit message prepared
+
+### Step 4: Rate-limit reporting and re-raise in `base_manager`
+See [step_4.md](./steps/step_4.md)
+
+- [ ] Implementation: tests in `test_base_manager.py`, then rate-limit checks in `_handle_github_errors`, `_get_repository`, `get_authenticated_username`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 5: Server `@me` uses the shared login cache
+See [step_5.md](./steps/step_5.md)
+
+- [ ] Implementation: update server write-tool tests (remove per-file fixtures, add `github_token`, new per-token test), then `_resolve_assignees` via `_cached_login` and remove `server._login_cache`
+- [ ] Quality checks: pylint, pytest, mypy, lint-imports, vulture — fix all issues
+- [ ] Commit message prepared
+
+### Step 6: Rate-limit replies in all `github_*` server tools
+See [step_6.md](./steps/step_6.md)
+
+- [ ] Implementation: rate-limit reply tests, then `_tool_error`, `_api_error` rate-limit check, widened `RetryError` excepts, `github_issue_edit` reasons in `server.py`
+- [ ] Quality checks: pylint, pytest, mypy, lint-imports — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: review full branch diff against `main`, address findings
+- [ ] PR summary prepared
