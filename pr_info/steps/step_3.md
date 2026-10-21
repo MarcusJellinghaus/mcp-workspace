@@ -94,5 +94,8 @@ returning plain lists of `MagicMock`s.
 6. Rate limit: `GithubException(403, ..., headers={"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "<epoch>"})`
    → error starts with `"GitHub rate limit exhausted"` and contains `"resets at"`.
 7. `GithubException(500, {"message": "boom"})` → `"GitHub API error 500: boom"`; a
-   `ConnectionError` raised while iterating → `"network error: ConnectionError"`.
+   `ConnectionError` raised while iterating check runs → `"network error: ConnectionError"`.
+   For this case only, a plain list won't do: make `get_check_runs()` return a generator (or
+   iterator) that yields one run and then raises `ConnectionError`, so the error comes up during
+   iteration.
 8. Not one of these cases raises.
