@@ -31,9 +31,9 @@ See [step_1.md](./steps/step_1.md)
 ### Step 2: Fail-fast rate-limit cap
 See [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: verify `GithubRetry(max_rate_limit_wait=...)` exists; tests in `test_client.py`, then `GITHUB_MAX_RATE_LIMIT_WAIT = 60` in `_client.py` and `PyGithub>=2.10.0` in `pyproject.toml`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: verify `GithubRetry(max_rate_limit_wait=...)` exists; tests in `test_client.py`, then `GITHUB_MAX_RATE_LIMIT_WAIT = 60` in `_client.py` and `PyGithub>=2.10.0` in `pyproject.toml`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: Shared login cache in `base_manager`
 See [step_3.md](./steps/step_3.md)
