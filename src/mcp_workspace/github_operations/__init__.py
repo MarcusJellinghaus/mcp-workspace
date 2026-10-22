@@ -4,6 +4,7 @@ This module provides GitHub API integration functionality for managing
 pull requests, labels, and repository operations.
 """
 
+from mcp_workspace.config import get_trusted_commenters
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 
 from ._diagnostics import RetryError, format_rate_limit_error
@@ -19,6 +20,7 @@ from .ci_results_manager import CIResultsManager, CIStatusData
 from .labels_manager import LabelData, LabelsManager
 from .pr_manager import PullRequestManager
 from .pr_types import MergeResult, PullRequestData
+from .trust import is_trusted_author
 from .verification import CheckResult, verify_github
 
 # GithubException, RetryError and format_rate_limit_error are re-exported so
@@ -46,6 +48,8 @@ __all__ = [
     "clear_login_cache",
     "format_rate_limit_error",
     "get_authenticated_username",
+    "get_trusted_commenters",
+    "is_trusted_author",
     "verify_github",
     "verify_github_security",
 ]

@@ -85,6 +85,28 @@ class TestIssueManagerComments:
         assert result[0]["id"] == 123
         assert result[1]["id"] == 124
 
+    def test_get_comments_maps_author_association(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """author_association maps through; a non-str value becomes None."""
+        issue_number = 1
+        mock_issue = make_mock_issue(issue_number)
+        mock_comment1 = MagicMock()
+        mock_comment1.id = 123
+        mock_comment1.body = "Comment 1"
+        mock_comment1.author_association = "MEMBER"
+        mock_comment2 = MagicMock()
+        mock_comment2.id = 124
+        mock_comment2.body = "Comment 2"
+
+        mock_issue_manager._repository.get_issue.return_value = mock_issue
+        mock_issue.get_comments.return_value = [mock_comment1, mock_comment2]
+
+        result = mock_issue_manager.get_comments(issue_number)
+
+        assert result[0]["author_association"] == "MEMBER"
+        assert result[1]["author_association"] is None
+
     def test_get_comments_empty_list(self, mock_issue_manager: IssueManager) -> None:
         """Test getting comments from issue with no comments."""
         issue_number = 1

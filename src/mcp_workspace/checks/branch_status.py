@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from mcp_workspace import config
 from mcp_workspace.checks.branch_status_ci import (
     _collect_ci_status,
     get_failed_jobs_summary,
@@ -46,6 +47,7 @@ from mcp_workspace.github_operations.issues import (
     parse_base_branch,
 )
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
+from mcp_workspace.github_operations.trust import is_trusted_author
 from mcp_workspace.workflows.task_tracker import (
     TaskTrackerFileNotFoundError,
     TaskTrackerSectionNotFoundError,
@@ -499,6 +501,7 @@ def collect_branch_status(
         issue_manager: Optional[IssueManager] = None
         pr_manager: Optional[PullRequestManager] = None
         last_automated_note: Optional[str] = None
+        trusted = config.get_trusted_commenters()
 
         try:
             issue_manager = IssueManager(project_dir=project_dir)
@@ -517,7 +520,16 @@ def collect_branch_status(
 
                 try:
                     comments = issue_manager.get_comments(issue_number)
-                    last_automated_note = find_latest_marked_comment(comments)
+                    # Filter before the window scan so untrusted comments can
+                    # neither inject a note nor push the owner's out of view.
+                    trusted_comments = [
+                        c
+                        for c in comments
+                        if is_trusted_author(
+                            c["user"], c["author_association"], trusted
+                        )
+                    ]
+                    last_automated_note = find_latest_marked_comment(trusted_comments)
                 except IssueIdentityMismatchError as e:
                     # Mirrors the get_issue branch above — same signal (issue
                     # transferred or renumbered), so it gets the same warning,
@@ -606,7 +618,7 @@ def collect_branch_status(
                 pr_feedback_text,
                 pr_feedback_blocks_merge,
                 pr_feedback_undeterminable,
-            ) = collect_pr_feedback(pr_manager, pr_number)
+            ) = collect_pr_feedback(pr_manager, pr_number, trusted)
         else:
             # pr_found is None => the PR lookup raised or the PR/GitHub
             # manager failed to init => review state is undeterminable.

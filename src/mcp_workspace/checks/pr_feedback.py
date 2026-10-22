@@ -11,8 +11,15 @@ from typing import List, Optional, Tuple
 from mcp_workspace.github_operations.exception_renderer import (
     render_exception_for_display,
 )
+from mcp_workspace.github_operations.formatters import format_withheld_line
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
-from mcp_workspace.github_operations.pr_types import PRFeedback
+from mcp_workspace.github_operations.pr_types import (
+    ChangesRequestedData,
+    ConversationCommentData,
+    PRFeedback,
+    ReviewThreadData,
+)
+from mcp_workspace.github_operations.trust import is_trusted_author
 
 logger = logging.getLogger(__name__)
 
@@ -48,23 +55,48 @@ def _truncate_body(body: str) -> str:
     )
 
 
-def format_pr_feedback(feedback: PRFeedback) -> str:
+def format_pr_feedback(feedback: PRFeedback, trusted: frozenset[str]) -> str:
     """Render a `PRFeedback` dict as a multi-line block.
+
+    Items from untrusted authors are withheld: they get no per-item line
+    (no body, login, path or ids), only a single count line. Withheld items
+    never count towards the item cap or trigger the full-text hint, but the
+    clean check still sees them.
+
+    Args:
+        feedback: Raw PR feedback from `PullRequestManager.get_pr_feedback`.
+        trusted: Lowercased login allowlist from `get_trusted_commenters`.
 
     Returns:
         The empty-state affirmation when there is nothing to surface,
         otherwise a `PR Reviews:` block. No trailing newline.
     """
-    unresolved = feedback["unresolved_threads"]
-    comments = feedback["conversation_comments"]
-    changes_requested = feedback["changes_requested"]
+    all_unresolved = feedback["unresolved_threads"]
+    all_comments = feedback["conversation_comments"]
+    all_changes_requested = feedback["changes_requested"]
     alerts = feedback["alerts"]
     unavailable = feedback["unavailable"]
     resolved_count = feedback["resolved_thread_count"]
 
-    blocking = bool(unresolved or changes_requested or alerts)
-    if not blocking and not comments and not unavailable:
+    blocking = bool(all_unresolved or all_changes_requested or alerts)
+    if not blocking and not all_comments and not unavailable:
         return "Reviews: clean (0 unresolved threads, 0 alerts)"
+
+    def ok(
+        item: ReviewThreadData | ChangesRequestedData | ConversationCommentData,
+    ) -> bool:
+        return is_trusted_author(item["author"], item["author_association"], trusted)
+
+    unresolved = [t for t in all_unresolved if ok(t)]
+    changes_requested = [r for r in all_changes_requested if ok(r)]
+    comments = [c for c in all_comments if ok(c)]
+    withheld_line = format_withheld_line(
+        [
+            ("thread", len(all_unresolved) - len(unresolved)),
+            ("review", len(all_changes_requested) - len(changes_requested)),
+            ("comment", len(all_comments) - len(comments)),
+        ]
+    )
 
     rendered: List[str] = []
     body_cut = False
@@ -129,6 +161,8 @@ def format_pr_feedback(feedback: PRFeedback) -> str:
         rendered = kept
 
     lines: List[str] = ["PR Reviews:"]
+    if withheld_line:
+        lines.append(withheld_line)
     lines.extend(rendered)
 
     for section, exc in unavailable.items():
@@ -144,9 +178,15 @@ def format_pr_feedback(feedback: PRFeedback) -> str:
 
 
 def collect_pr_feedback(
-    pr_manager: PullRequestManager, pr_number: int
+    pr_manager: PullRequestManager, pr_number: int, trusted: frozenset[str]
 ) -> Tuple[Optional[str], bool, bool]:
     """Fetch PR feedback for a pull request.
+
+    Args:
+        pr_manager: Manager used to fetch the feedback.
+        pr_number: Pull request number.
+        trusted: Lowercased login allowlist; only affects the rendered text,
+            never ``blocks_merge`` or ``undeterminable``.
 
     Returns:
         Tuple of (formatted_text, blocks_merge, undeterminable).
@@ -158,7 +198,7 @@ def collect_pr_feedback(
     """
     try:
         feedback = pr_manager.get_pr_feedback(pr_number)
-        text = format_pr_feedback(feedback)
+        text = format_pr_feedback(feedback, trusted)
         blocks_merge = bool(
             feedback["unresolved_threads"]
             or feedback["changes_requested"]

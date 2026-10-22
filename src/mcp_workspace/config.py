@@ -1,10 +1,66 @@
 """Configuration helpers for GitHub token and test repo resolution."""
 
+import logging
 import os
 import tomllib
-from typing import Literal
+from typing import Any, Literal
 
 from mcp_coder_utils.user_app_data import get_user_app_data_dir
+
+logger = logging.getLogger(__name__)
+
+
+def _load_config() -> dict[str, Any]:
+    """Load the user config file.
+
+    Returns:
+        The parsed TOML data, or an empty dict if the file is missing
+        or unreadable.
+    """
+    config_path = get_user_app_data_dir("mcp_coder") / "config.toml"
+    if not config_path.exists():
+        return {}
+    try:
+        return tomllib.loads(config_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        return {}
+
+
+def _read_config_list(section: str, key: str) -> list[str]:
+    """Read a list of strings from the user config file.
+
+    Fails closed: a value that is not a list of strings logs a warning
+    and yields an empty list. Empty strings are dropped.
+
+    Returns:
+        The configured strings, or an empty list if missing or invalid.
+    """
+    section_data = _load_config().get(section, {})
+    value = section_data.get(key) if isinstance(section_data, dict) else None
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        logger.warning(
+            "Ignoring [%s] %s in config.toml: expected a list of strings",
+            section,
+            key,
+        )
+        return []
+    return [v for v in value if v]
+
+
+def get_trusted_commenters() -> frozenset[str]:
+    """Read the commenter allowlist from ``[github] trusted_commenters``.
+
+    Read from the user config file on every call; no env-var override, so
+    a repo or PR cannot add itself.
+
+    Returns:
+        Lowercased logins, or an empty set if missing or invalid.
+    """
+    return frozenset(
+        v.lower() for v in _read_config_list("github", "trusted_commenters")
+    )
 
 
 def _read_config_value(section: str, key: str) -> str | None:
@@ -14,14 +70,10 @@ def _read_config_value(section: str, key: str) -> str | None:
         The configured value, or None if the file or key is missing
         or unreadable.
     """
-    config_path = get_user_app_data_dir("mcp_coder") / "config.toml"
-    if not config_path.exists():
+    section_data = _load_config().get(section, {})
+    if not isinstance(section_data, dict):
         return None
-    try:
-        data = tomllib.loads(config_path.read_text(encoding="utf-8"))
-        return data.get(section, {}).get(key)  # type: ignore[no-any-return]
-    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        return None
+    return section_data.get(key)
 
 
 def get_github_token_with_source() -> (

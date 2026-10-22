@@ -20,6 +20,7 @@ from .pr_feedback_mixin import PRFeedbackMixin
 from .pr_merge_mixin import PRMergeMixin
 from .pr_review_mixin import PRReviewMixin
 from .pr_types import PullRequestData
+from .trust import normalize_author_association
 
 # Configure logger for GitHub operations
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ def _pr_to_data(pr: PullRequest) -> PullRequestData:
         "merged": pr.merged,
         "draft": pr.draft,
         "assignees": [a.login for a in pr.assignees],
+        "author_association": normalize_author_association(pr.author_association),
     }
 
 

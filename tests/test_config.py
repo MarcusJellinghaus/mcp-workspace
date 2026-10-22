@@ -1,13 +1,18 @@
 """Tests for mcp_workspace.config module."""
 
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from mcp_workspace.config import (
+    _read_config_list,
     _read_config_value,
     get_github_token,
     get_github_token_with_source,
     get_test_repo_url,
+    get_trusted_commenters,
 )
 
 
@@ -179,3 +184,115 @@ class TestGetTestRepoUrl:
             ),
         ):
             assert get_test_repo_url() is None
+
+
+def _write_config(tmp_path: Path, text: str) -> None:
+    (tmp_path / "config.toml").write_text(text, encoding="utf-8")
+
+
+class TestReadConfigList:
+    """Tests for _read_config_list()."""
+
+    def test_returns_empty_when_file_missing(self, tmp_path: Path) -> None:
+        with patch(
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
+        ):
+            assert _read_config_list("github", "trusted_commenters") == []
+
+    def test_returns_empty_for_malformed_toml(self, tmp_path: Path) -> None:
+        _write_config(tmp_path, "this is not valid toml {{{}}")
+        with patch(
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
+        ):
+            assert _read_config_list("github", "trusted_commenters") == []
+
+    def test_returns_list_without_empty_entries(self, tmp_path: Path) -> None:
+        _write_config(tmp_path, '[github]\ntrusted_commenters = ["a", "", "b"]\n')
+        with patch(
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
+        ):
+            assert _read_config_list("github", "trusted_commenters") == ["a", "b"]
+
+
+class TestGetTrustedCommenters:
+    """Tests for get_trusted_commenters()."""
+
+    def test_missing_file_returns_empty(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        with (
+            caplog.at_level(logging.WARNING, logger="mcp_workspace.config"),
+            patch(
+                "mcp_workspace.config.get_user_app_data_dir",
+                return_value=tmp_path,
+            ),
+        ):
+            assert get_trusted_commenters() == frozenset()
+        assert not caplog.records
+
+    def test_missing_key_returns_empty_without_warning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        _write_config(tmp_path, '[github]\ntoken = "ghp_test"\n')
+        with (
+            caplog.at_level(logging.WARNING, logger="mcp_workspace.config"),
+            patch(
+                "mcp_workspace.config.get_user_app_data_dir",
+                return_value=tmp_path,
+            ),
+        ):
+            assert get_trusted_commenters() == frozenset()
+        assert not caplog.records
+
+    def test_lowercases_and_drops_empty(self, tmp_path: Path) -> None:
+        _write_config(
+            tmp_path,
+            '[github]\ntrusted_commenters = ["Alice", "dependabot[bot]", ""]\n',
+        )
+        with patch(
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
+        ):
+            assert get_trusted_commenters() == frozenset({"alice", "dependabot[bot]"})
+
+    def test_string_value_fails_closed_with_warning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        _write_config(tmp_path, '[github]\ntrusted_commenters = "alice"\n')
+        with (
+            caplog.at_level(logging.WARNING, logger="mcp_workspace.config"),
+            patch(
+                "mcp_workspace.config.get_user_app_data_dir",
+                return_value=tmp_path,
+            ),
+        ):
+            assert get_trusted_commenters() == frozenset()
+        assert any(r.levelno == logging.WARNING for r in caplog.records)
+
+    def test_non_string_entry_fails_closed_with_warning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        _write_config(tmp_path, '[github]\ntrusted_commenters = ["alice", 1]\n')
+        with (
+            caplog.at_level(logging.WARNING, logger="mcp_workspace.config"),
+            patch(
+                "mcp_workspace.config.get_user_app_data_dir",
+                return_value=tmp_path,
+            ),
+        ):
+            assert get_trusted_commenters() == frozenset()
+        assert any(r.levelno == logging.WARNING for r in caplog.records)
+
+    def test_env_vars_have_no_effect(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("TRUSTED_COMMENTERS", "alice")
+        monkeypatch.setenv("GITHUB_TRUSTED_COMMENTERS", "alice")
+        with patch(
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
+        ):
+            assert get_trusted_commenters() == frozenset()

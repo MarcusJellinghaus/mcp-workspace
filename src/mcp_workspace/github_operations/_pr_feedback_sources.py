@@ -15,9 +15,15 @@ from typing import TYPE_CHECKING, Any, Optional, Tuple
 from github.GithubException import GithubException, UnknownObjectException
 from github.Requester import Requester
 
+from .trust import normalize_author_association
+
 if TYPE_CHECKING:
     from .pr_manager import PullRequestManager
-    from .pr_types import ChangesRequestedData, ConversationCommentData
+    from .pr_types import (
+        ChangesRequestedData,
+        ConversationCommentData,
+        ReviewThreadData,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -172,19 +178,26 @@ def _parse_changes_requested(pr_data: dict[str, Any]) -> list["ChangesRequestedD
                 "author": (node.get("author") or {}).get("login") or "",
                 "body": node.get("body") or "",
                 "submitted_at": _parse_submitted_at(node.get("submittedAt")),
+                "author_association": normalize_author_association(
+                    node.get("authorAssociation")
+                ),
             }
         )
     return result
 
 
-def _parse_thread_nodes(pr_data: dict[str, Any]) -> Tuple[list[dict[str, Any]], int]:
+def _parse_thread_nodes(
+    pr_data: dict[str, Any],
+) -> Tuple[list["ReviewThreadData"], int]:
     """Parse one page's reviewThreads.nodes into (unresolved_threads, resolved_count).
+
+    Each thread carries the association of its first comment (the opener).
 
     Returns:
         Tuple of (unresolved_threads, resolved_count) for this page only —
         callers accumulate across pages.
     """
-    unresolved_threads: list[dict[str, Any]] = []
+    unresolved_threads: list["ReviewThreadData"] = []
     resolved_count = 0
     thread_nodes = (pr_data.get("reviewThreads") or {}).get("nodes") or []
     for thread in thread_nodes:
@@ -210,15 +223,19 @@ def _parse_thread_nodes(pr_data: dict[str, Any]) -> Tuple[list[dict[str, Any]], 
                 "diff_hunk": first.get("diffHunk") or "",
                 "comment_id": first.get("databaseId"),
                 "thread_id": thread.get("id"),
+                "author_association": normalize_author_association(
+                    first.get("authorAssociation")
+                ),
             }
         )
     return unresolved_threads, resolved_count
 
 
-def fetch_review_data(
-    manager: "PullRequestManager", pr_number: int
-) -> Tuple[
-    list[dict[str, Any]], int, list["ChangesRequestedData"], Optional[GithubException]
+def fetch_review_data(manager: "PullRequestManager", pr_number: int) -> Tuple[
+    list["ReviewThreadData"],
+    int,
+    list["ChangesRequestedData"],
+    Optional[GithubException],
 ]:
     """Fetch paginated review threads + standing CHANGES_REQUESTED reviews via tolerant GraphQL calls.
 
@@ -270,12 +287,12 @@ def fetch_review_data(
               id
               isResolved
               comments(first: 5) {
-                nodes { author { login } body path line diffHunk databaseId }
+                nodes { author { login } authorAssociation body path line diffHunk databaseId }
               }
             }
           }
           latestOpinionatedReviews(first: 100) @include(if: $includeReviews) {
-            nodes { state author { login } body submittedAt }
+            nodes { state author { login } authorAssociation body submittedAt }
           }
         }
       }
@@ -356,8 +373,9 @@ def fetch_conversation_comments(
     """Fetch top-level PR conversation comments via REST.
 
     Returns:
-        List of dicts with ``author``, ``body``, ``id`` and ``created_at``
-        keys; empty list when the repository is unavailable.
+        List of dicts with ``author``, ``body``, ``id``, ``created_at`` and
+        ``author_association`` keys; empty list when the repository is
+        unavailable.
 
     Raises:
         IssueIdentityMismatchError: If GitHub returns an issue from another
@@ -376,6 +394,7 @@ def fetch_conversation_comments(
             "body": c.body or "",
             "id": c.id,
             "created_at": c.created_at.isoformat() if c.created_at else None,
+            "author_association": normalize_author_association(c.author_association),
         }
         for c in comments
     ]

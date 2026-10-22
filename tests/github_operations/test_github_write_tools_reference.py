@@ -52,7 +52,9 @@ def reference_projects() -> Generator[None, None, None]:
     set_reference_projects({})
 
 
-def _make_comment(comment_id: int = 1) -> CommentData:
+def _make_comment(
+    comment_id: int = 1, author_association: str | None = "OWNER"
+) -> CommentData:
     """Build a CommentData; ``comment_id=0`` is the empty-comment sentinel."""
     return CommentData(
         id=comment_id,
@@ -61,6 +63,7 @@ def _make_comment(comment_id: int = 1) -> CommentData:
         created_at="2024-01-01T00:00:00",
         updated_at=None,
         url="https://github.com/owner/sibling/issues/42#issuecomment-1",
+        author_association=author_association,
     )
 
 

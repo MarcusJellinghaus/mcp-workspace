@@ -53,6 +53,7 @@ def test_github_pr_view_with_comments(mock_manager_cls: MagicMock) -> None:
     review.user.login = "reviewer1"
     review.state = "APPROVED"
     review.body = "LGTM"
+    review.author_association = "OWNER"
     mock_pr.get_reviews.return_value = [review]
 
     conv_comment = MagicMock()
@@ -61,6 +62,7 @@ def test_github_pr_view_with_comments(mock_manager_cls: MagicMock) -> None:
     conv_comment.user.login = "commenter1"
     conv_comment.created_at.isoformat.return_value = "2024-01-05T00:00:00"
     conv_comment.updated_at = None
+    conv_comment.author_association = "OWNER"
     mock_repo.get_issue.return_value.get_comments.return_value = [conv_comment]
 
     inline_comment = MagicMock()
@@ -68,6 +70,7 @@ def test_github_pr_view_with_comments(mock_manager_cls: MagicMock) -> None:
     inline_comment.line = 42
     inline_comment.user.login = "reviewer1"
     inline_comment.body = "nit: rename"
+    inline_comment.author_association = "OWNER"
     mock_pr.get_review_comments.return_value = [inline_comment]
 
     mock_repo.get_pull.return_value = mock_pr
@@ -82,6 +85,78 @@ def test_github_pr_view_with_comments(mock_manager_cls: MagicMock) -> None:
     assert "Nice change" in result
     assert "src/main.py" in result
     assert "nit: rename" in result
+    assert "Withheld" not in result
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_pr_view_ghost_users_untrusted(mock_manager_cls: MagicMock) -> None:
+    """Deleted accounts (user=None) do not crash and are withheld."""
+    mock_repo = MagicMock()
+    mock_pr = _mock_pull(title="Ghost title", body="Ghost body")
+    mock_pr.user = None
+    mock_pr.author_association = "NONE"
+
+    review = MagicMock()
+    review.user = None
+    review.state = "COMMENTED"
+    review.body = "ghost review"
+    review.author_association = "NONE"
+    mock_pr.get_reviews.return_value = [review]
+
+    conv_comment = MagicMock()
+    conv_comment.id = 100
+    conv_comment.body = "ghost comment"
+    conv_comment.user = None
+    conv_comment.created_at = None
+    conv_comment.author_association = "NONE"
+    mock_repo.get_issue.return_value.get_comments.return_value = [conv_comment]
+
+    inline_comment = MagicMock()
+    inline_comment.path = "src/main.py"
+    inline_comment.line = 42
+    inline_comment.user = None
+    inline_comment.body = "ghost inline"
+    inline_comment.author_association = "NONE"
+    mock_pr.get_review_comments.return_value = [inline_comment]
+
+    mock_repo.get_pull.return_value = mock_pr
+    mock_mgr = MagicMock()
+    mock_manager_cls.return_value = mock_mgr
+    mock_mgr._get_repository.return_value = mock_repo
+
+    result = github_pr_view(number=10, include_comments=True)
+
+    assert not result.startswith("Error")
+    for text in ("Ghost title", "Ghost body", "ghost review", "ghost comment"):
+        assert text not in result
+    assert "ghost inline" not in result
+    assert "# PR #10 by @unknown — untrusted author" in result
+    assert (
+        "Withheld from untrusted authors: 1 review, 1 comment, 1 inline comment"
+        in result
+    )
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_pr_view_uses_config_allowlist(
+    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The allowlist is read through mcp_workspace.config at call time."""
+    monkeypatch.setattr(
+        "mcp_workspace.config.get_trusted_commenters",
+        lambda: frozenset({"alice"}),
+    )
+    mock_repo = MagicMock()
+    mock_pr = _mock_pull(title="Allowlisted title")
+    mock_pr.author_association = "CONTRIBUTOR"
+    mock_repo.get_pull.return_value = mock_pr
+    mock_mgr = MagicMock()
+    mock_manager_cls.return_value = mock_mgr
+    mock_mgr._get_repository.return_value = mock_repo
+
+    result = github_pr_view(number=10)
+
+    assert "# PR #10: Allowlisted title" in result
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")

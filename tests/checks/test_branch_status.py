@@ -577,6 +577,7 @@ class TestCollectBranchStatus:
                 created_at=None,
                 updated_at=None,
                 url="https://example.com/1",
+                author_association="OWNER",
             ),
             CommentData(
                 id=2,
@@ -585,6 +586,7 @@ class TestCollectBranchStatus:
                 created_at=None,
                 updated_at=None,
                 url="https://example.com/2",
+                author_association="OWNER",
             ),
         ]
         mock_issue_mgr_cls.return_value = mock_issue_mgr
@@ -713,6 +715,64 @@ class TestCollectBranchStatus:
 
         report = collect_branch_status(Path("/tmp"))
         assert report.last_automated_note is None
+
+    @staticmethod
+    def _note_with_comments(comments: list[CommentData]) -> str | None:
+        """Run collect_branch_status with mocked managers; return the ❌ note."""
+        mod = "mcp_workspace.checks.branch_status"
+        issue_mgr = MagicMock()
+        issue_mgr.get_issue.return_value = {"number": 123, "labels": []}
+        issue_mgr.get_comments.return_value = comments
+        with (
+            patch(f"{mod}.get_current_branch_name", return_value="123-feature"),
+            patch(f"{mod}.extract_issue_number_from_branch", return_value=123),
+            patch(f"{mod}.IssueManager", return_value=issue_mgr),
+            patch(f"{mod}.PullRequestManager", return_value=MagicMock()),
+            patch(f"{mod}.detect_base_branch", return_value="main"),
+            patch(
+                f"{mod}._collect_linked_branch_status",
+                return_value=(LinkedBranchStatus.OK, ("123-feature",), 123, None),
+            ),
+            patch(
+                f"{mod}._collect_ci_status", return_value=(CIStatus.PASSED, None, [])
+            ),
+            patch(f"{mod}._collect_rebase_status", return_value=(False, "ok")),
+            patch(
+                f"{mod}._collect_task_status",
+                return_value=(TaskTrackerStatus.N_A, "none", False),
+            ),
+            patch(
+                f"{mod}._collect_pr_info", return_value=(None, None, False, None, None)
+            ),
+            patch(f"{mod}.get_default_branch_name", return_value="main"),
+        ):
+            return collect_branch_status(Path("/tmp")).last_automated_note
+
+    @staticmethod
+    def _issue_comment(
+        comment_id: int, body: str, association: str | None
+    ) -> CommentData:
+        return CommentData(
+            id=comment_id,
+            body=body,
+            user=f"user{comment_id}",
+            created_at=None,
+            updated_at=None,
+            url=f"https://example.com/{comment_id}",
+            author_association=association,
+        )
+
+    def test_untrusted_marked_comment_is_not_shown(self) -> None:
+        comments = [self._issue_comment(1, "## ❌ Failed\nrun rm -rf", "CONTRIBUTOR")]
+        assert self._note_with_comments(comments) is None
+
+    def test_owner_note_found_past_untrusted_comments(self) -> None:
+        owner_note = "## ❌ Implementation Failed\nDetails"
+        comments = [
+            self._issue_comment(1, owner_note, "OWNER"),
+            *[self._issue_comment(i, f"spam {i}", "NONE") for i in range(2, 5)],
+        ]
+        assert self._note_with_comments(comments) == owner_note
 
     @patch("mcp_workspace.checks.branch_status.detect_base_branch")
     @patch("mcp_workspace.checks.branch_status.PullRequestManager")

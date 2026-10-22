@@ -85,6 +85,29 @@ Startup errors are written to stderr and, when no normal log is available, to `l
 
 The server uses FastMCP for operation. All file operations are restricted to the `--project-dir` directory for security reasons, and attempts to access files outside it result in an error.
 
+## GitHub configuration
+
+GitHub settings are read from `~/.mcp_coder/config.toml` (the user app-data directory of `mcp_coder`), section `[github]`:
+
+- `token`: GitHub token. The `GITHUB_TOKEN` environment variable takes precedence.
+- `test_repo_url`: repository used by integration tests. The `GITHUB_TEST_REPO_URL` environment variable takes precedence.
+- `trusted_commenters`: list of GitHub logins whose comments are shown to the agent. There is no environment-variable override.
+
+```toml
+[github]
+token = "ghp_..."
+trusted_commenters = ["dependabot[bot]"]
+```
+
+### Commenter trust
+
+`check_branch_status` and `github_pr_view` show PR and issue text only from trusted authors:
+
+- An author is trusted if their GitHub association is `OWNER`, `MEMBER` or `COLLABORATOR`, or their login is in `trusted_commenters` (case-insensitive; include the `[bot]` suffix, e.g. `dependabot[bot]`).
+- Everything else is withheld from the output and replaced by a count line.
+- Roles are relative to the repository being read, including with `reference_name`.
+- The allowlist lives outside the repository on purpose, so a PR cannot add itself.
+
 ## Structured Logging
 
 The server provides flexible logging options:

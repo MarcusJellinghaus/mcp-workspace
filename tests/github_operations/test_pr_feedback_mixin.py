@@ -445,6 +445,7 @@ class TestGetPRFeedback:
         body: str,
         comment_id: int = 1,
         created_at: str = "2024-01-01T00:00:00",
+        author_association: Any = "OWNER",
     ) -> Mock:
         """Create a mock conversation comment."""
         comment = Mock()
@@ -452,6 +453,7 @@ class TestGetPRFeedback:
         comment.body = body
         comment.id = comment_id
         comment.created_at.isoformat.return_value = created_at
+        comment.author_association = author_association
         return comment
 
     def test_happy_path(self, mock_manager: PullRequestManager) -> None:
@@ -638,6 +640,98 @@ class TestGetPRFeedback:
         assert result["unresolved_threads"][0]["comment_id"] is None
         assert result["unresolved_threads"][0]["thread_id"] is None
 
+    @pytest.mark.parametrize(
+        ("association_fields", "expected"),
+        [
+            ({"authorAssociation": "MEMBER"}, "MEMBER"),
+            ({}, None),
+        ],
+    )
+    def test_author_association_mapped_from_graphql(
+        self,
+        mock_manager: PullRequestManager,
+        association_fields: dict[str, Any],
+        expected: Any,
+    ) -> None:
+        """Thread opener and CHANGES_REQUESTED association map through; missing → None."""
+        graphql_response: dict[str, Any] = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "nodes": [
+                                {
+                                    "id": "THREAD_1",
+                                    "isResolved": False,
+                                    "comments": {
+                                        "nodes": [
+                                            {
+                                                "author": {"login": "alice"},
+                                                "body": "issue here",
+                                                "path": "src/foo.py",
+                                                "line": 10,
+                                                "diffHunk": "@@ ... @@",
+                                                "databaseId": 111,
+                                                **association_fields,
+                                            },
+                                            {
+                                                "author": {"login": "bob"},
+                                                "authorAssociation": "NONE",
+                                                "body": "reply",
+                                                "path": "src/foo.py",
+                                                "line": 10,
+                                                "diffHunk": "@@ ... @@",
+                                                "databaseId": 112,
+                                            },
+                                        ]
+                                    },
+                                }
+                            ]
+                        },
+                        "latestOpinionatedReviews": {
+                            "nodes": [
+                                {
+                                    "state": "CHANGES_REQUESTED",
+                                    "author": {"login": "alice"},
+                                    "body": "please fix",
+                                    "submittedAt": None,
+                                    **association_fields,
+                                }
+                            ]
+                        },
+                    }
+                }
+            }
+        }
+        self._setup_mocks(
+            mock_manager,
+            graphql_response=graphql_response,
+            comments=[],
+            alerts_response=[],
+        )
+
+        result = mock_manager.get_pr_feedback(42)
+
+        assert result["unresolved_threads"][0]["author_association"] == expected
+        assert result["changes_requested"][0]["author_association"] == expected
+
+    def test_graphql_query_requests_author_association(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """The GraphQL query asks for authorAssociation on comments and reviews."""
+        self._setup_mocks(mock_manager, comments=[], alerts_response=[])
+
+        mock_manager.get_pr_feedback(42)
+
+        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
+        post_call = next(
+            c
+            for c in requester.requestJsonAndCheck.call_args_list
+            if c.args[0] == "POST"
+        )
+        query = post_call.kwargs["input"]["query"]
+        assert query.count("authorAssociation") == 2
+
     def test_clean_state(self, mock_manager: PullRequestManager) -> None:
         """All sources return empty — empty PRFeedback, no unavailable entries."""
         graphql_response: dict[str, Any] = {
@@ -779,7 +873,7 @@ class TestGetPRFeedback:
 
         with patch.object(mock_manager, "_get_repository", return_value=None):
             result = mock_manager.get_pr_feedback(42)
-            _, _, undeterminable = collect_pr_feedback(mock_manager, 42)
+            _, _, undeterminable = collect_pr_feedback(mock_manager, 42, frozenset())
 
         assert _post_call_count(mock_manager) == 0
         exc = result["unavailable"]["threads"]
@@ -1343,6 +1437,7 @@ class TestGetPRFeedback:
         comment_without_date.body = "hi"
         comment_without_date.id = 56
         comment_without_date.created_at = None
+        comment_without_date.author_association = "CONTRIBUTOR"
 
         self._setup_mocks(
             mock_manager, comments=[comment_with_date, comment_without_date]
@@ -1356,14 +1451,27 @@ class TestGetPRFeedback:
                 "body": "hello",
                 "id": 55,
                 "created_at": "2024-03-01T12:00:00",
+                "author_association": "OWNER",
             },
             {
                 "author": "bob",
                 "body": "hi",
                 "id": 56,
                 "created_at": None,
+                "author_association": "CONTRIBUTOR",
             },
         ]
+
+    def test_fetch_conversation_comments_non_str_association_is_none(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """A MagicMock author_association (not a str) maps to None."""
+        comment = self._make_comment("alice", "hello", author_association=MagicMock())
+        self._setup_mocks(mock_manager, comments=[comment])
+
+        result = fetch_conversation_comments(mock_manager, 42)
+
+        assert result[0]["author_association"] is None
 
     def test_conversation_comments_failure(
         self, mock_manager: PullRequestManager
@@ -1702,3 +1810,50 @@ class TestMergeableStateField:
             manager = PullRequestManager(git_dir)
             result = manager.get_pull_request(123)
             assert result["mergeable_state"] == state_value
+
+
+@pytest.mark.git_integration
+class TestAuthorAssociationField:
+    """Verify _pr_to_data maps author_association through normalization."""
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"), [("OWNER", "OWNER"), (MagicMock(), None)]
+    )
+    @patch("mcp_workspace.github_operations._client.Github")
+    def test_get_pull_request_author_association(
+        self,
+        mock_github: Mock,
+        raw: Any,
+        expected: Any,
+        tmp_path: Path,
+    ) -> None:
+        """A str association flows through; a non-str value becomes None."""
+        git_dir = tmp_path / "git_dir"
+        git_dir.mkdir()
+        repo = git.Repo.init(git_dir)
+        repo.create_remote("origin", "https://github.com/test/repo.git")
+
+        mock_pr = MagicMock()
+        mock_pr.number = 123
+        mock_pr.title = "Test PR"
+        mock_pr.body = "Test description"
+        mock_pr.state = "open"
+        mock_pr.head.ref = "feature-branch"
+        mock_pr.base.ref = "main"
+        mock_pr.html_url = "https://github.com/test/repo/pull/123"
+        mock_pr.user.login = "testuser"
+        mock_pr.author_association = raw
+
+        mock_repo = MagicMock()
+        mock_repo.get_pull.return_value = mock_pr
+        mock_github_client = MagicMock()
+        mock_github_client.get_repo.return_value = mock_repo
+        mock_github.return_value = mock_github_client
+
+        with patch(
+            "mcp_workspace.github_operations.base_manager.get_github_token",
+            return_value="dummy-token",
+        ):
+            manager = PullRequestManager(git_dir)
+            result = manager.get_pull_request(123)
+            assert result["author_association"] == expected

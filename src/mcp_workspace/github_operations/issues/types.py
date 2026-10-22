@@ -81,6 +81,7 @@ class CommentData(TypedDict):
     created_at: Optional[str]
     updated_at: Optional[str]
     url: str
+    author_association: Optional[str]
 
 
 class EventData(TypedDict):
