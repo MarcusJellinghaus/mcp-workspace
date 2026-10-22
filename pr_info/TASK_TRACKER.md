@@ -21,6 +21,28 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: `get_head_commit_info` git helper
+See [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: `TestGetHeadCommitInfo` tests + `get_head_commit_info` in `commits.py`, exported from `git_operations/__init__.py`
+- [ ] Quality checks: pylint, pytest (`-n auto -k "not github_search_live"`), mypy, tach, lint-imports — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Return the comment, new report fields, header rendering
+See [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: `find_latest_marked_comment` returns `CommentData`; `BranchStatusReport` fields replace `last_automated_note`; `_format_utc` + `_format_last_marked_comment_lines` renderer; update formatter and branch status tests
+- [ ] Quality checks: pylint, pytest (`-n auto -k "not github_search_live"`), mypy, tach, lint-imports — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: Collect timestamps, HEAD and the stale verdict
+See [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation: `_marked_comment_context` helper + wiring in `collect_branch_status`; `tach.toml` `checks → utils` dependency; collection tests (stale, current, tie, HEAD unavailable, unparseable `created_at`, HEAD not looked up without comment)
+- [ ] Quality checks: pylint, pytest (`-n auto -k "not github_search_live"`), mypy, tach, lint-imports; `branch_status.py` ≤ 750 lines — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: review the full branch diff against `main`, address findings
+- [ ] PR summary prepared
