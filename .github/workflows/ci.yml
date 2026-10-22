@@ -244,10 +244,14 @@ jobs:
         # Note: the previous `uvx --with .` pattern is no longer viable
         # because uv now reports "conflicting URLs for package mcp-workspace"
         # when mcp-coder declares mcp-workspace as a git URL dependency.
+        # Workaround: mcp-coder HEAD imports unreleased mcp-tools-py code
+        # (resolve_steps), but its plain dependency resolves to the PyPI
+        # release. Install mcp-tools-py from git until upstream is fixed.
         run: |
           uv venv --python 3.11
           source .venv/bin/activate
           uv pip install "git+https://github.com/MarcusJellinghaus/mcp_coder.git"
+          uv pip install "git+https://github.com/MarcusJellinghaus/mcp-tools-py.git"
           uv pip install --force-reinstall --no-deps .
           mcp-coder check file-size --max-lines 750 --allowlist-file .large-files-allowlist
 

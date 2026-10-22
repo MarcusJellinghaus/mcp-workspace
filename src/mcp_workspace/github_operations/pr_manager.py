@@ -15,6 +15,7 @@ from mcp_coder_utils.log_utils import log_function_call
 from mcp_workspace.git_operations import get_default_branch_name
 
 from .base_manager import BaseGitHubManager, _handle_github_errors
+from .pr_checks_mixin import PRChecksMixin
 from .pr_feedback_mixin import PRFeedbackMixin
 from .pr_merge_mixin import PRMergeMixin
 from .pr_review_mixin import PRReviewMixin
@@ -36,6 +37,7 @@ def _pr_to_data(pr: PullRequest) -> PullRequestData:
         "body": pr.body,
         "state": pr.state,
         "head_branch": pr.head.ref,
+        "head_sha": pr.head.sha,
         "base_branch": pr.base.ref,
         "url": pr.html_url,
         "created_at": pr.created_at.isoformat() if pr.created_at else None,
@@ -50,7 +52,7 @@ def _pr_to_data(pr: PullRequest) -> PullRequestData:
 
 
 class PullRequestManager(
-    PRReviewMixin, PRMergeMixin, PRFeedbackMixin, BaseGitHubManager
+    PRReviewMixin, PRMergeMixin, PRFeedbackMixin, PRChecksMixin, BaseGitHubManager
 ):
     """Manages GitHub pull request operations using the GitHub API.
 
@@ -176,6 +178,7 @@ class PullRequestManager(
             - body: PR description (str)
             - state: PR state, typically "open" (str)
             - head_branch: Source branch name (str)
+            - head_sha: Head commit SHA (str)
             - base_branch: Target branch name (str)
             - url: GitHub URL to the PR (str)
             - created_at: ISO timestamp (str)

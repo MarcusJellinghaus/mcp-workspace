@@ -289,8 +289,13 @@ class TestLinkedBranchRendering:
                 LinkedBranchStatus.LINKED_VIA_PR,
                 (),
                 ClosingPRRef(10, "255-feature"),
-                ["#255", "PR #10", "255-feature"],
-                [],
+                [
+                    "OK via PR #10",
+                    "PR branch matches current branch '255-feature'",
+                    "closes issue #255",
+                    "no branch linked in the Development panel",
+                ],
+                ["LINKED_VIA_PR"],
             ),
             (
                 LinkedBranchStatus.MISMATCH,
@@ -323,11 +328,30 @@ class TestLinkedBranchRendering:
 
         lines = _linked_lines(rendered)
         assert len(lines) == 1
-        assert lines[0].startswith(f"Linked Branch: {status.value}")
+        prefix = (
+            "OK via PR" if status == LinkedBranchStatus.LINKED_VIA_PR else status.value
+        )
+        assert lines[0].startswith(f"Linked Branch: {prefix}")
         for substring in expected_substrings:
             assert substring in lines[0]
         for substring in forbidden_substrings:
             assert substring not in lines[0]
+
+    @pytest.mark.parametrize("formatter", _FORMATTERS)
+    def test_linked_via_pr_prints_long_branch_name_in_full(
+        self, formatter: Formatter
+    ) -> None:
+        branch = "255-" + "very-long-descriptive-branch-name-segment-" * 3
+        assert len(branch) > 80
+        report = _make_report(
+            LinkedBranchStatus.LINKED_VIA_PR,
+            branch_name=branch,
+            closing_pr_candidate=ClosingPRRef(10, branch),
+        )
+
+        lines = _linked_lines(formatter(report))
+        assert len(lines) == 1
+        assert f"'{branch}'" in lines[0]
 
     @pytest.mark.parametrize("formatter", _FORMATTERS)
     def test_not_checked_renders_no_line(self, formatter: Formatter) -> None:

@@ -23,6 +23,10 @@ from mcp_workspace.checks.branch_status_rendering import (
     format_report_for_llm,
     linked_branch_blocks,
 )
+from mcp_workspace.checks.branch_status_unstable import (
+    _merge_state_recommendation,
+    _recheck_unstable,
+)
 from mcp_workspace.checks.pr_feedback import collect_pr_feedback
 from mcp_workspace.git_operations.base_branch import detect_base_branch
 from mcp_workspace.git_operations.branch_queries import (
@@ -97,6 +101,8 @@ class BranchStatusReport:
     last_automated_note: Optional[str] = None
     closing_pr_candidate: Optional[ClosingPRRef] = None
     base_branch_error: Optional[str] = None
+    non_green_checks: Optional[tuple[str, ...]] = None  # None = lookup not run
+    non_green_checks_error: Optional[str] = None
 
     def format_for_human(
         self,
@@ -441,7 +447,11 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
         recommendations.append("Address review comments")
     if merge_state_blocked:
         recommendations.append(
-            f"Not ready to merge (GitHub mergeable_state: {pr_mergeable_state})"
+            _merge_state_recommendation(
+                str(pr_mergeable_state),
+                report_data.get("non_green_checks"),
+                report_data.get("non_green_checks_error"),
+            )
         )
 
     ci_ok = ci_status in (CIStatus.PASSED, CIStatus.NOT_CONFIGURED)
@@ -578,6 +588,13 @@ def collect_branch_status(
             else (None, None, None, None, None)
         )
 
+        # 9b. Re-read a possibly stale "unstable" and look up non-green checks
+        pr_mergeable, pr_mergeable_state, non_green_checks, non_green_checks_error = (
+            _recheck_unstable(
+                pr_manager, ci_status, pr_number, pr_mergeable, pr_mergeable_state
+            )
+        )
+
         # 10. Apply PR merge override
         rebase_needed, rebase_reason = _apply_pr_merge_override(
             rebase_needed, rebase_reason, pr_mergeable if pr_found else None
@@ -614,6 +631,8 @@ def collect_branch_status(
             "tasks_is_blocking": tasks_is_blocking,
             "pr_mergeable": pr_mergeable,
             "pr_mergeable_state": pr_mergeable_state,
+            "non_green_checks": non_green_checks,
+            "non_green_checks_error": non_green_checks_error,
             "pr_feedback_blocks_merge": pr_feedback_blocks_merge,
             "is_default_branch": branch_name == default_branch_name,
             "default_branch_name": default_branch_name,
@@ -647,6 +666,8 @@ def collect_branch_status(
             last_automated_note=last_automated_note,
             closing_pr_candidate=closing_pr_candidate,
             base_branch_error=base_branch_error,
+            non_green_checks=non_green_checks,
+            non_green_checks_error=non_green_checks_error,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error collecting branch status: {e}")
