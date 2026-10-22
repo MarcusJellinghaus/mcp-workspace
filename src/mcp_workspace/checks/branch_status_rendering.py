@@ -450,7 +450,11 @@ def _format_non_green_checks_line(report: "BranchStatusReport") -> Optional[str]
 
 
 def _format_utc(dt: Optional[datetime], fallback: str) -> str:
-    """Format a UTC datetime as ``YYYY-MM-DD HH:MM:SS UTC``, or return fallback."""
+    """Format a UTC datetime for display.
+
+    Returns:
+        ``dt`` formatted as ``YYYY-MM-DD HH:MM:SS UTC`` when set, else fallback.
+    """
     return dt.strftime("%Y-%m-%d %H:%M:%S UTC") if dt else fallback
 
 
