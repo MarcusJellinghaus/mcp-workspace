@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Check for forbidden folders in PR
       run: |
@@ -116,7 +116,7 @@ jobs:
 
     name: ${{ matrix.check.name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -190,7 +190,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GH_INTEGRATION_TOKEN }}
       GITHUB_TEST_REPO_URL: ${{ vars.GH_TEST_REPO_URL }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -231,7 +231,7 @@ jobs:
     runs-on: ubuntu-latest
     name: file-size
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -268,7 +268,7 @@ jobs:
           - {name: "vulture", cmd: "vulture --version && vulture src tests vulture_whitelist.py --min-confidence 60"}
     name: ${{ matrix.check.name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
