@@ -3,8 +3,8 @@
 ## LLM prompt
 
 > Read `pr_info/steps/summary.md`, then implement `pr_info/steps/step_3.md` exactly.
-> Steps 1 and 2 are done. Write the tests first, then the code. Run pylint, pytest (`-n auto`)
-> and mypy until they all pass, then make exactly one commit.
+> Steps 1 and 2 are done. Write the tests first, then the code. Run pylint, pytest (`-n auto`),
+> mypy and tach (`mcp__mcp-tools-py__run_tach_check`) until they all pass, then make exactly one commit.
 >
 > Precondition: `is_trusted_author` exists and `ReviewThreadData` / `CommentData` carry
 > `author_association`. If they don't, write one line to `pr_info/.blocked.txt` and stop.
@@ -14,6 +14,8 @@
 - `src/mcp_workspace/github_operations/formatters.py` — add `format_withheld_line`
 - `src/mcp_workspace/checks/pr_feedback.py` — `format_pr_feedback`, `collect_pr_feedback`
 - `src/mcp_workspace/checks/branch_status.py` — `collect_branch_status`
+- `tach.toml` — add `{ path = "mcp_workspace.config" }` to the `depends_on` of the
+  `mcp_workspace.checks` module (CI runs `tach check`; `.importlinter` already allows it)
 - `tests/github_operations/test_formatters.py`
 - `tests/checks/test_branch_status_pr_feedback.py`
 - `tests/checks/test_branch_status.py`

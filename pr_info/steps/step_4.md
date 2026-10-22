@@ -4,7 +4,8 @@
 
 > Read `pr_info/steps/summary.md`, then implement `pr_info/steps/step_4.md` exactly.
 > Steps 1–3 are done (`format_withheld_line` and `is_trusted_author` exist). Write the tests first,
-> then the code. Run pylint, pytest (`-n auto`) and mypy until they all pass, then make exactly one commit.
+> then the code. Run pylint, pytest (`-n auto`), mypy and tach (`mcp__mcp-tools-py__run_tach_check`)
+> until they all pass, then make exactly one commit.
 >
 > Precondition: `format_withheld_line` exists in `formatters.py`. If it doesn't, write one line to
 > `pr_info/.blocked.txt` and stop.
@@ -13,6 +14,8 @@
 
 - `src/mcp_workspace/github_operations/formatters.py` — `format_pr_view`
 - `src/mcp_workspace/server.py` — `github_pr_view` (~line 1069)
+- `tach.toml` — add `{ path = "mcp_workspace.config" }` to the `depends_on` of the
+  `mcp_workspace.server` module (CI runs `tach check`)
 - `tests/github_operations/test_formatters.py` (`TestFormatPrView`)
 - `tests/github_operations/_github_read_tools_helpers.py` (`mock_pull`)
 - `tests/github_operations/test_github_read_tools_pr_search.py`
@@ -39,7 +42,10 @@ def format_pr_view(
 - `server.py` `github_pr_view`:
   - Add a lazy `from mcp_workspace import config` and `normalize_author_association`
     (already imported in step 2).
-  - Call `trusted = config.get_trusted_commenters()` once per call.
+  - Call `trusted = config.get_trusted_commenters()` once per call. Keep this lookup through
+    `mcp_workspace.config`; do not import `get_trusted_commenters` from the
+    `mcp_workspace.github_operations` re-export. Otherwise the conftest autouse patch on
+    `mcp_workspace.config.get_trusted_commenters` no longer applies.
   - `pr_dict` gains:
     - `"user": pr.user.login if pr.user else None`
     - `"author_association": normalize_author_association(pr.author_association)`
@@ -79,13 +85,18 @@ trusted thread is withheld while the trusted opener is shown. Section headers su
 `test_formatters.py` (`TestFormatPrView`, `trusted=frozenset()`):
 - untrusted PR author (`author_association="CONTRIBUTOR"`) → the title and body text are absent, the
   withheld-title line is present, and the head branch is shown
-- an allowlisted PR author → title/body shown
+- an allowlisted PR author (`"user": "alice"`, `"author_association": "CONTRIBUTOR"`,
+  `trusted=frozenset({"alice"})`) → title/body shown
 - an untrusted review → its body and login are absent; the count line says `1 review`
 - inline: a trusted opener and an untrusted reply → the opener is shown, the reply body is absent, and
   `1 inline comment` is counted
 - the count line sits directly after the State line (single `\n`), so it survives `max_lines=4`
   (title, blank, State, count line)
 - trusted-only input → output identical to before, apart from the explicit `trusted` argument
+- Update the existing `TestFormatPrView` `pr` dict fixtures, and any other test caller of
+  `format_pr_view`, to include `"author_association": "OWNER"` and a `user`. Otherwise the PR author
+  is untrusted and the existing title/body assertions fail. `pr["user"]` is the login string, as
+  built in `server.py` (`pr.user.login`), e.g. `"user": "owner"`, not a nested dict.
 
 `test_github_read_tools_pr_search.py`:
 - ghost users (`pr.user = None`, review/comment/inline `user = None`) → no crash, and they are treated

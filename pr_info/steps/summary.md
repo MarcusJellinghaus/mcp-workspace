@@ -32,6 +32,9 @@ missing association) is untrusted. Applied per comment. Always on, no opt-out, n
   file reads.
   - Internal callers look it up at call time via `mcp_workspace.config`, so one test patch
     covers them all.
+  - This lookup needs new `tach.toml` dependencies on `mcp_workspace.config` for
+    `mcp_workspace.checks` (step 3) and `mcp_workspace.server` (step 4). `.importlinter` already
+    allows both.
 - **Filtering pattern (KISS).** Each list is split once at the top of the formatter
   (trusted kept, untrusted counted). The existing rendering loops then run unchanged on
   trusted items only. This means withheld items never count towards `_MAX_FEEDBACK_ITEMS`
@@ -75,6 +78,7 @@ Modified (source):
 - `src/mcp_workspace/checks/branch_status.py` — read allowlist, filter ❌-note comments, pass `trusted`
 - `src/mcp_workspace/server.py` — `github_pr_view`: `pr_dict` user/association, ghost-safe items, `trusted`
 - `README.md` — new "GitHub configuration" section
+- `tach.toml` — `mcp_workspace.config` dependency for `mcp_workspace.checks` and `mcp_workspace.server`
 
 Modified (tests): `tests/conftest.py`, `tests/test_config.py`,
 `tests/checks/test_branch_status_pr_feedback.py`, `tests/checks/test_branch_status.py`,
