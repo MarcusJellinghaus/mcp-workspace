@@ -67,6 +67,8 @@ def mock_pull(
     pr.merged = merged
     pr.head.ref = head_branch
     pr.base.ref = base_branch
+    pr.user.login = "alice"
+    pr.author_association = "OWNER"
     pr.get_reviews.return_value = []
     pr.get_review_comments.return_value = []
     return pr

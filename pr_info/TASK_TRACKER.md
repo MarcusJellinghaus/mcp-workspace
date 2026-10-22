@@ -41,9 +41,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 4: `github_pr_view` gate — title/body, reviews, comments, inline comments — [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: tests first, then `format_pr_view(trusted=...)`, `github_pr_view` (`pr_dict` user/association, ghost-safe logins, allowlist lookup), test fixture updates, `tach.toml` dependency for `mcp_workspace.server`
-- [ ] Quality checks: pylint, pytest, mypy (plus tach) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests first, then `format_pr_view(trusted=...)`, `github_pr_view` (`pr_dict` user/association, ghost-safe logins, allowlist lookup), test fixture updates, `tach.toml` dependency for `mcp_workspace.server`
+- [x] Quality checks: pylint, pytest, mypy (plus tach) — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

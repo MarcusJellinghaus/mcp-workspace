@@ -8,6 +8,7 @@ from typing import Any, List, Optional, TypedDict
 
 from mcp_workspace.github_operations.issues.types import CommentData, IssueData
 from mcp_workspace.github_operations.pr_types import ConversationCommentData
+from mcp_workspace.github_operations.trust import is_trusted_author
 
 
 class ReviewData(TypedDict):
@@ -225,29 +226,76 @@ def format_pr_view(
     conversation_comments: Optional[list[ConversationCommentData]] = None,
     inline_comments: Optional[list[InlineCommentData]] = None,
     max_lines: int = 200,
+    *,
+    trusted: frozenset[str],
 ) -> str:
     """Format a single PR with full detail for LLM consumption.
 
+    Title, body and feedback from untrusted authors are withheld; withheld
+    feedback is reported as one count line directly under the State line.
+
     Args:
-        pr: PR data dict with number, title, state, head_branch, base_branch, etc.
+        pr: PR data dict with number, title, state, head_branch, base_branch,
+            user (login) and author_association.
         reviews: Optional list of review data dicts.
         conversation_comments: Optional list of conversation comment dicts.
         inline_comments: Optional list of inline review comment dicts.
         max_lines: Maximum output lines before truncation.
+        trusted: Lowercased login allowlist from `get_trusted_commenters`.
 
     Returns:
         Formatted multi-line text string.
     """
-    parts: list[str] = [f"# PR #{pr['number']}: {pr['title']}"]
+    author_ok = is_trusted_author(pr.get("user"), pr.get("author_association"), trusted)
+    # Split each list once: trusted items are rendered, the rest only counted.
+    all_reviews = reviews or []
+    all_comments = conversation_comments or []
+    all_inline = inline_comments or []
+    reviews = [
+        r
+        for r in all_reviews
+        if is_trusted_author(r["user"], r["author_association"], trusted)
+    ]
+    conversation_comments = [
+        c
+        for c in all_comments
+        if is_trusted_author(c["author"], c["author_association"], trusted)
+    ]
+    inline_comments = [
+        ic
+        for ic in all_inline
+        if is_trusted_author(ic["user"], ic["author_association"], trusted)
+    ]
+    withheld_line = format_withheld_line(
+        [
+            ("review", len(all_reviews) - len(reviews)),
+            ("comment", len(all_comments) - len(conversation_comments)),
+            ("inline comment", len(all_inline) - len(inline_comments)),
+        ]
+    )
+
+    if author_ok:
+        title_line = f"# PR #{pr['number']}: {pr['title']}"
+    else:
+        title_line = (
+            f"# PR #{pr['number']} by @{pr.get('user') or 'unknown'} — untrusted "
+            "author: title and body withheld, review on GitHub"
+        )
+    parts: list[str] = [title_line]
 
     draft = pr.get("draft", False)
     merged = pr.get("merged", False)
-    parts.append(
+    header = (
         f"State: {pr['state']} | {pr['head_branch']} → {pr['base_branch']}"
         f" | Draft: {draft} | Merged: {merged}"
     )
+    if withheld_line:
+        # Joined with a single newline so the line survives any max_lines >= 4.
+        header += f"\n{withheld_line}"
+    parts.append(header)
 
-    parts.append(pr.get("body") or "(no description)")
+    if author_ok:
+        parts.append(pr.get("body") or "(no description)")
 
     if reviews:
         parts.append("## Reviews")

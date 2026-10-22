@@ -57,6 +57,7 @@ depends_on = [
     { path = "mcp_workspace.checks" },
     { path = "mcp_workspace.reference_projects" },
     { path = "mcp_workspace.server_reference_tools" },
+    { path = "mcp_workspace.config" },
     { path = "mcp_coder_utils.log_utils" },
 ]
 

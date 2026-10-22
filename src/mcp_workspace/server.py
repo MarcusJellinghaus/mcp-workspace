@@ -1085,6 +1085,7 @@ def github_pr_view(
         Formatted PR detail text, or error message string.
     """
     # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace import config
     from mcp_workspace.github_operations.formatters import (
         InlineCommentData,
         ReviewData,
@@ -1098,6 +1099,8 @@ def github_pr_view(
         repo = manager._get_repository()  # pylint: disable=protected-access
         if not repo:
             return _repo_access_error(manager)
+        # Looked up via the module so one test patch on mcp_workspace.config applies.
+        trusted = config.get_trusted_commenters()
         pr = repo.get_pull(number)
         pr_dict = {
             "number": pr.number,
@@ -1108,6 +1111,8 @@ def github_pr_view(
             "base_branch": pr.base.ref,
             "draft": pr.draft,
             "merged": pr.merged,
+            "user": pr.user.login if pr.user else None,
+            "author_association": normalize_author_association(pr.author_association),
         }
         reviews: Optional[List[ReviewData]] = None
         conversation_comments: Optional[List[ConversationCommentData]] = None
@@ -1115,7 +1120,7 @@ def github_pr_view(
         if include_comments:
             reviews = [
                 ReviewData(
-                    user=r.user.login,
+                    user=r.user.login if r.user else None,
                     state=r.state,
                     body=r.body,
                     author_association=normalize_author_association(
@@ -1128,7 +1133,7 @@ def github_pr_view(
                 ConversationCommentData(
                     id=c.id,
                     body=c.body,
-                    author=c.user.login,
+                    author=c.user.login if c.user else "",
                     created_at=c.created_at.isoformat() if c.created_at else None,
                     author_association=normalize_author_association(
                         c.author_association
@@ -1140,7 +1145,7 @@ def github_pr_view(
                 InlineCommentData(
                     path=c.path,
                     line=c.line,
-                    user=c.user.login,
+                    user=c.user.login if c.user else None,
                     body=c.body,
                     author_association=normalize_author_association(
                         c.author_association
@@ -1149,7 +1154,12 @@ def github_pr_view(
                 for c in pr.get_review_comments()
             ]
         return format_pr_view(
-            pr_dict, reviews, conversation_comments, inline_comments, max_lines
+            pr_dict,
+            reviews,
+            conversation_comments,
+            inline_comments,
+            max_lines,
+            trusted=trusted,
         )
     except Exception as e:
         return _tool_error(e)
