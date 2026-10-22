@@ -7,6 +7,7 @@ check_branch_status MCP tool.
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -35,11 +36,13 @@ from mcp_workspace.git_operations.branch_queries import (
     get_current_branch_name,
     get_default_branch_name,
 )
+from mcp_workspace.git_operations.commits import get_head_commit_info
 from mcp_workspace.git_operations.workflows import needs_rebase
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.formatters import find_latest_marked_comment
 from mcp_workspace.github_operations.issues import (
     ClosingPRRef,
+    CommentData,
     IssueBranchManager,
     IssueData,
     IssueManager,
@@ -48,6 +51,7 @@ from mcp_workspace.github_operations.issues import (
 )
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
 from mcp_workspace.github_operations.trust import is_trusted_author
+from mcp_workspace.utils.timezone_utils import parse_iso_timestamp
 from mcp_workspace.workflows.task_tracker import (
     TaskTrackerFileNotFoundError,
     TaskTrackerSectionNotFoundError,
@@ -100,7 +104,12 @@ class BranchStatusReport:
     linked_branch_status: LinkedBranchStatus = LinkedBranchStatus.NOT_CHECKED
     linked_branches: tuple[str, ...] = ()
     linked_branch_issue_number: Optional[int] = None
-    last_automated_note: Optional[str] = None
+    last_marked_comment: Optional[CommentData] = None
+    # UTC; None if missing/unparseable
+    marked_comment_created_at: Optional[datetime] = None
+    head_short_sha: Optional[str] = None
+    head_committed_at: Optional[datetime] = None  # UTC
+    marked_comment_stale: bool = False
     closing_pr_candidate: Optional[ClosingPRRef] = None
     base_branch_error: Optional[str] = None
     non_green_checks: Optional[tuple[str, ...]] = None  # None = lookup not run
@@ -477,6 +486,31 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
     return recommendations
 
 
+def _marked_comment_context(
+    project_dir: Path, comment: CommentData
+) -> tuple[Optional[datetime], Optional[str], Optional[datetime], bool]:
+    """Return (created_at, head_short_sha, head_committed_at, stale) for a marked comment.
+
+    Never raises: an exception here would replace the whole report with the
+    empty fallback. Stale only when both timestamps exist and the comment is
+    strictly older than HEAD's committer date (second precision; a tie is current).
+    """
+    created_at: Optional[datetime] = None
+    if comment["created_at"]:
+        try:
+            created_at = parse_iso_timestamp(comment["created_at"])
+        except ValueError:
+            logger.debug("Unparseable comment created_at: %r", comment["created_at"])
+    head = get_head_commit_info(project_dir)
+    head_short_sha, head_committed_at = head if head is not None else (None, None)
+    stale = (
+        created_at is not None
+        and head_committed_at is not None
+        and created_at < head_committed_at
+    )
+    return created_at, head_short_sha, head_committed_at, stale
+
+
 def collect_branch_status(
     project_dir: Path, max_log_lines: int = 300
 ) -> BranchStatusReport:
@@ -500,7 +534,7 @@ def collect_branch_status(
         issue_data: Optional[IssueData] = None
         issue_manager: Optional[IssueManager] = None
         pr_manager: Optional[PullRequestManager] = None
-        last_automated_note: Optional[str] = None
+        last_marked_comment: Optional[CommentData] = None
         trusted = config.get_trusted_commenters()
 
         try:
@@ -529,18 +563,22 @@ def collect_branch_status(
                             c["user"], c["author_association"], trusted
                         )
                     ]
-                    last_automated_note = find_latest_marked_comment(trusted_comments)
+                    last_marked_comment = find_latest_marked_comment(trusted_comments)
                 except IssueIdentityMismatchError as e:
                     # Mirrors the get_issue branch above — same signal (issue
                     # transferred or renumbered), so it gets the same warning,
                     # not debug.
                     logger.warning("%s", e)
                 except Exception:  # pylint: disable=broad-exception-caught
-                    logger.debug(
-                        "Failed to fetch automated note comment", exc_info=True
-                    )
+                    logger.debug("Failed to fetch marked comment", exc_info=True)
         except Exception:  # pylint: disable=broad-exception-caught
             logger.debug("GitHub manager initialization failed", exc_info=True)
+
+        marked_created_at, head_short_sha, head_committed_at, marked_stale = (
+            _marked_comment_context(project_dir, last_marked_comment)
+            if last_marked_comment is not None
+            else (None, None, None, False)
+        )
 
         # 3. Detect base branch (DI: pass managers). A malformed Base Branch
         # section is surfaced as-is — never replaced by a guessed base.
@@ -675,7 +713,11 @@ def collect_branch_status(
             linked_branch_status=linked_branch_status,
             linked_branches=linked_branches,
             linked_branch_issue_number=linked_branch_issue_number,
-            last_automated_note=last_automated_note,
+            last_marked_comment=last_marked_comment,
+            marked_comment_created_at=marked_created_at,
+            head_short_sha=head_short_sha,
+            head_committed_at=head_committed_at,
+            marked_comment_stale=marked_stale,
             closing_pr_candidate=closing_pr_candidate,
             base_branch_error=base_branch_error,
             non_green_checks=non_green_checks,
