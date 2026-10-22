@@ -23,9 +23,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: Config allowlist, trust helpers, README — [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: tests first (`test_trust.py`, `test_config.py`, conftest autouse fixture), then `trust.py`, `config.py` (`_read_config_list`, `get_trusted_commenters`), `github_operations/__init__.py` re-exports, README "GitHub configuration" section
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests first (`test_trust.py`, `test_config.py`, conftest autouse fixture), then `trust.py`, `config.py` (`_read_config_list`, `get_trusted_commenters`), `github_operations/__init__.py` re-exports, README "GitHub configuration" section
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `author_association` on every data type and collection path — [step_2.md](./steps/step_2.md)
 

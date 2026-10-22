@@ -80,6 +80,12 @@ def setup_and_cleanup() -> Generator[None, None, None]:
     yield
 
 
+@pytest.fixture(autouse=True)
+def _empty_trusted_commenters(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep tests from reading the real ``~/.mcp_coder/config.toml`` allowlist."""
+    monkeypatch.setattr("mcp_workspace.config.get_trusted_commenters", frozenset)
+
+
 try:
     from typing import TypedDict
 except ImportError:
