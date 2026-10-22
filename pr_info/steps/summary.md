@@ -68,6 +68,12 @@ No new source modules or packages.
 ## Checks after every step
 
 `mcp__mcp-tools-py__run_pylint_check`, `mcp__mcp-tools-py__run_mypy_check`,
-`mcp__mcp-tools-py__run_pytest_check` (`extra_args: ["-n", "auto"]`), `mcp__mcp-tools-py__run_tach_check`,
-`mcp__mcp-tools-py__run_lint_imports_check`, then `mcp__mcp-tools-py__run_format_code` before committing.
+`mcp__mcp-tools-py__run_pytest_check` (`extra_args: ["-n", "auto", "-k", "not github_search_live"]`),
+`mcp__mcp-tools-py__run_tach_check`, `mcp__mcp-tools-py__run_lint_imports_check`, then
+`mcp__mcp-tools-py__run_format_code` before committing.
+
+The `-k` filter deselects the live GitHub search tests: search API indexing lag makes them flaky, this
+issue doesn't touch search, and the CI github-integration job still runs them. All other GitHub
+integration tests stay in.
+
 `src/mcp_workspace/checks/branch_status.py` must stay ≤ 750 lines (`mcp__mcp-workspace__check_file_size`).

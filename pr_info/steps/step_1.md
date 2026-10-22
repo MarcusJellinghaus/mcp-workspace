@@ -5,7 +5,7 @@ Read `pr_info/steps/summary.md` first. One commit: tests + implementation, all c
 ## LLM prompt
 
 > Implement Step 1 of `pr_info/steps/summary.md` as described in `pr_info/steps/step_1.md`.
-> Write the tests first, then the helper. Run pylint, mypy, pytest (`-n auto`), tach and
+> Write the tests first, then the helper. Run pylint, mypy, pytest (`-n auto -k "not github_search_live"`), tach and
 > lint-imports; format code; commit once.
 
 ## WHERE

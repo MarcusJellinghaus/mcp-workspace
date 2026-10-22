@@ -6,7 +6,7 @@ all checks passing.
 ## LLM prompt
 
 > Implement Step 3 of `pr_info/steps/summary.md` as described in `pr_info/steps/step_3.md`.
-> Write the collection tests first, then the code. Run pylint, mypy, pytest (`-n auto`), tach and
+> Write the collection tests first, then the code. Run pylint, mypy, pytest (`-n auto -k "not github_search_live"`), tach and
 > lint-imports; check `branch_status.py` stays ≤ 750 lines; format code; commit once.
 
 ## Precondition

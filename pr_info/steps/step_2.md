@@ -8,7 +8,7 @@ their defaults, so the live output reads `unknown time; HEAD unknown` until Step
 ## LLM prompt
 
 > Implement Step 2 of `pr_info/steps/summary.md` as described in `pr_info/steps/step_2.md`.
-> Update the tests first, then the code. Run pylint, mypy, pytest (`-n auto`), tach and
+> Update the tests first, then the code. Run pylint, mypy, pytest (`-n auto -k "not github_search_live"`), tach and
 > lint-imports; format code; commit once.
 
 ## WHERE
