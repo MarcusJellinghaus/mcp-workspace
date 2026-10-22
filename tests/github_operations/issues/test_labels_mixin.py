@@ -188,6 +188,19 @@ class TestIssueManagerLabels:
         with pytest.raises(GithubException):
             mock_issue_manager.set_labels(1, "bug")
 
+    @pytest.mark.parametrize("method", ["add_labels", "remove_labels", "set_labels"])
+    def test_result_carries_author_association(
+        self, mock_issue_manager: IssueManager, method: str
+    ) -> None:
+        """Label operations return the issue author's association."""
+        mock_issue = make_mock_issue(1)
+        mock_issue.author_association = "CONTRIBUTOR"
+        mock_issue_manager._repository.get_issue.return_value = mock_issue
+
+        result = getattr(mock_issue_manager, method)(1, "bug")
+
+        assert result["author_association"] == "CONTRIBUTOR"
+
 
 @pytest.mark.git_integration
 class TestTransitionIssueLabel:
@@ -207,6 +220,7 @@ class TestTransitionIssueLabel:
             "updated_at": None,
             "url": "",
             "locked": False,
+            "author_association": "OWNER",
         }
 
     def test_transition_basic_adds_and_clears(

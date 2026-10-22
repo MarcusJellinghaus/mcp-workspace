@@ -108,6 +108,7 @@ def _make_cursor_issue(number: int, updated_at: Optional[str]) -> IssueData:
         "user": "testuser",
         "created_at": "2025-12-31T08:00:00Z",
         "locked": False,
+        "author_association": "OWNER",
     }
 
 

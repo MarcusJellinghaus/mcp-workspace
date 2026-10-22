@@ -127,6 +127,7 @@ def sample_issue() -> IssueData:
         "user": "testuser",
         "created_at": "2025-12-31T08:00:00Z",
         "locked": False,
+        "author_association": "OWNER",
     }
 
 
@@ -150,6 +151,7 @@ def sample_cache_data() -> CacheData:
                 "user": "testuser",
                 "created_at": "2025-12-31T08:00:00Z",
                 "locked": False,
+                "author_association": "OWNER",
             }
         },
     }

@@ -57,12 +57,23 @@ def _make_parent(total: Optional[int] = 2) -> SubIssueLink:
     return SubIssueLink(_URL, total)
 
 
-def _make_child(number: int, state: str, title: str) -> MagicMock:
-    """Build a mock sub-issue."""
+def _make_child(
+    number: int,
+    state: str,
+    title: str,
+    login: str | None = "owner",
+    author_association: str = "OWNER",
+) -> MagicMock:
+    """Build a mock sub-issue; a None login is a ghost author."""
     child = MagicMock()
     child.number = number
     child.state = state
     child.title = title
+    if login is None:
+        child.user = None
+    else:
+        child.user.login = login
+    child.author_association = author_association
     return child
 
 
@@ -328,6 +339,38 @@ class TestSubissueList:
         result = github_subissue_list(parent_number=3)
 
         assert result == "#7  open  First\n#9  closed  Second"
+
+    @patch("mcp_workspace.github_operations.issues.IssueManager")
+    def test_untrusted_children_are_prefixed(self, mock_cls: MagicMock) -> None:
+        """Untrusted children get the prefix, a ghost renders as @ghost."""
+        mock_cls.return_value.list_sub_issues.return_value = [
+            _make_child(7, "open", "First", login="abc", author_association="NONE"),
+            _make_child(8, "open", "Trusted"),
+            _make_child(9, "closed", "Gone", login=None, author_association="NONE"),
+        ]
+
+        result = github_subissue_list(parent_number=3)
+
+        assert result.splitlines() == [
+            "#7  open  [untrusted @abc] First",
+            "#8  open  Trusted",
+            "#9  closed  [untrusted @ghost] Gone",
+        ]
+
+    @patch("mcp_workspace.github_operations.issues.IssueManager")
+    def test_allowlisted_child_has_no_prefix(
+        self, mock_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An allowlisted login is trusted whatever its role."""
+        monkeypatch.setattr(
+            "mcp_workspace.config.get_trusted_commenters",
+            lambda: frozenset({"abc"}),
+        )
+        mock_cls.return_value.list_sub_issues.return_value = [
+            _make_child(7, "open", "First", login="abc", author_association="NONE"),
+        ]
+
+        assert github_subissue_list(parent_number=3) == "#7  open  First"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_no_children(self, mock_cls: MagicMock) -> None:

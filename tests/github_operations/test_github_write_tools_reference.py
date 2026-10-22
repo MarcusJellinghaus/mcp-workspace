@@ -81,6 +81,7 @@ def _make_issue() -> IssueData:
         updated_at=None,
         url="https://github.com/owner/sibling/issues/42",
         locked=False,
+        author_association="OWNER",
     )
 
 

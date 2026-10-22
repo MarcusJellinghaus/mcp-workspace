@@ -96,6 +96,19 @@ class TestCheckBaseBranch:
         assert "line1" in result
         assert "line2" not in result
 
+    def test_invalid_ref_returns_error(self) -> None:
+        """A single-line Base Branch value that is not a valid ref is rejected."""
+        result = _check_base_branch("### Base Branch\n\nmain branch\n")
+        assert result is not None
+        assert result.startswith("Error: ")
+        assert "valid git branch name" in result
+        assert "'main branch'" in result
+
+    def test_invalid_ref_flag_off_is_none(self) -> None:
+        """When the flag is off, an invalid ref returns None."""
+        server_module._enforce_base_branch_format = False
+        assert _check_base_branch("### Base Branch\n\nmain branch\n") is None
+
     def test_crlf_malformed_is_rejected(self) -> None:
         """A CRLF multi-line section embeds the first line without a trailing \\r."""
         result = _check_base_branch("### Base Branch\r\n\r\nline1\r\nline2\r\n")

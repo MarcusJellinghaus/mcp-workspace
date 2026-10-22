@@ -14,7 +14,20 @@ from mcp_workspace.checks.branch_status import (
     collect_branch_status,
 )
 from mcp_workspace.checks.branch_status_rendering import CIStatus, LinkedBranchStatus
+from mcp_workspace.github_operations.issues.base import (
+    MalformedBaseBranchError,
+    format_malformed_base_branch,
+    parse_base_branch,
+)
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
+from tests.github_operations._issue_test_helpers import (
+    make_untrusted_issue,
+    real_issue_manager,
+)
+
+_EDITOR_PATH = (
+    "mcp_workspace.github_operations.issues.base_branch_trust.fetch_body_editor"
+)
 
 
 def _make_report(rebase_needed: bool | None) -> BranchStatusReport:
@@ -225,6 +238,31 @@ class TestMalformedBaseBranch:
         assert "Review Gate: BLOCKED (base branch)" in output
 
 
+class TestInvalidRefBaseBranch:
+    """A single-line but invalid ref is surfaced as MALFORMED with its value."""
+
+    def test_malformed_line_shows_value(
+        self, status_mocks: dict[str, MagicMock]
+    ) -> None:
+        body = "### Base Branch\n\nmain branch\n"
+        with pytest.raises(MalformedBaseBranchError) as exc_info:
+            parse_base_branch(body)
+        _set_issue(
+            status_mocks,
+            {
+                "number": 42,
+                "body": body,
+                "base_branch": None,
+                "base_branch_error": format_malformed_base_branch(exc_info.value),
+            },
+        )
+
+        report = collect_branch_status(Path("/tmp"))
+
+        assert report.base_branch == "MALFORMED (issue #42: 'main branch')"
+        status_mocks["detect"].assert_not_called()
+
+
 class TestValidBaseBranch:
     """A valid issue goes through base-branch detection with the fetched data."""
 
@@ -249,3 +287,32 @@ class TestValidBaseBranch:
         assert report.base_branch == "epic/x"
         assert report.base_branch_error is None
         assert report.rebase_needed is False
+
+
+class TestUntrustedBaseBranchEndToEnd:
+    """A real IssueManager drops an untrusted malformed section before the report."""
+
+    def test_no_malformed_line_or_review_gate_block(
+        self, status_mocks: dict[str, MagicMock], tmp_path: Path
+    ) -> None:
+        with (
+            real_issue_manager(tmp_path) as manager,
+            patch.object(manager, "get_comments", return_value=[]),
+            patch(_EDITOR_PATH, return_value=None),
+        ):
+            manager._repository.get_issue.return_value = make_untrusted_issue(
+                42, _MALFORMED_BODY
+            )
+            status_mocks["issue_mgr_cls"].return_value = manager
+
+            report = collect_branch_status(Path("/tmp"))
+
+        status_mocks["detect"].assert_called_once()
+        assert report.base_branch == "main"
+        assert report.base_branch_error is None
+        for output in (
+            report.format_for_llm(fail_on_reviews=True),
+            report.format_for_human(fail_on_reviews=True),
+        ):
+            assert "MALFORMED" not in output
+            assert "BLOCKED (base branch)" not in output

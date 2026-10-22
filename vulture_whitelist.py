@@ -201,3 +201,6 @@ _.origin_has_base
 _.fixture_env  # name="env"
 # Autouse fixture isolating tests from the real trusted-commenters allowlist (issue #336, pytest collection only)
 _._empty_trusted_commenters
+# Fixtures for issue #342 untrusted base-branch tests, reached through their name= alias
+_._editor  # name="editor"
+_._token_login  # name="token_login"

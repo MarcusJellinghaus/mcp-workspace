@@ -127,6 +127,7 @@ class TestLastFullRefresh:
                     "user": "testuser",
                     "created_at": "2025-12-31T08:00:00Z",
                     "locked": False,
+                    "author_association": "OWNER",
                 }
             },
         }
@@ -181,6 +182,7 @@ class TestLastFullRefresh:
                     "user": "testuser",
                     "created_at": "2025-12-31T08:00:00Z",
                     "locked": False,
+                    "author_association": "OWNER",
                 }
             },
         }

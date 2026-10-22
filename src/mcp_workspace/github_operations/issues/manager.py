@@ -4,26 +4,32 @@ This module provides the IssueManager class that composes all mixin classes
 for managing GitHub issues through the PyGithub library.
 """
 
+import functools
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Callable, List, Optional
 
 from github.Issue import Issue
+from github.Repository import Repository
 from mcp_coder_utils.log_utils import log_function_call
 
+from mcp_workspace import config
+
 from ..base_manager import BaseGitHubManager, _handle_github_errors
+from ..trust import normalize_author_association
 from .base import (
     MalformedBaseBranchError,
     format_malformed_base_branch,
     parse_base_branch,
     validate_issue_number,
 )
+from .base_branch_trust import is_body_trusted
 from .comments_mixin import CommentsMixin
 from .events_mixin import EventsMixin
 from .labels_mixin import LabelsMixin
 from .sub_issues_mixin import SubIssuesMixin
-from .types import IssueData, create_empty_issue_data
+from .types import IssueData, create_empty_issue_data, issue_to_data
 
 logger = logging.getLogger(__name__)
 
@@ -35,63 +41,52 @@ _warned_malformed_base_branch: set[tuple[str, int, str]] = set()
 
 
 def _parse_base_branch_fields(
-    body: str, repo_full_name: str, issue_number: int
+    manager: BaseGitHubManager,
+    repo: Repository,
+    github_issue: Issue,
+    allowlist: Callable[[], frozenset[str]],
 ) -> tuple[Optional[str], Optional[str]]:
-    """Return (base_branch, base_branch_error) for an issue body.
+    """Return (base_branch, base_branch_error), or (None, None) for an untrusted body.
 
     Args:
-        body: Issue body to parse
-        repo_full_name: Repository the issue belongs to, for the log-once key
-        issue_number: Issue number, for the log message and log-once key
+        manager: Manager providing the GitHub client for the trust check
+        repo: Repository the issue belongs to
+        github_issue: Issue whose body is parsed
+        allowlist: Zero-argument callable returning the lowercased allowlist;
+            called only when the author's role is not trusted
 
     Returns:
-        ``(branch, None)`` for a valid section, ``(None, None)`` for an absent
-        or empty one, and ``(None, message)`` for a malformed one.
+        ``(branch, None)`` for a valid section, ``(None, None)`` for an absent,
+        empty or untrusted one, and ``(None, message)`` for a malformed one.
     """
+    number = github_issue.number
+    error: Optional[MalformedBaseBranchError] = None
     try:
-        return parse_base_branch(body), None
+        value = parse_base_branch(github_issue.body or "")
     except MalformedBaseBranchError as exc:
-        message = format_malformed_base_branch(exc)
-        key = (repo_full_name.lower(), issue_number, message)
-        level = (
-            logging.DEBUG if key in _warned_malformed_base_branch else logging.WARNING
+        value, error = None, exc
+    # No section: nothing to trust, so no editor request
+    if value is None and error is None:
+        return None, None
+
+    login = github_issue.user.login if github_issue.user else None
+    association = normalize_author_association(github_issue.author_association)
+    if not is_body_trusted(manager, repo, number, login, association, allowlist):
+        logger.info(
+            "Issue #%d: ignoring Base Branch section from untrusted author @%s",
+            number,
+            login or "ghost",
         )
-        _warned_malformed_base_branch.add(key)
-        logger.log(
-            level, "Issue #%d has malformed base branch: %s", issue_number, message
-        )
-        return None, message
+        return None, None
+    if error is None:
+        return value, None
 
-
-def _issue_to_data(github_issue: Issue) -> IssueData:
-    """Convert a PyGithub Issue into IssueData.
-
-    Does not populate ``base_branch`` — it matches the conversion used by the
-    write operations (``close_issue``), not the one used by ``get_issue``.
-
-    Args:
-        github_issue: PyGithub Issue to convert
-
-    Returns:
-        IssueData with the issue's current fields
-    """
-    return IssueData(
-        number=github_issue.number,
-        title=github_issue.title,
-        body=github_issue.body or "",
-        state=github_issue.state,
-        labels=[label.name for label in github_issue.labels],
-        assignees=[assignee.login for assignee in github_issue.assignees],
-        user=github_issue.user.login if github_issue.user else None,
-        created_at=(
-            github_issue.created_at.isoformat() if github_issue.created_at else None
-        ),
-        updated_at=(
-            github_issue.updated_at.isoformat() if github_issue.updated_at else None
-        ),
-        url=github_issue.html_url,
-        locked=github_issue.locked,
-    )
+    message = format_malformed_base_branch(error)
+    key = (repo.full_name.lower(), number, message)
+    level = logging.DEBUG if key in _warned_malformed_base_branch else logging.WARNING
+    _warned_malformed_base_branch.add(key)
+    logger.log(level, "Issue #%d has malformed base branch: %s", number, message)
+    return None, message
 
 
 class IssueManager(
@@ -182,7 +177,7 @@ class IssueManager(
         github_issue = repo.create_issue(**kwargs)
 
         # Convert to IssueData
-        return _issue_to_data(github_issue)
+        return issue_to_data(github_issue)
 
     @log_function_call
     @_handle_github_errors(default_return=create_empty_issue_data())
@@ -194,7 +189,9 @@ class IssueManager(
 
         Returns:
             IssueData with issue information, or empty IssueData when the
-            repository is unavailable
+            repository is unavailable. ``base_branch`` and ``base_branch_error``
+            are both None when neither the author nor the last body editor is
+            trusted.
 
         Raises:
             IssueIdentityMismatchError: If GitHub returns an issue from another
@@ -217,32 +214,14 @@ class IssueManager(
         # Get issue
         github_issue = self._get_issue_checked(repo, issue_number)
 
-        # Parse base_branch from body
-        body = github_issue.body or ""
-        base_branch, base_branch_error = _parse_base_branch_fields(
-            body, repo.full_name, issue_number
+        # Convert to IssueData and parse base_branch from body. Looked up via
+        # the module so one test patch on mcp_workspace.config applies.
+        allowlist = functools.cache(config.get_trusted_commenters)
+        data = issue_to_data(github_issue)
+        data["base_branch"], data["base_branch_error"] = _parse_base_branch_fields(
+            self, repo, github_issue, allowlist
         )
-
-        # Convert to IssueData
-        return IssueData(
-            number=github_issue.number,
-            title=github_issue.title,
-            body=body,
-            state=github_issue.state,
-            labels=[label.name for label in github_issue.labels],
-            assignees=[assignee.login for assignee in github_issue.assignees],
-            user=github_issue.user.login if github_issue.user else None,
-            created_at=(
-                github_issue.created_at.isoformat() if github_issue.created_at else None
-            ),
-            updated_at=(
-                github_issue.updated_at.isoformat() if github_issue.updated_at else None
-            ),
-            url=github_issue.html_url,
-            locked=github_issue.locked,
-            base_branch=base_branch,
-            base_branch_error=base_branch_error,
-        )
+        return data
 
     def _list_issues_no_error_handling(
         self,
@@ -281,35 +260,20 @@ class IssueManager(
 
         issues_list: List[IssueData] = []
         issues_iterator = repo.get_issues(**kwargs)
+        # Read at most once for the whole list, and only if some body needs it
+        allowlist = functools.cache(config.get_trusted_commenters)
 
         for issue in issues_iterator:
             # Filter out pull requests if not requested
             if not include_pull_requests and issue.pull_request is not None:
                 continue
 
-            # Parse base_branch from body
-            body = issue.body or ""
-            base_branch, base_branch_error = _parse_base_branch_fields(
-                body, repo.full_name, issue.number
+            # Convert to IssueData and parse base_branch from body
+            data = issue_to_data(issue)
+            data["base_branch"], data["base_branch_error"] = _parse_base_branch_fields(
+                self, repo, issue, allowlist
             )
-
-            # Convert to IssueData
-            issue_data = IssueData(
-                number=issue.number,
-                title=issue.title,
-                body=body,
-                state=issue.state,
-                labels=[label.name for label in issue.labels],
-                assignees=[assignee.login for assignee in issue.assignees],
-                user=issue.user.login if issue.user else None,
-                created_at=(issue.created_at.isoformat() if issue.created_at else None),
-                updated_at=(issue.updated_at.isoformat() if issue.updated_at else None),
-                url=issue.html_url,
-                locked=issue.locked,
-                base_branch=base_branch,
-                base_branch_error=base_branch_error,
-            )
-            issues_list.append(issue_data)
+            issues_list.append(data)
 
             if max_results is not None and len(issues_list) >= max_results:
                 break
@@ -338,7 +302,9 @@ class IssueManager(
             max_results: Maximum number of issues to return (optional)
 
         Returns:
-            List of IssueData dictionaries with issue information, or empty list on error
+            List of IssueData dictionaries with issue information, or empty list on error.
+            ``base_branch`` and ``base_branch_error`` are both None for an issue
+            whose author and last body editor are both untrusted.
 
         Example:
             >>> issues = manager.list_issues(state='open', include_pull_requests=False)
@@ -393,7 +359,7 @@ class IssueManager(
         github_issue.edit(state="closed")
 
         # Get fresh issue data after closing
-        return _issue_to_data(self._get_issue_checked(repo, issue_number))
+        return issue_to_data(self._get_issue_checked(repo, issue_number))
 
     @log_function_call
     @_handle_github_errors(default_return=create_empty_issue_data())
@@ -429,7 +395,7 @@ class IssueManager(
         github_issue.edit(state="open")
 
         # Get fresh issue data after reopening
-        return _issue_to_data(self._get_issue_checked(repo, issue_number))
+        return issue_to_data(self._get_issue_checked(repo, issue_number))
 
     @log_function_call
     @_handle_github_errors(default_return=create_empty_issue_data)
@@ -546,4 +512,4 @@ class IssueManager(
             github_issue.add_to_assignees(*add_assignees)
 
         # Refetch so the returned labels/assignees are the resulting sets
-        return _issue_to_data(self._get_issue_checked(repo, issue_number))
+        return issue_to_data(self._get_issue_checked(repo, issue_number))

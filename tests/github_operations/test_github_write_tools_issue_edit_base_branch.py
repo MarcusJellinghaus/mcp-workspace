@@ -38,6 +38,7 @@ def _make_issue(
         updated_at="2024-01-02T00:00:00",
         url="https://github.com/test/repo/issues/42",
         locked=False,
+        author_association="OWNER",
     )
 
 
@@ -72,6 +73,21 @@ def test_github_issue_edit_rejects_malformed_base_branch(
 
     assert result.startswith("Error:")
     assert "line1" in result
+    mock_manager_cls.assert_not_called()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_edit_rejects_invalid_ref_base_branch(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """A single-line Base Branch value that is not a valid ref is rejected."""
+    result = github_issue_edit(
+        number=42,
+        body="### Base Branch\n\nmain branch\n",
+    )
+
+    assert result.startswith("Error:")
+    assert "'main branch'" in result
     mock_manager_cls.assert_not_called()
 
 

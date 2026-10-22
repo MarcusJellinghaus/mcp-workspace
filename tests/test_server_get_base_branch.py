@@ -13,6 +13,10 @@ import pytest
 
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.server import _resolve_base_branch, get_base_branch, set_project_dir
+from tests.github_operations._issue_test_helpers import (
+    make_untrusted_issue,
+    real_issue_manager,
+)
 
 DETECT = "mcp_workspace.git_operations.base_branch.detect_base_branch"
 ISSUE_MANAGER = "mcp_workspace.github_operations.issues.IssueManager"
@@ -211,3 +215,28 @@ class TestGetBaseBranch:
 
         assert result == "main"
         mock_detect.assert_not_called()
+
+    def test_untrusted_malformed_section_is_not_an_error(self, tmp_path: Path) -> None:
+        """A real IssueManager ignores an untrusted malformed section."""
+        editor = (
+            "mcp_workspace.github_operations.issues.base_branch_trust.fetch_body_editor"
+        )
+        with (
+            real_issue_manager(tmp_path) as manager,
+            patch(editor, return_value=None),
+            patch(PR_MANAGER),
+            patch(CURRENT_BRANCH, return_value=BRANCH),
+            patch(ISSUE_MANAGER, return_value=manager),
+            patch(DETECT, return_value="main") as mock_detect,
+        ):
+            manager._repository.get_issue.return_value = make_untrusted_issue(
+                42, "### Base Branch\n\nepic/x\nmore\n"
+            )
+            result = get_base_branch()
+
+        assert not result.startswith("Error:")
+        assert result == "main"
+        issue_data = mock_detect.call_args.kwargs["issue_data"]
+        assert issue_data["number"] == 42
+        assert issue_data["base_branch"] is None
+        assert issue_data["base_branch_error"] is None

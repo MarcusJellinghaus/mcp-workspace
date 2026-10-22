@@ -56,6 +56,7 @@ class TestCacheIssueUpdate:
                         "user": "testuser",
                         "created_at": "2025-01-03T08:00:00Z",
                         "locked": False,
+                        "author_association": "OWNER",
                     }
                 },
             }
@@ -104,6 +105,7 @@ class TestCacheIssueUpdate:
                         "user": "testuser",
                         "created_at": "2025-01-03T08:00:00Z",
                         "locked": False,
+                        "author_association": "OWNER",
                     }
                 },
             }
@@ -150,6 +152,7 @@ class TestCacheIssueUpdate:
                         "user": "testuser",
                         "created_at": "2025-01-03T08:00:00Z",
                         "locked": False,
+                        "author_association": "OWNER",
                     }
                 },
             }
@@ -202,6 +205,7 @@ class TestCacheIssueUpdate:
                         "user": "testuser",
                         "created_at": "2025-01-03T08:00:00Z",
                         "locked": False,
+                        "author_association": "OWNER",
                     }
                 },
             }
@@ -297,6 +301,7 @@ class TestCacheIssueUpdate:
                         "user": "testuser",
                         "created_at": "2025-01-03T08:00:00Z",
                         "locked": False,
+                        "author_association": "OWNER",
                     }
                 },
             }
@@ -341,6 +346,7 @@ class TestCacheIssueUpdate:
                         "user": "testuser",
                         "created_at": "2025-01-03T08:00:00Z",
                         "locked": False,
+                        "author_association": "OWNER",
                     }
                 },
             }
@@ -402,6 +408,7 @@ class TestCacheUpdateIntegration:
                         "user": "testuser",
                         "created_at": "2025-01-03T08:00:00Z",
                         "locked": False,
+                        "author_association": "OWNER",
                     }
                 },
             }
@@ -450,6 +457,7 @@ class TestCacheUpdateIntegration:
                         "user": "testuser",
                         "created_at": "2025-01-03T08:00:00Z",
                         "locked": False,
+                        "author_association": "OWNER",
                     },
                     "456": {
                         "number": 456,
@@ -463,6 +471,7 @@ class TestCacheUpdateIntegration:
                         "user": "testuser",
                         "created_at": "2025-01-03T08:00:00Z",
                         "locked": False,
+                        "author_association": "OWNER",
                     },
                 },
             }
