@@ -104,6 +104,7 @@ depends_on = [
     { path = "mcp_workspace.github_operations" },
     { path = "mcp_workspace.workflows" },
     { path = "mcp_workspace.file_tools" },
+    { path = "mcp_workspace.config" },
 ]
 
 [[modules]]

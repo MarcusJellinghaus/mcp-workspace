@@ -873,7 +873,7 @@ class TestGetPRFeedback:
 
         with patch.object(mock_manager, "_get_repository", return_value=None):
             result = mock_manager.get_pr_feedback(42)
-            _, _, undeterminable = collect_pr_feedback(mock_manager, 42)
+            _, _, undeterminable = collect_pr_feedback(mock_manager, 42, frozenset())
 
         assert _post_call_count(mock_manager) == 0
         exc = result["unavailable"]["threads"]

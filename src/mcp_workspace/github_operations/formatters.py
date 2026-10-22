@@ -55,6 +55,24 @@ def truncate_output(text: str, max_lines: int) -> str:
     )
 
 
+def format_withheld_line(counts: list[tuple[str, int]]) -> Optional[str]:
+    """Render the single count line for feedback withheld from untrusted authors.
+
+    Carries no ids, logins, paths or bodies — only per-kind counts.
+
+    Args:
+        counts: ``(kind, n)`` pairs with singular kind names, e.g.
+            ``[("thread", 2), ("review", 1)]``. Zero counts are skipped.
+
+    Returns:
+        The count line, or None when nothing was withheld.
+    """
+    parts = [f"{n} {kind if n == 1 else kind + 's'}" for kind, n in counts if n > 0]
+    if not parts:
+        return None
+    return f"Withheld from untrusted authors: {', '.join(parts)} — review on GitHub"
+
+
 def find_latest_marked_comment(
     comments: List[CommentData], marker: str = "❌", window: int = 3
 ) -> Optional[str]:

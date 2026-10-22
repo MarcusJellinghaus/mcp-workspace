@@ -12,6 +12,7 @@ from mcp_workspace.github_operations.formatters import (
     format_issue_view,
     format_pr_view,
     format_search_results,
+    format_withheld_line,
     truncate_output,
 )
 from mcp_workspace.github_operations.issues.types import CommentData, IssueData
@@ -500,6 +501,25 @@ class TestFormatSearchResults:
         ]
         result = format_search_results(items, max_results=3, total_count=412)
         assert "showing 3 of 412 results" in result
+
+
+# --- format_withheld_line tests ---
+
+
+class TestFormatWithheldLine:
+    """Tests for format_withheld_line."""
+
+    def test_all_zeros_returns_none(self) -> None:
+        assert format_withheld_line([("thread", 0), ("review", 0)]) is None
+
+    def test_empty_returns_none(self) -> None:
+        assert format_withheld_line([]) is None
+
+    def test_pluralises_and_skips_zero_counts(self) -> None:
+        result = format_withheld_line([("thread", 2), ("review", 1), ("comment", 0)])
+        assert result == (
+            "Withheld from untrusted authors: 2 threads, 1 review — review on GitHub"
+        )
 
 
 # --- find_latest_marked_comment tests ---

@@ -35,9 +35,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 3: `check_branch_status` gate — PR feedback and ❌ issue note — [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: tests first, then `format_withheld_line`, `format_pr_feedback`/`collect_pr_feedback(trusted)`, ❌-note filter in `collect_branch_status`, `tach.toml` dependency for `mcp_workspace.checks`
-- [ ] Quality checks: pylint, pytest, mypy (plus tach) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests first, then `format_withheld_line`, `format_pr_feedback`/`collect_pr_feedback(trusted)`, ❌-note filter in `collect_branch_status`, `tach.toml` dependency for `mcp_workspace.checks`
+- [x] Quality checks: pylint, pytest, mypy (plus tach) — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: `github_pr_view` gate — title/body, reviews, comments, inline comments — [step_4.md](./steps/step_4.md)
 
