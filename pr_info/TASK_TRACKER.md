@@ -38,9 +38,9 @@ See [step_2.md](./steps/step_2.md)
 ### Step 3: `base_branch_trust.py` — editor lookup + body trust decision
 See [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: tests in `test_base_branch_trust.py` for `fetch_body_editor` and `is_body_trusted`; then the new module (GraphQL editor query, role → allowlist → editor check, never raises)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests in `test_base_branch_trust.py` for `fetch_body_editor` and `is_body_trusted`; then the new module (GraphQL editor query, role → allowlist → editor check, never raises)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: Base Branch gate in `IssueManager`
 See [step_4.md](./steps/step_4.md)
