@@ -199,3 +199,5 @@ _._reset_malformed_base_branch_warnings
 _.origin_has_base
 # Fixture for issue #338 unstable re-check tests, reached through its name= alias
 _.fixture_env  # name="env"
+# Autouse fixture isolating tests from the real trusted-commenters allowlist (issue #336, pytest collection only)
+_._empty_trusted_commenters
