@@ -100,7 +100,9 @@ Failure handling:
 - `get_issue` where `_cached_login` raises → editor untrusted, section ignored.
 
 Allowlist laziness:
-- `list_issues` over three untrusted issues reads `get_trusted_commenters` at most once;
+- `list_issues` over three untrusted issues, each with a valid `### Base Branch`
+  section and `fetch_body_editor` mocked to return None, reads `get_trusted_commenters`
+  exactly once;
 - over trusted issues it never reads it.
 
 End to end:
