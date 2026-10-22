@@ -76,8 +76,8 @@ def format_withheld_line(counts: list[tuple[str, int]]) -> Optional[str]:
 
 def find_latest_marked_comment(
     comments: List[CommentData], marker: str = "❌", window: int = 3
-) -> Optional[str]:
-    """Return the full body of the most recent comment marked with `marker`.
+) -> Optional[CommentData]:
+    """Return the most recent comment marked with `marker`.
 
     Scans the last `window` comments, most-recent-first, for the first whose
     first line contains `marker` as a substring (not a prefix — the marker
@@ -89,14 +89,14 @@ def find_latest_marked_comment(
         window: How many of the most recent comments to scan.
 
     Returns:
-        The full matched comment body, or None if no comment in the window matches.
+        The matched comment, or None if no comment in the window matches.
     """
     for comment in reversed(comments[-window:]):
         body = comment["body"]
         if not body:
             continue
         if marker in body.splitlines()[0]:
-            return body
+            return comment
     return None
 
 

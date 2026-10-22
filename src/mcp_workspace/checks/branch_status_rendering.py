@@ -11,6 +11,7 @@ use.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Dict, List, Optional, Sequence
 
@@ -208,7 +209,7 @@ def format_report_for_human(
     if linked_branch_line is not None:
         lines.append(linked_branch_line)
 
-    lines.extend(_format_last_automated_note_lines(report))
+    lines.extend(_format_last_marked_comment_lines(report))
 
     lines.extend(
         [
@@ -287,7 +288,7 @@ def format_report_for_llm(
     linked_branch_line = _format_linked_branch_line(report)
     if linked_branch_line is not None:
         lines.append(linked_branch_line)
-    lines.extend(_format_last_automated_note_lines(report))
+    lines.extend(_format_last_marked_comment_lines(report))
     lines.append(f"Recommendations: {recommendations_text}")
 
     if report.pr_feedback_text is not None:
@@ -448,17 +449,35 @@ def _format_non_green_checks_line(report: "BranchStatusReport") -> Optional[str]
     return None
 
 
-def _format_last_automated_note_lines(report: "BranchStatusReport") -> List[str]:
-    """Build the ❌-marked-comment block, or [] when nothing to render.
+def _format_utc(dt: Optional[datetime], fallback: str) -> str:
+    """Format a UTC datetime as ``YYYY-MM-DD HH:MM:SS UTC``, or return fallback."""
+    return dt.strftime("%Y-%m-%d %H:%M:%S UTC") if dt else fallback
+
+
+def _format_last_marked_comment_lines(report: "BranchStatusReport") -> List[str]:
+    """Build the header + full body block, or [] when there is no comment.
 
     Returns:
-        [] when report.last_automated_note is None, else a blank line followed
-        by the full multi-line comment text — matching how pr_feedback_text
-        is rendered.
+        [] when report.last_marked_comment is None, else a blank line, a
+        ``Last ❌ issue comment (...)`` header naming author, post time and
+        HEAD, then the full multi-line comment body.
     """
-    if report.last_automated_note is None:
+    comment = report.last_marked_comment
+    if comment is None:
         return []
-    return ["", report.last_automated_note]
+    created = _format_utc(report.marked_comment_created_at, "unknown time")
+    if report.head_short_sha:
+        committed = _format_utc(report.head_committed_at, "unknown time")
+        head = f"HEAD {report.head_short_sha} committed {committed}"
+    else:
+        head = "HEAD unknown"
+    stale = " — may be outdated" if report.marked_comment_stale else ""
+    user = comment["user"] or "unknown user"
+    return [
+        "",
+        f"Last ❌ issue comment (by {user}, {created}; {head}{stale}):",
+        comment["body"],
+    ]
 
 
 def _format_wait_line(

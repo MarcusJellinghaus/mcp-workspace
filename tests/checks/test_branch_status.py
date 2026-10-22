@@ -1,7 +1,9 @@
 """Tests for branch_status check module."""
 
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -135,10 +137,67 @@ class TestBranchStatusReport:
         assert "Recommendations:" in output
 
     @pytest.mark.parametrize("method_name", ["format_for_human", "format_for_llm"])
-    def test_last_automated_note_rendered_before_recommendations(
-        self, method_name: str
+    @pytest.mark.parametrize(
+        (
+            "user",
+            "created_at",
+            "head_short_sha",
+            "head_committed_at",
+            "stale",
+            "header",
+        ),
+        [
+            pytest.param(
+                "MarcusJellinghaus",
+                datetime(2026, 10, 22, 4, 58, 13, tzinfo=timezone.utc),
+                "abc1234",
+                datetime(2026, 10, 22, 7, 12, 40, tzinfo=timezone.utc),
+                True,
+                "Last ❌ issue comment (by MarcusJellinghaus, 2026-10-22 04:58:13 UTC;"
+                " HEAD abc1234 committed 2026-10-22 07:12:40 UTC — may be outdated):",
+                id="stale",
+            ),
+            pytest.param(
+                "MarcusJellinghaus",
+                datetime(2026, 10, 22, 9, 30, 5, tzinfo=timezone.utc),
+                "abc1234",
+                datetime(2026, 10, 22, 7, 12, 40, tzinfo=timezone.utc),
+                False,
+                "Last ❌ issue comment (by MarcusJellinghaus, 2026-10-22 09:30:05 UTC;"
+                " HEAD abc1234 committed 2026-10-22 07:12:40 UTC):",
+                id="current",
+            ),
+            pytest.param(
+                None,
+                None,
+                None,
+                None,
+                False,
+                "Last ❌ issue comment (by unknown user, unknown time; HEAD unknown):",
+                id="placeholders",
+            ),
+        ],
+    )
+    def test_last_marked_comment_header(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        method_name: str,
+        user: Optional[str],
+        created_at: Optional[datetime],
+        head_short_sha: Optional[str],
+        head_committed_at: Optional[datetime],
+        stale: bool,
+        header: str,
     ) -> None:
         note = "## ❌ Implementation Failed\n\nDetails here."
+        comment = CommentData(
+            id=1,
+            body=note,
+            user=user,
+            created_at=None,
+            updated_at=None,
+            url="https://example.com/1",
+            author_association="OWNER",
+        )
         report = BranchStatusReport(
             branch_name="123-feature",
             base_branch="main",
@@ -154,19 +213,24 @@ class TestBranchStatusReport:
             pr_number=45,
             pr_url="https://github.com/owner/repo/pull/45",
             pr_found=True,
-            last_automated_note=note,
+            last_marked_comment=comment,
+            marked_comment_created_at=created_at,
+            head_short_sha=head_short_sha,
+            head_committed_at=head_committed_at,
+            marked_comment_stale=stale,
         )
         output = getattr(report, method_name)()
         assert note in output
         lines = output.splitlines()
-        note_index = lines.index(note.splitlines()[0])
+        header_index = lines.index(header)
+        assert lines[header_index + 1] == note.splitlines()[0]
         recommendations_index = next(
             i for i, line in enumerate(lines) if "Recommendations" in line
         )
-        assert note_index < recommendations_index
+        assert header_index < recommendations_index
 
     @pytest.mark.parametrize("method_name", ["format_for_human", "format_for_llm"])
-    def test_last_automated_note_absent_when_none(self, method_name: str) -> None:
+    def test_last_marked_comment_absent_when_none(self, method_name: str) -> None:
         report = BranchStatusReport(
             branch_name="123-feature",
             base_branch="main",
@@ -185,6 +249,7 @@ class TestBranchStatusReport:
         )
         output = getattr(report, method_name)()
         assert "Implementation Failed" not in output
+        assert "Last ❌ issue comment" not in output
 
 
 class TestCreateEmptyReport:
@@ -608,7 +673,8 @@ class TestCollectBranchStatus:
         assert report.ci_status == CIStatus.PASSED
         assert report.pr_number == 45
         assert report.pr_mergeable is True
-        assert report.last_automated_note == automated_comment_body
+        assert report.last_marked_comment is not None
+        assert report.last_marked_comment["body"] == automated_comment_body
 
     @patch("mcp_workspace.checks.branch_status._collect_pr_info")
     @patch("mcp_workspace.checks.branch_status._collect_github_label")
@@ -661,7 +727,7 @@ class TestCollectBranchStatus:
         mock_pr_info.return_value = (45, "https://url", True, True, "clean")
 
         report = collect_branch_status(Path("/tmp"))
-        assert report.last_automated_note is None
+        assert report.last_marked_comment is None
 
     @patch("mcp_workspace.checks.branch_status._collect_pr_info")
     @patch("mcp_workspace.checks.branch_status._collect_github_label")
@@ -691,7 +757,7 @@ class TestCollectBranchStatus:
         mock_label: MagicMock,
         mock_pr_info: MagicMock,
     ) -> None:
-        """No matching comment in the window → last_automated_note stays None."""
+        """No matching comment in the window → last_marked_comment stays None."""
         mock_branch.return_value = "123-feature"
         mock_extract.return_value = 123
         mock_issue_mgr = MagicMock()
@@ -714,11 +780,11 @@ class TestCollectBranchStatus:
         mock_pr_info.return_value = (45, "https://url", True, True, "clean")
 
         report = collect_branch_status(Path("/tmp"))
-        assert report.last_automated_note is None
+        assert report.last_marked_comment is None
 
     @staticmethod
-    def _note_with_comments(comments: list[CommentData]) -> str | None:
-        """Run collect_branch_status with mocked managers; return the ❌ note."""
+    def _note_with_comments(comments: list[CommentData]) -> CommentData | None:
+        """Run collect_branch_status with mocked managers; return the ❌ comment."""
         mod = "mcp_workspace.checks.branch_status"
         issue_mgr = MagicMock()
         issue_mgr.get_issue.return_value = {"number": 123, "labels": []}
@@ -746,7 +812,7 @@ class TestCollectBranchStatus:
             ),
             patch(f"{mod}.get_default_branch_name", return_value="main"),
         ):
-            return collect_branch_status(Path("/tmp")).last_automated_note
+            return collect_branch_status(Path("/tmp")).last_marked_comment
 
     @staticmethod
     def _issue_comment(
@@ -772,7 +838,9 @@ class TestCollectBranchStatus:
             self._issue_comment(1, owner_note, "OWNER"),
             *[self._issue_comment(i, f"spam {i}", "NONE") for i in range(2, 5)],
         ]
-        assert self._note_with_comments(comments) == owner_note
+        note = self._note_with_comments(comments)
+        assert note is not None
+        assert note["body"] == owner_note
 
     @patch("mcp_workspace.checks.branch_status.detect_base_branch")
     @patch("mcp_workspace.checks.branch_status.PullRequestManager")
@@ -857,7 +925,7 @@ class TestCollectBranchStatus:
             mock_tasks.return_value = (TaskTrackerStatus.N_A, "N/A", False)
 
             report = collect_branch_status(Path("/tmp"))
-            assert report.last_automated_note is None
+            assert report.last_marked_comment is None
             mock_issue_mgr.get_comments.assert_not_called()
 
     @patch("mcp_workspace.checks.branch_status._collect_pr_info")

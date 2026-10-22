@@ -31,9 +31,9 @@ See [step_1.md](./steps/step_1.md)
 ### Step 2: Return the comment, new report fields, header rendering
 See [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: `find_latest_marked_comment` returns `CommentData`; `BranchStatusReport` fields replace `last_automated_note`; `_format_utc` + `_format_last_marked_comment_lines` renderer; update formatter and branch status tests
-- [ ] Quality checks: pylint, pytest (`-n auto -k "not github_search_live"`), mypy, tach, lint-imports — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `find_latest_marked_comment` returns `CommentData`; `BranchStatusReport` fields replace `last_automated_note`; `_format_utc` + `_format_last_marked_comment_lines` renderer; update formatter and branch status tests
+- [x] Quality checks: pylint, pytest (`-n auto -k "not github_search_live"`), mypy, tach, lint-imports — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: Collect timestamps, HEAD and the stale verdict
 See [step_3.md](./steps/step_3.md)

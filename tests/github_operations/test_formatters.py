@@ -378,16 +378,16 @@ class TestFindLatestMarkedComment:
         assert find_latest_marked_comment([]) is None
 
     def test_find_latest_marked_comment_single_match(self) -> None:
-        """A single comment with the marker on its first line returns the full body."""
+        """A single comment with the marker on its first line is returned."""
         body = "❌ Failed\nSome details\nmore details"
         comments = [_make_comment(body=body)]
-        assert find_latest_marked_comment(comments) == body
+        assert find_latest_marked_comment(comments) is comments[0]
 
     def test_find_latest_marked_comment_marker_in_heading(self) -> None:
         """The marker matches as a substring, not a prefix, inside a heading."""
         body = "## ❌ Implementation Failed\nDetails here"
         comments = [_make_comment(body=body)]
-        assert find_latest_marked_comment(comments) == body
+        assert find_latest_marked_comment(comments) is comments[0]
 
     def test_find_latest_marked_comment_skips_empty_body(self) -> None:
         """A comment with an empty body is skipped without raising."""
@@ -410,7 +410,7 @@ class TestFindLatestMarkedComment:
             _make_comment(body="❌ Older failure"),
             _make_comment(body="❌ Newer failure"),
         ]
-        assert find_latest_marked_comment(comments) == "❌ Newer failure"
+        assert find_latest_marked_comment(comments) is comments[1]
 
     def test_find_latest_marked_comment_no_match(self) -> None:
         """No comment in the window matches returns None."""
@@ -428,7 +428,6 @@ class TestFindLatestMarkedComment:
             _make_comment(body="⚠️ warning in window"),
         ]
         assert (
-            find_latest_marked_comment(comments, marker="⚠️", window=1)
-            == "⚠️ warning in window"
+            find_latest_marked_comment(comments, marker="⚠️", window=1) is comments[2]
         )
         assert find_latest_marked_comment(comments[:-1], marker="⚠️", window=2) is None

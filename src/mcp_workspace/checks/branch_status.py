@@ -7,6 +7,7 @@ check_branch_status MCP tool.
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -40,6 +41,7 @@ from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.formatters import find_latest_marked_comment
 from mcp_workspace.github_operations.issues import (
     ClosingPRRef,
+    CommentData,
     IssueBranchManager,
     IssueData,
     IssueManager,
@@ -100,7 +102,12 @@ class BranchStatusReport:
     linked_branch_status: LinkedBranchStatus = LinkedBranchStatus.NOT_CHECKED
     linked_branches: tuple[str, ...] = ()
     linked_branch_issue_number: Optional[int] = None
-    last_automated_note: Optional[str] = None
+    last_marked_comment: Optional[CommentData] = None
+    # UTC; None if missing/unparseable
+    marked_comment_created_at: Optional[datetime] = None
+    head_short_sha: Optional[str] = None
+    head_committed_at: Optional[datetime] = None  # UTC
+    marked_comment_stale: bool = False
     closing_pr_candidate: Optional[ClosingPRRef] = None
     base_branch_error: Optional[str] = None
     non_green_checks: Optional[tuple[str, ...]] = None  # None = lookup not run
@@ -500,7 +507,7 @@ def collect_branch_status(
         issue_data: Optional[IssueData] = None
         issue_manager: Optional[IssueManager] = None
         pr_manager: Optional[PullRequestManager] = None
-        last_automated_note: Optional[str] = None
+        last_marked_comment: Optional[CommentData] = None
         trusted = config.get_trusted_commenters()
 
         try:
@@ -529,16 +536,14 @@ def collect_branch_status(
                             c["user"], c["author_association"], trusted
                         )
                     ]
-                    last_automated_note = find_latest_marked_comment(trusted_comments)
+                    last_marked_comment = find_latest_marked_comment(trusted_comments)
                 except IssueIdentityMismatchError as e:
                     # Mirrors the get_issue branch above — same signal (issue
                     # transferred or renumbered), so it gets the same warning,
                     # not debug.
                     logger.warning("%s", e)
                 except Exception:  # pylint: disable=broad-exception-caught
-                    logger.debug(
-                        "Failed to fetch automated note comment", exc_info=True
-                    )
+                    logger.debug("Failed to fetch marked comment", exc_info=True)
         except Exception:  # pylint: disable=broad-exception-caught
             logger.debug("GitHub manager initialization failed", exc_info=True)
 
@@ -675,7 +680,7 @@ def collect_branch_status(
             linked_branch_status=linked_branch_status,
             linked_branches=linked_branches,
             linked_branch_issue_number=linked_branch_issue_number,
-            last_automated_note=last_automated_note,
+            last_marked_comment=last_marked_comment,
             closing_pr_candidate=closing_pr_candidate,
             base_branch_error=base_branch_error,
             non_green_checks=non_green_checks,
