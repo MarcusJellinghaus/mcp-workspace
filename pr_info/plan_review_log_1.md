@@ -10,3 +10,11 @@ pr_info/steps/step_2.md:17 — low — The test location is left open ("e.g. …
 Verdict(decision='tasks', tasks=['pr_info/steps/step_5.md:95 — Rewrite the max_lines=4 truncation test. It should assert that the summary line survives and that `Linked branches` (now line 5) is truncated. It should not expect both to survive.', 'pr_info/steps/step_5.md:49 — Correct the claim "both survive any `max_lines >= 4`". The summary line keeps its place before `Linked branches`, and `Linked branches` needs `max_lines >= 5` to survive. Have the comment near formatters.py ~135 say this, and state that lines must not be reordered to satisfy the test.', 'pr_info/steps/step_6.md:19 — Add `author_association="OWNER"` to the existing MagicMock search items in `test_github_search_tool.py` and to the sub-issue children in `test_github_write_tools_subissues.py`. Without it, their existing row assertions will fail once untrusted labelling is added.', 'pr_info/steps/step_2.md:17 — Put the `issue_to_data` / `create_empty_issue_data` tests in `tests/github_operations/issues/test_types.py`, so the test location mirrors src.'], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 2 — 2026-10-22
+**Findings**:
+Plan files and issue read; now verifying a few code facts the plan depends on (config import layering, `_malformed_first_line`).pr_info/steps/step_4.md:103 — medium — The allowlist-laziness test is vacuous as written. `allowlist()` is only called for untrusted authors whose body has a `### Base Branch` section, so three untrusted issues without one give zero reads and "at most once" passes even if the per-call cache is missing. Require all three bodies to contain a valid section, mock `fetch_body_editor`, and assert exactly one read.
+**Decisions**:
+Verdict(decision='tasks', tasks=['pr_info/steps/step_4.md:103 — Change the allowlist-laziness test so it can fail. Give all three untrusted issue bodies a valid `### Base Branch` section and mock `fetch_body_editor`. Then assert the allowlist is read exactly once, not "at most once".'], escalate_reason=None)
+**Changes**:
+applied
