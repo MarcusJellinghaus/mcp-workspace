@@ -58,14 +58,19 @@ Add `get_head_commit_info` to the existing import from `mcp_workspace.git_operat
 class TestGetHeadCommitInfo:
     def test_returns_short_sha_and_utc_committer_date(self, git_repo: tuple[Repo, Path]) -> None:
         # Create + stage a file, then commit with differing dates and a non-UTC committer offset:
-        # repo.index.commit("msg", author_date="2026-01-01T08:00:00+00:00",
-        #                   commit_date="2026-01-02T12:00:00+02:00")
+        # repo.index.commit("msg", author_date="2026-01-01T08:00:00 +0000",
+        #                   commit_date="2026-01-02T12:00:00 +0200")
+        # (GitPython's space-separated "+HHMM" offset; colon-style "+02:00" does not parse)
         # Assert: sha == repo.head.commit.hexsha[:7]
         #         committed == datetime(2026, 1, 2, 10, 0, 0, tzinfo=timezone.utc)
         #         committed.tzinfo == timezone.utc
 
     def test_returns_none_outside_git_repo(self, tmp_path: Path) -> None:
         # assert get_head_commit_info(tmp_path) is None
+
+    def test_returns_none_for_repo_without_commits(self, git_repo: tuple[Repo, Path]) -> None:
+        # Fresh git_repo, no commit made: repo.head.commit raises ValueError,
+        # caught by the same except clause → assert get_head_commit_info(path) is None
 ```
 
 The first test covers SHA length, committer-not-author, and UTC conversion in one go.

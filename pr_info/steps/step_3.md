@@ -91,4 +91,9 @@ Tuple `(Optional[datetime], Optional[str], Optional[datetime], bool)` → the fo
 | HEAD unavailable | `"2026-10-22T04:58:13Z"` | `None` | `head_short_sha is None`, `head_committed_at is None`, not stale, `marked_comment_created_at` set |
 | unparseable created_at | `"not-a-date"` | head | `marked_comment_created_at is None`, not stale, `last_marked_comment` still set, report not the empty fallback (`branch_name == "123-feature"`) |
 
+- Extend the existing `test_automated_note_no_match` (no marked comment): add
+  `@patch("mcp_workspace.checks.branch_status.get_head_commit_info")` as the topmost decorator
+  (so `mock_head` is the last parameter) and assert
+  `mock_head.assert_not_called()` — HEAD is looked up only when a marked comment was found.
+
 Existing tests that don't mock HEAD need no change beyond Step 2's rename.
