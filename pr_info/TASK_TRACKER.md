@@ -52,9 +52,9 @@ See [step_4.md](./steps/step_4.md)
 ### Step 5: Fenced `format_issue_view` + summary line
 See [step_5.md](./steps/step_5.md)
 
-- [ ] Implementation: tests for fencing, summary line, fence id, ghost/allowlisted authors, `max_lines` truncation, `github_issue_view` fence id and allowlist reads; then `_fence`, `trusted` / `fence_id` keywords in `format_issue_view`, `_allowlist_for` and wiring in `github_issue_view`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests for fencing, summary line, fence id, ghost/allowlisted authors, `max_lines` truncation, `github_issue_view` fence id and allowlist reads; then `_fence`, `trusted` / `fence_id` keywords in `format_issue_view`, `_allowlist_for` and wiring in `github_issue_view`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 6: `[untrusted @login]` prefix in list/search/sub-issue tools + README trust section
 See [step_6.md](./steps/step_6.md)

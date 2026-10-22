@@ -243,6 +243,89 @@ def test_github_issue_view_not_found_skips_linked_branches(
     mock_branch_cls.assert_not_called()
 
 
+def _untrusted_issue() -> IssueData:
+    """An issue written by an outside contributor."""
+    issue = _make_issue()
+    issue["user"] = "mallory"
+    issue["author_association"] = "NONE"
+    return issue
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_view_fence_id_differs_per_call(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """Each call fences with a fresh random id."""
+    mock_mgr = MagicMock()
+    mock_mgr.get_issue.return_value = _untrusted_issue()
+    mock_mgr.get_comments.return_value = []
+    mock_manager_cls.return_value = mock_mgr
+
+    with patch("secrets.token_hex", side_effect=["a" * 16, "b" * 16]) as token_hex:
+        first = github_issue_view(number=42)
+        second = github_issue_view(number=42)
+
+    assert token_hex.call_args_list[0].args == (8,)
+    assert f'</untrusted id="{"a" * 16}">' in first
+    assert f'</untrusted id="{"b" * 16}">' in second
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_view_real_fence_ids_differ(mock_manager_cls: MagicMock) -> None:
+    """Unpatched, two calls produce different fence ids."""
+    mock_mgr = MagicMock()
+    mock_mgr.get_issue.return_value = _untrusted_issue()
+    mock_mgr.get_comments.return_value = []
+    mock_manager_cls.return_value = mock_mgr
+
+    first = github_issue_view(number=42)
+    second = github_issue_view(number=42)
+
+    assert "</untrusted id=" in first
+    assert first != second
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_view_allowlist_not_read_when_all_trusted(
+    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every author is OWNER, so the allowlist is never read."""
+    allowlist = MagicMock(return_value=frozenset())
+    monkeypatch.setattr("mcp_workspace.config.get_trusted_commenters", allowlist)
+    mock_mgr = MagicMock()
+    mock_mgr.get_issue.return_value = _make_issue()
+    mock_mgr.get_comments.return_value = [_make_comment()]
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_view(number=42)
+
+    allowlist.assert_not_called()
+    assert "<untrusted" not in result
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_view_allowlist_read_once_when_untrusted(
+    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An untrusted role triggers one allowlist read, which is applied."""
+    allowlist = MagicMock(return_value=frozenset({"carol"}))
+    monkeypatch.setattr("mcp_workspace.config.get_trusted_commenters", allowlist)
+    mock_mgr = MagicMock()
+    mock_mgr.get_issue.return_value = _make_issue()
+    mock_mgr.get_comments.return_value = [
+        _make_comment(user="carol", author_association="NONE", body="allowed"),
+        _make_comment(user="dave", author_association="NONE", body="fenced"),
+    ]
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_view(number=42)
+
+    allowlist.assert_called_once_with()
+    assert result.count("<untrusted ") == 1
+    assert 'author="@dave"' in result
+    assert "**carol** (2024-01-03T00:00:00):\nallowed" in result
+
+
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_error(mock_manager_cls: MagicMock) -> None:
     """Returns 'Error: ...' on exception."""
