@@ -45,9 +45,9 @@ See [step_3.md](./steps/step_3.md)
 ### Step 4: Base Branch gate in `IssueManager`
 See [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: tests for trusted/untrusted bodies in `get_issue` / `list_issues`, failure handling, allowlist laziness, end-to-end `check_branch_status` / `get_base_branch`; then gate `_parse_base_branch_fields` with `is_body_trusted` and a per-call cached allowlist
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests for trusted/untrusted bodies in `get_issue` / `list_issues`, failure handling, allowlist laziness, end-to-end `check_branch_status` / `get_base_branch`; then gate `_parse_base_branch_fields` with `is_body_trusted` and a per-call cached allowlist
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 5: Fenced `format_issue_view` + summary line
 See [step_5.md](./steps/step_5.md)

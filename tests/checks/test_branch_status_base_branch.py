@@ -20,6 +20,14 @@ from mcp_workspace.github_operations.issues.base import (
     parse_base_branch,
 )
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
+from tests.github_operations._issue_test_helpers import (
+    make_untrusted_issue,
+    real_issue_manager,
+)
+
+_EDITOR_PATH = (
+    "mcp_workspace.github_operations.issues.base_branch_trust.fetch_body_editor"
+)
 
 
 def _make_report(rebase_needed: bool | None) -> BranchStatusReport:
@@ -279,3 +287,32 @@ class TestValidBaseBranch:
         assert report.base_branch == "epic/x"
         assert report.base_branch_error is None
         assert report.rebase_needed is False
+
+
+class TestUntrustedBaseBranchEndToEnd:
+    """A real IssueManager drops an untrusted malformed section before the report."""
+
+    def test_no_malformed_line_or_review_gate_block(
+        self, status_mocks: dict[str, MagicMock], tmp_path: Path
+    ) -> None:
+        with (
+            real_issue_manager(tmp_path) as manager,
+            patch.object(manager, "get_comments", return_value=[]),
+            patch(_EDITOR_PATH, return_value=None),
+        ):
+            manager._repository.get_issue.return_value = make_untrusted_issue(
+                42, _MALFORMED_BODY
+            )
+            status_mocks["issue_mgr_cls"].return_value = manager
+
+            report = collect_branch_status(Path("/tmp"))
+
+        status_mocks["detect"].assert_called_once()
+        assert report.base_branch == "main"
+        assert report.base_branch_error is None
+        for output in (
+            report.format_for_llm(fail_on_reviews=True),
+            report.format_for_human(fail_on_reviews=True),
+        ):
+            assert "MALFORMED" not in output
+            assert "BLOCKED (base branch)" not in output
