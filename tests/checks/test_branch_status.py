@@ -577,6 +577,7 @@ class TestCollectBranchStatus:
                 created_at=None,
                 updated_at=None,
                 url="https://example.com/1",
+                author_association="OWNER",
             ),
             CommentData(
                 id=2,
@@ -585,6 +586,7 @@ class TestCollectBranchStatus:
                 created_at=None,
                 updated_at=None,
                 url="https://example.com/2",
+                author_association="OWNER",
             ),
         ]
         mock_issue_mgr_cls.return_value = mock_issue_mgr

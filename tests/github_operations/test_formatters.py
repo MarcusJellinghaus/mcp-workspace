@@ -46,6 +46,7 @@ def _make_comment(
     body: str = "Comment text",
     user: str = "commenter",
     created_at: str = "2024-01-03T00:00:00Z",
+    author_association: str | None = "OWNER",
 ) -> CommentData:
     """Create a test CommentData dict."""
     return CommentData(
@@ -55,6 +56,7 @@ def _make_comment(
         created_at=created_at,
         updated_at=None,
         url="https://github.com/owner/repo/issues/42#comment-1",
+        author_association=author_association,
     )
 
 
@@ -62,10 +64,15 @@ def _make_conversation_comment(
     body: str = "Comment text",
     author: str = "commenter",
     created_at: str = "2024-01-03T00:00:00Z",
+    author_association: str | None = "OWNER",
 ) -> ConversationCommentData:
     """Create a test ConversationCommentData dict."""
     return ConversationCommentData(
-        id=1, body=body, author=author, created_at=created_at
+        id=1,
+        body=body,
+        author=author,
+        created_at=created_at,
+        author_association=author_association,
     )
 
 
@@ -338,8 +345,15 @@ class TestFormatPrView:
         """Review verdicts rendered."""
         pr = _make_pr()
         reviews: list[ReviewData] = [
-            ReviewData(user="alice", state="APPROVED", body="LGTM"),
-            ReviewData(user="bob", state="CHANGES_REQUESTED", body="Fix the tests"),
+            ReviewData(
+                user="alice", state="APPROVED", body="LGTM", author_association="OWNER"
+            ),
+            ReviewData(
+                user="bob",
+                state="CHANGES_REQUESTED",
+                body="Fix the tests",
+                author_association="OWNER",
+            ),
         ]
         result = format_pr_view(pr, reviews=reviews)
         assert "## Reviews" in result
@@ -377,6 +391,7 @@ class TestFormatPrView:
                 line=42,
                 user="alice",
                 body="Nit: rename this",
+                author_association="OWNER",
             ),
         ]
         result = format_pr_view(pr, inline_comments=inline)

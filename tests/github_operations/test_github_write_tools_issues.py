@@ -61,7 +61,11 @@ def _label(name: str) -> dict[str, str]:
     return {"name": name, "color": "d73a4a", "description": "", "url": ""}
 
 
-def _make_comment(comment_id: int = 1, body: str = "A comment") -> CommentData:
+def _make_comment(
+    comment_id: int = 1,
+    body: str = "A comment",
+    author_association: str | None = "OWNER",
+) -> CommentData:
     """Create a CommentData for testing."""
     return CommentData(
         id=comment_id,
@@ -70,6 +74,7 @@ def _make_comment(comment_id: int = 1, body: str = "A comment") -> CommentData:
         created_at="2024-01-01T00:00:00",
         updated_at="2024-01-01T00:00:00",
         url="https://github.com/test/repo/issues/42#issuecomment-1",
+        author_association=author_association,
     )
 
 

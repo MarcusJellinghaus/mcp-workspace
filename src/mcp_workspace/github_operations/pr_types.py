@@ -26,6 +26,20 @@ class PullRequestData(TypedDict):
     merged: bool
     draft: bool
     assignees: list[str]
+    author_association: Optional[str]
+
+
+class ReviewThreadData(TypedDict):
+    """TypedDict for one unresolved review thread, described by its first comment."""
+
+    path: str
+    line: Optional[int]
+    author: str
+    body: str
+    diff_hunk: str
+    comment_id: Optional[int]
+    thread_id: Optional[str]
+    author_association: Optional[str]
 
 
 class ConversationCommentData(TypedDict):
@@ -35,6 +49,7 @@ class ConversationCommentData(TypedDict):
     body: str
     id: int
     created_at: Optional[str]
+    author_association: Optional[str]
 
 
 class ChangesRequestedData(TypedDict):
@@ -43,12 +58,13 @@ class ChangesRequestedData(TypedDict):
     author: str
     body: str
     submitted_at: Optional[str]
+    author_association: Optional[str]
 
 
 class PRFeedback(TypedDict):
     """TypedDict for aggregated PR feedback (review threads, standing CHANGES_REQUESTED reviews, comments, alerts)."""
 
-    unresolved_threads: list[dict[str, Any]]
+    unresolved_threads: list[ReviewThreadData]
     resolved_thread_count: int
     changes_requested: list[ChangesRequestedData]
     conversation_comments: list[ConversationCommentData]

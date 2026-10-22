@@ -1091,6 +1091,7 @@ def github_pr_view(
         format_pr_view,
     )
     from mcp_workspace.github_operations.pr_types import ConversationCommentData
+    from mcp_workspace.github_operations.trust import normalize_author_association
 
     try:
         manager = _issue_manager(reference_name)
@@ -1113,7 +1114,14 @@ def github_pr_view(
         inline_comments: Optional[List[InlineCommentData]] = None
         if include_comments:
             reviews = [
-                ReviewData(user=r.user.login, state=r.state, body=r.body)
+                ReviewData(
+                    user=r.user.login,
+                    state=r.state,
+                    body=r.body,
+                    author_association=normalize_author_association(
+                        r.author_association
+                    ),
+                )
                 for r in pr.get_reviews()
             ]
             conversation_comments = [
@@ -1122,6 +1130,9 @@ def github_pr_view(
                     body=c.body,
                     author=c.user.login,
                     created_at=c.created_at.isoformat() if c.created_at else None,
+                    author_association=normalize_author_association(
+                        c.author_association
+                    ),
                 )
                 for c in repo.get_issue(number).get_comments()
             ]
@@ -1131,6 +1142,9 @@ def github_pr_view(
                     line=c.line,
                     user=c.user.login,
                     body=c.body,
+                    author_association=normalize_author_association(
+                        c.author_association
+                    ),
                 )
                 for c in pr.get_review_comments()
             ]

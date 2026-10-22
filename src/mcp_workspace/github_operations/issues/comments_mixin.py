@@ -12,6 +12,7 @@ from typing import List
 from mcp_coder_utils.log_utils import log_function_call
 
 from ..base_manager import BaseGitHubManager, _handle_github_errors
+from ..trust import normalize_author_association
 from .base import validate_comment_id, validate_issue_number
 from .types import CommentData
 
@@ -35,6 +36,7 @@ class CommentsMixin:
             created_at=None,
             updated_at=None,
             url="",
+            author_association=None,
         )
     )
     def add_comment(
@@ -77,6 +79,7 @@ class CommentsMixin:
                 created_at=None,
                 updated_at=None,
                 url="",
+                author_association=None,
             )
 
         # Get issue and create comment
@@ -99,6 +102,9 @@ class CommentsMixin:
                 else None
             ),
             url=github_comment.html_url,
+            author_association=normalize_author_association(
+                github_comment.author_association
+            ),
         )
 
     @log_function_call
@@ -150,6 +156,9 @@ class CommentsMixin:
                         comment.updated_at.isoformat() if comment.updated_at else None
                     ),
                     url=comment.html_url,
+                    author_association=normalize_author_association(
+                        comment.author_association
+                    ),
                 )
             )
 
@@ -164,6 +173,7 @@ class CommentsMixin:
             created_at=None,
             updated_at=None,
             url="",
+            author_association=None,
         )
     )
     def edit_comment(
@@ -210,6 +220,7 @@ class CommentsMixin:
                 created_at=None,
                 updated_at=None,
                 url="",
+                author_association=None,
             )
 
         # Get issue to verify it exists
@@ -240,6 +251,9 @@ class CommentsMixin:
                 else None
             ),
             url=github_comment.html_url,
+            author_association=normalize_author_association(
+                github_comment.author_association
+            ),
         )
 
     @log_function_call

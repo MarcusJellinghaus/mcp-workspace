@@ -10,6 +10,7 @@ from mcp_workspace.github_operations.pr_types import (
     ChangesRequestedData,
     ConversationCommentData,
     PRFeedback,
+    ReviewThreadData,
 )
 
 
@@ -32,19 +33,18 @@ def _thread(
     diff_hunk: str = "@@ -1,2 +1,2 @@\n-x = 1\n+x = 2",
     comment_id: int | None = None,
     thread_id: str | None = None,
-) -> dict[str, Any]:
-    thread: dict[str, Any] = {
-        "path": path,
-        "line": line,
-        "author": author,
-        "body": body,
-        "diff_hunk": diff_hunk,
-    }
-    if comment_id is not None:
-        thread["comment_id"] = comment_id
-    if thread_id is not None:
-        thread["thread_id"] = thread_id
-    return thread
+    author_association: str | None = "OWNER",
+) -> ReviewThreadData:
+    return ReviewThreadData(
+        path=path,
+        line=line,
+        author=author,
+        body=body,
+        diff_hunk=diff_hunk,
+        comment_id=comment_id,
+        thread_id=thread_id,
+        author_association=author_association,
+    )
 
 
 def _comment(
@@ -52,9 +52,14 @@ def _comment(
     body: str = "Looks good",
     comment_id: int = 1,
     created_at: str | None = "2024-01-01T00:00:00",
+    author_association: str | None = "OWNER",
 ) -> ConversationCommentData:
     return ConversationCommentData(
-        author=author, body=body, id=comment_id, created_at=created_at
+        author=author,
+        body=body,
+        id=comment_id,
+        created_at=created_at,
+        author_association=author_association,
     )
 
 
@@ -62,8 +67,14 @@ def _changes_requested(
     author: str = "carol",
     body: str = "Needs work",
     submitted_at: Optional[str] = None,
+    author_association: str | None = "OWNER",
 ) -> ChangesRequestedData:
-    return ChangesRequestedData(author=author, body=body, submitted_at=submitted_at)
+    return ChangesRequestedData(
+        author=author,
+        body=body,
+        submitted_at=submitted_at,
+        author_association=author_association,
+    )
 
 
 def _alert(

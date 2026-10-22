@@ -13,6 +13,7 @@ from mcp_coder_utils.log_utils import log_function_call
 
 from .base_manager import _handle_github_errors
 from .issues.types import CommentData
+from .trust import normalize_author_association
 
 if TYPE_CHECKING:
     from .pr_manager import PullRequestManager
@@ -31,6 +32,7 @@ def _empty_comment_data() -> CommentData:
         created_at=None,
         updated_at=None,
         url="",
+        author_association=None,
     )
 
 
@@ -101,6 +103,7 @@ class PRReviewMixin:
             created_at=(reply.created_at.isoformat() if reply.created_at else None),
             updated_at=(reply.updated_at.isoformat() if reply.updated_at else None),
             url=reply.html_url,
+            author_association=normalize_author_association(reply.author_association),
         )
 
     @log_function_call

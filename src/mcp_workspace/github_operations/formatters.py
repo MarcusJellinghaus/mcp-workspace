@@ -16,6 +16,7 @@ class ReviewData(TypedDict):
     user: Optional[str]
     state: str  # APPROVED, CHANGES_REQUESTED, COMMENTED
     body: str
+    author_association: Optional[str]
 
 
 class InlineCommentData(TypedDict):
@@ -25,6 +26,7 @@ class InlineCommentData(TypedDict):
     line: Optional[int]
     user: Optional[str]
     body: str
+    author_association: Optional[str]
 
 
 def truncate_output(text: str, max_lines: int) -> str:

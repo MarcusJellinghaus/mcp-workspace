@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: `author_association` on every data type and collection path — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: tests first, then `ReviewThreadData` + `author_association` on all TypedDicts, GraphQL/REST mapping, `_pr_to_data`, comments/review mixins, `server.py` item construction, all test fixtures (no rendering changes)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests first, then `ReviewThreadData` + `author_association` on all TypedDicts, GraphQL/REST mapping, `_pr_to_data`, comments/review mixins, `server.py` item construction, all test fixtures (no rendering changes)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: `check_branch_status` gate — PR feedback and ❌ issue note — [step_3.md](./steps/step_3.md)
 
