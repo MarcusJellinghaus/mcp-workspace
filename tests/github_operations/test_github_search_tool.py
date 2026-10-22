@@ -51,6 +51,7 @@ def test_github_search_basic(mock_manager_cls: MagicMock) -> None:
     item1.state = "open"
     item1.labels = []
     item1.pull_request = None
+    item1.author_association = "OWNER"
 
     item2 = MagicMock()
     item2.number = 2
@@ -58,6 +59,7 @@ def test_github_search_basic(mock_manager_cls: MagicMock) -> None:
     item2.state = "open"
     item2.labels = []
     item2.pull_request = MagicMock()  # truthy = is a PR
+    item2.author_association = "OWNER"
 
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
@@ -155,6 +157,7 @@ def test_github_search_issue_vs_pr_indicator(mock_manager_cls: MagicMock) -> Non
     issue_item.state = "open"
     issue_item.labels = []
     issue_item.pull_request = None
+    issue_item.author_association = "OWNER"
 
     pr_item = MagicMock()
     pr_item.number = 2
@@ -162,6 +165,7 @@ def test_github_search_issue_vs_pr_indicator(mock_manager_cls: MagicMock) -> Non
     pr_item.state = "open"
     pr_item.labels = []
     pr_item.pull_request = MagicMock()
+    pr_item.author_association = "OWNER"
 
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
@@ -175,6 +179,101 @@ def test_github_search_issue_vs_pr_indicator(mock_manager_cls: MagicMock) -> Non
     result_lines = result.strip().split("\n")
     assert "[Issue]" in result_lines[0]
     assert "[PR]" in result_lines[1]
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_search_untrusted_prefix(mock_manager_cls: MagicMock) -> None:
+    """Untrusted items are prefixed with their login; a ghost renders as @ghost."""
+    mock_repo = MagicMock()
+    mock_repo.full_name = "owner/repo"
+
+    untrusted = MagicMock()
+    untrusted.number = 412
+    untrusted.title = "Fix login"
+    untrusted.state = "open"
+    untrusted.labels = []
+    untrusted.pull_request = None
+    untrusted.user.login = "abc"
+    untrusted.author_association = "NONE"
+
+    ghost = MagicMock()
+    ghost.number = 413
+    ghost.title = "Gone"
+    ghost.state = "open"
+    ghost.labels = []
+    ghost.pull_request = None
+    ghost.user = None
+    ghost.author_association = "NONE"
+
+    trusted = MagicMock()
+    trusted.number = 7
+    trusted.title = "Trusted"
+    trusted.state = "open"
+    trusted.labels = []
+    trusted.pull_request = None
+    trusted.user.login = "owner"
+    trusted.author_association = "OWNER"
+
+    mock_mgr = MagicMock()
+    mock_manager_cls.return_value = mock_mgr
+    mock_mgr._get_repository.return_value = mock_repo
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults(
+        [untrusted, ghost, trusted]
+    )
+
+    result = github_search(query="fix")
+
+    assert result.splitlines() == [
+        "#412 [Issue] [open] [untrusted @abc] Fix login",
+        "#413 [Issue] [open] [untrusted @ghost] Gone",
+        "#7 [Issue] [open] Trusted",
+    ]
+
+
+@patch("mcp_workspace.github_operations.formatters.format_search_results")
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_search_item_dict_carries_author(
+    mock_manager_cls: MagicMock, mock_format: MagicMock
+) -> None:
+    """The item dict maps user.login and the normalised association."""
+    mock_repo = MagicMock()
+    mock_repo.full_name = "owner/repo"
+
+    item = MagicMock()
+    item.number = 1
+    item.title = "T"
+    item.state = "open"
+    item.labels = []
+    item.pull_request = None
+    item.user.login = "abc"
+    item.author_association = "CONTRIBUTOR"
+
+    ghost = MagicMock()
+    ghost.number = 2
+    ghost.title = "G"
+    ghost.state = "open"
+    ghost.labels = []
+    ghost.pull_request = None
+    ghost.user = None
+    # A non-string association normalises to None.
+    ghost.author_association = MagicMock()
+
+    mock_mgr = MagicMock()
+    mock_manager_cls.return_value = mock_mgr
+    mock_mgr._get_repository.return_value = mock_repo
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults(
+        [item, ghost]
+    )
+    mock_format.return_value = "ok"
+
+    assert github_search(query="x") == "ok"
+
+    items = mock_format.call_args[0][0]
+    assert items[0]["user"] == "abc"
+    assert items[0]["author_association"] == "CONTRIBUTOR"
+    assert items[1]["user"] is None
+    assert items[1]["author_association"] is None
+    assert mock_format.call_args[1]["trusted"] == frozenset()
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")

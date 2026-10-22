@@ -1052,6 +1052,8 @@ def github_issue_list(
 ) -> str:
     """List GitHub issues with optional filters.
 
+    Rows by untrusted authors are prefixed with "[untrusted @login]".
+
     Args:
         state: Filter by state - "open", "closed", or "all" (default: "open")
         labels: Filter by label names
@@ -1090,7 +1092,8 @@ def github_issue_list(
             repo_full_name = _repo_full_name(manager)
             if repo_full_name is None:
                 return _repo_access_error(manager)
-        return format_issue_list(issues, capped, repo_full_name)
+        trusted = _allowlist_for(i.get("author_association") for i in issues)
+        return format_issue_list(issues, capped, repo_full_name, trusted=trusted)
     except Exception as e:
         return _tool_error(e)
 
@@ -1225,7 +1228,8 @@ def github_search(
     this tool adds. "type:pull-request" is not GitHub syntax and is rejected
     with an error rather than sent, so that literal string cannot be used as
     free text either. Any other qualifier can be included inline (e.g.,
-    "fix login is:pull-request author:marcus").
+    "fix login is:pull-request author:marcus"). Rows by untrusted authors are
+    prefixed with "[untrusted @login]".
 
     Args:
         query: Search query text
@@ -1254,6 +1258,7 @@ def github_search(
     # Lazy import: keeps PyGithub off the server startup import path
     from mcp_workspace.github_operations.formatters import format_search_results
     from mcp_workspace.github_operations.search import SearchSpec
+    from mcp_workspace.github_operations.trust import normalize_author_association
 
     try:
         spec = SearchSpec.from_arguments(query, state, labels, assignee)
@@ -1268,7 +1273,7 @@ def github_search(
             kwargs["order"] = order
         # pylint: disable=protected-access
         results = manager._github_client.search_issues(**kwargs)
-        items = []
+        items: List[Dict[str, Any]] = []
         # max(0, ...) because islice rejects a negative stop, where the old
         # enumerate guard simply collected nothing.
         capped = max(0, max_results)
@@ -1283,6 +1288,10 @@ def github_search(
                     "state": item.state,
                     "labels": item_labels,
                     "pull_request": item.pull_request is not None,
+                    "user": item.user.login if item.user else None,
+                    "author_association": normalize_author_association(
+                        item.author_association
+                    ),
                 }
             )
         # Read totalCount only after iterating, and only when we collected
@@ -1298,8 +1307,9 @@ def github_search(
         #     use for it.
         # format_search_results owns both empty renders: it tells the two cases
         # apart from `capped` alone.
+        trusted = _allowlist_for(i["author_association"] for i in items)
         return format_search_results(
-            items, capped, results.totalCount if items else None
+            items, capped, results.totalCount if items else None, trusted=trusted
         )
     except Exception as e:
         return _tool_error(e)
@@ -1663,11 +1673,14 @@ def github_subissue_list(
             repository.
 
     Returns:
-        One "#<number>  <state>  <title>" line per sub-issue, "No sub-issues."
-        when there are none, or error message string.
+        One "#<number>  <state>  <title>" line per sub-issue, with
+        "[untrusted @login] " before the title for untrusted authors,
+        "No sub-issues." when there are none, or error message string.
     """
     # Lazy import: keeps PyGithub off the server startup import path
     from mcp_workspace.github_operations import GithubException, RetryError
+    from mcp_workspace.github_operations.formatters import untrusted_prefix
+    from mcp_workspace.github_operations.trust import normalize_author_association
 
     if parent_number <= 0:
         return (
@@ -1685,7 +1698,19 @@ def github_subissue_list(
             return _repo_access_error(manager)
         if not children:
             return "No sub-issues."
-        return "\n".join(f"#{c.number}  {c.state}  {c.title}" for c in children)
+        authors = [
+            (
+                c.user.login if c.user else None,
+                normalize_author_association(c.author_association),
+            )
+            for c in children
+        ]
+        trusted = _allowlist_for(assoc for _, assoc in authors)
+        return "\n".join(
+            f"#{c.number}  {c.state}  {untrusted_prefix(login, assoc, trusted)}"
+            f"{c.title}"
+            for c, (login, assoc) in zip(children, authors)
+        )
     except (GithubException, RetryError, ValueError) as exc:
         return _api_error(exc, reference_name)
 

@@ -450,6 +450,48 @@ def test_github_issue_list_non_positive_max_results(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_list_untrusted_prefix(
+    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An untrusted issue is prefixed end to end; the allowlist is applied."""
+    allowlist = MagicMock(return_value=frozenset({"carol"}))
+    monkeypatch.setattr("mcp_workspace.config.get_trusted_commenters", allowlist)
+    untrusted = _make_issue(number=412, title="Fix login", labels=["x"])
+    untrusted["user"] = "abc"
+    untrusted["author_association"] = "NONE"
+    allowlisted = _make_issue(number=5, title="Carol's", labels=["x"])
+    allowlisted["user"] = "carol"
+    allowlisted["author_association"] = "NONE"
+    mock_mgr = MagicMock()
+    mock_mgr.list_issues.return_value = [untrusted, allowlisted, _make_issue(7, "Ok")]
+    mock_manager_cls.return_value = mock_mgr
+
+    result = github_issue_list()
+
+    assert result.splitlines() == [
+        "#412 [open] [untrusted @abc] Fix login  x",
+        "#5 [open] Carol's  x",
+        "#7 [open] Ok  bug",
+    ]
+    allowlist.assert_called_once_with()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_issue_list_all_trusted_skips_allowlist(
+    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every author is OWNER, so the allowlist is never read."""
+    allowlist = MagicMock(return_value=frozenset())
+    monkeypatch.setattr("mcp_workspace.config.get_trusted_commenters", allowlist)
+    mock_mgr = MagicMock()
+    mock_mgr.list_issues.return_value = [_make_issue(number=1, title="First")]
+    mock_manager_cls.return_value = mock_mgr
+
+    assert github_issue_list() == "#1 [open] First  bug"
+    allowlist.assert_not_called()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_list_error(mock_manager_cls: MagicMock) -> None:
     """Returns 'Error: ...' on exception."""
     mock_manager_cls.side_effect = RuntimeError("API down")

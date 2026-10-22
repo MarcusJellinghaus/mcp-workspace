@@ -59,9 +59,9 @@ See [step_5.md](./steps/step_5.md)
 ### Step 6: `[untrusted @login]` prefix in list/search/sub-issue tools + README trust section
 See [step_6.md](./steps/step_6.md)
 
-- [ ] Implementation: tests for `untrusted_prefix`, `format_issue_list`, `format_search_results`, `github_search`, `github_subissue_list`, `github_issue_list`; then the prefix helper, `trusted` keyword in formatters, server wiring, search item fields, README trust section
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests for `untrusted_prefix`, `format_issue_list`, `format_search_results`, `github_search`, `github_subissue_list`, `github_issue_list`; then the prefix helper, `trusted` keyword in formatters, server wiring, search item fields, README trust section
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

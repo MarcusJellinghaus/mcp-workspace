@@ -100,6 +100,24 @@ def find_latest_marked_comment(
     return None
 
 
+def untrusted_prefix(
+    login: Optional[str], association: Optional[str], trusted: frozenset[str]
+) -> str:
+    """Return "[untrusted @login] " for an untrusted author, else "".
+
+    Args:
+        login: Author login; None or "" for ghost users.
+        association: Author's ``author_association``, None when unknown.
+        trusted: Lowercased login allowlist from `get_trusted_commenters`.
+
+    Returns:
+        The row prefix, or an empty string for a trusted author.
+    """
+    if is_trusted_author(login, association, trusted):
+        return ""
+    return f"[untrusted @{login or 'ghost'}] "
+
+
 def _fence(
     text: str, login: Optional[str], association: Optional[str], fence_id: str
 ) -> str:
@@ -220,8 +238,12 @@ def format_issue_list(
     issues: list[IssueData],
     max_results: int = 30,
     repo_full_name: Optional[str] = None,
+    *,
+    trusted: frozenset[str],
 ) -> str:
     """Format issue list as compact summary lines.
+
+    Rows by untrusted authors carry an "[untrusted @login]" prefix.
 
     The truncation notice is driven by the caller's over-fetch. Issue listing
     has no total count, so the only evidence that more results exist is a
@@ -244,6 +266,7 @@ def format_issue_list(
             values are treated as 0.
         repo_full_name: Repository the issues were listed from, named in the
             empty-result message when known.
+        trusted: Lowercased login allowlist from `get_trusted_commenters`.
 
     Returns:
         Compact one-line-per-issue text, with a truncation notice when the
@@ -266,8 +289,13 @@ def format_issue_list(
     for issue in displayed:
         labels_str = ", ".join(issue["labels"]) if issue["labels"] else ""
         label_part = f"  {labels_str}" if labels_str else ""
+        # Stale cache entries can lack the key, so read it with .get().
+        prefix = untrusted_prefix(
+            issue["user"], issue.get("author_association"), trusted
+        )
         lines.append(
-            f"#{issue['number']} [{issue['state']}] {issue['title']}{label_part}"
+            f"#{issue['number']} [{issue['state']}] {prefix}{issue['title']}"
+            f"{label_part}"
         )
 
     if len(issues) > len(displayed):
@@ -390,15 +418,21 @@ def format_search_results(
     items: list[dict[str, Any]],
     max_results: int = 30,
     total_count: Optional[int] = None,
+    *,
+    trusted: frozenset[str],
 ) -> str:
     """Format search results as compact summary lines.
 
+    Rows by untrusted authors carry an "[untrusted @login]" prefix.
+
     Args:
-        items: List of search result dicts with number, title, state, labels, etc.
+        items: List of search result dicts with number, title, state, labels,
+            user and author_association.
         max_results: Maximum number of results to display.
         total_count: Exact total from the search API when known; falls back to
             len(items). Callers must pass None whenever `items` is empty, since
             no page was necessarily fetched to fill it.
+        trusted: Lowercased login allowlist from `get_trusted_commenters`.
 
     Returns:
         Compact one-line-per-result text with Issue/PR indicator. An empty
@@ -423,8 +457,12 @@ def format_search_results(
         kind = "PR" if item.get("pull_request") else "Issue"
         labels = ", ".join(item.get("labels", []))
         label_part = f"  {labels}" if labels else ""
+        prefix = untrusted_prefix(
+            item.get("user"), item.get("author_association"), trusted
+        )
         lines.append(
-            f"#{item['number']} [{kind}] [{item['state']}] {item['title']}{label_part}"
+            f"#{item['number']} [{kind}] [{item['state']}] {prefix}{item['title']}"
+            f"{label_part}"
         )
 
     # lines was built from items[:max_results], so its length is exactly the

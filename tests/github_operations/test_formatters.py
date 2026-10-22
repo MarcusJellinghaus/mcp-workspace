@@ -1,5 +1,7 @@
 """Tests for GitHub issue formatters."""
 
+from typing import Any
+
 import pytest
 
 from mcp_workspace.github_operations.formatters import (
@@ -9,6 +11,7 @@ from mcp_workspace.github_operations.formatters import (
     format_search_results,
     format_withheld_line,
     truncate_output,
+    untrusted_prefix,
 )
 from mcp_workspace.github_operations.issues.types import CommentData, IssueData
 
@@ -400,24 +403,24 @@ class TestFormatIssueList:
             _make_issue(number=1, title="First issue", state="open"),
             _make_issue(number=2, title="Second issue", state="closed"),
         ]
-        result = format_issue_list(issues)
+        result = format_issue_list(issues, trusted=NO_LOGINS)
         assert "#1 [open] First issue" in result
         assert "#2 [closed] Second issue" in result
 
     def test_format_issue_list_empty(self) -> None:
         """'No issues found.' message."""
-        result = format_issue_list([])
+        result = format_issue_list([], trusted=NO_LOGINS)
         assert result == "No issues found."
 
     def test_format_issue_list_empty_names_repo(self) -> None:
         """Empty result names the repository when it is known."""
-        result = format_issue_list([], repo_full_name="owner/repo")
+        result = format_issue_list([], repo_full_name="owner/repo", trusted=NO_LOGINS)
         assert result == "No issues found in owner/repo."
 
     def test_format_issue_list_max_results_cap(self) -> None:
         """Excess issues truncated with guidance."""
         issues = [_make_issue(number=i, title=f"Issue {i}") for i in range(5)]
-        result = format_issue_list(issues, max_results=3)
+        result = format_issue_list(issues, max_results=3, trusted=NO_LOGINS)
         assert "#0" in result
         assert "#1" in result
         assert "#2" in result
@@ -432,7 +435,7 @@ class TestFormatIssueList:
     def test_format_issue_list_non_positive_max_results(self, max_results: int) -> None:
         """A non-positive cap renders the notice alone, with no negative count."""
         issues = [_make_issue(number=i, title=f"Issue {i}") for i in range(3)]
-        result = format_issue_list(issues, max_results=max_results)
+        result = format_issue_list(issues, max_results=max_results, trusted=NO_LOGINS)
         # One spelling of the notice, and a lower bound the caller proved.
         assert result == (
             "... showing 0 of 3+ results "
@@ -443,21 +446,83 @@ class TestFormatIssueList:
         """The empty message means empty, never that the cap was 0."""
         issues = [_make_issue(number=i, title=f"Issue {i}") for i in range(3)]
 
-        assert format_issue_list([], max_results=0) == "No issues found."
+        empty = format_issue_list([], max_results=0, trusted=NO_LOGINS)
+        assert empty == "No issues found."
 
-        capped = format_issue_list(issues, max_results=0)
+        capped = format_issue_list(issues, max_results=0, trusted=NO_LOGINS)
         assert "No issues found." not in capped
         assert "raise max_results" in capped
 
     def test_format_issue_list_labels(self) -> None:
         """Labels rendered in summary line."""
         issues = [_make_issue(number=1, title="Labeled", labels=["bug", "help wanted"])]
-        result = format_issue_list(issues)
+        result = format_issue_list(issues, trusted=NO_LOGINS)
         assert "bug" in result
         assert "help wanted" in result
 
+    def test_format_issue_list_untrusted_prefix(self) -> None:
+        """An untrusted row is prefixed; a trusted row is unchanged."""
+        issues = [
+            _make_issue(
+                number=412, title="Fix login", user="abc", author_association="NONE"
+            ),
+            _make_issue(number=7, title="Trusted"),
+        ]
+        lines = format_issue_list(issues, trusted=NO_LOGINS).splitlines()
+        assert lines == ["#412 [open] [untrusted @abc] Fix login", "#7 [open] Trusted"]
+
+    def test_format_issue_list_missing_association_is_untrusted(self) -> None:
+        """A stale cache entry without the key is untrusted and does not crash."""
+        issue = _make_issue(number=412, title="Fix login", user="abc")
+        del issue["author_association"]  # type: ignore[misc]
+        result = format_issue_list([issue], trusted=NO_LOGINS)
+        assert result == "#412 [open] [untrusted @abc] Fix login"
+
+
+# --- untrusted_prefix tests ---
+
+
+class TestUntrustedPrefix:
+    """Tests for untrusted_prefix."""
+
+    def test_owner_has_no_prefix(self) -> None:
+        """A trusted role gets no prefix."""
+        assert untrusted_prefix("abc", "OWNER", NO_LOGINS) == ""
+
+    def test_none_association_is_prefixed(self) -> None:
+        """An outside author is labelled with their login."""
+        assert untrusted_prefix("abc", "NONE", NO_LOGINS) == "[untrusted @abc] "
+
+    @pytest.mark.parametrize("login", [None, ""])
+    def test_ghost_renders_as_ghost(self, login: str | None) -> None:
+        """A deleted user renders as @ghost."""
+        assert untrusted_prefix(login, "NONE", NO_LOGINS) == "[untrusted @ghost] "
+
+    def test_allowlisted_login_has_no_prefix(self) -> None:
+        """An allowlisted login is trusted whatever its role."""
+        assert untrusted_prefix("ABC", "NONE", frozenset({"abc"})) == ""
+
 
 # --- format_search_results tests ---
+
+
+def _item(
+    number: int,
+    title: str,
+    state: str = "open",
+    labels: list[str] | None = None,
+    user: str | None = "testuser",
+    author_association: str | None = "OWNER",
+) -> dict[str, Any]:
+    """Create a search result item dict as github_search builds it."""
+    return {
+        "number": number,
+        "title": title,
+        "state": state,
+        "labels": labels or [],
+        "user": user,
+        "author_association": author_association,
+    }
 
 
 class TestFormatSearchResults:
@@ -466,16 +531,34 @@ class TestFormatSearchResults:
     def test_format_search_results_basic(self) -> None:
         """Renders summary lines."""
         items = [
-            {"number": 1, "title": "Bug fix", "state": "open", "labels": ["bug"]},
-            {"number": 2, "title": "Feature", "state": "closed", "labels": []},
+            _item(1, "Bug fix", labels=["bug"]),
+            _item(2, "Feature", state="closed"),
         ]
-        result = format_search_results(items)
+        result = format_search_results(items, trusted=NO_LOGINS)
         assert "#1 [Issue] [open] Bug fix  bug" in result
         assert "#2 [Issue] [closed] Feature" in result
 
+    def test_format_search_results_untrusted_prefix(self) -> None:
+        """An untrusted row is prefixed; a trusted row is unchanged."""
+        items = [
+            _item(412, "Fix login", user="abc", author_association="NONE"),
+            _item(7, "Trusted"),
+        ]
+        lines = format_search_results(items, trusted=NO_LOGINS).splitlines()
+        assert lines == [
+            "#412 [Issue] [open] [untrusted @abc] Fix login",
+            "#7 [Issue] [open] Trusted",
+        ]
+
+    def test_format_search_results_missing_association_is_untrusted(self) -> None:
+        """An item without user/association keys is untrusted and does not crash."""
+        items = [{"number": 412, "title": "Fix login", "state": "open", "labels": []}]
+        result = format_search_results(items, trusted=NO_LOGINS)
+        assert result == "#412 [Issue] [open] [untrusted @ghost] Fix login"
+
     def test_format_search_results_empty(self) -> None:
         """'No results found.' message."""
-        result = format_search_results([])
+        result = format_search_results([], trusted=NO_LOGINS)
         assert result == "No results found."
 
     @pytest.mark.parametrize("max_results", [0, -1])
@@ -487,7 +570,7 @@ class TestFormatSearchResults:
         Such a call collects nothing whatever the search matched, so it never
         established that there were no results, and has no total to report.
         """
-        result = format_search_results([], max_results=max_results)
+        result = format_search_results([], max_results=max_results, trusted=NO_LOGINS)
         assert result == (
             "... showing 0 of an unknown total — a max_results cap of 0 "
             "suppressed the output; raise max_results to see results."
@@ -496,26 +579,17 @@ class TestFormatSearchResults:
     def test_format_search_results_issue_vs_pr(self) -> None:
         """Correct Issue/PR indicator."""
         items = [
-            {"number": 1, "title": "An issue", "state": "open", "labels": []},
-            {
-                "number": 2,
-                "title": "A PR",
-                "state": "open",
-                "labels": [],
-                "pull_request": {"url": "https://..."},
-            },
+            _item(1, "An issue"),
+            {**_item(2, "A PR"), "pull_request": {"url": "https://..."}},
         ]
-        result = format_search_results(items)
+        result = format_search_results(items, trusted=NO_LOGINS)
         assert "#1 [Issue]" in result
         assert "#2 [PR]" in result
 
     def test_format_search_results_max_results_cap(self) -> None:
         """Excess results truncated with guidance."""
-        items = [
-            {"number": i, "title": f"Result {i}", "state": "open", "labels": []}
-            for i in range(5)
-        ]
-        result = format_search_results(items, max_results=3)
+        items = [_item(i, f"Result {i}") for i in range(5)]
+        result = format_search_results(items, max_results=3, trusted=NO_LOGINS)
         assert "#0" in result
         assert "#1" in result
         assert "#2" in result
@@ -526,11 +600,10 @@ class TestFormatSearchResults:
 
     def test_format_search_results_uses_total_count(self) -> None:
         """An explicit total_count is rendered instead of len(items)."""
-        items = [
-            {"number": i, "title": f"Result {i}", "state": "open", "labels": []}
-            for i in range(3)
-        ]
-        result = format_search_results(items, max_results=3, total_count=412)
+        items = [_item(i, f"Result {i}") for i in range(3)]
+        result = format_search_results(
+            items, max_results=3, total_count=412, trusted=NO_LOGINS
+        )
         assert "showing 3 of 412 results" in result
 
 

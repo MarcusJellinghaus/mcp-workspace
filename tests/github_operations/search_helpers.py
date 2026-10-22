@@ -50,5 +50,6 @@ def make_search_items(count: int) -> list[MagicMock]:
         item.state = "open"
         item.labels = []
         item.pull_request = None
+        item.author_association = "OWNER"
         items.append(item)
     return items
