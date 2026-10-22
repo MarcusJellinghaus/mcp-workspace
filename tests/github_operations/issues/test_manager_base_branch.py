@@ -101,6 +101,32 @@ class TestListIssuesBaseBranchError:
         assert result[0]["base_branch_error"] is None
 
 
+class TestAuthorAssociation:
+    """get_issue and list_issues carry the issue author's association."""
+
+    def test_get_issue_carries_association(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        mock_issue = _issue(1, "")
+        mock_issue.author_association = "CONTRIBUTOR"
+        mock_issue_manager._repository.get_issue.return_value = mock_issue
+
+        result = mock_issue_manager.get_issue(1)
+
+        assert result["author_association"] == "CONTRIBUTOR"
+
+    def test_list_issues_carries_association(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        mock_issue = _issue(1, "")
+        mock_issue.author_association = "CONTRIBUTOR"
+        mock_issue_manager._repository.get_issues.return_value = [mock_issue]
+
+        result = mock_issue_manager.list_issues()
+
+        assert result[0]["author_association"] == "CONTRIBUTOR"
+
+
 class TestMalformedBaseBranchLogOnce:
     """The WARNING is logged once per (repo, issue, message)."""
 

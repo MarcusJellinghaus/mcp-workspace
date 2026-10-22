@@ -9,7 +9,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional
 
-from github.Issue import Issue
 from mcp_coder_utils.log_utils import log_function_call
 
 from ..base_manager import BaseGitHubManager, _handle_github_errors
@@ -23,7 +22,7 @@ from .comments_mixin import CommentsMixin
 from .events_mixin import EventsMixin
 from .labels_mixin import LabelsMixin
 from .sub_issues_mixin import SubIssuesMixin
-from .types import IssueData, create_empty_issue_data
+from .types import IssueData, create_empty_issue_data, issue_to_data
 
 logger = logging.getLogger(__name__)
 
@@ -61,37 +60,6 @@ def _parse_base_branch_fields(
             level, "Issue #%d has malformed base branch: %s", issue_number, message
         )
         return None, message
-
-
-def _issue_to_data(github_issue: Issue) -> IssueData:
-    """Convert a PyGithub Issue into IssueData.
-
-    Does not populate ``base_branch`` — it matches the conversion used by the
-    write operations (``close_issue``), not the one used by ``get_issue``.
-
-    Args:
-        github_issue: PyGithub Issue to convert
-
-    Returns:
-        IssueData with the issue's current fields
-    """
-    return IssueData(
-        number=github_issue.number,
-        title=github_issue.title,
-        body=github_issue.body or "",
-        state=github_issue.state,
-        labels=[label.name for label in github_issue.labels],
-        assignees=[assignee.login for assignee in github_issue.assignees],
-        user=github_issue.user.login if github_issue.user else None,
-        created_at=(
-            github_issue.created_at.isoformat() if github_issue.created_at else None
-        ),
-        updated_at=(
-            github_issue.updated_at.isoformat() if github_issue.updated_at else None
-        ),
-        url=github_issue.html_url,
-        locked=github_issue.locked,
-    )
 
 
 class IssueManager(
@@ -182,7 +150,7 @@ class IssueManager(
         github_issue = repo.create_issue(**kwargs)
 
         # Convert to IssueData
-        return _issue_to_data(github_issue)
+        return issue_to_data(github_issue)
 
     @log_function_call
     @_handle_github_errors(default_return=create_empty_issue_data())
@@ -217,32 +185,12 @@ class IssueManager(
         # Get issue
         github_issue = self._get_issue_checked(repo, issue_number)
 
-        # Parse base_branch from body
-        body = github_issue.body or ""
-        base_branch, base_branch_error = _parse_base_branch_fields(
-            body, repo.full_name, issue_number
+        # Convert to IssueData and parse base_branch from body
+        data = issue_to_data(github_issue)
+        data["base_branch"], data["base_branch_error"] = _parse_base_branch_fields(
+            data["body"], repo.full_name, github_issue.number
         )
-
-        # Convert to IssueData
-        return IssueData(
-            number=github_issue.number,
-            title=github_issue.title,
-            body=body,
-            state=github_issue.state,
-            labels=[label.name for label in github_issue.labels],
-            assignees=[assignee.login for assignee in github_issue.assignees],
-            user=github_issue.user.login if github_issue.user else None,
-            created_at=(
-                github_issue.created_at.isoformat() if github_issue.created_at else None
-            ),
-            updated_at=(
-                github_issue.updated_at.isoformat() if github_issue.updated_at else None
-            ),
-            url=github_issue.html_url,
-            locked=github_issue.locked,
-            base_branch=base_branch,
-            base_branch_error=base_branch_error,
-        )
+        return data
 
     def _list_issues_no_error_handling(
         self,
@@ -287,29 +235,12 @@ class IssueManager(
             if not include_pull_requests and issue.pull_request is not None:
                 continue
 
-            # Parse base_branch from body
-            body = issue.body or ""
-            base_branch, base_branch_error = _parse_base_branch_fields(
-                body, repo.full_name, issue.number
+            # Convert to IssueData and parse base_branch from body
+            data = issue_to_data(issue)
+            data["base_branch"], data["base_branch_error"] = _parse_base_branch_fields(
+                data["body"], repo.full_name, issue.number
             )
-
-            # Convert to IssueData
-            issue_data = IssueData(
-                number=issue.number,
-                title=issue.title,
-                body=body,
-                state=issue.state,
-                labels=[label.name for label in issue.labels],
-                assignees=[assignee.login for assignee in issue.assignees],
-                user=issue.user.login if issue.user else None,
-                created_at=(issue.created_at.isoformat() if issue.created_at else None),
-                updated_at=(issue.updated_at.isoformat() if issue.updated_at else None),
-                url=issue.html_url,
-                locked=issue.locked,
-                base_branch=base_branch,
-                base_branch_error=base_branch_error,
-            )
-            issues_list.append(issue_data)
+            issues_list.append(data)
 
             if max_results is not None and len(issues_list) >= max_results:
                 break
@@ -393,7 +324,7 @@ class IssueManager(
         github_issue.edit(state="closed")
 
         # Get fresh issue data after closing
-        return _issue_to_data(self._get_issue_checked(repo, issue_number))
+        return issue_to_data(self._get_issue_checked(repo, issue_number))
 
     @log_function_call
     @_handle_github_errors(default_return=create_empty_issue_data())
@@ -429,7 +360,7 @@ class IssueManager(
         github_issue.edit(state="open")
 
         # Get fresh issue data after reopening
-        return _issue_to_data(self._get_issue_checked(repo, issue_number))
+        return issue_to_data(self._get_issue_checked(repo, issue_number))
 
     @log_function_call
     @_handle_github_errors(default_return=create_empty_issue_data)
@@ -546,4 +477,4 @@ class IssueManager(
             github_issue.add_to_assignees(*add_assignees)
 
         # Refetch so the returned labels/assignees are the resulting sets
-        return _issue_to_data(self._get_issue_checked(repo, issue_number))
+        return issue_to_data(self._get_issue_checked(repo, issue_number))

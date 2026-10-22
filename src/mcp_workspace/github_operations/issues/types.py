@@ -4,7 +4,12 @@ This module contains TypedDict and Enum definitions used across the issues subpa
 """
 
 from enum import Enum
-from typing import List, NotRequired, Optional, TypedDict
+from typing import TYPE_CHECKING, List, NotRequired, Optional, TypedDict
+
+from ..trust import normalize_author_association
+
+if TYPE_CHECKING:
+    from github.Issue import Issue
 
 
 class IssueEventType(str, Enum):
@@ -65,6 +70,7 @@ class IssueData(TypedDict):
     updated_at: Optional[str]
     url: str
     locked: bool
+    author_association: Optional[str]
     base_branch: NotRequired[Optional[str]]
     base_branch_error: NotRequired[Optional[str]]
 
@@ -111,6 +117,41 @@ def create_empty_issue_data() -> IssueData:
         updated_at=None,
         url="",
         locked=False,
+        author_association=None,
+    )
+
+
+def issue_to_data(github_issue: "Issue") -> IssueData:
+    """Convert a PyGithub Issue into IssueData.
+
+    Does not populate ``base_branch`` / ``base_branch_error`` — callers that
+    need them parse the body themselves.
+
+    Args:
+        github_issue: PyGithub Issue to convert
+
+    Returns:
+        IssueData with the issue's current fields
+    """
+    return IssueData(
+        number=github_issue.number,
+        title=github_issue.title,
+        body=github_issue.body or "",
+        state=github_issue.state,
+        labels=[label.name for label in github_issue.labels],
+        assignees=[assignee.login for assignee in github_issue.assignees],
+        user=github_issue.user.login if github_issue.user else None,
+        created_at=(
+            github_issue.created_at.isoformat() if github_issue.created_at else None
+        ),
+        updated_at=(
+            github_issue.updated_at.isoformat() if github_issue.updated_at else None
+        ),
+        url=github_issue.html_url,
+        locked=github_issue.locked,
+        author_association=normalize_author_association(
+            github_issue.author_association
+        ),
     )
 
 
@@ -120,4 +161,5 @@ __all__ = [
     "CommentData",
     "EventData",
     "create_empty_issue_data",
+    "issue_to_data",
 ]

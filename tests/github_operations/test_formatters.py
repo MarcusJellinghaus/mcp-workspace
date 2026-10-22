@@ -34,6 +34,7 @@ def _make_issue(
         updated_at="2024-01-02T00:00:00Z",
         url=f"https://github.com/owner/repo/issues/{number}",
         locked=False,
+        author_association="OWNER",
     )
 
 

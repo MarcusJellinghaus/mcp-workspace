@@ -85,6 +85,7 @@ def test_github_issue_view_not_found(mock_manager_cls: MagicMock) -> None:
         updated_at=None,
         url="",
         locked=False,
+        author_association="OWNER",
     )
     mock_mgr = MagicMock()
     mock_mgr.get_issue.return_value = empty_issue
@@ -114,6 +115,7 @@ def test_github_issue_view_not_found_repo_unreachable(
         updated_at=None,
         url="",
         locked=False,
+        author_association="OWNER",
     )
     mock_mgr._get_repository.return_value = None
     mock_mgr._repo_identifier.api_base_url = "https://gitlab.com/api/v3"
@@ -230,6 +232,7 @@ def test_github_issue_view_not_found_skips_linked_branches(
         updated_at=None,
         url="",
         locked=False,
+        author_association="OWNER",
     )
     mock_mgr._get_repository.return_value.full_name = "owner/repo"
     mock_manager_cls.return_value = mock_mgr

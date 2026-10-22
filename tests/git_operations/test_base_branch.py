@@ -35,6 +35,7 @@ class TestDetectFromIssue:
             updated_at=None,
             url="",
             locked=False,
+            author_association="OWNER",
             base_branch="develop",
         )
         result = _detect_from_issue(issue_data)
@@ -54,6 +55,7 @@ class TestDetectFromIssue:
             updated_at=None,
             url="",
             locked=False,
+            author_association="OWNER",
         )
         result = _detect_from_issue(issue_data)
         assert result is None
@@ -172,6 +174,7 @@ class TestDetectBaseBranch:
             updated_at=None,
             url="",
             locked=False,
+            author_association="OWNER",
             base_branch="develop",
         )
         result = detect_base_branch(
@@ -205,6 +208,7 @@ class TestDetectBaseBranch:
             updated_at=None,
             url="",
             locked=False,
+            author_association="OWNER",
             base_branch="from-issue",
         )
         mock_pr_manager = MagicMock()

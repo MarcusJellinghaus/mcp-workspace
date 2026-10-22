@@ -31,9 +31,9 @@ See [step_1.md](./steps/step_1.md)
 ### Step 2: `IssueData.author_association` + shared `issue_to_data`
 See [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: tests for `issue_to_data`, `create_empty_issue_data`, `get_issue` / `list_issues` / labels-mixin results; then add required `author_association` key, move converter into `types.py`, use it in `manager.py` and `labels_mixin.py`, default `"OWNER"` in test helpers and fixtures
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests for `issue_to_data`, `create_empty_issue_data`, `get_issue` / `list_issues` / labels-mixin results; then add required `author_association` key, move converter into `types.py`, use it in `manager.py` and `labels_mixin.py`, default `"OWNER"` in test helpers and fixtures
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: `base_branch_trust.py` — editor lookup + body trust decision
 See [step_3.md](./steps/step_3.md)

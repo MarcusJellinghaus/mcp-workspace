@@ -24,7 +24,7 @@ def _make_editable_issue(
     labels: Optional[List[str]] = None,
     assignees: Optional[List[str]] = None,
 ) -> MagicMock:
-    """Create a mock issue carrying every attribute _issue_to_data reads."""
+    """Create a mock issue carrying every attribute issue_to_data reads."""
     issue = make_mock_issue(number)
     issue.title = "Test Issue"
     issue.body = "Test body"

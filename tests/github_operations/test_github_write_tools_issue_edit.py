@@ -53,6 +53,7 @@ def _make_issue(
         updated_at="2024-01-02T00:00:00",
         url="https://github.com/test/repo/issues/42",
         locked=False,
+        author_association="OWNER",
     )
 
 

@@ -8,4 +8,5 @@ def make_mock_issue(number: int = 1, repo_full_name: str = "test/repo") -> Magic
     mock_issue = MagicMock()
     mock_issue.number = number
     mock_issue.repository_url = f"https://api.github.com/repos/{repo_full_name}"
+    mock_issue.author_association = "OWNER"
     return mock_issue

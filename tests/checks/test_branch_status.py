@@ -421,6 +421,7 @@ class TestCollectGithubLabel:
             "updated_at": None,
             "url": "",
             "locked": False,
+            "author_association": "OWNER",
         }
         assert _collect_github_label(issue_data) == "status-04:in-progress"
 
@@ -437,6 +438,7 @@ class TestCollectGithubLabel:
             "updated_at": None,
             "url": "",
             "locked": False,
+            "author_association": "OWNER",
         }
         assert _collect_github_label(issue_data) == "unknown"
 
