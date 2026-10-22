@@ -11,3 +11,11 @@ Code read so far: `_pr_feedback_sources.py` and `pr_feedback.py`. Next I'm check
 Verdict(decision='tasks', tasks=['pr_info/steps/step_3.md: add tach.toml to WHERE, with `{ path = "mcp_workspace.config" }` added to the `depends_on` of the `mcp_workspace.checks` module, and add `mcp__mcp-tools-py__run_tach_check` to the step\'s exit checks.', 'pr_info/steps/step_4.md: add tach.toml to WHERE, with `{ path = "mcp_workspace.config" }` added to the `depends_on` of the `mcp_workspace.server` module. Keep the lazy `from mcp_workspace import config` lookup (not the github_operations re-export), so the conftest patch on `mcp_workspace.config.get_trusted_commenters` still applies. Add the tach check to the exit checks.', 'pr_info/steps/summary.md:33: state that looking up the allowlist through `mcp_workspace.config` requires new tach.toml dependencies on `mcp_workspace.config` for `mcp_workspace.checks` and `mcp_workspace.server`.', 'pr_info/steps/step_4.md:88: tell the implementer to update the existing `TestFormatPrView` `pr` dict fixtures, and any other test callers of `format_pr_view`, to include `"author_association": "OWNER"` and a `user` (e.g. `{"login": "owner"}`), so the existing title/body assertions keep passing under the trust rule.', 'pr_info/steps/step_4.md:79: for the \'allowlisted PR author → title/body shown\' test, use a non-empty `trusted` set (e.g. `frozenset({"alice"})`) with a non-trusted `author_association` (e.g. `CONTRIBUTOR`), and `user.login` set to `alice`.'], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 2 — 2026-10-22
+**Findings**:
+Plan files and core code read; checking `CommentData` and the feedback sources for ghost-user handling next.NO FINDINGS
+**Decisions**:
+Verdict(decision='dismiss', tasks=[], escalate_reason=None)
+**Changes**:
+dismiss
