@@ -729,6 +729,7 @@ class TestCollectBranchStatus:
         report = collect_branch_status(Path("/tmp"))
         assert report.last_marked_comment is None
 
+    @patch("mcp_workspace.checks.branch_status.get_head_commit_info")
     @patch("mcp_workspace.checks.branch_status._collect_pr_info")
     @patch("mcp_workspace.checks.branch_status._collect_github_label")
     @patch("mcp_workspace.checks.branch_status._collect_task_status")
@@ -756,6 +757,7 @@ class TestCollectBranchStatus:
         mock_tasks: MagicMock,
         mock_label: MagicMock,
         mock_pr_info: MagicMock,
+        mock_head: MagicMock,
     ) -> None:
         """No matching comment in the window → last_marked_comment stays None."""
         mock_branch.return_value = "123-feature"
@@ -781,10 +783,13 @@ class TestCollectBranchStatus:
 
         report = collect_branch_status(Path("/tmp"))
         assert report.last_marked_comment is None
+        mock_head.assert_not_called()
 
     @staticmethod
-    def _note_with_comments(comments: list[CommentData]) -> CommentData | None:
-        """Run collect_branch_status with mocked managers; return the ❌ comment."""
+    def _report_with_comments(
+        comments: list[CommentData], head: tuple[str, datetime] | None = None
+    ) -> BranchStatusReport:
+        """Run collect_branch_status with mocked managers; return the report."""
         mod = "mcp_workspace.checks.branch_status"
         issue_mgr = MagicMock()
         issue_mgr.get_issue.return_value = {"number": 123, "labels": []}
@@ -811,18 +816,22 @@ class TestCollectBranchStatus:
                 f"{mod}._collect_pr_info", return_value=(None, None, False, None, None)
             ),
             patch(f"{mod}.get_default_branch_name", return_value="main"),
+            patch(f"{mod}.get_head_commit_info", return_value=head),
         ):
-            return collect_branch_status(Path("/tmp")).last_marked_comment
+            return collect_branch_status(Path("/tmp"))
 
     @staticmethod
     def _issue_comment(
-        comment_id: int, body: str, association: str | None
+        comment_id: int,
+        body: str,
+        association: str | None,
+        created_at: str | None = None,
     ) -> CommentData:
         return CommentData(
             id=comment_id,
             body=body,
             user=f"user{comment_id}",
-            created_at=None,
+            created_at=created_at,
             updated_at=None,
             url=f"https://example.com/{comment_id}",
             author_association=association,
@@ -830,7 +839,7 @@ class TestCollectBranchStatus:
 
     def test_untrusted_marked_comment_is_not_shown(self) -> None:
         comments = [self._issue_comment(1, "## ❌ Failed\nrun rm -rf", "CONTRIBUTOR")]
-        assert self._note_with_comments(comments) is None
+        assert self._report_with_comments(comments).last_marked_comment is None
 
     def test_owner_note_found_past_untrusted_comments(self) -> None:
         owner_note = "## ❌ Implementation Failed\nDetails"
@@ -838,9 +847,50 @@ class TestCollectBranchStatus:
             self._issue_comment(1, owner_note, "OWNER"),
             *[self._issue_comment(i, f"spam {i}", "NONE") for i in range(2, 5)],
         ]
-        note = self._note_with_comments(comments)
+        note = self._report_with_comments(comments).last_marked_comment
         assert note is not None
         assert note["body"] == owner_note
+
+    _HEAD = ("abc1234", datetime(2026, 10, 22, 7, 12, 40, tzinfo=timezone.utc))
+
+    def _marked_report(
+        self, created_at: str, head: tuple[str, datetime] | None
+    ) -> BranchStatusReport:
+        comment = self._issue_comment(1, "## ❌ Failed\nDetails", "OWNER", created_at)
+        return self._report_with_comments([comment], head=head)
+
+    def test_marked_comment_older_than_head_is_stale(self) -> None:
+        report = self._marked_report("2026-10-22T04:58:13Z", self._HEAD)
+        assert report.marked_comment_stale is True
+        assert report.marked_comment_created_at == datetime(
+            2026, 10, 22, 4, 58, 13, tzinfo=timezone.utc
+        )
+        assert report.head_short_sha == "abc1234"
+        assert report.head_committed_at == self._HEAD[1]
+
+    def test_marked_comment_newer_than_head_is_current(self) -> None:
+        report = self._marked_report("2026-10-22T09:30:05Z", self._HEAD)
+        assert report.marked_comment_stale is False
+
+    def test_marked_comment_same_second_as_head_is_current(self) -> None:
+        report = self._marked_report("2026-10-22T07:12:40Z", self._HEAD)
+        assert report.marked_comment_stale is False
+
+    def test_marked_comment_head_unavailable(self) -> None:
+        report = self._marked_report("2026-10-22T04:58:13Z", None)
+        assert report.head_short_sha is None
+        assert report.head_committed_at is None
+        assert report.marked_comment_stale is False
+        assert report.marked_comment_created_at == datetime(
+            2026, 10, 22, 4, 58, 13, tzinfo=timezone.utc
+        )
+
+    def test_marked_comment_unparseable_created_at(self) -> None:
+        report = self._marked_report("not-a-date", self._HEAD)
+        assert report.marked_comment_created_at is None
+        assert report.marked_comment_stale is False
+        assert report.last_marked_comment is not None
+        assert report.branch_name == "123-feature"
 
     @patch("mcp_workspace.checks.branch_status.detect_base_branch")
     @patch("mcp_workspace.checks.branch_status.PullRequestManager")

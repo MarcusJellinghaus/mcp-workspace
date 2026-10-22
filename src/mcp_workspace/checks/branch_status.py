@@ -36,6 +36,7 @@ from mcp_workspace.git_operations.branch_queries import (
     get_current_branch_name,
     get_default_branch_name,
 )
+from mcp_workspace.git_operations.commits import get_head_commit_info
 from mcp_workspace.git_operations.workflows import needs_rebase
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.formatters import find_latest_marked_comment
@@ -50,6 +51,7 @@ from mcp_workspace.github_operations.issues import (
 )
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
 from mcp_workspace.github_operations.trust import is_trusted_author
+from mcp_workspace.utils.timezone_utils import parse_iso_timestamp
 from mcp_workspace.workflows.task_tracker import (
     TaskTrackerFileNotFoundError,
     TaskTrackerSectionNotFoundError,
@@ -484,6 +486,31 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
     return recommendations
 
 
+def _marked_comment_context(
+    project_dir: Path, comment: CommentData
+) -> tuple[Optional[datetime], Optional[str], Optional[datetime], bool]:
+    """Return (created_at, head_short_sha, head_committed_at, stale) for a marked comment.
+
+    Never raises: an exception here would replace the whole report with the
+    empty fallback. Stale only when both timestamps exist and the comment is
+    strictly older than HEAD's committer date (second precision; a tie is current).
+    """
+    created_at: Optional[datetime] = None
+    if comment["created_at"]:
+        try:
+            created_at = parse_iso_timestamp(comment["created_at"])
+        except ValueError:
+            logger.debug("Unparseable comment created_at: %r", comment["created_at"])
+    head = get_head_commit_info(project_dir)
+    head_short_sha, head_committed_at = head if head is not None else (None, None)
+    stale = (
+        created_at is not None
+        and head_committed_at is not None
+        and created_at < head_committed_at
+    )
+    return created_at, head_short_sha, head_committed_at, stale
+
+
 def collect_branch_status(
     project_dir: Path, max_log_lines: int = 300
 ) -> BranchStatusReport:
@@ -546,6 +573,12 @@ def collect_branch_status(
                     logger.debug("Failed to fetch marked comment", exc_info=True)
         except Exception:  # pylint: disable=broad-exception-caught
             logger.debug("GitHub manager initialization failed", exc_info=True)
+
+        marked_created_at, head_short_sha, head_committed_at, marked_stale = (
+            _marked_comment_context(project_dir, last_marked_comment)
+            if last_marked_comment is not None
+            else (None, None, None, False)
+        )
 
         # 3. Detect base branch (DI: pass managers). A malformed Base Branch
         # section is surfaced as-is — never replaced by a guessed base.
@@ -681,6 +714,10 @@ def collect_branch_status(
             linked_branches=linked_branches,
             linked_branch_issue_number=linked_branch_issue_number,
             last_marked_comment=last_marked_comment,
+            marked_comment_created_at=marked_created_at,
+            head_short_sha=head_short_sha,
+            head_committed_at=head_committed_at,
+            marked_comment_stale=marked_stale,
             closing_pr_candidate=closing_pr_candidate,
             base_branch_error=base_branch_error,
             non_green_checks=non_green_checks,

@@ -38,9 +38,9 @@ See [step_2.md](./steps/step_2.md)
 ### Step 3: Collect timestamps, HEAD and the stale verdict
 See [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: `_marked_comment_context` helper + wiring in `collect_branch_status`; `tach.toml` `checks → utils` dependency; collection tests (stale, current, tie, HEAD unavailable, unparseable `created_at`, HEAD not looked up without comment)
-- [ ] Quality checks: pylint, pytest (`-n auto -k "not github_search_live"`), mypy, tach, lint-imports; `branch_status.py` ≤ 750 lines — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `_marked_comment_context` helper + wiring in `collect_branch_status`; `tach.toml` `checks → utils` dependency; collection tests (stale, current, tie, HEAD unavailable, unparseable `created_at`, HEAD not looked up without comment)
+- [x] Quality checks: pylint, pytest (`-n auto -k "not github_search_live"`), mypy, tach, lint-imports; `branch_status.py` ≤ 750 lines — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 
