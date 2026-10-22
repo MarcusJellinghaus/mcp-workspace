@@ -45,9 +45,10 @@ def _allowlist_for(associations: Iterable[Optional[str]]) -> frozenset[str]:
 - Read the issue's association with `issue.get("author_association")`, because stale
   cache entries can lack the key.
 - The formatter stays pure: no config read and no randomness inside it.
-- Move the comment at formatters.py ~135: with the summary line present, `Linked branches`
-  becomes line 5. Both lines still join the State line with a single `\n`, so both survive
-  any `max_lines >= 4`.
+- Update the comment at formatters.py ~135: both lines join the State line with a single
+  `\n`. The summary line comes first (line 4, survives any `max_lines >= 4`);
+  `Linked branches` becomes line 5 and survives only `max_lines >= 5`. Don't reorder the
+  lines to make a test pass — the summary line must stay before `Linked branches`.
 - `github_issue_view`:
   ```python
   from mcp_workspace import config  # inside _allowlist_for, lazy
@@ -92,8 +93,9 @@ Use "1 comment" for one and "N comments" otherwise.
   closing tag with the call's id follows after it;
 - ghost author (`user=None`, association None) → untrusted, `author="@ghost"`, no crash;
 - an allowlisted login with association `NONE` → trusted;
-- `max_lines=4` with `include_linked_branches=True` and an untrusted author → both the
-  summary line and `Linked branches` are present, summary first.
+- `max_lines=4` with `include_linked_branches=True` and an untrusted author → the
+  summary line (line 4) is present and `Linked branches` (line 5) is truncated;
+- `max_lines=5`, same setup → both are present, summary first.
 
 `github_issue_view`:
 - the fence id differs between two calls (patch or inspect `secrets.token_hex`);

@@ -66,6 +66,7 @@ Modified (source):
 Modified (tests):
 - `tests/github_operations/_issue_test_helpers.py` — `author_association="OWNER"` default
 - `tests/github_operations/issues/test_base.py`
+- `tests/github_operations/issues/test_types.py`
 - `tests/test_server_enforce_base_branch_format.py`
 - `tests/github_operations/test_github_write_tools_issues.py`
 - `tests/github_operations/test_github_write_tools_issue_edit_base_branch.py`

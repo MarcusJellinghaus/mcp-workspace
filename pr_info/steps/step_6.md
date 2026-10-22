@@ -18,8 +18,12 @@
 - Tests:
   - `tests/github_operations/test_formatters.py` (existing list/search calls gain
     `trusted=frozenset()`, and their fixtures carry an association)
-  - `tests/github_operations/test_github_search_tool.py`
-  - `tests/github_operations/test_github_write_tools_subissues.py`
+  - `tests/github_operations/test_github_search_tool.py` (existing `MagicMock` search
+    items gain `author_association="OWNER"`)
+  - `tests/github_operations/test_github_write_tools_subissues.py` (existing `MagicMock`
+    sub-issue children gain `author_association="OWNER"`)
+  - Without that, a bare `MagicMock` attribute normalises to `None` (untrusted) and every
+    existing row assertion gains `[untrusted @…]` and fails.
   - `tests/github_operations/test_github_read_tools_issues.py`
 
 ## WHAT

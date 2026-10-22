@@ -14,9 +14,10 @@
 - `src/mcp_workspace/github_operations/issues/labels_mixin.py`
 - `tests/github_operations/_issue_test_helpers.py`
 - Every test `IssueData(...)` construction site that mypy reports
-- New tests in an existing types/manager test module, e.g.
-  `tests/github_operations/issues/test_manager_base_branch.py` or a test module for
-  `types.py` if one exists
+- `issue_to_data` / `create_empty_issue_data` tests in
+  `tests/github_operations/issues/test_types.py` (existing module; mirrors src)
+- `get_issue` / `list_issues` / labels-mixin `author_association` tests in the existing
+  manager test modules (e.g. `tests/github_operations/issues/test_manager_base_branch.py`)
 
 ## WHAT
 
