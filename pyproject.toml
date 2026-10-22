@@ -84,6 +84,10 @@ markers = [
     "github_integration: GitHub API access (requires GITHUB_TOKEN)",
 ]
 
+[tool.mcp-tools-py]
+# Formatter for run_format_code and mcp-coder workflows: isort + black
+formatter = "black"
+
 [tool.black]
 line-length = 88
 target-version = ["py311"]

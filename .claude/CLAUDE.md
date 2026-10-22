@@ -138,6 +138,8 @@ This project uses **mcp-coder-utils** (`mcp-coder-utils` reference project) for 
 
 Before sending, cut any sentence that doesn't tell the reader something new or change what they do next — chat, commits, PRs, docs, comments, skill output alike. No pleasantries, no hedging, no filler opens or closes; hedge only when the uncertainty changes the action. Stay readable: short clauses or arrow chains over dense paragraphs; lead with the outcome.
 
+Don't restate investigation the tool calls already show (file reads, searches, test runs). In chat, give the conclusion and the decision points only — not a narrated walkthrough of how you got there.
+
 ## Progress during loops
 
 Repeating the same action across 3+ items (e.g. files, issues, repos) → one short line per item as it completes, not just a final summary.
