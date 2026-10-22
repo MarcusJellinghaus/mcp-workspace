@@ -1,5 +1,6 @@
 """Minimal tests for git commit operations."""
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -9,6 +10,7 @@ from git.exc import GitCommandError
 
 from mcp_workspace.git_operations.commits import (
     commit_staged_files,
+    get_head_commit_info,
     get_latest_commit_sha,
 )
 from mcp_workspace.git_operations.workflows import commit_all_changes
@@ -116,6 +118,50 @@ class TestGetLatestCommitSha:
         expected_sha = repo.head.commit.hexsha
 
         assert sha == expected_sha
+
+
+@pytest.mark.git_integration
+class TestGetHeadCommitInfo:
+    """Tests for get_head_commit_info function."""
+
+    def test_returns_short_sha_and_utc_committer_date(
+        self, git_repo: tuple[Repo, Path]
+    ) -> None:
+        """Should return the short SHA and the committer date converted to UTC."""
+        repo, project_dir = git_repo
+
+        test_file = project_dir / "test.py"
+        test_file.write_text("# Test file")
+        repo.index.add(["test.py"])
+        # Aware datetimes: GitPython's string parser takes the wall-clock time
+        # as UTC and keeps a "+HHMM" offset for display only.
+        repo.index.commit(
+            "Add test file",
+            author_date=datetime(2026, 1, 1, 8, 0, 0, tzinfo=timezone.utc),
+            commit_date=datetime(
+                2026, 1, 2, 12, 0, 0, tzinfo=timezone(timedelta(hours=2))
+            ),
+        )
+
+        info = get_head_commit_info(project_dir)
+
+        assert info is not None
+        sha, committed = info
+        assert sha == repo.head.commit.hexsha[:7]
+        assert committed == datetime(2026, 1, 2, 10, 0, 0, tzinfo=timezone.utc)
+        assert committed.tzinfo == timezone.utc
+
+    def test_returns_none_outside_git_repo(self, tmp_path: Path) -> None:
+        """Should return None when not in a git repository."""
+        assert get_head_commit_info(tmp_path) is None
+
+    def test_returns_none_for_repo_without_commits(
+        self, git_repo: tuple[Repo, Path]
+    ) -> None:
+        """Should return None when HEAD has no commit yet."""
+        _, project_dir = git_repo
+
+        assert get_head_commit_info(project_dir) is None
 
 
 class TestCommitStagedFilesPorcelain:

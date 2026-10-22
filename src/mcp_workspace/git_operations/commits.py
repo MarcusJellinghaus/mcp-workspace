@@ -1,5 +1,6 @@
 """Git commit operations for creating commits."""
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -159,5 +160,28 @@ def get_latest_commit_sha(project_dir: Path) -> Optional[str]:
     try:
         with safe_repo_context(project_dir) as repo:
             return repo.head.commit.hexsha
+    except (InvalidGitRepositoryError, GitCommandError, ValueError, OSError):
+        return None
+
+
+def get_head_commit_info(project_dir: Path) -> Optional[tuple[str, datetime]]:
+    """Get HEAD's short SHA and committer date in UTC.
+
+    Committer date, not author date: a rebase rewrites the committer date.
+
+    Args:
+        project_dir: Path to the git repository
+
+    Returns:
+        (short SHA, tz-aware UTC committer datetime), or None if HEAD
+        cannot be read.
+    """
+    try:
+        with safe_repo_context(project_dir) as repo:
+            commit = repo.head.commit
+            return (
+                commit.hexsha[:GIT_SHORT_HASH_LENGTH],
+                commit.committed_datetime.astimezone(timezone.utc),
+            )
     except (InvalidGitRepositoryError, GitCommandError, ValueError, OSError):
         return None

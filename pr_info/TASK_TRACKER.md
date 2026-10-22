@@ -24,9 +24,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ### Step 1: `get_head_commit_info` git helper
 See [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: `TestGetHeadCommitInfo` tests + `get_head_commit_info` in `commits.py`, exported from `git_operations/__init__.py`
-- [ ] Quality checks: pylint, pytest (`-n auto -k "not github_search_live"`), mypy, tach, lint-imports — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `TestGetHeadCommitInfo` tests + `get_head_commit_info` in `commits.py`, exported from `git_operations/__init__.py`
+- [x] Quality checks: pylint, pytest (`-n auto -k "not github_search_live"`), mypy, tach, lint-imports — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: Return the comment, new report fields, header rendering
 See [step_2.md](./steps/step_2.md)

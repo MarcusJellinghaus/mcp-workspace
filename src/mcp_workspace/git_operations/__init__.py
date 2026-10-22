@@ -15,6 +15,7 @@ from mcp_workspace.git_operations.branches import (
 )
 from mcp_workspace.git_operations.commits import (
     commit_staged_files,
+    get_head_commit_info,
     get_latest_commit_sha,
 )
 from mcp_workspace.git_operations.compact_diffs import get_compact_diff
@@ -75,6 +76,7 @@ __all__ = [
     "get_default_branch_name",
     "get_full_status",
     "get_git_diff_for_commit",
+    "get_head_commit_info",
     "get_latest_commit_sha",
     "get_remote_url",
     "get_repository_identifier",
