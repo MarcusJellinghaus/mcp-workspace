@@ -70,14 +70,10 @@ def _read_config_value(section: str, key: str) -> str | None:
         The configured value, or None if the file or key is missing
         or unreadable.
     """
-    config_path = get_user_app_data_dir("mcp_coder") / "config.toml"
-    if not config_path.exists():
+    section_data = _load_config().get(section, {})
+    if not isinstance(section_data, dict):
         return None
-    try:
-        data = tomllib.loads(config_path.read_text(encoding="utf-8"))
-        return data.get(section, {}).get(key)  # type: ignore[no-any-return]
-    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        return None
+    return section_data.get(key)
 
 
 def get_github_token_with_source() -> (
