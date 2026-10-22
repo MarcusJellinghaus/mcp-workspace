@@ -5,8 +5,10 @@ import logging
 import pytest
 
 from mcp_workspace.github_operations.issues.base import (
+    InvalidBaseBranchRefError,
     MalformedBaseBranchError,
     format_malformed_base_branch,
+    is_valid_ref_name,
     parse_base_branch,
     validate_comment_id,
     validate_issue_number,
@@ -129,3 +131,54 @@ def test_format_malformed_base_branch_sentence() -> None:
         "`### Base Branch` must contain only the branch name on one line; "
         "move other text to another section. First line: 'epic/multi-language'"
     )
+
+
+@pytest.mark.parametrize("name", ["main", "feature/v2", "release-1.2", "x"])
+def test_is_valid_ref_name_accepts(name: str) -> None:
+    """Test that ordinary branch names are valid ref names."""
+    assert is_valid_ref_name(name) is True
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "",
+        "main branch",
+        "a..b",
+        "a~1",
+        "a^",
+        "a:b",
+        "a?",
+        "a*",
+        "a[b",
+        "a\\b",
+        "-x",
+        ".x",
+        "x.",
+        "x/",
+        "x.lock",
+        "a@{b",
+        "a//b",
+        "a\tb",
+        "a\x7fb",
+    ],
+)
+def test_is_valid_ref_name_rejects(name: str) -> None:
+    """Test that names git refuses as refs are rejected."""
+    assert is_valid_ref_name(name) is False
+
+
+def test_parse_base_branch_invalid_ref_raises() -> None:
+    """Test that a single-line but invalid ref raises InvalidBaseBranchRefError."""
+    with pytest.raises(InvalidBaseBranchRefError) as exc_info:
+        parse_base_branch("### Base Branch\n\nmain branch\n")
+    assert isinstance(exc_info.value, MalformedBaseBranchError)
+    assert exc_info.value.content == "main branch"
+
+
+def test_format_malformed_base_branch_invalid_ref() -> None:
+    """Test that the invalid-ref message names the ref problem and the value."""
+    message = format_malformed_base_branch(InvalidBaseBranchRefError("main branch"))
+    assert "valid git branch name" in message
+    assert "'main branch'" in message
+    assert "on one line" not in message

@@ -190,7 +190,10 @@ def _collect_rebase_status(project_dir: Path, base_branch: str) -> tuple[bool, s
 
 
 def _malformed_first_line(body: str) -> str:
-    """Return the first line of the malformed Base Branch section ('' if none)."""
+    """Return the first line of a multi-line or invalid ref name Base Branch section.
+
+    Returns '' when the section is absent or well-formed.
+    """
     try:
         parse_base_branch(body)
     except MalformedBaseBranchError as exc:

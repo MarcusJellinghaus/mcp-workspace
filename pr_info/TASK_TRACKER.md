@@ -24,9 +24,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ### Step 1: Ref-name check for `### Base Branch` (read and write time) + README flag line
 See [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: tests for `is_valid_ref_name`, `InvalidBaseBranchRefError`, `format_malformed_base_branch`, write-tool rejection and MALFORMED line; then `base.py` validator/error/message, docstrings in `server.py` / `branch_status.py`, README `--enforce-base-branch-format` line
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests for `is_valid_ref_name`, `InvalidBaseBranchRefError`, `format_malformed_base_branch`, write-tool rejection and MALFORMED line; then `base.py` validator/error/message, docstrings in `server.py` / `branch_status.py`, README `--enforce-base-branch-format` line
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `IssueData.author_association` + shared `issue_to_data`
 See [step_2.md](./steps/step_2.md)

@@ -155,7 +155,7 @@ def _check_labels(
 
 
 def _check_base_branch(body: Optional[str]) -> Optional[str]:
-    """Reject a multi-line ### Base Branch section before any write.
+    """Reject a multi-line or invalid ref name ### Base Branch before any write.
 
     Args:
         body: Candidate issue body, or None when the caller is not changing
@@ -163,8 +163,8 @@ def _check_base_branch(body: Optional[str]) -> Optional[str]:
 
     Returns:
         An error string naming the problem, the fix, and the section's first
-        line, or None when the section is absent, empty, a single valid
-        line, or the check is disabled.
+        line (or invalid value), or None when the section is absent, empty,
+        a single valid ref name, or the check is disabled.
     """
     if not _enforce_base_branch_format:
         return None

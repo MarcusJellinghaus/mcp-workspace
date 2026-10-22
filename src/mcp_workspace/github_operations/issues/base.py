@@ -17,13 +17,17 @@ _BASE_BRANCH_HEADING = re.compile(r"base\s*branch", re.IGNORECASE)
 # markdown-it's own newline normalisation; str.splitlines() would also split on
 # \x0b, \x0c, U+2028 ... and shift token.map line indices.
 _LINE_BREAK = re.compile(r"\r\n|\r|\n")
+# Characters and sequences git check-ref-format refuses anywhere in a ref name.
+_INVALID_REF_CHARS = re.compile(r"[\x00-\x20\x7f~^:?*\[\\]|\.\.|@\{|//")
 
 __all__ = [
     "validate_issue_number",
     "validate_issue_number_or_log",
     "validate_comment_id",
     "parse_base_branch",
+    "is_valid_ref_name",
     "MalformedBaseBranchError",
+    "InvalidBaseBranchRefError",
     "format_malformed_base_branch",
 ]
 
@@ -38,6 +42,32 @@ class MalformedBaseBranchError(ValueError):
         )
 
 
+class InvalidBaseBranchRefError(MalformedBaseBranchError):
+    """Raised when the Base Branch value is a single line but not a valid git ref name."""
+
+    def __init__(self, content: str) -> None:
+        super().__init__(content)
+        self.args = (f"Base branch is not a valid git ref name: {content!r}",)
+
+
+def is_valid_ref_name(name: str) -> bool:
+    """Return whether ``name`` is a valid git branch ref name.
+
+    Args:
+        name: Candidate branch name
+
+    Returns:
+        True if git would accept the name as a branch, False otherwise
+    """
+    if not name or _INVALID_REF_CHARS.search(name):
+        return False
+    if name.startswith(("-", ".")):
+        return False
+    if name.endswith((".", "/", ".lock")):
+        return False
+    return True
+
+
 def format_malformed_base_branch(error: MalformedBaseBranchError) -> str:
     """Return the ready-to-show sentence for a malformed Base Branch section.
 
@@ -46,8 +76,15 @@ def format_malformed_base_branch(error: MalformedBaseBranchError) -> str:
 
     Returns:
         The bare sentence naming the problem, the fix, and the section's first
-        line; callers add their own prefix (e.g. ``Error:``).
+        line (or the invalid value); callers add their own prefix (e.g.
+        ``Error:``).
     """
+    if isinstance(error, InvalidBaseBranchRefError):
+        return (
+            "`### Base Branch` must be a valid git branch name; "
+            f"{error.content!r} is not (no spaces, '..', control characters "
+            "or ~^:?*[\\). Fix the name or remove the section."
+        )
     first_line = error.content.splitlines()[0]
     return (
         "`### Base Branch` must contain only the branch name on one line; "
@@ -124,6 +161,8 @@ def parse_base_branch(body: str) -> Optional[str]:
     Raises:
         MalformedBaseBranchError: If base branch section contains multiple lines
             (malformed input). Subclasses ValueError.
+        InvalidBaseBranchRefError: If the single-line value is not a valid git
+            ref name. Subclasses MalformedBaseBranchError.
 
     Example:
         >>> parse_base_branch("### Base Branch\\n\\nfeature/v2\\n\\n### Description")
@@ -165,6 +204,9 @@ def parse_base_branch(body: str) -> Optional[str]:
         # Check for multi-line content (malformed input)
         if "\n" in content:
             raise MalformedBaseBranchError(content)
+
+        if not is_valid_ref_name(content):
+            raise InvalidBaseBranchRefError(content)
 
         return content
 

@@ -14,6 +14,11 @@ from mcp_workspace.checks.branch_status import (
     collect_branch_status,
 )
 from mcp_workspace.checks.branch_status_rendering import CIStatus, LinkedBranchStatus
+from mcp_workspace.github_operations.issues.base import (
+    MalformedBaseBranchError,
+    format_malformed_base_branch,
+    parse_base_branch,
+)
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
 
@@ -223,6 +228,31 @@ class TestMalformedBaseBranch:
         assert "Rebase Status: ❓ UNKNOWN" in output
         assert "- base branch malformed in issue #42" in output
         assert "Review Gate: BLOCKED (base branch)" in output
+
+
+class TestInvalidRefBaseBranch:
+    """A single-line but invalid ref is surfaced as MALFORMED with its value."""
+
+    def test_malformed_line_shows_value(
+        self, status_mocks: dict[str, MagicMock]
+    ) -> None:
+        body = "### Base Branch\n\nmain branch\n"
+        with pytest.raises(MalformedBaseBranchError) as exc_info:
+            parse_base_branch(body)
+        _set_issue(
+            status_mocks,
+            {
+                "number": 42,
+                "body": body,
+                "base_branch": None,
+                "base_branch_error": format_malformed_base_branch(exc_info.value),
+            },
+        )
+
+        report = collect_branch_status(Path("/tmp"))
+
+        assert report.base_branch == "MALFORMED (issue #42: 'main branch')"
+        status_mocks["detect"].assert_not_called()
 
 
 class TestValidBaseBranch:
