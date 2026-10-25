@@ -29,7 +29,7 @@ def source_label(classic_protected: bool, rules_protected: bool, names: list[str
 
 ## HOW
 - Module docstring: explain what the module does. Leave a `Token permissions:` paragraph that says
-  "not yet verified"; step 4 fills it in.
+  "not yet verified"; step 5 fills it in.
 - Imports: `dataclasses`, `typing.Any`, `github.BranchProtection.BranchProtection`. No imports from
   `verification.py` (that would be circular).
 - Classic side: `required_status_checks` may be `None` at runtime even though PyGithub types it

@@ -81,8 +81,12 @@ pattern from `_pr_feedback_sources.py` (`requestJsonAndCheck`):
 ## Steps
 1. `step_1.md`: pure facts module (`ProtectionFacts`, `facts_from_classic`, `facts_from_rules`, `merge`, `source_label`).
 2. `step_2.md`: `RulesOutcome`, move `short_reason`, add `fetch_rules`.
-3. `step_3.md`: wire into `verify_github` (`_protection_result`, `_rows_from_facts`, new row, tests).
-4. `step_4.md`: record the read-only fine-grained token check in the module docstring.
+3. `step_3.md`: classic-only refactor of checks 5–9 into `_protection_result` / `_rows_from_facts`,
+   plus the new `require_pull_request` row; the existing tests guard it.
+4. `step_4.md`: wire `fetch_rules` and the classic/rules merge into `verify_github`; autouse stub
+   and matrix tests.
+5. `step_5.md`: record the read-only fine-grained token check in the module docstring if a result
+   is available, otherwise flag it as open in the PR description (non-blocking).
 
 ## Out of scope
 Required approvals count, linear history, a new `perm_*` row, and pagination beyond 100.
