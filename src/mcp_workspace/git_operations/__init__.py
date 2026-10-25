@@ -79,6 +79,7 @@ from mcp_workspace.git_operations.remotes import (
 from mcp_workspace.git_operations.repository_status import (
     get_full_status,
     get_working_tree_status,
+    has_staged_changes,
     is_git_repository,
     is_working_directory_clean,
 )
@@ -130,6 +131,7 @@ __all__ = [
     "git_move",
     "git_push",
     "has_remote_tracking_branch",
+    "has_staged_changes",
     "is_file_tracked",
     "is_git_repository",
     "is_rebase_in_progress",

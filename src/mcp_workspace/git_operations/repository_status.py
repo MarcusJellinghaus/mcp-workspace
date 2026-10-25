@@ -4,7 +4,13 @@ from pathlib import Path
 
 from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
-from .core import StatusResult, logger, run_git_raw, safe_repo_context
+from .core import (
+    StatusResult,
+    logger,
+    open_repo_for_query,
+    run_git_raw,
+    safe_repo_context,
+)
 from .porcelain_parsers import parse_status_z
 
 
@@ -79,6 +85,35 @@ def get_working_tree_status(project_dir: Path) -> StatusResult:
         "modified": modified,
         "untracked": untracked,
     }
+
+
+def has_staged_changes(project_dir: Path) -> bool:
+    """Check whether the index differs from HEAD.
+
+    On an unborn HEAD the index is compared with the empty tree, so any
+    staged file counts.
+
+    Args:
+        project_dir: Path to the project directory containing the git repository
+
+    Returns:
+        True if anything is staged, False otherwise.
+
+    Raises:
+        ValueError: If ``project_dir`` is not a git repository.
+        GitCommandError: If ``git diff --cached --quiet`` exits with a code
+            other than 0 or 1.
+    """
+    logger.debug("Checking for staged changes in %s", project_dir)
+
+    with open_repo_for_query(project_dir) as repo:
+        returncode, _, stderr = run_git_raw(repo, "diff", "--cached", "--quiet")
+
+    if returncode == 0:
+        return False
+    if returncode == 1:
+        return True
+    raise GitCommandError(["git", "diff", "--cached", "--quiet"], returncode, stderr)
 
 
 def is_working_directory_clean(

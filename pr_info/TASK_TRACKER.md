@@ -119,9 +119,9 @@ See [step_16.md](./steps/step_16.md)
 
 ### Step 17: `has_staged_changes`
 See [step_17.md](./steps/step_17.md)
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 18: `list_tree`
 See [step_18.md](./steps/step_18.md)

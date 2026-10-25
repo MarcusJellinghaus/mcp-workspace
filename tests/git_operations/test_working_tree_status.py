@@ -1,11 +1,18 @@
-"""Tests for get_working_tree_status."""
+"""Tests for get_working_tree_status and has_staged_changes."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from git import Repo
+from git.exc import GitCommandError
 
-from mcp_workspace.git_operations.repository_status import get_working_tree_status
+from mcp_workspace.git_operations.repository_status import (
+    get_working_tree_status,
+    has_staged_changes,
+)
+
+RUNNER = "mcp_workspace.git_operations.repository_status.run_git_raw"
 
 
 @pytest.mark.git_integration
@@ -116,3 +123,57 @@ class TestGetWorkingTreeStatus:
         assert result["returncode"] is None
         assert result["stderr"] is None
         assert result["staged"] == []
+
+
+@pytest.mark.git_integration
+class TestHasStagedChanges:
+    """Tests for has_staged_changes."""
+
+    def test_clean_repo(self, git_repo_with_commit: tuple[Repo, Path]) -> None:
+        """A freshly committed repo has nothing staged."""
+        _, project_dir = git_repo_with_commit
+
+        assert has_staged_changes(project_dir) is False
+
+    def test_staged_change(self, git_repo_with_commit: tuple[Repo, Path]) -> None:
+        """A staged modification is reported."""
+        repo, project_dir = git_repo_with_commit
+        (project_dir / "README.md").write_text("staged", encoding="utf-8")
+        repo.git.add("--", "README.md")
+
+        assert has_staged_changes(project_dir) is True
+
+    def test_unstaged_only(self, git_repo_with_commit: tuple[Repo, Path]) -> None:
+        """Unstaged and untracked changes do not count."""
+        _, project_dir = git_repo_with_commit
+        (project_dir / "README.md").write_text("unstaged", encoding="utf-8")
+        (project_dir / "untracked.txt").write_text("new", encoding="utf-8")
+
+        assert has_staged_changes(project_dir) is False
+
+    def test_unborn_head_nothing_staged(self, git_repo: tuple[Repo, Path]) -> None:
+        """An unborn HEAD with an empty index has nothing staged."""
+        _, project_dir = git_repo
+
+        assert has_staged_changes(project_dir) is False
+
+    def test_unborn_head_staged_file(self, git_repo: tuple[Repo, Path]) -> None:
+        """An unborn HEAD with a staged new file is reported."""
+        repo, project_dir = git_repo
+        (project_dir / "new.txt").write_text("new", encoding="utf-8")
+        repo.git.add("--", "new.txt")
+
+        assert has_staged_changes(project_dir) is True
+
+    def test_non_repo(self, tmp_path: Path) -> None:
+        """A non-repository raises ValueError."""
+        with pytest.raises(ValueError):
+            has_staged_changes(tmp_path)
+
+    def test_git_failure_raises(self, git_repo_with_commit: tuple[Repo, Path]) -> None:
+        """An exit code other than 0/1 raises GitCommandError."""
+        _, project_dir = git_repo_with_commit
+
+        with patch(RUNNER, return_value=(128, b"", "fatal")):
+            with pytest.raises(GitCommandError):
+                has_staged_changes(project_dir)
