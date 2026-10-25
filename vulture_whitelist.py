@@ -172,6 +172,8 @@ _.clean
 _.files
 # BranchProbe TypedDict field - accessed via subscript
 _.exists
+# RemoteBranchesResult TypedDict field - accessed via subscript
+_.branches
 # CacheData TypedDict field - accessed via subscript
 _.cached_at
 # CIStatusData TypedDict field - accessed via subscript

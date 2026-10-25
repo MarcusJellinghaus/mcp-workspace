@@ -84,6 +84,16 @@ class BranchProbe(GitResult):
     exists: Optional[bool]
 
 
+class RemoteBranchesResult(GitResult):
+    """Result of listing the heads on origin.
+
+    ``branches`` is empty on failure; a failure is never a successful empty
+    list.
+    """
+
+    branches: list[str]
+
+
 # Type alias for git push result structure
 class PushResult(TypedDict):
     """Result of a git push operation."""

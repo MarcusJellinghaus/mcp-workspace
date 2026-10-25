@@ -65,9 +65,9 @@ See [step_7.md](./steps/step_7.md)
 
 ### Step 8: `list_remote_branches`
 See [step_8.md](./steps/step_8.md)
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 9: `detect_base_branch_with_source` + `BaseBranchSource`
 See [step_9.md](./steps/step_9.md)

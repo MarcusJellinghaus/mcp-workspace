@@ -14,10 +14,12 @@ from .core import (
     GIT_NONINTERACTIVE_ENV,
     BranchProbe,
     GitResult,
+    RemoteBranchesResult,
     logger,
     run_git_raw,
     safe_repo_context,
 )
+from .porcelain_parsers import parse_ls_remote_heads
 from .repository_status import get_full_status, is_git_repository
 
 if TYPE_CHECKING:
@@ -355,6 +357,52 @@ def probe_origin_branch(project_dir: Path, branch: str) -> BranchProbe:
         "returncode": returncode,
         "stderr": stderr,
         "exists": bool(stdout.strip()),
+    }
+
+
+def list_remote_branches(project_dir: Path) -> RemoteBranchesResult:
+    """List every head on origin (git ls-remote, no fetch), without truncation.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+
+    Returns:
+        RemoteBranchesResult; ``branches`` holds the names without the
+        ``refs/heads/`` prefix. An empty remote is a successful empty list.
+        An unreachable origin or a non-repository is an error result with
+        ``branches`` empty; for a non-repository ``returncode`` and ``stderr``
+        are None.
+    """
+    logger.debug("Listing origin branches in %s", project_dir)
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            returncode, stdout, stderr = _ls_remote_heads(repo)
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        logger.debug("Not a git repository: %s", project_dir)
+        return {
+            "success": False,
+            "error": f"Not a git repository: {project_dir}",
+            "returncode": None,
+            "stderr": None,
+            "branches": [],
+        }
+
+    if returncode != 0:
+        logger.debug("git ls-remote failed (exit %s): %s", returncode, stderr)
+        return {
+            "success": False,
+            "error": f"git ls-remote failed (exit {returncode})",
+            "returncode": returncode,
+            "stderr": stderr,
+            "branches": [],
+        }
+    return {
+        "success": True,
+        "error": None,
+        "returncode": returncode,
+        "stderr": stderr,
+        "branches": parse_ls_remote_heads(stdout),
     }
 
 
