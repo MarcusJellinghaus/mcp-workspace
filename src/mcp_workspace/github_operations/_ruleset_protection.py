@@ -49,7 +49,15 @@ class ProtectionFacts:
 
 
 def facts_from_classic(protection: BranchProtection) -> ProtectionFacts:
-    """Build facts from a classic branch protection object."""
+    """Build facts from a classic branch protection object.
+
+    Args:
+        protection: Classic branch protection returned by PyGithub.
+
+    Returns:
+        ``ProtectionFacts`` with ``protected=True`` and flags taken from
+        ``protection``.
+    """
     # PyGithub types this as non-optional, but it is None at runtime
     # when the GitHub API sends null
     status_checks: Any = protection.required_status_checks
@@ -65,7 +73,15 @@ def facts_from_classic(protection: BranchProtection) -> ProtectionFacts:
 
 
 def facts_from_rules(rules: list[dict[str, Any]]) -> ProtectionFacts:
-    """Build facts from the effective rules that apply to a branch."""
+    """Build facts from the effective rules that apply to a branch.
+
+    Args:
+        rules: Effective rules from ``GET /repos/{o}/{r}/rules/branches/{b}``.
+
+    Returns:
+        ``ProtectionFacts`` built from ``rules``; ``protected`` is set only
+        when at least one rule applies.
+    """
     types = {rule.get("type") for rule in rules}
     checks = [rule for rule in rules if rule.get("type") == "required_status_checks"]
     contexts = {
@@ -96,6 +112,13 @@ def merge(
     Per flag: `True` if either source is `True`, `False` if both answered
     and neither is `True`, `None` otherwise. `contexts` is the union of the
     answered sources.
+
+    Args:
+        classic: Facts from classic protection, or ``None`` if not answered.
+        rules: Facts from the effective rules, or ``None`` if not answered.
+
+    Returns:
+        The merged ``ProtectionFacts``.
     """
     sources = (classic, rules)
     flags: dict[str, bool | None] = {}
@@ -119,6 +142,15 @@ def source_label(
     """Suffix for the `branch_protection` row naming the source(s).
 
     Empty when only classic protection applies, so today's text is kept.
+
+    Args:
+        classic_protected: Whether classic protection applies.
+        rules_protected: Whether at least one ruleset rule applies.
+        names: Names of the applying rulesets, or ``None`` if unknown.
+
+    Returns:
+        The label suffix, e.g. ``' (ruleset: "a" + classic)'``, or ``""`` when
+        no ruleset applies.
     """
     if not rules_protected:
         return ""
