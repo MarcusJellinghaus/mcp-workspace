@@ -10,6 +10,7 @@ from git.exc import GitCommandError
 
 from mcp_workspace.git_operations.remotes import (
     _format_dirty_tree,
+    _scrub_credentials,
     clone_repo,
     get_remote_url,
     get_repository_identifier,
@@ -528,10 +529,52 @@ class TestCloneRepo:
             "https://github.com/org/repo.git", str(target)
         )
 
-    def test_clone_target_exists(self, tmp_path: Path) -> None:
-        """Test raises ValueError when target directory already exists."""
-        with pytest.raises(ValueError, match="already exists"):
+    @patch("mcp_workspace.git_operations.remotes.git.Repo.clone_from")
+    def test_clone_into_empty_existing_dir(
+        self, mock_clone_from: Any, tmp_path: Path
+    ) -> None:
+        """Test an existing empty directory is accepted as clone target."""
+        clone_repo("https://github.com/org/repo.git", tmp_path)
+
+        mock_clone_from.assert_called_once_with(
+            "https://github.com/org/repo.git", str(tmp_path)
+        )
+
+    @patch("mcp_workspace.git_operations.remotes.git.Repo.clone_from")
+    def test_clone_target_non_empty_dir(
+        self, mock_clone_from: Any, tmp_path: Path
+    ) -> None:
+        """Test raises ValueError when target directory is not empty."""
+        (tmp_path / "file.txt").write_text("x", encoding="utf-8")
+        with pytest.raises(ValueError, match="not an empty directory"):
             clone_repo("https://github.com/org/repo.git", tmp_path)
+        mock_clone_from.assert_not_called()
+
+    @patch("mcp_workspace.git_operations.remotes.git.Repo.clone_from")
+    def test_clone_target_is_file(self, mock_clone_from: Any, tmp_path: Path) -> None:
+        """Test raises ValueError when target path is an existing file."""
+        target = tmp_path / "file.txt"
+        target.write_text("x", encoding="utf-8")
+        with pytest.raises(ValueError, match="not an empty directory"):
+            clone_repo("https://github.com/org/repo.git", target)
+        mock_clone_from.assert_not_called()
+
+    def test_clone_git_error_scrubs_credentials(self, tmp_path: Path) -> None:
+        """Test credentials are scrubbed and the exception chain is suppressed."""
+        url = "https://user:s3cret@host/r.git"
+        error = GitCommandError(
+            ["git", "clone", url], 128, stderr=f"fatal: could not read {url}"
+        )
+        with patch(
+            "mcp_workspace.git_operations.remotes.git.Repo.clone_from",
+            side_effect=error,
+        ):
+            with pytest.raises(ValueError, match="Failed to clone") as exc_info:
+                clone_repo(url, tmp_path / "clone-target")
+
+        assert "s3cret" not in str(exc_info.value)
+        assert exc_info.value.__cause__ is None
+        assert exc_info.value.__suppress_context__ is True
 
     @patch(
         "mcp_workspace.git_operations.remotes.git.Repo.clone_from",
@@ -553,3 +596,25 @@ class TestCloneRepo:
         """Test raises ValueError for empty target path."""
         with pytest.raises(ValueError, match="Target path cannot be empty"):
             clone_repo("https://github.com/org/repo.git", Path(""))
+
+
+class TestScrubCredentials:
+    """Tests for _scrub_credentials helper."""
+
+    def test_scrubs_user_and_password(self) -> None:
+        """Test user:password userinfo is removed."""
+        assert _scrub_credentials("https://u:p@h/x") == "https://h/x"
+
+    def test_scrubs_user_only(self) -> None:
+        """Test user-only userinfo is removed."""
+        assert _scrub_credentials("ssh://git@h/x") == "ssh://h/x"
+
+    def test_no_userinfo_unchanged(self) -> None:
+        """Test text without userinfo is returned unchanged."""
+        text = "fatal: could not read https://github.com/org/repo.git"
+        assert _scrub_credentials(text) == text
+
+    def test_scrubs_every_url(self) -> None:
+        """Test all URLs in the text are scrubbed."""
+        text = "a https://u:p@h/x b https://v:q@g/y"
+        assert _scrub_credentials(text) == "a https://h/x b https://g/y"

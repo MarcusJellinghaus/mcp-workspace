@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -51,28 +52,45 @@ def get_remote_url(project_dir: Path) -> Optional[str]:
         return None
 
 
+_USERINFO_RE = re.compile(r"(?<=://)[^/@\s]+@")
+
+
+def _scrub_credentials(text: str) -> str:
+    """Remove userinfo ('user:token@') from every URL in text."""
+    return _USERINFO_RE.sub("", text)
+
+
 def clone_repo(url: str, target_path: Path) -> None:
     """Clone a git repository to *target_path*.
 
     Args:
         url: Remote repository URL to clone.
-        target_path: Local filesystem path for the clone.
+        target_path: Local filesystem path for the clone. May be an existing
+            empty directory.
 
     Raises:
         ValueError: If *url* is empty, *target_path* is empty, *target_path*
-            already exists, or the git clone command fails.
+            is an existing file or non-empty directory, or the git clone
+            command fails. Credentials embedded in URLs are removed from the
+            message, and the original exception is not chained.
     """
     if not url or not url.strip():
         raise ValueError("URL cannot be empty")
     if not str(target_path) or str(target_path) == ".":
         raise ValueError("Target path cannot be empty")
     if target_path.exists():
-        raise ValueError(f"Target path already exists: {target_path}")
+        if target_path.is_file() or any(target_path.iterdir()):
+            raise ValueError(
+                f"Target path exists and is not an empty directory: {target_path}"
+            )
 
     try:
         git.Repo.clone_from(url, str(target_path))
     except GitCommandError as e:
-        raise ValueError(f"Failed to clone '{url}': {e}") from e
+        raise ValueError(
+            f"Failed to clone '{_scrub_credentials(url)}': "
+            f"{_scrub_credentials(str(e))}"
+        ) from None
 
 
 def git_push(project_dir: Path, force_with_lease: bool = False) -> dict[str, Any]:
