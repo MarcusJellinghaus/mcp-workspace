@@ -21,6 +21,7 @@ from mcp_workspace.git_operations.commits import (
 from mcp_workspace.git_operations.compact_diffs import get_compact_diff
 from mcp_workspace.git_operations.core import (
     CommitResult,
+    GitResult,
     safe_repo_context,
 )
 from mcp_workspace.git_operations.diffs import (
@@ -59,6 +60,7 @@ from mcp_workspace.git_operations.workflows import (
 __all__ = [
     "CheckResult",
     "CommitResult",
+    "GitResult",
     "MERGE_BASE_DISTANCE_THRESHOLD",
     "branch_exists",
     "checkout_branch",

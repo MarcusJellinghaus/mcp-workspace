@@ -18,7 +18,10 @@ from mcp_workspace.git_operations.branch_queries import (
     get_default_branch_name,
     remote_branch_exists,
 )
-from mcp_workspace.git_operations.core import safe_repo_context
+from mcp_workspace.git_operations.core import (
+    GIT_NONINTERACTIVE_ENV,
+    safe_repo_context,
+)
 from mcp_workspace.git_operations.parent_branch_detection import (
     MERGE_BASE_DISTANCE_THRESHOLD,
     detect_parent_branch_via_merge_base,
@@ -81,12 +84,6 @@ def _detect_from_pr(
     return None
 
 
-# Suppress git's own terminal credential prompt so ls-remote does not wait on
-# a human. Passed per call via the `env=` kwarg so nothing leaks into the
-# shared Git object's environment.
-_LS_REMOTE_ENV = {"GIT_TERMINAL_PROMPT": "0"}
-
-
 def origin_has_branch(project_dir: Path, branch_name: str) -> bool:
     """Ask origin (git ls-remote, no fetch) whether refs/heads/<branch_name> exists.
 
@@ -105,7 +102,10 @@ def origin_has_branch(project_dir: Path, branch_name: str) -> bool:
         # unrelated 'refs/heads/team/feature-A' and mask the deletion.
         output = str(
             repo.git.ls_remote(
-                "--heads", "origin", f"refs/heads/{branch_name}", env=_LS_REMOTE_ENV
+                "--heads",
+                "origin",
+                f"refs/heads/{branch_name}",
+                env=GIT_NONINTERACTIVE_ENV,
             )
         )
         return bool(output.strip())

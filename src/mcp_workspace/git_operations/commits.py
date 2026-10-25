@@ -51,6 +51,8 @@ def commit_staged_files(message: str, project_dir: Path) -> CommitResult:
             "commit_hash": None,
             "error": error_msg,
             "error_category": "validation_failed",
+            "returncode": None,
+            "stderr": None,
         }
 
     if not is_git_repository(project_dir):
@@ -61,6 +63,8 @@ def commit_staged_files(message: str, project_dir: Path) -> CommitResult:
             "commit_hash": None,
             "error": error_msg,
             "error_category": "validation_failed",
+            "returncode": None,
+            "stderr": None,
         }
 
     try:
@@ -74,6 +78,8 @@ def commit_staged_files(message: str, project_dir: Path) -> CommitResult:
                 "commit_hash": None,
                 "error": error_msg,
                 "error_category": "validation_failed",
+                "returncode": None,
+                "stderr": None,
             }
 
         # Create the commit via git porcelain so signing config and hooks apply
@@ -120,6 +126,8 @@ def commit_staged_files(message: str, project_dir: Path) -> CommitResult:
                     "commit_hash": None,
                     "error": error_msg,
                     "error_category": category,
+                    "returncode": e.status if isinstance(e.status, int) else None,
+                    "stderr": str(e.stderr or ""),
                 }
 
             commit_hash = repo.head.commit.hexsha[:GIT_SHORT_HASH_LENGTH]
@@ -135,6 +143,9 @@ def commit_staged_files(message: str, project_dir: Path) -> CommitResult:
                 "commit_hash": commit_hash,
                 "error": None,
                 "error_category": None,
+                # git commit exited 0; its stderr is not captured on success
+                "returncode": 0,
+                "stderr": None,
             }
 
     except InvalidGitRepositoryError as e:
@@ -145,6 +156,8 @@ def commit_staged_files(message: str, project_dir: Path) -> CommitResult:
             "commit_hash": None,
             "error": error_msg,
             "error_category": "validation_failed",
+            "returncode": None,
+            "stderr": None,
         }
 
 

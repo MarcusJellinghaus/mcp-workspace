@@ -3,9 +3,10 @@
 import logging
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, Literal, Optional, TypedDict
+from typing import Iterator, Literal, Optional, Sequence, TypedDict
 
 from git import Repo
+from git.exc import InvalidGitRepositoryError, NoSuchPathError
 
 # Use same logging pattern as existing modules (see file_operations.py)
 logger = logging.getLogger(__name__)
@@ -14,16 +15,38 @@ logger = logging.getLogger(__name__)
 PLACEHOLDER_HASH = "0" * 7
 GIT_SHORT_HASH_LENGTH = 7
 
+# Keep git from waiting on a human: no terminal credential prompt, and any
+# editor git would open (rebase --continue, commit without -m) exits at once.
+# Passed per call via `env=` so nothing leaks into the shared Git object.
+GIT_NONINTERACTIVE_ENV: dict[str, str] = {
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_EDITOR": "true",
+}
 
-# Type alias for commit result structure
-class CommitResult(TypedDict):
-    """Result of a git commit operation."""
+
+class GitResult(TypedDict):
+    """Base result of a git operation.
+
+    ``success`` is True only when the goal was reached. ``error`` is None for a
+    normal-but-not-done outcome (e.g. a rebase stopped on a conflict).
+    ``returncode`` and ``stderr`` are None when no git process ran.
+    """
 
     success: bool
-    commit_hash: Optional[str]
     error: Optional[str]
+    returncode: Optional[int]
+    stderr: Optional[str]
+
+
+# Type alias for commit result structure
+class CommitResult(GitResult):
+    """Result of a git commit operation."""
+
+    commit_hash: Optional[str]
     error_category: Optional[
-        Literal["signing_failed", "commit_failed", "validation_failed"]
+        Literal[
+            "signing_failed", "commit_failed", "validation_failed", "nothing_to_commit"
+        ]
     ]
 
 
@@ -102,6 +125,94 @@ def run_git_text(repo: Repo, method: str, *args: str) -> str:
     raw_bytes = getattr(repo.git, method)(*args, stdout_as_string=False)
     text: str = raw_bytes.decode("utf-8", errors="replace")
     return text
+
+
+def run_git_raw(
+    repo: Repo,
+    command: str,
+    *args: str,
+    env: Optional[dict[str, str]] = None,
+    literal_paths: bool = False,
+    strip_newline: bool = True,
+) -> tuple[int, bytes, str]:
+    """Run a git command without raising on a nonzero exit.
+
+    Args:
+        repo: Repository to run the command in
+        command: GitPython method name (e.g. ``"rev_parse"``, ``"ls_files"``)
+        *args: Command-line arguments passed to git
+        env: Extra environment variables for this call only
+        literal_paths: Set ``GIT_LITERAL_PATHSPECS=1`` so ``*``, ``[`` and
+            ``:(`` in paths are matched literally
+        strip_newline: Strip the single trailing newline from stdout; pass
+            False wherever blob content is returned
+
+    Returns:
+        ``(returncode, stdout_bytes, stderr_text)``; stderr is decoded as
+        UTF-8 (invalid bytes replaced) if GitPython hands back bytes.
+    """
+    call_env = dict(env or {})
+    if literal_paths:
+        call_env["GIT_LITERAL_PATHSPECS"] = "1"
+    status, out, err = getattr(repo.git, command)(
+        *args,
+        with_extended_output=True,
+        with_exceptions=False,
+        stdout_as_string=False,
+        strip_newline_in_stdout=strip_newline,
+        env=call_env or None,
+    )
+    err_text = (
+        err.decode("utf-8", errors="replace") if isinstance(err, bytes) else str(err)
+    )
+    stdout = out if isinstance(out, bytes) else (out or "").encode("utf-8")
+    return int(status), stdout, err_text
+
+
+def is_option_like(value: str) -> bool:
+    """Return True if a caller-supplied ref/sha would be parsed as an option."""
+    return value.startswith("-")
+
+
+def to_git_paths(paths: Sequence[Path], project_dir: Path) -> list[str]:
+    """Convert absolute or project-relative paths to repo-relative git paths.
+
+    Args:
+        paths: Absolute paths, or paths relative to ``project_dir``
+        project_dir: Repository working directory
+
+    Returns:
+        Repo-relative paths using forward slashes, in input order.
+
+    Raises:
+        ValueError: If a path lies outside ``project_dir``.
+    """
+    base = project_dir.resolve()
+    result: list[str] = []
+    for path in paths:
+        absolute = path if path.is_absolute() else project_dir / path
+        try:
+            result.append(_normalize_git_path(absolute.resolve(), base))
+        except ValueError:
+            raise ValueError(f"Path is outside the project directory: {path}") from None
+    return result
+
+
+@contextmanager
+def open_repo_for_query(project_dir: Path) -> Iterator[Repo]:
+    """Open a repository for a plain-value query.
+
+    Like ``safe_repo_context``, but a missing directory or a non-repository
+    raises ``ValueError`` instead of a GitPython exception.
+
+    Raises:
+        ValueError: If ``project_dir`` is not a git repository.
+    """
+    try:
+        with safe_repo_context(project_dir) as repo:
+            yield repo
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        raise ValueError(f"Not a git repository: {project_dir}") from None
 
 
 def _normalize_git_path(path: Path, base_dir: Path) -> str:
