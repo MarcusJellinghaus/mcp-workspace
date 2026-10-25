@@ -18,3 +18,11 @@ Reading steps 13–19 next, then the review report.Checking `get_unstaged_change
 Verdict(decision='tasks', tasks=["In pr_info/steps/step_12.md (around line 45), make rebase_start call _rebase_dir_exists before invoking git. If a rebase is already in progress, return an 'error' result with a clear message instead of letting _run_rebase report stopped_on_conflict. Add a test that runs rebase_start while a rebase is in progress and asserts status == 'error'.", "In pr_info/steps/step_12.md (around line 67), fix the worktree test setup. make_conflict_repo leaves 'feature' checked out, so create the worktree with 'git worktree add -b feature2 <dir> feature' (or with --detach) and start the conflicting rebase inside that worktree."], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 3 — 2026-10-25
+**Findings**:
+Read steps 1–10; reading steps 11–19 next, then I'll write the report.`pr_info/steps/step_12.md:66` — high — The empty-commit stop test probably can't be built as written. Under git's default merge backend, `rebase --continue` with a clean index (conflict resolved to the `main` side) most likely drops the commit and carries on, so the rebase ends `completed` and never stops with no unmerged paths. This is from reading git's sequencer code, not from running it. That test would fail, and the issue's required "empty-commit stop" case would go untested. Fix: confirm the behaviour with a scratch probe first, then build the stop another way, e.g. set `rebase.backend=apply` in the test repo (the apply backend stops with "No changes"). If neither works, write to `pr_info/.blocked.txt`.
+**Decisions**:
+Verdict(decision='tasks', tasks=["In pr_info/steps/step_12.md (around line 66), add an instruction to confirm with a scratch probe whether 'rebase --continue' with a clean index stops on an empty commit under the default merge backend. If it doesn't stop, change the test setup to force the stop: set 'rebase.backend=apply' in the test repo (or use another reliable method), so the required 'empty-commit stop' case is actually tested. If no method produces the stop, the step should write the reason to pr_info/.blocked.txt."], escalate_reason=None)
+**Changes**:
+applied
