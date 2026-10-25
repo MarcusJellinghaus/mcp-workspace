@@ -1,4 +1,4 @@
-"""Tests for conflict inspection (list_unmerged_paths, conflict blobs)."""
+"""Tests for conflict inspection and resolution."""
 
 from pathlib import Path
 from typing import Any, Callable
@@ -13,6 +13,7 @@ from mcp_workspace.git_operations import (
     list_unmerged_paths,
     read_conflict_stage,
     rebase_start,
+    resolve_take_theirs_or_remove,
 )
 from mcp_workspace.git_operations.core import run_git_raw
 from tests.git_operations.conftest import FileChanges
@@ -291,6 +292,124 @@ class TestReadConflictStage:
     def test_non_repo(self, tmp_path: Path) -> None:
         """A non-repository is a failed result, not an exception."""
         result = read_conflict_stage(tmp_path, 2, "a.txt")
+
+        assert not result["success"]
+        assert result["error"]
+
+
+class TestResolveTakeTheirsOrRemove:
+    """resolve_take_theirs_or_remove outcomes."""
+
+    def test_text_conflict_takes_feature(self, make_conflict_repo: BuildRepo) -> None:
+        """Stage 3 (the replayed feature commit) is checked out and staged."""
+        project_dir = _stop_on_conflict(
+            make_conflict_repo,
+            {"a.txt": "base\n"},
+            {"a.txt": "main\n"},
+            {"a.txt": "feature\n"},
+        )
+        repo = Repo(project_dir)
+
+        result = resolve_take_theirs_or_remove(project_dir, "a.txt")
+
+        assert result["success"]
+        assert result["error"] is None
+        assert (project_dir / "a.txt").read_bytes() == b"feature\n"
+        assert not list_unmerged_paths(project_dir)
+        assert repo.git.diff("--cached", "--name-only") == "a.txt"
+        assert repo.git.show(":a.txt") == "feature"
+
+    def test_delete_modify_removes(self, make_conflict_repo: BuildRepo) -> None:
+        """Feature deleted the file -> removed from index and disk."""
+        project_dir = _stop_on_conflict(
+            make_conflict_repo,
+            {"a.txt": "base\n"},
+            {"a.txt": "main\n"},
+            {"a.txt": None},
+        )
+        repo = Repo(project_dir)
+
+        result = resolve_take_theirs_or_remove(project_dir, "a.txt")
+
+        assert result["success"]
+        assert not (project_dir / "a.txt").exists()
+        assert not repo.git.ls_files("--", "a.txt")
+        assert not list_unmerged_paths(project_dir)
+
+    def test_bracket_path_is_literal(self, make_conflict_repo: BuildRepo) -> None:
+        """``a[b].txt`` resolves only itself, not the glob match ``ab.txt``."""
+        project_dir = _stop_on_conflict(
+            make_conflict_repo,
+            {"a[b].txt": "base\n", "ab.txt": "base\n"},
+            {"a[b].txt": "main\n", "ab.txt": "main\n"},
+            {"a[b].txt": "feature\n", "ab.txt": "feature\n"},
+        )
+
+        result = resolve_take_theirs_or_remove(project_dir, "a[b].txt")
+
+        assert result["success"]
+        assert (project_dir / "a[b].txt").read_bytes() == b"feature\n"
+        assert list_unmerged_paths(project_dir) == ["ab.txt"]
+
+    def test_magic_pathspec_is_literal(self, make_conflict_repo: BuildRepo) -> None:
+        """A magic pathspec matches no unmerged path and resolves nothing."""
+        project_dir = _stop_on_conflict(
+            make_conflict_repo,
+            {"a.txt": "base\n"},
+            {"a.txt": "main\n"},
+            {"a.txt": "feature\n"},
+        )
+
+        result = resolve_take_theirs_or_remove(project_dir, ":(glob)*.txt")
+
+        assert not result["success"]
+        assert result["error"] is not None
+        assert "not unmerged" in result["error"]
+        assert list_unmerged_paths(project_dir) == ["a.txt"]
+
+    def test_non_conflicted_path(self, make_conflict_repo: BuildRepo) -> None:
+        """A path with no unmerged entries is a failed result."""
+        project_dir = _stop_on_conflict(
+            make_conflict_repo,
+            {"a.txt": "base\n", "b.txt": "same\n"},
+            {"a.txt": "main\n"},
+            {"a.txt": "feature\n"},
+        )
+
+        result = resolve_take_theirs_or_remove(project_dir, "b.txt")
+
+        assert not result["success"]
+        assert result["error"] is not None
+        assert "not unmerged" in result["error"]
+        assert list_unmerged_paths(project_dir) == ["a.txt"]
+
+    def test_git_failure(self, make_conflict_repo: BuildRepo) -> None:
+        """A failing git call is a failed result carrying its exit code."""
+        project_dir = _stop_on_conflict(
+            make_conflict_repo,
+            {"a.txt": "base\n"},
+            {"a.txt": "main\n"},
+            {"a.txt": "feature\n"},
+        )
+
+        def fail_checkout(
+            repo: Repo, command: str, *args: str, **kwargs: Any
+        ) -> tuple[int, bytes, str]:
+            if command == "checkout":
+                return 1, b"", "error: checkout failed"
+            return run_git_raw(repo, command, *args, **kwargs)
+
+        with patch(RUNNER, side_effect=fail_checkout):
+            result = resolve_take_theirs_or_remove(project_dir, "a.txt")
+
+        assert not result["success"]
+        assert result["returncode"] == 1
+        assert result["stderr"] == "error: checkout failed"
+        assert list_unmerged_paths(project_dir) == ["a.txt"]
+
+    def test_non_repo(self, tmp_path: Path) -> None:
+        """A non-repository is a failed result, not an exception."""
+        result = resolve_take_theirs_or_remove(tmp_path, "a.txt")
 
         assert not result["success"]
         assert result["error"]

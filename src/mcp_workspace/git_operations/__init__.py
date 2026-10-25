@@ -28,6 +28,7 @@ from mcp_workspace.git_operations.conflicts import (
     get_conflict_blob_info,
     list_unmerged_paths,
     read_conflict_stage,
+    resolve_take_theirs_or_remove,
 )
 from mcp_workspace.git_operations.core import (
     BranchProbe,
@@ -147,6 +148,7 @@ __all__ = [
     "rebase_skip",
     "rebase_start",
     "reset_hard",
+    "resolve_take_theirs_or_remove",
     "safe_repo_context",
     "stage_all_changes",
     "unstage_paths",

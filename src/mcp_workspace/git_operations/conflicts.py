@@ -10,6 +10,7 @@ from .core import (
     ConflictBlobEntry,
     ConflictBlobInfoResult,
     ConflictStageResult,
+    GitResult,
     logger,
     open_repo_for_query,
     run_git_raw,
@@ -215,3 +216,79 @@ def read_conflict_stage(
     return _stage_result(
         True, None, returncode, stderr, content=data.decode("utf-8", "replace")
     )
+
+
+def resolve_take_theirs_or_remove(project_dir: Path, path: str) -> GitResult:
+    """Take the feature side (stage 3) and stage it; remove the path if absent.
+
+    During a rebase "theirs" (stage 3) is the commit being replayed, i.e. the
+    feature branch. If stage 3 exists the path is checked out from it and
+    staged; otherwise (the feature side deleted it) the path is removed from
+    the index and the working tree. ``path`` is matched literally.
+
+    Args:
+        project_dir: Path to the project directory containing the git repository
+        path: Repo-relative path as returned by ``list_unmerged_paths``
+
+    Returns:
+        GitResult. A path with no unmerged entries, a non-repository or any
+        git failure is ``success=False``.
+    """
+    logger.debug("Resolving %s with theirs in %s", path, project_dir)
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            returncode, stdout, stderr = run_git_raw(
+                repo, "ls_files", "-u", "-z", "--", path, literal_paths=True
+            )
+            if returncode != 0:
+                logger.debug("git ls-files -u failed (exit %s): %s", returncode, stderr)
+                return {
+                    "success": False,
+                    "error": f"git ls-files -u failed (exit {returncode})",
+                    "returncode": returncode,
+                    "stderr": stderr,
+                }
+
+            stages = {
+                entry.stage
+                for entry in parse_ls_files_u_z(stdout)
+                if entry.path == path
+            }
+            if not stages:
+                return {
+                    "success": False,
+                    "error": f"Path is not unmerged: {path}",
+                    "returncode": None,
+                    "stderr": None,
+                }
+
+            commands: list[tuple[str, ...]]
+            if 3 in stages:
+                commands = [("checkout", "--theirs"), ("add",)]
+            else:
+                commands = [("rm", "-q")]
+            for command, *options in commands:
+                returncode, _, stderr = run_git_raw(
+                    repo, command, *options, "--", path, literal_paths=True
+                )
+                if returncode != 0:
+                    logger.debug(
+                        "git %s failed (exit %s): %s", command, returncode, stderr
+                    )
+                    return {
+                        "success": False,
+                        "error": f"git {command} failed (exit {returncode})",
+                        "returncode": returncode,
+                        "stderr": stderr,
+                    }
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        logger.debug("Not a git repository: %s", project_dir)
+        return {
+            "success": False,
+            "error": f"Not a git repository: {project_dir}",
+            "returncode": None,
+            "stderr": None,
+        }
+
+    return {"success": True, "error": None, "returncode": returncode, "stderr": stderr}

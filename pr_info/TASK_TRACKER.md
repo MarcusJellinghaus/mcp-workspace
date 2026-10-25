@@ -113,9 +113,9 @@ See [step_15.md](./steps/step_15.md)
 
 ### Step 16: `resolve_take_theirs_or_remove`
 See [step_16.md](./steps/step_16.md)
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 17: `has_staged_changes`
 See [step_17.md](./steps/step_17.md)
