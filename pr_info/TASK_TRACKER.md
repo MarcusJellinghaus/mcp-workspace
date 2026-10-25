@@ -101,9 +101,9 @@ See [step_13.md](./steps/step_13.md)
 
 ### Step 14: `list_unmerged_paths`
 See [step_14.md](./steps/step_14.md)
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 15: `get_conflict_blob_info` + `read_conflict_stage`
 See [step_15.md](./steps/step_15.md)

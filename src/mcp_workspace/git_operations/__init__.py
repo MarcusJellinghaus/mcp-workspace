@@ -24,6 +24,7 @@ from mcp_workspace.git_operations.commits import (
     get_latest_commit_sha,
 )
 from mcp_workspace.git_operations.compact_diffs import get_compact_diff
+from mcp_workspace.git_operations.conflicts import list_unmerged_paths
 from mcp_workspace.git_operations.core import (
     BranchProbe,
     CommitResult,
@@ -122,6 +123,7 @@ __all__ = [
     "is_rebase_in_progress",
     "is_working_directory_clean",
     "list_remote_branches",
+    "list_unmerged_paths",
     "needs_rebase",
     "probe_origin_branch",
     "probe_rebase_conflicts",

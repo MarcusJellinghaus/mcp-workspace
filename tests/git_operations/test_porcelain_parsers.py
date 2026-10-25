@@ -2,6 +2,8 @@
 
 from mcp_workspace.git_operations.porcelain_parsers import (
     StatusEntry,
+    UnmergedEntry,
+    parse_ls_files_u_z,
     parse_ls_remote_heads,
     parse_merge_tree_z,
     parse_status_z,
@@ -104,3 +106,51 @@ class TestParseLsRemoteHeads:
     def test_empty_output(self) -> None:
         """Empty output parses to an empty list."""
         assert not parse_ls_remote_heads(b"")
+
+
+SHA1 = "1111111111111111111111111111111111111111"
+SHA2 = "2222222222222222222222222222222222222222"
+SHA3 = "3333333333333333333333333333333333333333"
+
+
+def _ls_files_u(mode: str, sha: str, stage: int, path: str) -> bytes:
+    """Build one ``git ls-files -u -z`` record."""
+    return f"{mode} {sha} {stage}\t{path}\0".encode("utf-8")
+
+
+class TestParseLsFilesUZ:
+    """Tests for parse_ls_files_u_z."""
+
+    def test_three_stages_of_one_path(self) -> None:
+        """Each stage of a conflicted path is its own entry."""
+        output = (
+            _ls_files_u("100644", SHA1, 1, "a.txt")
+            + _ls_files_u("100644", SHA2, 2, "a.txt")
+            + _ls_files_u("100755", SHA3, 3, "a.txt")
+        )
+        assert parse_ls_files_u_z(output) == [
+            UnmergedEntry("100644", SHA1, 1, "a.txt"),
+            UnmergedEntry("100644", SHA2, 2, "a.txt"),
+            UnmergedEntry("100755", SHA3, 3, "a.txt"),
+        ]
+
+    def test_two_paths(self) -> None:
+        """Entries of different paths keep output order."""
+        output = _ls_files_u("100644", SHA2, 2, "a.txt") + _ls_files_u(
+            "100644", SHA3, 3, "dir/b c.txt"
+        )
+        assert parse_ls_files_u_z(output) == [
+            UnmergedEntry("100644", SHA2, 2, "a.txt"),
+            UnmergedEntry("100644", SHA3, 3, "dir/b c.txt"),
+        ]
+
+    def test_non_ascii_path(self) -> None:
+        """A non-ASCII path is decoded as UTF-8."""
+        output = _ls_files_u("100644", SHA1, 1, "dätei_日本.txt")
+        assert parse_ls_files_u_z(output) == [
+            UnmergedEntry("100644", SHA1, 1, "dätei_日本.txt")
+        ]
+
+    def test_empty_output(self) -> None:
+        """Empty output parses to an empty list."""
+        assert not parse_ls_files_u_z(b"")

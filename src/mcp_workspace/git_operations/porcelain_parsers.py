@@ -17,6 +17,15 @@ class StatusEntry(NamedTuple):
     orig_path: Optional[str]  # rename/copy source
 
 
+class UnmergedEntry(NamedTuple):
+    """One entry of ``git ls-files -u -z``."""
+
+    mode: str
+    sha: str
+    stage: int
+    path: str
+
+
 def _decode(raw: bytes) -> str:
     """Decode a path field as UTF-8."""
     return raw.decode("utf-8", errors="replace")
@@ -69,6 +78,28 @@ def parse_merge_tree_z(output: bytes) -> tuple[Optional[str], list[str]]:
         if path not in paths:
             paths.append(path)
     return _decode(fields[0]), paths
+
+
+def parse_ls_files_u_z(output: bytes) -> list[UnmergedEntry]:
+    """Parse ``git ls-files -u -z`` output.
+
+    Args:
+        output: Raw stdout bytes: ``<mode> <sha> <stage>\\t<path>\\0``...
+
+    Returns:
+        One entry per stage, in output order. Empty output returns an empty
+        list.
+    """
+    entries: list[UnmergedEntry] = []
+    for field in output.split(b"\0"):
+        if not field:
+            continue
+        meta, _, path = field.partition(b"\t")
+        mode, sha, stage = meta.split(b" ")
+        entries.append(
+            UnmergedEntry(mode.decode(), sha.decode(), int(stage), _decode(path))
+        )
+    return entries
 
 
 def parse_ls_remote_heads(output: bytes) -> list[str]:
