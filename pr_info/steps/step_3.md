@@ -54,6 +54,8 @@ rc != 0 -> _classify_commit_failure(err); else success with short hash
 - Untracked path → `validation_failed`. Path outside `project_dir` → `validation_failed`.
 - Non-ASCII file name and non-ASCII commit message round-trip (`log -1 --format=%s`).
 - File named `a[1].txt` committed while `a1.txt` is also modified and stays uncommitted.
+- Magic pathspec `":(glob)*.txt"` (no such file) with `a.txt` modified → `nothing_to_commit`,
+  `a.txt` stays uncommitted.
 - Unborn HEAD: staged new file (`git add`) committed via `commit_paths` → success.
   If git refuses a partial commit on an unborn HEAD, write one line to
   `pr_info/.blocked.txt` and stop.

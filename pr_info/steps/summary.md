@@ -123,8 +123,9 @@ only on `log_utils` and `utils`). `origin_has_branch` becomes a wrapper over
 - `read_conflict_stage(project_dir, stage, path)`: `path` is a repo-relative `str` as returned
   by `list_unmerged_paths`; content decoded with `errors="replace"`.
 - `BaseBranchSource` is an `Enum` with values `"issue"`, `"pr"`, `"merge_base"`, `"default"`.
-- Release notes go to `pr_info/release_notes.md` (source for the PR description / GitHub
-  release text); the repo has no release-notes file.
+- Release notes go to a new `docs/release-notes.md` (one section for this minor release),
+  because `pr_info/` is deleted before merge. That file is also the source for the PR
+  description and the GitHub release text.
 
 ## Files created / modified
 
@@ -146,7 +147,7 @@ only on `log_utils` and `utils`). `origin_has_branch` becomes a wrapper over
 | `tests/git_operations/test_rebase.py` | Rebase flow, `reset_hard` |
 | `tests/git_operations/test_conflicts.py` | Conflict functions |
 | `tests/git_operations/test_list_tree.py` | `list_tree` |
-| `pr_info/release_notes.md` | Release notes (step 19) |
+| `docs/release-notes.md` | Release notes (step 19); survives the `pr_info/` deletion |
 
 ### Modified
 | File | Change |

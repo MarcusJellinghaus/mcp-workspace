@@ -2,14 +2,17 @@
 
 ## LLM prompt
 Read `pr_info/steps/summary.md` and this file. Implement step 19 only: write
-`pr_info/release_notes.md` from the actual exports in
+`docs/release-notes.md` (not under `pr_info/`, which is deleted before merge) from the
+actual exports in
 `src/mcp_workspace/git_operations/__init__.py` (verify each name exists there). If any
 function or type listed in the summary's step table is missing from `__all__`, write one
 line to `pr_info/.blocked.txt` and stop. Run the checks from the summary, commit as one
 commit.
 
 ## WHERE
-- `pr_info/release_notes.md` (new) — source for the PR description and GitHub release text.
+- `docs/release-notes.md` (new) — persists after merge; one section headed for this minor
+  release. Source for the PR description and GitHub release text: whoever opens the PR
+  pastes this section into the PR body.
 
 ## WHAT (sections)
 1. **Summary** — one paragraph: new `git_operations` primitives so mcp-coder can stop

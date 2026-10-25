@@ -40,5 +40,6 @@ return success
 - Unborn HEAD: staged new file becomes untracked; file still on disk.
 - Calling twice is a success (idempotent).
 - Path `x*.txt` literal: only that file is unstaged, `xa.txt` stays staged.
+- Magic pathspec `":(glob)*.txt"` (no such file) → success, staged `a.txt` stays staged.
 - Outside path → `success=False`. Non-repo → `success=False`.
 - Chunking: patch `_chunk_paths` to force one path per chunk with two paths → both unstaged.

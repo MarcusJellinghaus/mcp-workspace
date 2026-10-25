@@ -40,4 +40,6 @@ first nonzero rc -> error result with rc/err; else success
 - Delete/modify (feature deleted the file) → file removed from index and disk.
 - Path with `[` in the name, conflicted alongside a matching non-literal name → only the
   literal path resolved.
+- Magic pathspec `":(glob)*.txt"` (no such file) while `a.txt` is conflicted →
+  `success=False` ("path is not unmerged"), `a.txt` still unmerged.
 - Non-conflicted path → `success=False`. Non-repo → `success=False`.

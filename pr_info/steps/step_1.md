@@ -78,7 +78,9 @@ open_repo_for_query: with safe_repo_context(...) as repo: yield repo;
   default strips it.
 - `env=GIT_NONINTERACTIVE_ENV`: `run_git_raw(repo, "var", "GIT_EDITOR", env=...)` → `b"true"`.
 - `literal_paths=True`: `ls_files -- "*.txt"` with a file literally named `*.txt` and a
-  file `a.txt` returns only `*.txt`.
+  file `a.txt` returns only `*.txt`. Magic pathspec (no real file — Windows forbids `:` in
+  file names): with `a.txt` present, `ls_files -- ":(glob)*.txt"` with `literal_paths=True`
+  matches nothing.
 - `to_git_paths`: relative, absolute, outside (`ValueError`), Windows backslashes → `/`.
 - `open_repo_for_query` on a plain dir and on a missing dir → `ValueError`.
 - `is_option_like` cases.

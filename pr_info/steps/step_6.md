@@ -69,6 +69,8 @@ other rc: unsupported if _git_version(repo) < (2, 38) else error
 - Real repo: conflict on `dätei.txt` → `conflict`, `files == ["dätei.txt"]`.
 - Clean (non-overlapping changes) → `clean`, `success=True`.
 - Bad ref (`no-such-ref`) → exit 1 with empty stdout → `error`, not `conflict`.
+- Mocked `run_git_raw` → `(1, b"", "fatal: ...")` → `status == "error"` (tests the
+  exit-1-empty-stdout branch directly, whatever exit code a real bad ref gives).
 - Mocked `run_git_raw` → `(129, b"", "usage")` + patched `_git_version` → `(2, 37)` →
   `unsupported`; with `(2, 40)` → `error`.
 - `base_ref="-x"` → `error`. Non-repo → `error`.
