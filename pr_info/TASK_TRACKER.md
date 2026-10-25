@@ -83,9 +83,9 @@ See [step_10.md](./steps/step_10.md)
 
 ### Step 11: A4 docstrings
 See [step_11.md](./steps/step_11.md)
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 12: Rebase flow — `is_rebase_in_progress`, `rebase_start/continue/skip/abort`
 See [step_12.md](./steps/step_12.md)

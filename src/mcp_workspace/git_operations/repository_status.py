@@ -99,7 +99,12 @@ def is_working_directory_clean(
         ValueError: If the directory is not a git repository
 
     Note:
-        Uses existing get_full_status() for consistency
+        Uses existing get_full_status() for consistency.
+
+        Raises ``ValueError`` only for a non-repository; otherwise it
+        inherits get_full_status() error swallowing and returns ``True``
+        on error. Do not gate destructive actions (e.g. a directory
+        delete) on it; use ``get_working_tree_status``.
     """
     if not is_git_repository(project_dir):
         raise ValueError(f"Directory is not a git repository: {project_dir}")
@@ -139,6 +144,11 @@ def get_full_status(project_dir: Path) -> dict[str, list[str]]:
             "modified": ["existing_file.py"],
             "untracked": ["temp_notes.txt"]
         }
+
+    Note:
+        Errors are swallowed into empty lists, so a failure reads as
+        "clean". Do not gate destructive actions on it; use
+        ``get_working_tree_status``.
     """
     logger.debug("Getting full git status for %s", project_dir)
 
@@ -285,6 +295,12 @@ def is_git_repository(project_dir: Path) -> bool:
 
     Returns:
         True if the directory is a git repository, False otherwise
+
+    Note:
+        Does not spawn git: opens ``Repo`` with
+        ``search_parent_directories=False``. Returns ``True`` for bare
+        repositories, where ``git rev-parse --is-inside-work-tree``
+        prints ``false``.
     """
     logger.debug("Checking if %s is a git repository", project_dir)
 

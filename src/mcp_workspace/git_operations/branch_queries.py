@@ -43,6 +43,11 @@ def remote_branch_exists(project_dir: Path, branch_name: str) -> bool:
 
     Returns:
         True if branch exists on origin remote, False otherwise
+
+    Note:
+        Reads local ``origin/*`` refs only — no network access, so the
+        answer can be stale in both directions. Returns ``False`` without
+        a reason. For an authoritative answer use ``probe_origin_branch``.
     """
     logger.debug(
         "Checking if remote branch '%s' exists in %s", branch_name, project_dir
@@ -294,6 +299,9 @@ def get_current_branch_name(project_dir: Path) -> Optional[str]:
     Note:
         Uses existing is_git_repository() validation and follows
         established error handling patterns from other functions.
+
+        Returns ``None`` on detached HEAD, where
+        ``git rev-parse --abbrev-ref HEAD`` would print ``"HEAD"``.
     """
     logger.debug("Getting current branch name for %s", project_dir)
 
