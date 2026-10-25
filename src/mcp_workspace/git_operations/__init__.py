@@ -52,7 +52,7 @@ from mcp_workspace.git_operations.repository_status import (
     is_git_repository,
     is_working_directory_clean,
 )
-from mcp_workspace.git_operations.staging import stage_all_changes
+from mcp_workspace.git_operations.staging import stage_all_changes, unstage_paths
 from mcp_workspace.git_operations.verification import CheckResult, verify_git
 from mcp_workspace.git_operations.workflows import (
     commit_all_changes,
@@ -97,6 +97,7 @@ __all__ = [
     "rebase_onto_branch",
     "safe_repo_context",
     "stage_all_changes",
+    "unstage_paths",
     "validate_branch_name",
     "verify_git",
 ]
