@@ -53,6 +53,7 @@ from mcp_workspace.git_operations.rebase import (
     rebase_continue,
     rebase_skip,
     rebase_start,
+    reset_hard,
 )
 from mcp_workspace.git_operations.remotes import (
     clone_repo,
@@ -131,6 +132,7 @@ __all__ = [
     "rebase_onto_branch",
     "rebase_skip",
     "rebase_start",
+    "reset_hard",
     "safe_repo_context",
     "stage_all_changes",
     "unstage_paths",

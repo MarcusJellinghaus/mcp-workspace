@@ -269,3 +269,48 @@ def rebase_abort(project_dir: Path) -> GitResult:
             "stderr": stderr,
         }
     return {"success": True, "error": None, "returncode": returncode, "stderr": stderr}
+
+
+def reset_hard(project_dir: Path, sha: str) -> GitResult:
+    """Run ``git reset --hard <sha>``, e.g. to restore the pre-rebase state.
+
+    Args:
+        project_dir: Path to the project directory containing the git repository
+        sha: Commit to reset to; must be non-empty and not start with ``-``
+
+    Returns:
+        GitResult; ``returncode`` is None when ``sha`` is invalid or the
+        directory is not a repository.
+    """
+    logger.debug("Resetting %s hard to %s", project_dir, sha)
+
+    if not sha or is_option_like(sha):
+        return {
+            "success": False,
+            "error": f"Invalid sha: {sha!r}",
+            "returncode": None,
+            "stderr": None,
+        }
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            # Trailing "--" forces sha to be read as a revision, not a path
+            returncode, _, stderr = run_git_raw(repo, "reset", "--hard", sha, "--")
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        logger.debug("Not a git repository: %s", project_dir)
+        return {
+            "success": False,
+            "error": f"Not a git repository: {project_dir}",
+            "returncode": None,
+            "stderr": None,
+        }
+
+    if returncode != 0:
+        logger.debug("git reset --hard failed (exit %s): %s", returncode, stderr)
+        return {
+            "success": False,
+            "error": f"git reset --hard failed (exit {returncode})",
+            "returncode": returncode,
+            "stderr": stderr,
+        }
+    return {"success": True, "error": None, "returncode": returncode, "stderr": stderr}

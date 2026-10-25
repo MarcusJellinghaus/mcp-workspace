@@ -1,4 +1,4 @@
-"""Tests for the rebase flow: is_rebase_in_progress, rebase_start/continue/skip/abort."""
+"""Tests for the rebase flow (is_rebase_in_progress, rebase_*) and reset_hard."""
 
 from pathlib import Path
 from typing import Callable
@@ -13,6 +13,7 @@ from mcp_workspace.git_operations import (
     rebase_continue,
     rebase_skip,
     rebase_start,
+    reset_hard,
     stage_all_changes,
 )
 from mcp_workspace.git_operations.core import run_git_raw
@@ -261,3 +262,67 @@ class TestIsRebaseInProgress:
         """A non-repository raises ValueError."""
         with pytest.raises(ValueError):
             is_rebase_in_progress(tmp_path)
+
+
+class TestResetHard:
+    """reset_hard outcomes."""
+
+    def test_resets_to_earlier_commit(self, git_repo: tuple[Repo, Path]) -> None:
+        """HEAD and working tree move back to the given sha."""
+        repo, project_dir = git_repo
+        first_sha = commit_files(repo, {"dätei.txt": "first\n"}, "first")
+        commit_files(repo, {"dätei.txt": "second\n", "neu.txt": "new\n"}, "second")
+
+        result = reset_hard(project_dir, first_sha)
+
+        assert result["success"] is True
+        assert result["error"] is None
+        assert result["returncode"] == 0
+        assert repo.git.rev_parse("HEAD") == first_sha
+        # read_text: checkout may convert to CRLF (core.autocrlf)
+        assert (project_dir / "dätei.txt").read_text(encoding="utf-8") == "first\n"
+        assert not (project_dir / "neu.txt").exists()
+
+    def test_discards_uncommitted_change(self, git_repo: tuple[Repo, Path]) -> None:
+        """Uncommitted changes to tracked files are discarded."""
+        repo, project_dir = git_repo
+        sha = commit_files(repo, {"a.txt": "committed\n"}, "commit")
+        _write(project_dir / "a.txt", "dirty\n")
+
+        result = reset_hard(project_dir, sha)
+
+        assert result["success"] is True
+        assert (project_dir / "a.txt").read_text(encoding="utf-8") == "committed\n"
+        assert repo.git.status("--porcelain") == ""
+
+    def test_unknown_sha(self, git_repo: tuple[Repo, Path]) -> None:
+        """An unknown sha is an error result carrying git's exit code."""
+        repo, project_dir = git_repo
+        commit_files(repo, {"a.txt": "a\n"}, "commit")
+
+        result = reset_hard(project_dir, "0" * 40)
+
+        assert result["success"] is False
+        assert result["error"]
+        assert result["returncode"] not in (None, 0)
+
+    @pytest.mark.parametrize("sha", ["-x", ""])
+    def test_invalid_sha(self, git_repo: tuple[Repo, Path], sha: str) -> None:
+        """An empty or option-like sha is rejected without running git."""
+        _, project_dir = git_repo
+
+        with patch(RUNNER) as runner:
+            result = reset_hard(project_dir, sha)
+
+        runner.assert_not_called()
+        assert result["success"] is False
+        assert result["error"]
+        assert result["returncode"] is None
+
+    def test_non_repo(self, tmp_path: Path) -> None:
+        """A non-repository is an error result."""
+        result = reset_hard(tmp_path, "HEAD")
+
+        assert result["success"] is False
+        assert result["error"]
+        assert result["returncode"] is None

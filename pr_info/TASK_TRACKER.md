@@ -95,9 +95,9 @@ See [step_12.md](./steps/step_12.md)
 
 ### Step 13: `reset_hard`
 See [step_13.md](./steps/step_13.md)
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 14: `list_unmerged_paths`
 See [step_14.md](./steps/step_14.md)
