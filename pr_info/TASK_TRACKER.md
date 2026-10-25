@@ -131,9 +131,9 @@ See [step_18.md](./steps/step_18.md)
 
 ### Step 19: Release notes
 See [step_19.md](./steps/step_19.md)
-- [ ] Implementation (`docs/release-notes.md`)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (`docs/release-notes.md`)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 - [ ] PR review: review full branch diff against `main`, address findings
