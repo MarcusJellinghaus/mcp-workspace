@@ -1287,7 +1287,11 @@ def github_search(
                     "title": item.title,
                     "state": item.state,
                     "labels": item_labels,
-                    "pull_request": item.pull_request is not None,
+                    # Read the search payload directly: an issue result has no
+                    # pull_request key, so item.pull_request (and item.raw_data)
+                    # would lazily fetch the full issue - one REST `core` call
+                    # per result. The other fields are always in the payload.
+                    "pull_request": "pull_request" in item._rawData,
                     "user": item.user.login if item.user else None,
                     "author_association": normalize_author_association(
                         item.author_association

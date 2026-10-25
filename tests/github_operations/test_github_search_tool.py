@@ -47,9 +47,12 @@ def _live_search_or_skip(query: str, attempts: int = 3, delay: float = 2.0) -> s
     no error (index lag or a brief outage). Retry, then skip rather than fail:
     the failure modes these tests guard against - a rejected spelling (an
     "Error:" result) or an ignored one (wrong-state lines) - never look empty.
+    An exhausted rate limit on the shared CI token skips the same way.
     """
     for attempt in range(attempts):
         result: str = github_search(query=query, sort="created", order="desc")
+        if result.startswith("GitHub ") and "rate limit" in result:
+            pytest.skip(f"GitHub rate limit hit for {query!r}: {result}")
         if result != "No results found.":
             return result
         if attempt < attempts - 1:
@@ -68,7 +71,7 @@ def test_github_search_basic(mock_manager_cls: MagicMock) -> None:
     item1.title = "Bug fix"
     item1.state = "open"
     item1.labels = []
-    item1.pull_request = None
+    item1._rawData = {}
     item1.author_association = "OWNER"
 
     item2 = MagicMock()
@@ -76,7 +79,7 @@ def test_github_search_basic(mock_manager_cls: MagicMock) -> None:
     item2.title = "Feature PR"
     item2.state = "open"
     item2.labels = []
-    item2.pull_request = MagicMock()  # truthy = is a PR
+    item2._rawData = {"pull_request": {}}  # key present = is a PR
     item2.author_association = "OWNER"
 
     mock_mgr = MagicMock()
@@ -174,7 +177,7 @@ def test_github_search_issue_vs_pr_indicator(mock_manager_cls: MagicMock) -> Non
     issue_item.title = "A bug"
     issue_item.state = "open"
     issue_item.labels = []
-    issue_item.pull_request = None
+    issue_item._rawData = {}
     issue_item.author_association = "OWNER"
 
     pr_item = MagicMock()
@@ -182,7 +185,7 @@ def test_github_search_issue_vs_pr_indicator(mock_manager_cls: MagicMock) -> Non
     pr_item.title = "A PR"
     pr_item.state = "open"
     pr_item.labels = []
-    pr_item.pull_request = MagicMock()
+    pr_item._rawData = {"pull_request": {}}
     pr_item.author_association = "OWNER"
 
     mock_mgr = MagicMock()
@@ -200,6 +203,50 @@ def test_github_search_issue_vs_pr_indicator(mock_manager_cls: MagicMock) -> Non
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
+def test_github_search_results_trigger_no_extra_request(
+    mock_manager_cls: MagicMock,
+) -> None:
+    """Rendering real search Issues never lazily completes them.
+
+    A search issue payload has no pull_request key; reading item.pull_request
+    would fetch the full issue, one REST `core` call per result.
+    """
+    from github.Issue import Issue
+
+    requester = MagicMock()
+
+    def search_item(number: int, is_pr: bool) -> Issue:
+        payload: dict[str, object] = {
+            "url": f"https://api.github.com/repos/owner/repo/issues/{number}",
+            "number": number,
+            "title": f"Item {number}",
+            "state": "open",
+            "labels": [{"name": "bug"}],
+            "user": {"login": "owner"},
+            "author_association": "OWNER",
+        }
+        if is_pr:
+            payload["pull_request"] = {"url": "https://api.github.com/pulls/2"}
+        return Issue(requester, {}, payload, completed=False)
+
+    mock_mgr = MagicMock()
+    mock_manager_cls.return_value = mock_mgr
+    mock_mgr._get_repository.return_value.full_name = "owner/repo"
+    mock_mgr._github_client.search_issues.return_value = FakeSearchResults(
+        [search_item(1, is_pr=False), search_item(2, is_pr=True)]
+    )
+
+    result = github_search(query="test")
+
+    assert result.splitlines()[:2] == [
+        "#1 [Issue] [open] Item 1  bug",
+        "#2 [PR] [open] Item 2  bug",
+    ]
+    requester.requestJsonAndCheck.assert_not_called()
+    requester.requestJson.assert_not_called()
+
+
+@patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_untrusted_prefix(mock_manager_cls: MagicMock) -> None:
     """Untrusted items are prefixed with their login; a ghost renders as @ghost."""
     mock_repo = MagicMock()
@@ -210,7 +257,7 @@ def test_github_search_untrusted_prefix(mock_manager_cls: MagicMock) -> None:
     untrusted.title = "Fix login"
     untrusted.state = "open"
     untrusted.labels = []
-    untrusted.pull_request = None
+    untrusted._rawData = {}
     untrusted.user.login = "abc"
     untrusted.author_association = "NONE"
 
@@ -219,7 +266,7 @@ def test_github_search_untrusted_prefix(mock_manager_cls: MagicMock) -> None:
     ghost.title = "Gone"
     ghost.state = "open"
     ghost.labels = []
-    ghost.pull_request = None
+    ghost._rawData = {}
     ghost.user = None
     ghost.author_association = "NONE"
 
@@ -228,7 +275,7 @@ def test_github_search_untrusted_prefix(mock_manager_cls: MagicMock) -> None:
     trusted.title = "Trusted"
     trusted.state = "open"
     trusted.labels = []
-    trusted.pull_request = None
+    trusted._rawData = {}
     trusted.user.login = "owner"
     trusted.author_association = "OWNER"
 
@@ -262,7 +309,7 @@ def test_github_search_item_dict_carries_author(
     item.title = "T"
     item.state = "open"
     item.labels = []
-    item.pull_request = None
+    item._rawData = {}
     item.user.login = "abc"
     item.author_association = "CONTRIBUTOR"
 
@@ -271,7 +318,7 @@ def test_github_search_item_dict_carries_author(
     ghost.title = "G"
     ghost.state = "open"
     ghost.labels = []
-    ghost.pull_request = None
+    ghost._rawData = {}
     ghost.user = None
     # A non-string association normalises to None.
     ghost.author_association = MagicMock()
