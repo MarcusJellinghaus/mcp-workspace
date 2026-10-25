@@ -24,11 +24,15 @@ from mcp_workspace.github_operations._permission_probes import run_permission_pr
 from mcp_workspace.github_operations._ruleset_protection import (
     ProtectionFacts,
     facts_from_classic,
+    facts_from_rules,
+    fetch_rules,
     merge,
+    source_label,
 )
 from mcp_workspace.github_operations._types import (
     CheckResult,
     ProtectionOutcome,
+    RulesOutcome,
     is_branch_not_protected,
     short_reason,
 )
@@ -121,32 +125,69 @@ def _classify_protection_failure(
     return None, f"not verifiable — {reason}", error
 
 
-def _protection_result(outcome: ProtectionOutcome) -> dict[str, CheckResult]:
-    """Build the six branch-protection rows from the classic fetch outcome.
+def _protection_result(
+    outcome: ProtectionOutcome, rules_outcome: RulesOutcome | None
+) -> dict[str, CheckResult]:
+    """Build the six branch-protection rows from the classic and rules outcomes.
 
     Args:
         outcome: Result of the classic branch protection fetch.
+        rules_outcome: Result of the effective-rules fetch, or ``None`` when
+            it was not attempted.
 
     Returns:
         Mapping from each branch-protection key to its ``CheckResult``.
     """
+    not_prot = is_branch_not_protected(outcome.exception)
+
     classic: ProtectionFacts | None
-    reason: str | None = None
-    error = ""
+    c_reason: str | None = None
+    c_note: str | None = None
     if outcome.protection is not None:
         classic = facts_from_classic(outcome.protection)
-    elif is_branch_not_protected(outcome.exception):
+    elif not_prot:
         classic = ProtectionFacts()
     else:
         classic = None
-        _, reason, error = _classify_protection_failure(
+        _, c_reason, c_note = _classify_protection_failure(
             outcome.stage, outcome.exception  # type: ignore[arg-type]
         )
-    merged = merge(classic, ProtectionFacts())
+
+    rules: ProtectionFacts | None
+    r_reason: str | None = None
+    r_note: str | None = None
+    if rules_outcome is None:
+        rules = None
+    elif rules_outcome.rules is not None:
+        rules = facts_from_rules(rules_outcome.rules)
+    elif (
+        not_prot
+        and isinstance(rules_outcome.exception, GithubException)
+        and rules_outcome.exception.status == 404
+    ):
+        # GHE without rulesets support: 404 counts as answered-empty
+        rules = ProtectionFacts()
+    else:
+        rules = None
+        r_reason = (
+            f"not verifiable — {short_reason(rules_outcome.exception)}"
+            if rules_outcome.exception is not None
+            else None
+        )
+        r_note = rules_outcome.note
+
+    merged = merge(classic, rules)
     if merged.protected is False:
         return _protection_rows(False, "not configured", "no branch protection")
+    names = rules_outcome.names if rules_outcome else None
+    label = f"{outcome.branch} protected" + source_label(
+        bool(classic and classic.protected), bool(rules and rules.protected), names
+    )
     return _rows_from_facts(
-        merged, f"{outcome.branch} protected", reason=reason, error=error
+        merged,
+        label,
+        reason=c_reason or r_reason,
+        error="; ".join(n for n in (c_note, r_note) if n),
     )
 
 
@@ -393,13 +434,16 @@ def verify_github(project_dir: Path) -> dict[str, object]:
     repo_is_ok = isinstance(repo_obj, dict) and repo_obj.get("ok") is True
 
     outcome: ProtectionOutcome | None = None
+    rules_outcome: RulesOutcome | None = None
     if repo_is_ok and repo is not None and manager is not None:
         outcome = _fetch_protection(manager, repo)
+        if outcome.branch is not None:
+            rules_outcome = fetch_rules(manager, repo, outcome.branch)
 
     if outcome is None:
         result.update(_protection_rows(None, "unknown", "repository not accessible"))
     else:
-        result.update(_protection_result(outcome))
+        result.update(_protection_result(outcome, rules_outcome))
 
     # ------------------------------------------------------------------
     # auto_delete_branches (repo-level setting)
