@@ -6,7 +6,7 @@ through the PyGithub library.
 
 import logging
 from pathlib import Path
-from typing import List, Optional, cast
+from typing import Any, List, Optional, cast
 
 from github.GithubException import GithubException
 from github.PullRequest import PullRequest
@@ -351,6 +351,59 @@ class PullRequestManager(
         pr.edit(state="closed")
 
         # Get updated PR information after closing
+        updated_pr = repo.get_pull(pr_number)
+
+        return _pr_to_data(updated_pr)
+
+    @log_function_call
+    @_handle_github_errors(cast(PullRequestData, {}))
+    def update_pull_request(
+        self,
+        pr_number: int,
+        title: Optional[str] = None,
+        body: Optional[str] = None,
+    ) -> PullRequestData:
+        """Update the title and/or body of an existing pull request.
+
+        Args:
+            pr_number: Pull request number to update
+            title: New title (stripped); None leaves it unchanged
+            body: New description; None leaves it unchanged, "" clears it
+
+        Returns:
+            PullRequestData containing updated pull request information, the current
+            pull request data when both title and body are None, or empty dict on
+            failure
+
+        Raises:
+            ValueError: If a supplied title is empty after stripping
+        """
+        if title is not None and not title.strip():
+            raise ValueError("Pull request title cannot be empty")
+
+        if not self._validate_pr_number(pr_number):
+            return cast(PullRequestData, {})
+
+        repo = self._get_repository()
+        if repo is None:
+            return cast(PullRequestData, {})
+
+        pr = repo.get_pull(pr_number)
+
+        # dict[str, Any]: mypy can't check ** unpacking against edit()'s keyword types
+        fields: dict[str, Any] = {}
+        if title is not None:
+            fields["title"] = title.strip()
+        if body is not None:
+            fields["body"] = body
+
+        # Nothing to edit -> no API write; still returns current PR data.
+        if not fields:
+            return _pr_to_data(pr)
+
+        pr.edit(**fields)
+
+        # Get updated PR information after editing
         updated_pr = repo.get_pull(pr_number)
 
         return _pr_to_data(updated_pr)
