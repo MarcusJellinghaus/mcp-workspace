@@ -85,8 +85,11 @@ pattern from `_pr_feedback_sources.py` (`requestJsonAndCheck`):
    plus the new `require_pull_request` row; the existing tests guard it.
 4. `step_4.md`: wire `fetch_rules` and the classic/rules merge into `verify_github`; autouse stub
    and matrix tests.
-5. `step_5.md`: record the read-only fine-grained token check in the module docstring if a result
-   is available, otherwise flag it as open in the PR description (non-blocking).
+
+## PR description
+Repeat the read-only fine-grained token result from the `_ruleset_protection.py` module docstring
+(step 1). If the docstring says "not yet verified", state in the PR description that the token
+check for `/rules/branches/{b}` and `/rulesets` is still open (documentation task, not a gate).
 
 ## Out of scope
 Required approvals count, linear history, a new `perm_*` row, and pagination beyond 100.

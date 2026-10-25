@@ -21,7 +21,7 @@ _PROTECTION_KEYS = ("branch_protection", "require_pull_request", "ci_checks_requ
                     "strict_mode", "force_push", "branch_deletion")
 
 def _protection_result(outcome: ProtectionOutcome) -> dict[str, CheckResult]: ...
-def _rows_from_facts(facts: ProtectionFacts, source_label: str, *, reason: str | None, error: str) -> dict[str, CheckResult]: ...
+def _rows_from_facts(facts: ProtectionFacts, label: str, *, reason: str | None, error: str) -> dict[str, CheckResult]: ...
 ```
 
 ## HOW
@@ -64,7 +64,7 @@ Rows, in `_PROTECTION_KEYS` order:
 
 | Row | Flag | Value when `True` | Value when `False` |
 |---|---|---|---|
-| `branch_protection` | `protected` | `source_label` | `"not configured"` |
+| `branch_protection` | `protected` | `label` | `"not configured"` |
 | `require_pull_request` | `require_pr` | `"required"` | `"not required"` |
 | `ci_checks_required` | `checks_required` | `f"{len(contexts)} checks configured"` | `"not configured"` |
 | `strict_mode` | `strict` | `"enabled"` | `"disabled"` |

@@ -28,8 +28,12 @@ def source_label(classic_protected: bool, rules_protected: bool, names: list[str
 ```
 
 ## HOW
-- Module docstring: explain what the module does. Leave a `Token permissions:` paragraph that says
-  "not yet verified"; step 5 fills it in.
+- Module docstring: explain what the module does, plus a `Token permissions:` paragraph. Read
+  issue #350 with `mcp__mcp-workspace__github_issue_view` and look for a comment that reports
+  whether a read-only fine-grained token can read `GET /repos/{o}/{r}/rules/branches/{b}` and
+  `GET /repos/{o}/{r}/rulesets`:
+  - **Result found:** for each endpoint, write the permission it needs and the observed status.
+  - **No result found:** write "not yet verified". This never blocks the step.
 - Imports: `dataclasses`, `typing.Any`, `github.BranchProtection.BranchProtection`. No imports from
   `verification.py` (that would be circular).
 - Classic side: `required_status_checks` may be `None` at runtime even though PyGithub types it
