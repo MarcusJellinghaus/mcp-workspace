@@ -179,9 +179,9 @@ def fetch_rules(
         ``RulesOutcome`` with the rules and best-effort ruleset names, or the
         exception and a pre-formatted note when the rules call failed.
     """
-    requester = manager._github_client._Github__requester  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public rulesets API in PyGithub
-    base = f"/repos/{repo.owner.login}/{repo.name}"
     try:
+        requester = manager._github_client._Github__requester  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public rulesets API in PyGithub
+        base = f"/repos/{repo.owner.login}/{repo.name}"
         _, data = requester.requestJsonAndCheck(
             "GET",
             f"{base}/rules/branches/{quote(branch, safe='')}",
