@@ -23,7 +23,11 @@ _STDERR_LOG_LIMIT = 500
 def _classify_commit_failure(
     stderr: str,
 ) -> Literal["signing_failed", "commit_failed"]:
-    """Classify a failed ``git commit`` by its stderr."""
+    """Classify a failed ``git commit`` by its stderr.
+
+    Returns:
+        ``"signing_failed"`` if stderr mentions signing, else ``"commit_failed"``.
+    """
     stderr_lower = stderr.lower()
     if any(kw in stderr_lower for kw in _SIGNING_KEYWORDS):
         return "signing_failed"
@@ -31,7 +35,11 @@ def _classify_commit_failure(
 
 
 def _status_entries(status_z: bytes) -> list[tuple[str, str]]:
-    """Split ``git status --porcelain -z`` output into ``(XY, path)`` pairs."""
+    """Split ``git status --porcelain -z`` output into ``(XY, path)`` pairs.
+
+    Returns:
+        ``(XY, path)`` pairs in output order; rename sources are skipped.
+    """
     entries: list[tuple[str, str]] = []
     fields = iter(status_z.split(b"\0"))
     for field in fields:

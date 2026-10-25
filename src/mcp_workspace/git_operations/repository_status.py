@@ -17,7 +17,11 @@ from .porcelain_parsers import parse_status_z
 def _failed_status(
     error: str, returncode: int | None = None, stderr: str | None = None
 ) -> StatusResult:
-    """Build a failed StatusResult: never clean, empty lists."""
+    """Build a failed StatusResult: never clean, empty lists.
+
+    Returns:
+        A StatusResult with ``success`` and ``clean`` False.
+    """
     return {
         "success": False,
         "error": error,
@@ -103,7 +107,7 @@ def has_staged_changes(project_dir: Path) -> bool:
         ValueError: If ``project_dir`` is not a git repository.
         GitCommandError: If ``git diff --cached --quiet`` exits with a code
             other than 0 or 1.
-    """
+    """  # noqa: DOC502  # ValueError propagates from open_repo_for_query
     logger.debug("Checking for staged changes in %s", project_dir)
 
     with open_repo_for_query(project_dir) as repo:

@@ -56,7 +56,11 @@ _USERINFO_RE = re.compile(r"(?<=://)[^/@\s]+@")
 
 
 def _scrub_credentials(text: str) -> str:
-    """Remove userinfo ('user:token@') from every URL in text."""
+    """Remove userinfo ('user:token@') from every URL in text.
+
+    Returns:
+        ``text`` with userinfo stripped from every URL.
+    """
     return _USERINFO_RE.sub("", text)
 
 
@@ -315,7 +319,11 @@ def pull(project_dir: Path) -> GitResult:
 
 
 def _ls_remote_heads(repo: Repo, *refs: str) -> tuple[int, bytes, str]:
-    """Run ``git ls-remote --heads origin <refs>`` non-interactively."""
+    """Run ``git ls-remote --heads origin <refs>`` non-interactively.
+
+    Returns:
+        ``(returncode, stdout, stderr)`` from ``git ls-remote``.
+    """
     return run_git_raw(
         repo, "ls_remote", "--heads", "origin", *refs, env=GIT_NONINTERACTIVE_ENV
     )

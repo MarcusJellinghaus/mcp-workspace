@@ -310,6 +310,9 @@ def open_repo_for_query(project_dir: Path) -> Iterator[Repo]:
     Like ``safe_repo_context``, but a missing directory or a non-repository
     raises ``ValueError`` instead of a GitPython exception.
 
+    Yields:
+        The opened repository.
+
     Raises:
         ValueError: If ``project_dir`` is not a git repository.
     """

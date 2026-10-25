@@ -37,7 +37,7 @@ def list_unmerged_paths(project_dir: Path) -> list[str]:
     Raises:
         ValueError: If ``project_dir`` is not a git repository.
         GitCommandError: If ``git ls-files -u`` fails.
-    """
+    """  # noqa: DOC502  # ValueError propagates from open_repo_for_query
     logger.debug("Listing unmerged paths in %s", project_dir)
 
     with open_repo_for_query(project_dir) as repo:
@@ -54,14 +54,22 @@ def _is_binary(data: bytes) -> bool:
 
 
 def _read_blob(repo: Repo, sha: str) -> tuple[int, bytes, str]:
-    """Read a blob's raw bytes, trailing newline included."""
+    """Read a blob's raw bytes, trailing newline included.
+
+    Returns:
+        ``(returncode, stdout, stderr)`` from ``git cat-file blob``.
+    """
     return run_git_raw(repo, "cat_file", "blob", sha, strip_newline=False)
 
 
 def _blob_info_failure(
     error: str, returncode: Optional[int] = None, stderr: Optional[str] = None
 ) -> ConflictBlobInfoResult:
-    """Build a failed ConflictBlobInfoResult."""
+    """Build a failed ConflictBlobInfoResult.
+
+    Returns:
+        A result with ``success`` False and no entries.
+    """
     return {
         "success": False,
         "error": error,
@@ -139,7 +147,11 @@ def _stage_result(
     content: Optional[str] = None,
     is_binary: bool = False,
 ) -> ConflictStageResult:
-    """Build a ConflictStageResult."""
+    """Build a ConflictStageResult.
+
+    Returns:
+        A result populated from the arguments.
+    """
     return {
         "success": success,
         "error": error,
@@ -299,7 +311,11 @@ def resolve_take_theirs_or_remove(project_dir: Path, path: str) -> GitResult:
 def _tree_failure(
     error: str, returncode: Optional[int] = None, stderr: Optional[str] = None
 ) -> TreeListing:
-    """Build a failed TreeListing."""
+    """Build a failed TreeListing.
+
+    Returns:
+        A listing with ``success`` False and no entries.
+    """
     return {
         "success": False,
         "error": error,

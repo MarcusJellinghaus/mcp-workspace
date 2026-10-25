@@ -42,7 +42,11 @@ def _probe_result(
     stderr: Optional[str] = None,
     files: Optional[list[str]] = None,
 ) -> RebaseProbe:
-    """Build a RebaseProbe; ``success`` is derived from ``status``."""
+    """Build a RebaseProbe; ``success`` is derived from ``status``.
+
+    Returns:
+        A RebaseProbe populated from the arguments.
+    """
     return {
         "success": status == "clean",
         "error": error,
@@ -133,7 +137,11 @@ def _rebase_result(
     returncode: Optional[int] = None,
     stderr: Optional[str] = None,
 ) -> RebaseResult:
-    """Build a RebaseResult; ``success`` is derived from ``status``."""
+    """Build a RebaseResult; ``success`` is derived from ``status``.
+
+    Returns:
+        A RebaseResult populated from the arguments.
+    """
     return {
         "success": status == "completed",
         "error": error,
@@ -151,7 +159,7 @@ def is_rebase_in_progress(project_dir: Path) -> bool:
 
     Raises:
         ValueError: If ``project_dir`` is not a git repository.
-    """
+    """  # noqa: DOC502  # ValueError propagates from open_repo_for_query
     with open_repo_for_query(project_dir) as repo:
         return _rebase_dir_exists(repo)
 
@@ -162,6 +170,9 @@ def _run_rebase(project_dir: Path, *args: str) -> RebaseResult:
     Exit 0 is ``completed``. A nonzero exit is ``stopped_on_conflict`` if git
     left the rebase in progress (a stop with no unmerged paths included),
     otherwise ``error``.
+
+    Returns:
+        RebaseResult classified as described above.
     """
     try:
         with safe_repo_context(project_dir) as repo:
@@ -222,12 +233,20 @@ def rebase_start(project_dir: Path, onto_ref: str) -> RebaseResult:
 
 
 def rebase_continue(project_dir: Path) -> RebaseResult:
-    """Run ``git rebase --continue``; does not stage anything first."""
+    """Run ``git rebase --continue``; does not stage anything first.
+
+    Returns:
+        RebaseResult; ``stopped_on_conflict`` if the rebase stops again.
+    """
     return _run_rebase(project_dir, "--continue")
 
 
 def rebase_skip(project_dir: Path) -> RebaseResult:
-    """Run ``git rebase --skip``, dropping the commit the rebase stopped on."""
+    """Run ``git rebase --skip``, dropping the commit the rebase stopped on.
+
+    Returns:
+        RebaseResult; ``stopped_on_conflict`` if the rebase stops again.
+    """
     return _run_rebase(project_dir, "--skip")
 
 

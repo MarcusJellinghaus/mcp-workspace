@@ -29,7 +29,11 @@ class UnmergedEntry(NamedTuple):
 
 
 def _decode(raw: bytes) -> str:
-    """Decode a path field as UTF-8."""
+    """Decode a path field as UTF-8.
+
+    Returns:
+        The decoded text; invalid bytes become replacement characters.
+    """
     return raw.decode("utf-8", errors="replace")
 
 
@@ -62,10 +66,10 @@ def parse_status_z(output: bytes) -> list[StatusEntry]:
 
 
 def parse_merge_tree_z(output: bytes) -> tuple[Optional[str], list[str]]:
-    """Parse ``git merge-tree --write-tree --name-only --no-messages -z`` output.
+    r"""Parse ``git merge-tree --write-tree --name-only --no-messages -z`` output.
 
     Args:
-        output: Raw stdout bytes: ``<tree>\\0<path>\\0...``
+        output: Raw stdout bytes: ``<tree>\0<path>\0...``
 
     Returns:
         ``(tree_oid, paths)``; ``tree_oid`` is None for empty output. Each
@@ -83,10 +87,10 @@ def parse_merge_tree_z(output: bytes) -> tuple[Optional[str], list[str]]:
 
 
 def parse_ls_files_u_z(output: bytes) -> list[UnmergedEntry]:
-    """Parse ``git ls-files -u -z`` output.
+    r"""Parse ``git ls-files -u -z`` output.
 
     Args:
-        output: Raw stdout bytes: ``<mode> <sha> <stage>\\t<path>\\0``...
+        output: Raw stdout bytes: ``<mode> <sha> <stage>\t<path>\0``...
 
     Returns:
         One entry per stage, in output order. Empty output returns an empty
@@ -105,10 +109,10 @@ def parse_ls_files_u_z(output: bytes) -> list[UnmergedEntry]:
 
 
 def parse_ls_tree_z(output: bytes) -> list[TreeEntry]:
-    """Parse ``git ls-tree -z`` output.
+    r"""Parse ``git ls-tree -z`` output.
 
     Args:
-        output: Raw stdout bytes: ``<mode> <type> <sha>\\t<path>\\0``...
+        output: Raw stdout bytes: ``<mode> <type> <sha>\t<path>\0``...
 
     Returns:
         Entries in output order. Empty output returns an empty list.
@@ -131,10 +135,10 @@ def parse_ls_tree_z(output: bytes) -> list[TreeEntry]:
 
 
 def parse_ls_remote_heads(output: bytes) -> list[str]:
-    """Parse ``git ls-remote --heads`` output.
+    r"""Parse ``git ls-remote --heads`` output.
 
     Args:
-        output: Raw stdout bytes: ``<sha>\\trefs/heads/<name>\\n``...
+        output: Raw stdout bytes: ``<sha>\trefs/heads/<name>\n``...
 
     Returns:
         Branch names without the ``refs/heads/`` prefix, in output order.
