@@ -4,11 +4,13 @@ from typing import Any
 from unittest.mock import Mock
 
 import pytest
+from github.GithubException import GithubException
 
 from mcp_workspace.github_operations._ruleset_protection import (
     ProtectionFacts,
     facts_from_classic,
     facts_from_rules,
+    fetch_rules,
     merge,
     source_label,
 )
@@ -254,3 +256,109 @@ class TestSourceLabel:
             source_label(False, True, ["A", "B", "C", "D"])
             == ' (ruleset: "A", "B", "C", …)'
         )
+
+
+_BASE = "/repos/owner/repo"
+_EFFECTIVE_RULES: list[dict[str, Any]] = [
+    {"type": "deletion", "ruleset_id": 1},
+    {"type": "pull_request", "ruleset_id": 3},
+]
+_RULESETS = [
+    {"id": 1, "name": "Protect main"},
+    {"id": 2, "name": "Unrelated"},
+    {"id": 3, "name": "Org PRs"},
+]
+
+
+def _setup(side_effect: Any) -> tuple[Mock, Mock, Mock]:
+    """Return (manager, repo, requestJsonAndCheck mock)."""
+    manager = Mock()
+    request = manager._github_client._Github__requester.requestJsonAndCheck
+    request.side_effect = side_effect
+    repo = Mock()
+    repo.owner.login = "owner"
+    repo.name = "repo"
+    return manager, repo, request
+
+
+def _responses(rules: Any, rulesets: Any = None) -> Any:
+    """Side effect answering the rules and rulesets URLs."""
+
+    def respond(_verb: str, url: str, **_kwargs: Any) -> tuple[dict[str, Any], Any]:
+        if url.startswith(f"{_BASE}/rules/branches/"):
+            if isinstance(rules, Exception):
+                raise rules
+            return {}, rules
+        if url == f"{_BASE}/rulesets":
+            if isinstance(rulesets, Exception):
+                raise rulesets
+            return {}, rulesets
+        raise AssertionError(f"unexpected URL {url}")
+
+    return respond
+
+
+class TestFetchRules:
+    """Tests for fetch_rules with a mocked requester."""
+
+    def test_url_quotes_branch_and_pages(self) -> None:
+        manager, repo, request = _setup(_responses(_EFFECTIVE_RULES, _RULESETS))
+        fetch_rules(manager, repo, "release/1.x")
+        assert [c.args for c in request.call_args_list] == [
+            ("GET", f"{_BASE}/rules/branches/release%2F1.x"),
+            ("GET", f"{_BASE}/rulesets"),
+        ]
+        for call in request.call_args_list:
+            assert call.kwargs["parameters"] == {"per_page": 100}
+
+    def test_names_filtered_to_ruleset_ids(self) -> None:
+        manager, repo, _ = _setup(_responses(_EFFECTIVE_RULES, _RULESETS))
+        outcome = fetch_rules(manager, repo, "main")
+        assert outcome.rules == _EFFECTIVE_RULES
+        assert outcome.names == ["Protect main", "Org PRs"]
+        assert outcome.exception is None
+        assert outcome.note is None
+
+    def test_no_matching_names(self) -> None:
+        manager, repo, _ = _setup(
+            _responses(_EFFECTIVE_RULES, [{"id": 9, "name": "X"}])
+        )
+        assert fetch_rules(manager, repo, "main").names is None
+
+    def test_rulesets_lookup_403(self) -> None:
+        exc = GithubException(403, {"message": "Forbidden"}, None)
+        manager, repo, _ = _setup(_responses(_EFFECTIVE_RULES, exc))
+        outcome = fetch_rules(manager, repo, "main")
+        assert outcome.rules == _EFFECTIVE_RULES
+        assert outcome.names is None
+        assert outcome.exception is None
+        assert outcome.note is None
+
+    def test_empty_rules_skip_lookup(self) -> None:
+        manager, repo, request = _setup(_responses([]))
+        outcome = fetch_rules(manager, repo, "main")
+        assert outcome.rules == []
+        assert outcome.names is None
+        assert outcome.note is None
+        assert request.call_count == 1
+
+    @pytest.mark.parametrize(
+        ("exc", "expected"),
+        [
+            (GithubException(401, {"message": "Bad credentials"}, None), "HTTP 401"),
+            (GithubException(403, {"message": "Forbidden"}, None), "HTTP 403"),
+            (GithubException(404, {"message": "Not Found"}, None), "HTTP 404"),
+            (GithubException(500, None, None), "HTTP 500"),
+            (ConnectionError("boom"), "ConnectionError"),
+        ],
+    )
+    def test_rules_call_fails(self, exc: Exception, expected: str) -> None:
+        manager, repo, request = _setup(_responses(exc))
+        outcome = fetch_rules(manager, repo, "main")
+        assert outcome.rules is None
+        assert outcome.names is None
+        assert outcome.exception is exc
+        assert outcome.note is not None
+        assert outcome.note.startswith("rulesets not verifiable: ")
+        assert expected in outcome.note
+        assert request.call_count == 1

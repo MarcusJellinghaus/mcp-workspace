@@ -26,6 +26,7 @@ from mcp_workspace.github_operations._types import (
     CheckResult,
     ProtectionOutcome,
     is_branch_not_protected,
+    short_reason,
 )
 from mcp_workspace.github_operations.base_manager import BaseGitHubManager
 from mcp_workspace.utils.token_fingerprint import format_token_fingerprint
@@ -99,30 +100,13 @@ def _fetch_protection(
         return ProtectionOutcome(branch_name, "get_protection", None, exc)
 
 
-def _short_reason(exc: Exception) -> str:
-    """Summarise ``exc`` without its raw response body.
-
-    Args:
-        exc: Exception to summarise.
-
-    Returns:
-        Short summary of the exception without the raw response body.
-    """
-    if isinstance(exc, GithubException):
-        msg = exc.data.get("message") if isinstance(exc.data, dict) else None
-        if isinstance(msg, str) and len(msg) <= 100:
-            return f"HTTP {exc.status}: {msg}"
-        return f"HTTP {exc.status}"
-    return type(exc).__name__
-
-
 def _classify_protection_failure(
     stage: str, exc: Exception
 ) -> tuple[bool | None, str, str]:
     """Return (ok, value, error) shared by all five branch-protection rows."""
     if is_branch_not_protected(exc):
         return False, "not configured", "no branch protection"
-    reason = _short_reason(exc)
+    reason = short_reason(exc)
     error = f"{stage} failed: {reason}"
     if stage == "get_protection" and isinstance(exc, GithubException):
         if exc.status == 401:

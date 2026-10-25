@@ -14,12 +14,21 @@ can read `GET /repos/{o}/{r}/rules/branches/{b}` and
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, fields
 from typing import Any
+from urllib.parse import quote
 
 from github.BranchProtection import BranchProtection
+from github.Repository import Repository
+
+from mcp_workspace.github_operations._types import RulesOutcome, short_reason
+from mcp_workspace.github_operations.base_manager import BaseGitHubManager
+
+logger = logging.getLogger(__name__)
 
 _MAX_LABEL_NAMES = 3
+_PAGE = {"per_page": 100}
 
 
 @dataclass(frozen=True)
@@ -122,3 +131,57 @@ def source_label(
     if classic_protected:
         label += " + classic"
     return f" ({label})"
+
+
+def fetch_rules(
+    manager: BaseGitHubManager, repo: Repository, branch: str
+) -> RulesOutcome:
+    """Fetch the effective rules for ``branch`` and the names of their rulesets.
+
+    Args:
+        manager: Manager whose GitHub client sends the raw requests.
+        repo: Repository the branch belongs to.
+        branch: Branch name; URL-quoted before use.
+
+    Returns:
+        ``RulesOutcome`` with the rules and best-effort ruleset names, or the
+        exception and a pre-formatted note when the rules call failed.
+    """
+    requester = manager._github_client._Github__requester  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public rulesets API in PyGithub
+    base = f"/repos/{repo.owner.login}/{repo.name}"
+    try:
+        _, data = requester.requestJsonAndCheck(
+            "GET",
+            f"{base}/rules/branches/{quote(branch, safe='')}",
+            parameters=dict(_PAGE),
+        )
+    except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        logger.debug("rules fetch failed branch=%s exc=%s", branch, exc)
+        return RulesOutcome(
+            None, None, exc, f"rulesets not verifiable: {short_reason(exc)}"
+        )
+    rules: list[dict[str, Any]] = list(data or [])
+    names = (
+        _ruleset_names(
+            requester, base, {r["ruleset_id"] for r in rules if "ruleset_id" in r}
+        )
+        if rules
+        else None
+    )
+    return RulesOutcome(rules, names, None, None)
+
+
+def _ruleset_names(requester: Any, base: str, ids: set[int]) -> list[str] | None:
+    """Return the names of the rulesets in ``ids``, in API order.
+
+    Best effort: any failure, or no match, returns ``None``.
+    """
+    try:
+        _, data = requester.requestJsonAndCheck(
+            "GET", f"{base}/rulesets", parameters=dict(_PAGE)
+        )
+    except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        logger.debug("rulesets lookup failed exc=%s", exc)
+        return None
+    names = [rs["name"] for rs in data or [] if rs.get("id") in ids]
+    return names or None
