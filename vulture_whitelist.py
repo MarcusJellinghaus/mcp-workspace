@@ -166,6 +166,8 @@ _.resolved_thread_count
 _.outcome
 # CommitResult TypedDict field - accessed via subscript
 _.error_category
+# StatusResult TypedDict field - accessed via subscript
+_.clean
 # CacheData TypedDict field - accessed via subscript
 _.cached_at
 # CIStatusData TypedDict field - accessed via subscript

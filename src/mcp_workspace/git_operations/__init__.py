@@ -23,6 +23,7 @@ from mcp_workspace.git_operations.compact_diffs import get_compact_diff
 from mcp_workspace.git_operations.core import (
     CommitResult,
     GitResult,
+    StatusResult,
     safe_repo_context,
 )
 from mcp_workspace.git_operations.diffs import (
@@ -49,6 +50,7 @@ from mcp_workspace.git_operations.remotes import (
 )
 from mcp_workspace.git_operations.repository_status import (
     get_full_status,
+    get_working_tree_status,
     is_git_repository,
     is_working_directory_clean,
 )
@@ -64,6 +66,7 @@ __all__ = [
     "CommitResult",
     "GitResult",
     "MERGE_BASE_DISTANCE_THRESHOLD",
+    "StatusResult",
     "branch_exists",
     "checkout_branch",
     "clone_repo",
@@ -85,6 +88,7 @@ __all__ = [
     "get_latest_commit_sha",
     "get_remote_url",
     "get_repository_identifier",
+    "get_working_tree_status",
     "git_move",
     "git_push",
     "has_remote_tracking_branch",

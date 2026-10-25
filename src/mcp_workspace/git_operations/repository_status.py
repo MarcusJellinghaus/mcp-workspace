@@ -2,9 +2,83 @@
 
 from pathlib import Path
 
-from git.exc import GitCommandError, InvalidGitRepositoryError
+from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
-from .core import logger, safe_repo_context
+from .core import StatusResult, logger, run_git_raw, safe_repo_context
+from .porcelain_parsers import parse_status_z
+
+
+def _failed_status(
+    error: str, returncode: int | None = None, stderr: str | None = None
+) -> StatusResult:
+    """Build a failed StatusResult: never clean, empty lists."""
+    return {
+        "success": False,
+        "error": error,
+        "returncode": returncode,
+        "stderr": stderr,
+        "clean": False,
+        "staged": [],
+        "modified": [],
+        "untracked": [],
+    }
+
+
+def get_working_tree_status(project_dir: Path) -> StatusResult:
+    """Get staged, modified and untracked files in one ``git status`` call.
+
+    Untracked files inside new directories are listed individually
+    (``-uall``). A file staged and then changed again is in both ``staged``
+    and ``modified``; a rename is listed under its new path.
+
+    Args:
+        project_dir: Path to the project directory containing the git repository
+
+    Returns:
+        StatusResult with repo-relative, forward-slash paths. Any failure
+        (non-repository, nonzero git exit) is ``success=False``,
+        ``clean=False`` and empty lists; a non-repository has ``returncode``
+        and ``stderr`` None.
+    """
+    logger.debug("Getting working tree status for %s", project_dir)
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            returncode, stdout, stderr = run_git_raw(
+                repo, "status", "--porcelain=v1", "-z", "-uall"
+            )
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        logger.debug("Not a git repository: %s", project_dir)
+        return _failed_status(f"Not a git repository: {project_dir}")
+
+    if returncode != 0:
+        logger.debug("git status failed (exit %s): %s", returncode, stderr)
+        return _failed_status(
+            f"git status failed (exit {returncode})", returncode, stderr
+        )
+
+    staged: list[str] = []
+    modified: list[str] = []
+    untracked: list[str] = []
+    for entry in parse_status_z(stdout):
+        if entry.index_status == "?" and entry.worktree_status == "?":
+            untracked.append(entry.path)
+            continue
+        if entry.index_status not in " ?!":
+            staged.append(entry.path)
+        if entry.worktree_status not in " ?!":
+            modified.append(entry.path)
+
+    return {
+        "success": True,
+        "error": None,
+        "returncode": returncode,
+        "stderr": stderr,
+        "clean": not (staged or modified or untracked),
+        "staged": staged,
+        "modified": modified,
+        "untracked": untracked,
+    }
 
 
 def is_working_directory_clean(

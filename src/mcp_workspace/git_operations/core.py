@@ -50,6 +50,19 @@ class CommitResult(GitResult):
     ]
 
 
+class StatusResult(GitResult):
+    """Result of a working-tree status query.
+
+    Paths are repo-relative with forward slashes. ``clean`` is never True
+    on failure.
+    """
+
+    clean: bool
+    staged: list[str]
+    modified: list[str]
+    untracked: list[str]
+
+
 # Type alias for git push result structure
 class PushResult(TypedDict):
     """Result of a git push operation."""
