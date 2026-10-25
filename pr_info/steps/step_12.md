@@ -66,6 +66,12 @@ rebase_abort: open repo; not _rebase_dir_exists -> success (returncode=None)
 - Empty-commit stop: resolve the conflict by taking the `main` side (index equals HEAD),
   stage, `rebase_continue` → `stopped_on_conflict` with no unmerged paths
   (`ls-files -u` empty via `run_git_raw`), then `rebase_skip` → `completed`.
+  Before writing this test, check with a scratch probe (CLAUDE.md "Scratch probes") whether
+  `rebase --continue` with a clean index actually stops under the default merge backend
+  (the sequencer may drop the now-empty commit and finish). If it does not stop, force the
+  stop in the test setup: set `rebase.backend=apply` in the test repo config (the apply
+  backend stops with "No changes"), or use another method that reliably stops. If no method
+  produces the stop, write the reason as one line to `pr_info/.blocked.txt` and stop.
 - Abort during conflict → success, not in progress, HEAD back at the feature tip.
   Abort with nothing in progress → success.
 - `rebase_continue` with nothing in progress → `error`.
