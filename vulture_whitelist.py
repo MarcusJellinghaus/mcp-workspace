@@ -212,3 +212,5 @@ _._empty_trusted_commenters
 # Fixtures for issue #342 untrusted base-branch tests, reached through their name= alias
 _._editor  # name="editor"
 _._token_login  # name="token_login"
+# Fixture for issue #352 base-branch source tests, reached through its name= alias
+_._git_mocks  # name="git_mocks"

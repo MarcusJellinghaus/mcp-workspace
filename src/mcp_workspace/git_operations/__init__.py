@@ -1,5 +1,9 @@
 """Git operations package - modular git utilities."""
 
+from mcp_workspace.git_operations.base_branch import (
+    BaseBranchSource,
+    detect_base_branch_with_source,
+)
 from mcp_workspace.git_operations.branch_queries import (
     branch_exists,
     extract_issue_number_from_branch,
@@ -68,6 +72,7 @@ from mcp_workspace.git_operations.workflows import (
 )
 
 __all__ = [
+    "BaseBranchSource",
     "BranchProbe",
     "CheckResult",
     "CommitResult",
@@ -84,6 +89,7 @@ __all__ = [
     "commit_staged_files",
     "create_branch",
     "delete_branch",
+    "detect_base_branch_with_source",
     "detect_parent_branch_via_merge_base",
     "extract_issue_number_from_branch",
     "fetch_remote",
