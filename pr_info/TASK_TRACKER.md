@@ -21,6 +21,13 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Add `PullRequestManager.update_pull_request` (TDD) — [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: tests in `test_pr_manager_update_pull_request.py` + `update_pull_request` in `pr_manager.py`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: review all changes against the summary and step plan
+- [ ] PR summary prepared
