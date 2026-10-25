@@ -14,6 +14,7 @@ from mcp_workspace.git_operations.branches import (
     delete_branch,
 )
 from mcp_workspace.git_operations.commits import (
+    commit_paths,
     commit_staged_files,
     get_head_commit_info,
     get_latest_commit_sha,
@@ -67,6 +68,7 @@ __all__ = [
     "checkout_branch",
     "clone_repo",
     "commit_all_changes",
+    "commit_paths",
     "commit_staged_files",
     "create_branch",
     "delete_branch",
