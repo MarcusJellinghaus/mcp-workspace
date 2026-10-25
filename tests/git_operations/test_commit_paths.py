@@ -207,6 +207,30 @@ class TestCommitPaths:
         assert result["error_category"] == "nothing_to_commit"
         assert _unstaged_files(repo) == {"a.txt"}
 
+    def test_tracked_symlink_to_outside(
+        self,
+        git_repo_with_commit: tuple[Repo, Path],
+        tmp_path_factory: pytest.TempPathFactory,
+    ) -> None:
+        """A tracked symlink pointing outside the repo is committed as itself."""
+        repo, project_dir = git_repo_with_commit
+        outside = tmp_path_factory.mktemp("outside")
+        link = project_dir / "link"
+        try:
+            link.symlink_to(outside / "one.txt")
+        except OSError:
+            pytest.skip("Creating symlinks is not possible on this platform")
+        repo.git.config("core.symlinks", "true")
+        repo.git.add("--", "link")
+        repo.git.commit("-m", "Add link")
+        link.unlink()
+        link.symlink_to(outside / "two.txt")
+
+        result = commit_paths("Retarget link", [Path("link")], project_dir)
+
+        assert result["success"] is True, result
+        assert _head_files(repo) == {"link"}
+
     def test_unborn_head(self, git_repo: tuple[Repo, Path]) -> None:
         """A staged new file is committed on an unborn HEAD."""
         repo, project_dir = git_repo

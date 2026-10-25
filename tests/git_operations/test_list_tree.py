@@ -49,6 +49,18 @@ class TestListTree:
             == list_tree(project_dir, "HEAD", "pr_info")["entries"]
         )
 
+    def test_empty_path_lists_root(self, git_repo: tuple[Repo, Path]) -> None:
+        """An empty ``path`` lists the root entries without recursion."""
+        _, project_dir = _pr_info_repo(git_repo)
+
+        result = list_tree(project_dir, "HEAD", "")
+
+        assert result["success"] is True
+        assert [(e["type"], e["path"]) for e in result["entries"]] == [
+            ("blob", "README.md"),
+            ("tree", "pr_info"),
+        ]
+
     def test_reads_other_ref_than_checked_out(
         self, git_repo: tuple[Repo, Path]
     ) -> None:

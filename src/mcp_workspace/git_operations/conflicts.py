@@ -178,7 +178,8 @@ def read_conflict_stage(
         is decoded as UTF-8 with replacement. An absent side is
         ``(success=True, content=None, is_binary=False)``, a binary blob
         ``(success=True, content=None, is_binary=True)``. An invalid stage, a
-        non-repository or any git failure is ``success=False``.
+        path with no unmerged entries, a non-repository or any git failure is
+        ``success=False``.
     """
     logger.debug("Reading stage %s of %s in %s", stage, path, project_dir)
 
@@ -199,13 +200,13 @@ def read_conflict_stage(
                     stderr,
                 )
 
+            path_entries = [
+                entry for entry in parse_ls_files_u_z(stdout) if entry.path == path
+            ]
+            if not path_entries:
+                return _stage_result(False, f"Path is not unmerged: {path}")
             match = next(
-                (
-                    entry
-                    for entry in parse_ls_files_u_z(stdout)
-                    if entry.path == path and entry.stage == stage
-                ),
-                None,
+                (entry for entry in path_entries if entry.stage == stage), None
             )
             if match is None:
                 return _stage_result(True, None, returncode, stderr)
@@ -335,7 +336,8 @@ def list_tree(project_dir: Path, ref: str, path: str) -> TreeListing:
     Args:
         project_dir: Path to the project directory containing the git repository
         ref: Commit-ish to read
-        path: Repo-relative directory, with or without a trailing slash
+        path: Repo-relative directory, with or without a trailing slash; an
+            empty string lists the root
 
     Returns:
         TreeListing with repo-relative entry paths (e.g. ``pr_info/a.md``). A
@@ -348,16 +350,14 @@ def list_tree(project_dir: Path, ref: str, path: str) -> TreeListing:
     if not ref or is_option_like(ref):
         return _tree_failure(f"Invalid ref: {ref!r}")
 
+    directory = path.rstrip("/")
+    # An empty path is the tree root: no pathspec ("/" would be outside the repo)
+    pathspec = ("--", directory + "/") if directory else ()
+
     try:
         with safe_repo_context(project_dir) as repo:
             returncode, stdout, stderr = run_git_raw(
-                repo,
-                "ls_tree",
-                "-z",
-                ref,
-                "--",
-                path.rstrip("/") + "/",
-                literal_paths=True,
+                repo, "ls_tree", "-z", ref, *pathspec, literal_paths=True
             )
     except (InvalidGitRepositoryError, NoSuchPathError):
         logger.debug("Not a git repository: %s", project_dir)

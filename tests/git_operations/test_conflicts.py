@@ -247,6 +247,21 @@ class TestReadConflictStage:
         assert result["content"] is None
         assert not result["is_binary"]
 
+    def test_non_conflicted_path(self, make_conflict_repo: BuildRepo) -> None:
+        """A path with no unmerged entries is an error, not an absent side."""
+        project_dir = _stop_on_conflict(
+            make_conflict_repo,
+            {"a.txt": "base\n", "b.txt": "b\n"},
+            {"a.txt": "main\n"},
+            {"a.txt": "feature\n"},
+        )
+
+        result = read_conflict_stage(project_dir, 2, "b.txt")
+
+        assert not result["success"]
+        assert result["error"]
+        assert result["content"] is None
+
     def test_binary_stage(self, make_conflict_repo: BuildRepo) -> None:
         """A binary blob is reported, not decoded."""
         project_dir = _stop_on_conflict(

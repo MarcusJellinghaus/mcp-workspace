@@ -170,6 +170,22 @@ class TestToGitPaths:
         with pytest.raises(ValueError):
             to_git_paths([Path("..") / "other.txt"], project_dir)
 
+    def test_symlink_is_not_followed(self, tmp_path: Path) -> None:
+        """A symlink keeps its own path, whether its target is inside or outside."""
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        (tmp_path / "outside.txt").write_text("o", encoding="utf-8")
+        (project_dir / "inside.txt").write_text("i", encoding="utf-8")
+        try:
+            (project_dir / "out_link").symlink_to(tmp_path / "outside.txt")
+            (project_dir / "in_link").symlink_to(project_dir / "inside.txt")
+        except OSError:
+            pytest.skip("Creating symlinks is not possible on this platform")
+
+        result = to_git_paths([Path("out_link"), project_dir / "in_link"], project_dir)
+
+        assert result == ["out_link", "in_link"]
+
 
 @pytest.mark.git_integration
 class TestOpenRepoForQuery:

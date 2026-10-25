@@ -287,7 +287,8 @@ def to_git_paths(paths: Sequence[Path], project_dir: Path) -> list[str]:
         project_dir: Repository working directory
 
     Returns:
-        Repo-relative paths using forward slashes, in input order.
+        Repo-relative paths using forward slashes, in input order. A final
+        symlink is not followed, so a tracked symlink keeps its own path.
 
     Raises:
         ValueError: If a path lies outside ``project_dir``.
@@ -296,8 +297,13 @@ def to_git_paths(paths: Sequence[Path], project_dir: Path) -> list[str]:
     result: list[str] = []
     for path in paths:
         absolute = path if path.is_absolute() else project_dir / path
+        if absolute.name in ("", ".."):
+            resolved = absolute.resolve()
+        else:
+            # Resolve only the parent: the path names git's entry, not its target
+            resolved = absolute.parent.resolve() / absolute.name
         try:
-            result.append(_normalize_git_path(absolute.resolve(), base))
+            result.append(_normalize_git_path(resolved, base))
         except ValueError:
             raise ValueError(f"Path is outside the project directory: {path}") from None
     return result

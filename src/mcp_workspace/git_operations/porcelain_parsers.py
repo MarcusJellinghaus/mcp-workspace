@@ -57,7 +57,8 @@ def parse_status_z(output: bytes) -> list[StatusEntry]:
             continue
         x, y, path = chr(field[0]), chr(field[1]), _decode(field[3:])
         orig_path = None
-        if x in "RC" and i + 1 < len(fields):
+        # A worktree rename (Y, e.g. after `git add -N`) also has a source field
+        if (x in "RC" or y in "RC") and i + 1 < len(fields):
             orig_path = _decode(fields[i + 1])
             i += 1
         entries.append(StatusEntry(x, y, path, orig_path))

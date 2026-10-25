@@ -53,6 +53,14 @@ class TestParseStatusZ:
             StatusEntry(" ", "M", "other.txt", None),
         ]
 
+    def test_worktree_rename_with_orig_path(self) -> None:
+        """A worktree rename (Y=R) also carries its source path."""
+        output = b" R new.txt\0old.txt\0 M other.txt\0"
+        assert parse_status_z(output) == [
+            StatusEntry(" ", "R", "new.txt", "old.txt"),
+            StatusEntry(" ", "M", "other.txt", None),
+        ]
+
     def test_non_ascii_path(self) -> None:
         """A non-ASCII path is decoded as UTF-8."""
         name = "üñíçødé_日本.txt"

@@ -14,6 +14,7 @@ from .core import (
     safe_repo_context,
     to_git_paths,
 )
+from .porcelain_parsers import parse_status_z
 from .repository_status import get_staged_changes, is_git_repository
 
 _SIGNING_KEYWORDS = ("gpg", "signing", "secret key", "signing failed")
@@ -32,25 +33,6 @@ def _classify_commit_failure(
     if any(kw in stderr_lower for kw in _SIGNING_KEYWORDS):
         return "signing_failed"
     return "commit_failed"
-
-
-def _status_entries(status_z: bytes) -> list[tuple[str, str]]:
-    """Split ``git status --porcelain -z`` output into ``(XY, path)`` pairs.
-
-    Returns:
-        ``(XY, path)`` pairs in output order; rename sources are skipped.
-    """
-    entries: list[tuple[str, str]] = []
-    fields = iter(status_z.split(b"\0"))
-    for field in fields:
-        if not field:
-            continue
-        text = field.decode("utf-8", errors="replace")
-        entries.append((text[:2], text[3:]))
-        if text[0] in "RC":
-            # Renames and copies carry their source path as an extra field
-            next(fields, None)
-    return entries
 
 
 def commit_staged_files(message: str, project_dir: Path) -> CommitResult:
@@ -273,8 +255,12 @@ def commit_paths(message: str, paths: list[Path], project_dir: Path) -> CommitRe
                     f"git status failed: {err.strip()}", "commit_failed", rc, err
                 )
 
-            entries = _status_entries(out)
-            untracked = [path for code, path in entries if code == "??"]
+            entries = parse_status_z(out)
+            untracked = [
+                entry.path
+                for entry in entries
+                if entry.index_status == entry.worktree_status == "?"
+            ]
             if untracked:
                 return _failure(
                     f"Untracked paths cannot be committed: {', '.join(untracked)}",
