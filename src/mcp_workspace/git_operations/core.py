@@ -63,6 +63,17 @@ class StatusResult(GitResult):
     untracked: list[str]
 
 
+class RebaseProbe(GitResult):
+    """Result of a dry-run rebase conflict probe.
+
+    ``success`` is True only for ``clean``. A ``conflict`` has ``error`` None
+    and lists the conflicted repo-relative paths in ``files``.
+    """
+
+    status: Literal["conflict", "clean", "unsupported", "error"]
+    files: list[str]
+
+
 # Type alias for git push result structure
 class PushResult(TypedDict):
     """Result of a git push operation."""

@@ -2,8 +2,11 @@
 
 from mcp_workspace.git_operations.porcelain_parsers import (
     StatusEntry,
+    parse_merge_tree_z,
     parse_status_z,
 )
+
+TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 
 class TestParseStatusZ:
@@ -55,3 +58,25 @@ class TestParseStatusZ:
     def test_without_trailing_nul(self) -> None:
         """A missing trailing NUL (stripped newline) still parses."""
         assert parse_status_z(b"M  a.txt") == [StatusEntry("M", " ", "a.txt", None)]
+
+
+class TestParseMergeTreeZ:
+    """Tests for parse_merge_tree_z."""
+
+    def test_tree_and_two_paths(self) -> None:
+        """The tree oid comes first, then the conflicted paths."""
+        output = TREE.encode() + b"\0a.txt\0dir/b.txt\0"
+        assert parse_merge_tree_z(output) == (TREE, ["a.txt", "dir/b.txt"])
+
+    def test_non_ascii_path(self) -> None:
+        """A non-ASCII path is decoded as UTF-8."""
+        output = TREE.encode() + b"\0" + "dätei.txt".encode("utf-8") + b"\0"
+        assert parse_merge_tree_z(output) == (TREE, ["dätei.txt"])
+
+    def test_tree_only(self) -> None:
+        """A tree without paths parses to an empty path list."""
+        assert parse_merge_tree_z(TREE.encode() + b"\0") == (TREE, [])
+
+    def test_empty_output(self) -> None:
+        """Empty output has no tree."""
+        assert parse_merge_tree_z(b"") == (None, [])

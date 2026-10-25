@@ -23,6 +23,7 @@ from mcp_workspace.git_operations.compact_diffs import get_compact_diff
 from mcp_workspace.git_operations.core import (
     CommitResult,
     GitResult,
+    RebaseProbe,
     StatusResult,
     safe_repo_context,
 )
@@ -38,6 +39,7 @@ from mcp_workspace.git_operations.parent_branch_detection import (
     MERGE_BASE_DISTANCE_THRESHOLD,
     detect_parent_branch_via_merge_base,
 )
+from mcp_workspace.git_operations.rebase import probe_rebase_conflicts
 from mcp_workspace.git_operations.remotes import (
     clone_repo,
     fetch_remote,
@@ -66,6 +68,7 @@ __all__ = [
     "CommitResult",
     "GitResult",
     "MERGE_BASE_DISTANCE_THRESHOLD",
+    "RebaseProbe",
     "StatusResult",
     "branch_exists",
     "checkout_branch",
@@ -96,6 +99,7 @@ __all__ = [
     "is_git_repository",
     "is_working_directory_clean",
     "needs_rebase",
+    "probe_rebase_conflicts",
     "pull",
     "push_branch",
     "rebase_onto_branch",

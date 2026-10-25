@@ -168,6 +168,8 @@ _.outcome
 _.error_category
 # StatusResult TypedDict field - accessed via subscript
 _.clean
+# RebaseProbe TypedDict field - accessed via subscript
+_.files
 # CacheData TypedDict field - accessed via subscript
 _.cached_at
 # CIStatusData TypedDict field - accessed via subscript

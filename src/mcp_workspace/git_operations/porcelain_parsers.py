@@ -48,3 +48,24 @@ def parse_status_z(output: bytes) -> list[StatusEntry]:
         entries.append(StatusEntry(x, y, path, orig_path))
         i += 1
     return entries
+
+
+def parse_merge_tree_z(output: bytes) -> tuple[Optional[str], list[str]]:
+    """Parse ``git merge-tree --write-tree --name-only --no-messages -z`` output.
+
+    Args:
+        output: Raw stdout bytes: ``<tree>\\0<path>\\0...``
+
+    Returns:
+        ``(tree_oid, paths)``; ``tree_oid`` is None for empty output. Each
+        conflicted path is listed once, in output order.
+    """
+    fields = [field for field in output.split(b"\0") if field]
+    if not fields:
+        return None, []
+    paths: list[str] = []
+    for field in fields[1:]:
+        path = _decode(field)
+        if path not in paths:
+            paths.append(path)
+    return _decode(fields[0]), paths
