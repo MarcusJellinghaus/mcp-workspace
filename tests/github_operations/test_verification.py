@@ -60,6 +60,7 @@ def _make_mock_protection(
     allow_force_pushes: bool = False,
     allow_deletions: bool = False,
     has_status_checks: bool = True,
+    require_pr: bool = True,
 ) -> Mock:
     """Create a mock BranchProtection object."""
     protection = Mock()
@@ -74,6 +75,7 @@ def _make_mock_protection(
         protection.required_status_checks = None
     protection.allow_force_pushes = allow_force_pushes
     protection.allow_deletions = allow_deletions
+    protection.required_pull_request_reviews = Mock() if require_pr else None
     return protection
 
 
@@ -512,11 +514,12 @@ class TestChecksIndependence:
 
 
 # ===================================================================
-# Branch protection checks (5–9)
+# Branch protection checks (six rows)
 # ===================================================================
 
 BRANCH_CHECK_KEYS = (
     "branch_protection",
+    "require_pull_request",
     "ci_checks_required",
     "strict_mode",
     "force_push",
@@ -527,7 +530,7 @@ BRANCH_CHECK_KEYS = (
 class TestBranchProtectionAllPass:
     """Test all branch protection checks pass with full protection."""
 
-    def test_all_five_checks_ok(self, tmp_path: Path) -> None:
+    def test_all_protection_checks_ok(self, tmp_path: Path) -> None:
         protection = _make_mock_protection(
             strict=True,
             contexts=["ci/test", "ci/lint"],
@@ -543,6 +546,31 @@ class TestBranchProtectionAllPass:
     def test_overall_ok_true(self, tmp_path: Path) -> None:
         result = _patch_all_ok(tmp_path)
         assert result["overall_ok"] is True
+
+    def test_protection_keys_in_order(self, tmp_path: Path) -> None:
+        result = _patch_all_ok(tmp_path)
+        keys = [key for key in result if key in BRANCH_CHECK_KEYS]
+        assert tuple(keys) == BRANCH_CHECK_KEYS
+
+
+class TestRequirePullRequest:
+    """Test the require_pull_request row from classic protection."""
+
+    def test_required(self, tmp_path: Path) -> None:
+        protection = _make_mock_protection(require_pr=True)
+        result = _patch_all_ok(tmp_path, protection=protection)
+        check: CheckResult = result["require_pull_request"]  # type: ignore[assignment]
+        assert check["ok"] is True
+        assert check["value"] == "required"
+        assert check["severity"] == "warning"
+
+    def test_not_required(self, tmp_path: Path) -> None:
+        protection = _make_mock_protection(require_pr=False)
+        result = _patch_all_ok(tmp_path, protection=protection)
+        check: CheckResult = result["require_pull_request"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["value"] == "not required"
+        assert check["severity"] == "warning"
 
 
 def _run_with_protection_error(
@@ -590,7 +618,7 @@ _DOC_URL = "https://docs.github.com/rest/branches/branch-protection"
 
 
 class TestProtectionOutcomeTable:
-    """All five branch-protection rows follow the outcome table."""
+    """All six branch-protection rows follow the outcome table."""
 
     @pytest.mark.parametrize(
         ("exc", "on", "expected_ok", "starts", "contains"),
@@ -750,7 +778,9 @@ class TestBranchDeletionEnabled:
 class TestBranchProtectionWhenRepoNotAccessible:
     """Test branch protection checks when repo is not accessible (check 4 failed)."""
 
-    def test_all_five_present_and_not_verifiable(self, tmp_path: Path) -> None:
+    def test_all_protection_rows_present_and_not_verifiable(
+        self, tmp_path: Path
+    ) -> None:
         result = _run_with_repo_inaccessible(tmp_path)
 
         for key in BRANCH_CHECK_KEYS:
@@ -1282,7 +1312,7 @@ class TestPermissionProbeOverallOkUnaffected:
         mock_branch = Mock()
         mock_branch.get_protection.side_effect = denial
         mock_repo.get_branch.return_value = mock_branch
-        # Branch protection checks (5–9) share get_protection with the probe;
+        # The branch protection rows share get_protection with the probe;
         # they degrade to warning severity on failure, so overall_ok is unaffected.
         mock_repo.get_contents.side_effect = denial
         # For the lazy-paginated probes, totalCount must raise
