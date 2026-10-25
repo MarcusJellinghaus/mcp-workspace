@@ -24,10 +24,17 @@ from mcp_workspace.git_operations.commits import (
     get_latest_commit_sha,
 )
 from mcp_workspace.git_operations.compact_diffs import get_compact_diff
-from mcp_workspace.git_operations.conflicts import list_unmerged_paths
+from mcp_workspace.git_operations.conflicts import (
+    get_conflict_blob_info,
+    list_unmerged_paths,
+    read_conflict_stage,
+)
 from mcp_workspace.git_operations.core import (
     BranchProbe,
     CommitResult,
+    ConflictBlobEntry,
+    ConflictBlobInfoResult,
+    ConflictStageResult,
     GitResult,
     RebaseProbe,
     RebaseResult,
@@ -86,6 +93,9 @@ __all__ = [
     "BranchProbe",
     "CheckResult",
     "CommitResult",
+    "ConflictBlobEntry",
+    "ConflictBlobInfoResult",
+    "ConflictStageResult",
     "GitResult",
     "MERGE_BASE_DISTANCE_THRESHOLD",
     "RebaseProbe",
@@ -106,6 +116,7 @@ __all__ = [
     "fetch_remote",
     "get_branch_diff",
     "get_compact_diff",
+    "get_conflict_blob_info",
     "get_current_branch_name",
     "get_default_branch_name",
     "get_full_status",
@@ -129,6 +140,7 @@ __all__ = [
     "probe_rebase_conflicts",
     "pull",
     "push_branch",
+    "read_conflict_stage",
     "rebase_abort",
     "rebase_continue",
     "rebase_onto_branch",

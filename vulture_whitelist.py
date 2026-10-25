@@ -174,6 +174,11 @@ _.files
 _.exists
 # RemoteBranchesResult TypedDict field - accessed via subscript
 _.branches
+# ConflictBlobInfoResult / ConflictBlobEntry / ConflictStageResult TypedDict fields
+_.entries
+_.stages
+_.is_binary
+_.content
 # CacheData TypedDict field - accessed via subscript
 _.cached_at
 # CIStatusData TypedDict field - accessed via subscript

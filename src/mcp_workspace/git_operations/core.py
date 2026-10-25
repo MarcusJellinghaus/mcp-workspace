@@ -108,6 +108,35 @@ class RemoteBranchesResult(GitResult):
     branches: list[str]
 
 
+class ConflictBlobEntry(TypedDict):
+    """One unmerged path: the index stages present and whether any is binary."""
+
+    path: str
+    stages: list[int]  # subset of 1 (base), 2 (ours), 3 (theirs), ascending
+    is_binary: bool
+
+
+class ConflictBlobInfoResult(GitResult):
+    """Result of inspecting the blobs of all unmerged paths.
+
+    ``entries`` is sorted by path and empty on failure.
+    """
+
+    entries: list[ConflictBlobEntry]
+
+
+class ConflictStageResult(GitResult):
+    """Result of reading one index stage of an unmerged path.
+
+    An absent side (e.g. deleted) is ``success=True, content=None,
+    is_binary=False``; a binary blob is ``success=True, content=None,
+    is_binary=True``.
+    """
+
+    content: Optional[str]
+    is_binary: bool
+
+
 # Type alias for git push result structure
 class PushResult(TypedDict):
     """Result of a git push operation."""

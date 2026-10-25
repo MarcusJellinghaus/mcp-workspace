@@ -107,9 +107,9 @@ See [step_14.md](./steps/step_14.md)
 
 ### Step 15: `get_conflict_blob_info` + `read_conflict_stage`
 See [step_15.md](./steps/step_15.md)
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 16: `resolve_take_theirs_or_remove`
 See [step_16.md](./steps/step_16.md)
