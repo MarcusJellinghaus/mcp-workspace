@@ -31,6 +31,10 @@ def rebase_abort(project_dir: Path) -> GitResult: ...
   `repo.git_dir`, so it works in worktrees and submodules.
 - All rebase git calls use `env=GIT_NONINTERACTIVE_ENV` (no editor ever opens).
 - No fetch, no auto-abort. `onto_ref` starting with `-` → `status="error"`, no git call.
+- `rebase_start` checks `_rebase_dir_exists` before calling git: a rebase already in
+  progress → `status="error"`, `error="A rebase is already in progress"`, `returncode=None`,
+  no git call. Otherwise git's refusal would leave the old rebase dir in place and
+  `_run_rebase` would misreport it as `stopped_on_conflict`.
 - `rebase_continue` does not stage (summary section 5).
 - Docstring of `RebaseResult` / `_run_rebase` states: `stopped_on_conflict` means "rebase
   stopped and is still in progress", including a stop with no unmerged paths (empty commit,
@@ -44,6 +48,8 @@ _run_rebase: open repo (non-repo -> status=error)
   rc == 0 -> completed, success=True
   _rebase_dir_exists(repo) -> stopped_on_conflict, success=False, error=None, rc, err
   else -> error, success=False, error=f"git rebase {args} failed (exit {rc})", rc, err
+rebase_start: validate onto_ref; open repo; _rebase_dir_exists -> error (no git call)
+  else _run_rebase(onto_ref)
 rebase_abort: open repo; not _rebase_dir_exists -> success (returncode=None)
   rc, _, err = run_git_raw(repo, "rebase", "--abort", env=ENV) -> success iff rc == 0
 ```
@@ -64,7 +70,10 @@ rebase_abort: open repo; not _rebase_dir_exists -> success (returncode=None)
   Abort with nothing in progress → success.
 - `rebase_continue` with nothing in progress → `error`.
 - Dirty tree refusing to start → `error`, not in progress.
-- Worktree: `git worktree add` a second checkout of `feature`, conflict there →
-  `is_rebase_in_progress(worktree_dir)` True; main checkout False.
+- `rebase_start` while a rebase is stopped on a conflict → `status == "error"`, rebase
+  still in progress.
+- Worktree: `make_conflict_repo` leaves `feature` checked out, so create the worktree on a
+  new branch: `git worktree add -b feature2 <dir> feature`. `rebase_start(<dir>, "main")`
+  stops on the conflict there → `is_rebase_in_progress(<dir>)` True; main checkout False.
 - `onto_ref="-x"` → `error`; non-repo: `rebase_start` → `error`,
   `is_rebase_in_progress` → `ValueError`.
