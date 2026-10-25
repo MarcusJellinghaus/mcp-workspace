@@ -560,7 +560,7 @@ class TestCloneRepo:
         mock_clone_from.assert_not_called()
 
     def test_clone_git_error_scrubs_credentials(self, tmp_path: Path) -> None:
-        """Test credentials are scrubbed and the exception chain is suppressed."""
+        """Test credentials are scrubbed and the git error is not kept."""
         url = "https://user:s3cret@host/r.git"
         error = GitCommandError(
             ["git", "clone", url], 128, stderr=f"fatal: could not read {url}"
@@ -573,8 +573,9 @@ class TestCloneRepo:
                 clone_repo(url, tmp_path / "clone-target")
 
         assert "s3cret" not in str(exc_info.value)
+        assert "user:" not in str(exc_info.value)
         assert exc_info.value.__cause__ is None
-        assert exc_info.value.__suppress_context__ is True
+        assert exc_info.value.__context__ is None
 
     @patch(
         "mcp_workspace.git_operations.remotes.git.Repo.clone_from",

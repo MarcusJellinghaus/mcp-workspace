@@ -76,7 +76,8 @@ def clone_repo(url: str, target_path: Path) -> None:
         ValueError: If *url* is empty, *target_path* is empty, *target_path*
             is an existing file or non-empty directory, or the git clone
             command fails. Credentials embedded in URLs are removed from the
-            message, and the original exception is not chained.
+            message, and the original exception is neither chained nor kept
+            as context.
     """
     if not url or not url.strip():
         raise ValueError("URL cannot be empty")
@@ -88,13 +89,18 @@ def clone_repo(url: str, target_path: Path) -> None:
                 f"Target path exists and is not an empty directory: {target_path}"
             )
 
+    error_msg: Optional[str] = None
     try:
         git.Repo.clone_from(url, str(target_path))
     except GitCommandError as e:
-        raise ValueError(
+        error_msg = (
             f"Failed to clone '{_scrub_credentials(url)}': "
             f"{_scrub_credentials(str(e))}"
-        ) from None
+        )
+    # Raised outside the except block: the GitCommandError holds the
+    # unscrubbed URL and must not survive in __context__
+    if error_msg is not None:
+        raise ValueError(error_msg)
 
 
 def git_push(project_dir: Path, force_with_lease: bool = False) -> dict[str, Any]:
