@@ -21,6 +21,7 @@ from mcp_workspace.git_operations.commits import (
 )
 from mcp_workspace.git_operations.compact_diffs import get_compact_diff
 from mcp_workspace.git_operations.core import (
+    BranchProbe,
     CommitResult,
     GitResult,
     RebaseProbe,
@@ -46,6 +47,7 @@ from mcp_workspace.git_operations.remotes import (
     get_remote_url,
     get_repository_identifier,
     git_push,
+    probe_origin_branch,
     pull,
     push_branch,
     rebase_onto_branch,
@@ -64,6 +66,7 @@ from mcp_workspace.git_operations.workflows import (
 )
 
 __all__ = [
+    "BranchProbe",
     "CheckResult",
     "CommitResult",
     "GitResult",
@@ -99,6 +102,7 @@ __all__ = [
     "is_git_repository",
     "is_working_directory_clean",
     "needs_rebase",
+    "probe_origin_branch",
     "probe_rebase_conflicts",
     "pull",
     "push_branch",

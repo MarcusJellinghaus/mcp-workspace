@@ -69,3 +69,22 @@ def parse_merge_tree_z(output: bytes) -> tuple[Optional[str], list[str]]:
         if path not in paths:
             paths.append(path)
     return _decode(fields[0]), paths
+
+
+def parse_ls_remote_heads(output: bytes) -> list[str]:
+    """Parse ``git ls-remote --heads`` output.
+
+    Args:
+        output: Raw stdout bytes: ``<sha>\\trefs/heads/<name>\\n``...
+
+    Returns:
+        Branch names without the ``refs/heads/`` prefix, in output order.
+        Empty output returns an empty list.
+    """
+    branches: list[str] = []
+    for line in output.splitlines():
+        _, sep, ref = line.partition(b"\t")
+        if not sep:
+            continue
+        branches.append(_decode(ref.strip()).removeprefix("refs/heads/"))
+    return branches

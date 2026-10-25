@@ -6,11 +6,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 import git
+from git import Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
 from .branch_queries import branch_exists
 from .core import (
     GIT_NONINTERACTIVE_ENV,
+    BranchProbe,
     GitResult,
     logger,
     run_git_raw,
@@ -290,6 +292,70 @@ def pull(project_dir: Path) -> GitResult:
             "stderr": stderr,
         }
     return {"success": True, "error": None, "returncode": 0, "stderr": stderr}
+
+
+def _ls_remote_heads(repo: Repo, *refs: str) -> tuple[int, bytes, str]:
+    """Run ``git ls-remote --heads origin <refs>`` non-interactively."""
+    return run_git_raw(
+        repo, "ls_remote", "--heads", "origin", *refs, env=GIT_NONINTERACTIVE_ENV
+    )
+
+
+def probe_origin_branch(project_dir: Path, branch: str) -> BranchProbe:
+    """Ask origin (git ls-remote, no fetch) whether ``refs/heads/<branch>`` exists.
+
+    The full ref is queried, so ``main`` does not match ``team/main``.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+        branch: Branch name to look for (without 'origin/' prefix)
+
+    Returns:
+        BranchProbe; ``exists`` is True/False when origin answered and None
+        when it couldn't (unreachable, authentication failure). A blank branch
+        name or a non-repository is an error result with ``returncode`` and
+        ``stderr`` None.
+    """
+    logger.debug("Probing origin for branch '%s' in %s", branch, project_dir)
+
+    if not branch or not branch.strip():
+        return {
+            "success": False,
+            "error": "Branch name cannot be empty",
+            "returncode": None,
+            "stderr": None,
+            "exists": None,
+        }
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            returncode, stdout, stderr = _ls_remote_heads(repo, f"refs/heads/{branch}")
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        logger.debug("Not a git repository: %s", project_dir)
+        return {
+            "success": False,
+            "error": f"Not a git repository: {project_dir}",
+            "returncode": None,
+            "stderr": None,
+            "exists": None,
+        }
+
+    if returncode != 0:
+        logger.debug("git ls-remote failed (exit %s): %s", returncode, stderr)
+        return {
+            "success": False,
+            "error": f"git ls-remote failed (exit {returncode})",
+            "returncode": returncode,
+            "stderr": stderr,
+            "exists": None,
+        }
+    return {
+        "success": True,
+        "error": None,
+        "returncode": returncode,
+        "stderr": stderr,
+        "exists": bool(stdout.strip()),
+    }
 
 
 def get_repository_identifier(

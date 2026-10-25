@@ -10,10 +10,10 @@ def test_all_expected_symbols_exported() -> None:
 
 
 def test_expected_symbol_count() -> None:
-    """Verify __all__ has the expected 44 symbols."""
+    """Verify __all__ has the expected 46 symbols."""
     from mcp_workspace.git_operations import __all__
 
-    assert len(__all__) == 44
+    assert len(__all__) == 46
 
 
 def test_verify_git_and_check_result_exported() -> None:

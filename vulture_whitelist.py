@@ -170,6 +170,8 @@ _.error_category
 _.clean
 # RebaseProbe TypedDict field - accessed via subscript
 _.files
+# BranchProbe TypedDict field - accessed via subscript
+_.exists
 # CacheData TypedDict field - accessed via subscript
 _.cached_at
 # CIStatusData TypedDict field - accessed via subscript

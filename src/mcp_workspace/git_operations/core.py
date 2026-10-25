@@ -74,6 +74,16 @@ class RebaseProbe(GitResult):
     files: list[str]
 
 
+class BranchProbe(GitResult):
+    """Result of asking origin whether a branch exists.
+
+    ``exists`` is None when origin couldn't answer; ``success`` is True iff
+    ``exists`` is True or False.
+    """
+
+    exists: Optional[bool]
+
+
 # Type alias for git push result structure
 class PushResult(TypedDict):
     """Result of a git push operation."""

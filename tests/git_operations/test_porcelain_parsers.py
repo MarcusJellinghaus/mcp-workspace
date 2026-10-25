@@ -2,6 +2,7 @@
 
 from mcp_workspace.git_operations.porcelain_parsers import (
     StatusEntry,
+    parse_ls_remote_heads,
     parse_merge_tree_z,
     parse_status_z,
 )
@@ -80,3 +81,26 @@ class TestParseMergeTreeZ:
     def test_empty_output(self) -> None:
         """Empty output has no tree."""
         assert parse_merge_tree_z(b"") == (None, [])
+
+
+class TestParseLsRemoteHeads:
+    """Tests for parse_ls_remote_heads."""
+
+    def test_two_heads(self) -> None:
+        """Branch names are returned in output order."""
+        output = (
+            TREE.encode()
+            + b"\trefs/heads/main\n"
+            + TREE.encode()
+            + b"\trefs/heads/team/feature\n"
+        )
+        assert parse_ls_remote_heads(output) == ["main", "team/feature"]
+
+    def test_non_ascii_branch(self) -> None:
+        """A non-ASCII branch name is decoded as UTF-8."""
+        output = TREE.encode() + b"\trefs/heads/" + "zweig-ä".encode("utf-8")
+        assert parse_ls_remote_heads(output) == ["zweig-ä"]
+
+    def test_empty_output(self) -> None:
+        """Empty output parses to an empty list."""
+        assert not parse_ls_remote_heads(b"")

@@ -13,19 +13,18 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
+from git.exc import GitCommandError
+
 from mcp_workspace.git_operations.branch_queries import (
     get_current_branch_name,
     get_default_branch_name,
     remote_branch_exists,
 )
-from mcp_workspace.git_operations.core import (
-    GIT_NONINTERACTIVE_ENV,
-    safe_repo_context,
-)
 from mcp_workspace.git_operations.parent_branch_detection import (
     MERGE_BASE_DISTANCE_THRESHOLD,
     detect_parent_branch_via_merge_base,
 )
+from mcp_workspace.git_operations.remotes import probe_origin_branch
 
 if TYPE_CHECKING:
     from mcp_workspace.github_operations.issues import IssueData
@@ -87,28 +86,29 @@ def _detect_from_pr(
 def origin_has_branch(project_dir: Path, branch_name: str) -> bool:
     """Ask origin (git ls-remote, no fetch) whether refs/heads/<branch_name> exists.
 
+    Thin wrapper over ``probe_origin_branch`` for callers that want a bool.
+
     Args:
         project_dir: Path to git repository
         branch_name: Branch name to look for (without 'origin/' prefix)
 
     Returns:
         True if origin lists the branch, False if origin answered and the
-        branch is absent. GitPython errors (origin unreachable, authentication
-        failure) propagate unchanged so callers can distinguish "gone" from
-        "unknown".
+        branch is absent.
+
+    Raises:
+        GitCommandError: Origin couldn't answer (unreachable, authentication
+            failure, not a repository, blank branch name), so callers can
+            distinguish "gone" from "unknown".
     """
-    with safe_repo_context(project_dir) as repo:
-        # The full ref, not the bare name: 'feature-A' would also match an
-        # unrelated 'refs/heads/team/feature-A' and mask the deletion.
-        output = str(
-            repo.git.ls_remote(
-                "--heads",
-                "origin",
-                f"refs/heads/{branch_name}",
-                env=GIT_NONINTERACTIVE_ENV,
-            )
+    probe = probe_origin_branch(project_dir, branch_name)
+    if probe["exists"] is None:
+        raise GitCommandError(
+            ["git", "ls-remote", "--heads", "origin", f"refs/heads/{branch_name}"],
+            probe["returncode"],
+            probe["stderr"] or probe["error"] or "",
         )
-        return bool(output.strip())
+    return probe["exists"]
 
 
 def _detect_from_merge_base(
