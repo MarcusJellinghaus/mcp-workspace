@@ -5,6 +5,7 @@ from mcp_workspace.git_operations.porcelain_parsers import (
     UnmergedEntry,
     parse_ls_files_u_z,
     parse_ls_remote_heads,
+    parse_ls_tree_z,
     parse_merge_tree_z,
     parse_status_z,
 )
@@ -154,3 +155,33 @@ class TestParseLsFilesUZ:
     def test_empty_output(self) -> None:
         """Empty output parses to an empty list."""
         assert not parse_ls_files_u_z(b"")
+
+
+def _ls_tree(mode: str, kind: str, sha: str, path: str) -> bytes:
+    """Build one ``git ls-tree -z`` record."""
+    return f"{mode} {kind} {sha}\t{path}\0".encode("utf-8")
+
+
+class TestParseLsTreeZ:
+    """Tests for parse_ls_tree_z."""
+
+    def test_blob_and_tree(self) -> None:
+        """Blob and tree entries keep output order."""
+        output = _ls_tree("100644", "blob", SHA1, "pr_info/a.md") + _ls_tree(
+            "040000", "tree", SHA2, "pr_info/sub"
+        )
+        assert parse_ls_tree_z(output) == [
+            {"mode": "100644", "type": "blob", "sha": SHA1, "path": "pr_info/a.md"},
+            {"mode": "040000", "type": "tree", "sha": SHA2, "path": "pr_info/sub"},
+        ]
+
+    def test_non_ascii_path(self) -> None:
+        """A non-ASCII path (with a space) is decoded as UTF-8."""
+        output = _ls_tree("100644", "blob", SHA1, "dir/dätei 日本.md")
+        assert parse_ls_tree_z(output) == [
+            {"mode": "100644", "type": "blob", "sha": SHA1, "path": "dir/dätei 日本.md"}
+        ]
+
+    def test_empty_output(self) -> None:
+        """Empty output parses to an empty list."""
+        assert not parse_ls_tree_z(b"")

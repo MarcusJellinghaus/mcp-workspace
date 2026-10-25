@@ -137,6 +137,24 @@ class ConflictStageResult(GitResult):
     is_binary: bool
 
 
+class TreeEntry(TypedDict):
+    """One entry of a tree listing; ``path`` is repo-relative."""
+
+    mode: str
+    type: str  # "blob" | "tree" | "commit"
+    sha: str
+    path: str
+
+
+class TreeListing(GitResult):
+    """Result of listing a directory at a ref.
+
+    ``entries`` is empty on failure and for a path absent at the ref.
+    """
+
+    entries: list[TreeEntry]
+
+
 # Type alias for git push result structure
 class PushResult(TypedDict):
     """Result of a git push operation."""

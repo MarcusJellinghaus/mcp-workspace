@@ -11,12 +11,14 @@ from .core import (
     ConflictBlobInfoResult,
     ConflictStageResult,
     GitResult,
+    TreeListing,
+    is_option_like,
     logger,
     open_repo_for_query,
     run_git_raw,
     safe_repo_context,
 )
-from .porcelain_parsers import parse_ls_files_u_z
+from .porcelain_parsers import parse_ls_files_u_z, parse_ls_tree_z
 
 # Same heuristic as git: a NUL byte in the first 8000 bytes means binary
 _BINARY_SNIFF_BYTES = 8000
@@ -292,3 +294,68 @@ def resolve_take_theirs_or_remove(project_dir: Path, path: str) -> GitResult:
         }
 
     return {"success": True, "error": None, "returncode": returncode, "stderr": stderr}
+
+
+def _tree_failure(
+    error: str, returncode: Optional[int] = None, stderr: Optional[str] = None
+) -> TreeListing:
+    """Build a failed TreeListing."""
+    return {
+        "success": False,
+        "error": error,
+        "returncode": returncode,
+        "stderr": stderr,
+        "entries": [],
+    }
+
+
+def list_tree(project_dir: Path, ref: str, path: str) -> TreeListing:
+    """List the direct contents of directory ``path`` at ``ref``.
+
+    Runs ``git ls-tree -z <ref> -- <path>/``; no recursion, and ``path`` is
+    matched literally. Reads the ref's tree, so it works for any ref (e.g.
+    ``origin/main``) whatever is checked out.
+
+    Args:
+        project_dir: Path to the project directory containing the git repository
+        ref: Commit-ish to read
+        path: Repo-relative directory, with or without a trailing slash
+
+    Returns:
+        TreeListing with repo-relative entry paths (e.g. ``pr_info/a.md``). A
+        path absent at ``ref`` is ``success=True`` with no entries. An empty
+        or option-like ref, a non-repository or any git failure (e.g. an
+        unknown ref) is ``success=False``.
+    """
+    logger.debug("Listing %s at %s in %s", path, ref, project_dir)
+
+    if not ref or is_option_like(ref):
+        return _tree_failure(f"Invalid ref: {ref!r}")
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            returncode, stdout, stderr = run_git_raw(
+                repo,
+                "ls_tree",
+                "-z",
+                ref,
+                "--",
+                path.rstrip("/") + "/",
+                literal_paths=True,
+            )
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        logger.debug("Not a git repository: %s", project_dir)
+        return _tree_failure(f"Not a git repository: {project_dir}")
+
+    if returncode != 0:
+        logger.debug("git ls-tree failed (exit %s): %s", returncode, stderr)
+        return _tree_failure(
+            f"git ls-tree failed (exit {returncode})", returncode, stderr
+        )
+    return {
+        "success": True,
+        "error": None,
+        "returncode": returncode,
+        "stderr": stderr,
+        "entries": parse_ls_tree_z(stdout),
+    }

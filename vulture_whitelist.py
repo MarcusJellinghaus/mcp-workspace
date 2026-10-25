@@ -179,6 +179,11 @@ _.entries
 _.stages
 _.is_binary
 _.content
+# TreeEntry TypedDict fields - accessed via subscript
+_.mode
+_.type
+_.sha
+_.path
 # CacheData TypedDict field - accessed via subscript
 _.cached_at
 # CIStatusData TypedDict field - accessed via subscript

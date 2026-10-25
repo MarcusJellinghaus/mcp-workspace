@@ -26,6 +26,7 @@ from mcp_workspace.git_operations.commits import (
 from mcp_workspace.git_operations.compact_diffs import get_compact_diff
 from mcp_workspace.git_operations.conflicts import (
     get_conflict_blob_info,
+    list_tree,
     list_unmerged_paths,
     read_conflict_stage,
     resolve_take_theirs_or_remove,
@@ -41,6 +42,8 @@ from mcp_workspace.git_operations.core import (
     RebaseResult,
     RemoteBranchesResult,
     StatusResult,
+    TreeEntry,
+    TreeListing,
     safe_repo_context,
 )
 from mcp_workspace.git_operations.diffs import (
@@ -104,6 +107,8 @@ __all__ = [
     "RebaseResult",
     "RemoteBranchesResult",
     "StatusResult",
+    "TreeEntry",
+    "TreeListing",
     "branch_exists",
     "checkout_branch",
     "clone_repo",
@@ -137,6 +142,7 @@ __all__ = [
     "is_rebase_in_progress",
     "is_working_directory_clean",
     "list_remote_branches",
+    "list_tree",
     "list_unmerged_paths",
     "needs_rebase",
     "probe_origin_branch",
