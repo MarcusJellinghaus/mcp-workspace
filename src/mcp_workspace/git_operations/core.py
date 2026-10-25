@@ -74,6 +74,20 @@ class RebaseProbe(GitResult):
     files: list[str]
 
 
+class RebaseResult(GitResult):
+    """Result of starting or driving a rebase.
+
+    ``success`` is True only for ``completed``. ``stopped_on_conflict`` means
+    the rebase stopped and is still in progress, with ``error`` None. That
+    includes a stop with no unmerged paths (an empty commit, a hook); use
+    ``list_unmerged_paths`` to tell. A failed command is
+    ``stopped_on_conflict`` only if git left the rebase in progress,
+    otherwise ``error``.
+    """
+
+    status: Literal["completed", "stopped_on_conflict", "error"]
+
+
 class BranchProbe(GitResult):
     """Result of asking origin whether a branch exists.
 

@@ -29,6 +29,7 @@ from mcp_workspace.git_operations.core import (
     CommitResult,
     GitResult,
     RebaseProbe,
+    RebaseResult,
     RemoteBranchesResult,
     StatusResult,
     safe_repo_context,
@@ -45,7 +46,14 @@ from mcp_workspace.git_operations.parent_branch_detection import (
     MERGE_BASE_DISTANCE_THRESHOLD,
     detect_parent_branch_via_merge_base,
 )
-from mcp_workspace.git_operations.rebase import probe_rebase_conflicts
+from mcp_workspace.git_operations.rebase import (
+    is_rebase_in_progress,
+    probe_rebase_conflicts,
+    rebase_abort,
+    rebase_continue,
+    rebase_skip,
+    rebase_start,
+)
 from mcp_workspace.git_operations.remotes import (
     clone_repo,
     fetch_remote,
@@ -79,6 +87,7 @@ __all__ = [
     "GitResult",
     "MERGE_BASE_DISTANCE_THRESHOLD",
     "RebaseProbe",
+    "RebaseResult",
     "RemoteBranchesResult",
     "StatusResult",
     "branch_exists",
@@ -109,6 +118,7 @@ __all__ = [
     "has_remote_tracking_branch",
     "is_file_tracked",
     "is_git_repository",
+    "is_rebase_in_progress",
     "is_working_directory_clean",
     "list_remote_branches",
     "needs_rebase",
@@ -116,7 +126,11 @@ __all__ = [
     "probe_rebase_conflicts",
     "pull",
     "push_branch",
+    "rebase_abort",
+    "rebase_continue",
     "rebase_onto_branch",
+    "rebase_skip",
+    "rebase_start",
     "safe_repo_context",
     "stage_all_changes",
     "unstage_paths",
