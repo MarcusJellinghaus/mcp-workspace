@@ -6,10 +6,16 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 import git
-from git.exc import GitCommandError, InvalidGitRepositoryError
+from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
 from .branch_queries import branch_exists
-from .core import logger, safe_repo_context
+from .core import (
+    GIT_NONINTERACTIVE_ENV,
+    GitResult,
+    logger,
+    run_git_raw,
+    safe_repo_context,
+)
 from .repository_status import get_full_status, is_git_repository
 
 if TYPE_CHECKING:
@@ -226,6 +232,64 @@ def fetch_remote(project_dir: Path, remote: str = "origin") -> bool:
     ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.error("Unexpected error fetching from remote: %s", e)
         return False
+
+
+def pull(project_dir: Path) -> GitResult:
+    """Pull the current branch from its upstream with ``git pull --no-edit``.
+
+    Honors the repository's ``pull.rebase`` setting. A missing upstream
+    (including detached HEAD) is detected before pulling, not from pull's
+    stderr.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+
+    Returns:
+        GitResult; ``success`` is True when the pull completed. A non-repository
+        is an error result with ``returncode`` and ``stderr`` None.
+    """
+    logger.debug("Pulling current branch in %s", project_dir)
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            returncode, _, stderr = run_git_raw(
+                repo,
+                "rev_parse",
+                "--abbrev-ref",
+                "--symbolic-full-name",
+                "@{u}",
+                env=GIT_NONINTERACTIVE_ENV,
+            )
+            if returncode != 0:
+                logger.debug("No upstream for current branch: %s", stderr)
+                return {
+                    "success": False,
+                    "error": "No upstream branch configured for the current branch",
+                    "returncode": returncode,
+                    "stderr": stderr,
+                }
+
+            returncode, _, stderr = run_git_raw(
+                repo, "pull", "--no-edit", env=GIT_NONINTERACTIVE_ENV
+            )
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        logger.debug("Not a git repository: %s", project_dir)
+        return {
+            "success": False,
+            "error": f"Not a git repository: {project_dir}",
+            "returncode": None,
+            "stderr": None,
+        }
+
+    if returncode != 0:
+        logger.debug("git pull failed (exit %s): %s", returncode, stderr)
+        return {
+            "success": False,
+            "error": f"git pull failed (exit {returncode})",
+            "returncode": returncode,
+            "stderr": stderr,
+        }
+    return {"success": True, "error": None, "returncode": 0, "stderr": stderr}
 
 
 def get_repository_identifier(

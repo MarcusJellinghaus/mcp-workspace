@@ -29,9 +29,9 @@ See [step_1.md](./steps/step_1.md)
 
 ### Step 2: `pull`
 See [step_2.md](./steps/step_2.md)
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: `commit_paths`
 See [step_3.md](./steps/step_3.md)

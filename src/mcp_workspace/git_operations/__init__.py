@@ -42,6 +42,7 @@ from mcp_workspace.git_operations.remotes import (
     get_remote_url,
     get_repository_identifier,
     git_push,
+    pull,
     push_branch,
     rebase_onto_branch,
 )
@@ -89,6 +90,7 @@ __all__ = [
     "is_git_repository",
     "is_working_directory_clean",
     "needs_rebase",
+    "pull",
     "push_branch",
     "rebase_onto_branch",
     "safe_repo_context",
