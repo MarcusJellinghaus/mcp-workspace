@@ -6,7 +6,6 @@ and returns per-check results. All checks use PyGithub — no gh CLI dependency.
 
 import logging
 from pathlib import Path
-from typing import Any
 
 from github.GithubException import GithubException
 from github.Repository import Repository
@@ -22,10 +21,20 @@ from mcp_workspace.github_operations._network import (
     maybe_log_network_diagnostics,
 )
 from mcp_workspace.github_operations._permission_probes import run_permission_probes
+from mcp_workspace.github_operations._ruleset_protection import (
+    ProtectionFacts,
+    facts_from_classic,
+    facts_from_rules,
+    fetch_rules,
+    merge,
+    source_label,
+)
 from mcp_workspace.github_operations._types import (
     CheckResult,
     ProtectionOutcome,
+    RulesOutcome,
     is_branch_not_protected,
+    short_reason,
 )
 from mcp_workspace.github_operations.base_manager import BaseGitHubManager
 from mcp_workspace.utils.token_fingerprint import format_token_fingerprint
@@ -36,6 +45,7 @@ logger = logging.getLogger(__name__)
 
 _PROTECTION_KEYS: tuple[str, ...] = (
     "branch_protection",
+    "require_pull_request",
     "ci_checks_required",
     "strict_mode",
     "force_push",
@@ -99,30 +109,13 @@ def _fetch_protection(
         return ProtectionOutcome(branch_name, "get_protection", None, exc)
 
 
-def _short_reason(exc: Exception) -> str:
-    """Summarise ``exc`` without its raw response body.
-
-    Args:
-        exc: Exception to summarise.
-
-    Returns:
-        Short summary of the exception without the raw response body.
-    """
-    if isinstance(exc, GithubException):
-        msg = exc.data.get("message") if isinstance(exc.data, dict) else None
-        if isinstance(msg, str) and len(msg) <= 100:
-            return f"HTTP {exc.status}: {msg}"
-        return f"HTTP {exc.status}"
-    return type(exc).__name__
-
-
 def _classify_protection_failure(
     stage: str, exc: Exception
 ) -> tuple[bool | None, str, str]:
-    """Return (ok, value, error) shared by all five branch-protection rows."""
+    """Return (ok, value, error) shared by all six branch-protection rows."""
     if is_branch_not_protected(exc):
         return False, "not configured", "no branch protection"
-    reason = _short_reason(exc)
+    reason = short_reason(exc)
     error = f"{stage} failed: {reason}"
     if stage == "get_protection" and isinstance(exc, GithubException):
         if exc.status == 401:
@@ -132,10 +125,117 @@ def _classify_protection_failure(
     return None, f"not verifiable — {reason}", error
 
 
+def _protection_result(
+    outcome: ProtectionOutcome, rules_outcome: RulesOutcome | None
+) -> dict[str, CheckResult]:
+    """Build the six branch-protection rows from the classic and rules outcomes.
+
+    Args:
+        outcome: Result of the classic branch protection fetch.
+        rules_outcome: Result of the effective-rules fetch, or ``None`` when
+            it was not attempted.
+
+    Returns:
+        Mapping from each branch-protection key to its ``CheckResult``.
+    """
+    not_prot = is_branch_not_protected(outcome.exception)
+
+    classic: ProtectionFacts | None
+    c_reason: str | None = None
+    c_note: str | None = None
+    if outcome.protection is not None:
+        classic = facts_from_classic(outcome.protection)
+    elif not_prot:
+        classic = ProtectionFacts()
+    else:
+        classic = None
+        _, c_reason, c_note = _classify_protection_failure(
+            outcome.stage, outcome.exception  # type: ignore[arg-type]
+        )
+
+    rules: ProtectionFacts | None
+    r_reason: str | None = None
+    r_note: str | None = None
+    if rules_outcome is None:
+        rules = None
+    elif rules_outcome.rules is not None:
+        rules = facts_from_rules(rules_outcome.rules)
+    elif (
+        not_prot
+        and isinstance(rules_outcome.exception, GithubException)
+        and rules_outcome.exception.status == 404
+    ):
+        # GHE without rulesets support: 404 counts as answered-empty
+        rules = ProtectionFacts()
+    else:
+        rules = None
+        r_reason = (
+            f"not verifiable — {short_reason(rules_outcome.exception)}"
+            if rules_outcome.exception is not None
+            else None
+        )
+        r_note = rules_outcome.note
+
+    merged = merge(classic, rules)
+    if merged.protected is False:
+        return _protection_rows(False, "not configured", "no branch protection")
+    names = rules_outcome.names if rules_outcome else None
+    label = f"{outcome.branch} protected" + source_label(
+        bool(classic and classic.protected), bool(rules and rules.protected), names
+    )
+    return _rows_from_facts(
+        merged,
+        label,
+        reason=c_reason or r_reason,
+        error="; ".join(n for n in (c_note, r_note) if n),
+    )
+
+
+def _rows_from_facts(
+    facts: ProtectionFacts, label: str, *, reason: str | None, error: str
+) -> dict[str, CheckResult]:
+    """Map merged protection facts to one warning row per branch-protection key.
+
+    Args:
+        facts: Merged protection facts; a ``None`` flag means not verifiable.
+        label: Value of the ``branch_protection`` row when protected.
+        reason: Value of every not-verifiable row.
+        error: Error shared by every row; omitted when empty.
+
+    Returns:
+        Mapping from each branch-protection key to its ``CheckResult``.
+    """
+
+    def row(flag: bool | None, yes: str, no: str) -> CheckResult:
+        if flag is None:
+            check = CheckResult(
+                ok=None, value=reason or "not verifiable", severity="warning"
+            )
+        else:
+            check = CheckResult(ok=flag, value=yes if flag else no, severity="warning")
+        if error:
+            check["error"] = error
+        return check
+
+    return {
+        "branch_protection": row(facts.protected, label, "not configured"),
+        "require_pull_request": row(facts.require_pr, "required", "not required"),
+        "ci_checks_required": row(
+            facts.checks_required,
+            f"{len(facts.contexts)} checks configured",
+            "not configured",
+        ),
+        "strict_mode": row(facts.strict, "enabled", "disabled"),
+        "force_push": row(facts.force_push_blocked, "disabled", "enabled"),
+        "branch_deletion": row(facts.deletion_blocked, "disabled", "enabled"),
+    }
+
+
 def verify_github(project_dir: Path) -> dict[str, object]:
     """Verify GitHub connectivity and branch protection.
 
-    Runs checks 1–4 (token, auth, repo URL, repo access) independently.
+    Runs the connectivity checks (token, auth, repo URL, repo access), the
+    six branch-protection rows and the repo-level settings independently.
     Each check reports its own result regardless of earlier failures.
     A check that could not be verified reports ``ok=None``.
 
@@ -328,97 +428,25 @@ def verify_github(project_dir: Path) -> dict[str, object]:
             )
 
     # ------------------------------------------------------------------
-    # Checks 5–9: branch protection
+    # Branch protection: six rows
     # ------------------------------------------------------------------
     repo_obj = result.get("repo_accessible")
     repo_is_ok = isinstance(repo_obj, dict) and repo_obj.get("ok") is True
 
     outcome: ProtectionOutcome | None = None
+    rules_outcome: RulesOutcome | None = None
     if repo_is_ok and repo is not None and manager is not None:
         outcome = _fetch_protection(manager, repo)
+        if outcome.branch is not None:
+            rules_outcome = fetch_rules(manager, repo, outcome.branch)
 
     if outcome is None:
         result.update(_protection_rows(None, "unknown", "repository not accessible"))
-    elif outcome.exception is not None:
-        result.update(
-            _protection_rows(
-                *_classify_protection_failure(outcome.stage, outcome.exception)
-            )
-        )
-    elif outcome.protection is not None:
-        protection = outcome.protection
-
-        # Check 5: branch_protection
-        result["branch_protection"] = CheckResult(
-            ok=True,
-            value=f"{outcome.branch} protected",
-            severity="warning",
-        )
-
-        # Check 6: ci_checks_required
-        # PyGithub types this as RequiredStatusChecks but returns None
-        # when the GitHub API sends null
-        status_checks: Any = protection.required_status_checks
-        if status_checks is not None:
-            contexts = status_checks.contexts
-            result["ci_checks_required"] = CheckResult(
-                ok=True,
-                value=f"{len(contexts)} checks configured",
-                severity="warning",
-            )
-        else:
-            result["ci_checks_required"] = CheckResult(
-                ok=False,
-                value="not configured",
-                severity="warning",
-            )
-
-        # Check 7: strict_mode
-        if status_checks is not None and status_checks.strict:
-            result["strict_mode"] = CheckResult(
-                ok=True,
-                value="enabled",
-                severity="warning",
-            )
-        else:
-            result["strict_mode"] = CheckResult(
-                ok=False,
-                value="disabled",
-                severity="warning",
-            )
-
-        # Check 8: force_push
-        force_push_allowed = protection.allow_force_pushes
-        if not force_push_allowed:
-            result["force_push"] = CheckResult(
-                ok=True,
-                value="disabled",
-                severity="warning",
-            )
-        else:
-            result["force_push"] = CheckResult(
-                ok=False,
-                value="enabled",
-                severity="warning",
-            )
-
-        # Check 9: branch_deletion
-        deletion_allowed = protection.allow_deletions
-        if not deletion_allowed:
-            result["branch_deletion"] = CheckResult(
-                ok=True,
-                value="disabled",
-                severity="warning",
-            )
-        else:
-            result["branch_deletion"] = CheckResult(
-                ok=False,
-                value="enabled",
-                severity="warning",
-            )
+    else:
+        result.update(_protection_result(outcome, rules_outcome))
 
     # ------------------------------------------------------------------
-    # Check 10: auto_delete_branches (repo-level setting)
+    # auto_delete_branches (repo-level setting)
     # ------------------------------------------------------------------
     if repo_is_ok and repo is not None:
         if repo.delete_branch_on_merge:

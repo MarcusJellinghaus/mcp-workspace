@@ -9,7 +9,16 @@ import pytest
 from github.GithubException import GithubException
 
 from mcp_workspace.github_operations._permission_probes import _PROBE_KEYS
-from mcp_workspace.github_operations.verification import CheckResult, verify_github
+from mcp_workspace.github_operations._types import (
+    ProtectionOutcome,
+    RulesOutcome,
+    short_reason,
+)
+from mcp_workspace.github_operations.verification import (
+    CheckResult,
+    _protection_result,
+    verify_github,
+)
 
 MODULE = "mcp_workspace.github_operations.verification"
 CLIENT = "mcp_workspace.github_operations._client"
@@ -40,6 +49,19 @@ def _default_network_ok() -> Generator[None, None, None]:
         yield
 
 
+@pytest.fixture(autouse=True)
+def _default_rules_empty() -> Generator[None, None, None]:
+    """Default the effective-rules fetch to an answered empty list (no rulesets).
+
+    Keeps the classic-only tests offline-safe and their ``error`` assertions free
+    of a rules note. Ruleset tests re-patch ``fetch_rules`` with their own value.
+    """
+    with patch(
+        f"{MODULE}.fetch_rules", return_value=RulesOutcome([], None, None, None)
+    ):
+        yield
+
+
 def _make_identifier(
     hostname: str = "github.com",
     full_name: str = "owner/repo",
@@ -60,6 +82,7 @@ def _make_mock_protection(
     allow_force_pushes: bool = False,
     allow_deletions: bool = False,
     has_status_checks: bool = True,
+    require_pr: bool = True,
 ) -> Mock:
     """Create a mock BranchProtection object."""
     protection = Mock()
@@ -74,6 +97,7 @@ def _make_mock_protection(
         protection.required_status_checks = None
     protection.allow_force_pushes = allow_force_pushes
     protection.allow_deletions = allow_deletions
+    protection.required_pull_request_reviews = Mock() if require_pr else None
     return protection
 
 
@@ -512,11 +536,12 @@ class TestChecksIndependence:
 
 
 # ===================================================================
-# Branch protection checks (5–9)
+# Branch protection checks (six rows)
 # ===================================================================
 
 BRANCH_CHECK_KEYS = (
     "branch_protection",
+    "require_pull_request",
     "ci_checks_required",
     "strict_mode",
     "force_push",
@@ -527,7 +552,7 @@ BRANCH_CHECK_KEYS = (
 class TestBranchProtectionAllPass:
     """Test all branch protection checks pass with full protection."""
 
-    def test_all_five_checks_ok(self, tmp_path: Path) -> None:
+    def test_all_protection_checks_ok(self, tmp_path: Path) -> None:
         protection = _make_mock_protection(
             strict=True,
             contexts=["ci/test", "ci/lint"],
@@ -543,6 +568,31 @@ class TestBranchProtectionAllPass:
     def test_overall_ok_true(self, tmp_path: Path) -> None:
         result = _patch_all_ok(tmp_path)
         assert result["overall_ok"] is True
+
+    def test_protection_keys_in_order(self, tmp_path: Path) -> None:
+        result = _patch_all_ok(tmp_path)
+        keys = [key for key in result if key in BRANCH_CHECK_KEYS]
+        assert tuple(keys) == BRANCH_CHECK_KEYS
+
+
+class TestRequirePullRequest:
+    """Test the require_pull_request row from classic protection."""
+
+    def test_required(self, tmp_path: Path) -> None:
+        protection = _make_mock_protection(require_pr=True)
+        result = _patch_all_ok(tmp_path, protection=protection)
+        check: CheckResult = result["require_pull_request"]  # type: ignore[assignment]
+        assert check["ok"] is True
+        assert check["value"] == "required"
+        assert check["severity"] == "warning"
+
+    def test_not_required(self, tmp_path: Path) -> None:
+        protection = _make_mock_protection(require_pr=False)
+        result = _patch_all_ok(tmp_path, protection=protection)
+        check: CheckResult = result["require_pull_request"]  # type: ignore[assignment]
+        assert check["ok"] is False
+        assert check["value"] == "not required"
+        assert check["severity"] == "warning"
 
 
 def _run_with_protection_error(
@@ -590,7 +640,7 @@ _DOC_URL = "https://docs.github.com/rest/branches/branch-protection"
 
 
 class TestProtectionOutcomeTable:
-    """All five branch-protection rows follow the outcome table."""
+    """All six branch-protection rows follow the outcome table."""
 
     @pytest.mark.parametrize(
         ("exc", "on", "expected_ok", "starts", "contains"),
@@ -750,7 +800,9 @@ class TestBranchDeletionEnabled:
 class TestBranchProtectionWhenRepoNotAccessible:
     """Test branch protection checks when repo is not accessible (check 4 failed)."""
 
-    def test_all_five_present_and_not_verifiable(self, tmp_path: Path) -> None:
+    def test_all_protection_rows_present_and_not_verifiable(
+        self, tmp_path: Path
+    ) -> None:
         result = _run_with_repo_inaccessible(tmp_path)
 
         for key in BRANCH_CHECK_KEYS:
@@ -1282,7 +1334,7 @@ class TestPermissionProbeOverallOkUnaffected:
         mock_branch = Mock()
         mock_branch.get_protection.side_effect = denial
         mock_repo.get_branch.return_value = mock_branch
-        # Branch protection checks (5–9) share get_protection with the probe;
+        # The branch protection rows share get_protection with the probe;
         # they degrade to warning severity on failure, so overall_ok is unaffected.
         mock_repo.get_contents.side_effect = denial
         # For the lazy-paginated probes, totalCount must raise
@@ -1541,3 +1593,257 @@ class TestNetworkProbeUnreachableProxyApplies:
         np: CheckResult = result["network_proxy"]  # type: ignore[assignment]
         assert np["ok"] is False
         assert np["severity"] == "warning"
+
+
+# ===================================================================
+# Rulesets: classic/rules merge
+# ===================================================================
+
+
+def _gh(status: int, message: str) -> GithubException:
+    """Build a GithubException with a JSON message body."""
+    return GithubException(status=status, data={"message": message}, headers={})
+
+
+def _classic_ok(*, require_pr: bool = True) -> ProtectionOutcome:
+    """Classic protection answered with a protection object."""
+    return ProtectionOutcome(
+        "main", "get_protection", _make_mock_protection(require_pr=require_pr), None
+    )
+
+
+def _classic_err(exc: Exception) -> ProtectionOutcome:
+    """Classic protection fetch failed with ``exc``."""
+    return ProtectionOutcome("main", "get_protection", None, exc)
+
+
+def _rules_err(exc: Exception) -> RulesOutcome:
+    """Rules fetch failed with ``exc``, noted as ``fetch_rules`` does."""
+    return RulesOutcome(
+        None, None, exc, f"rulesets not verifiable: {short_reason(exc)}"
+    )
+
+
+_NOT_PROTECTED = _gh(404, "Branch not protected")
+
+_FULL_RULESET: list[dict[str, object]] = [
+    {"type": "pull_request", "ruleset_id": 1},
+    {"type": "non_fast_forward", "ruleset_id": 1},
+    {"type": "deletion", "ruleset_id": 1},
+    {
+        "type": "required_status_checks",
+        "ruleset_id": 1,
+        "parameters": {
+            "strict_required_status_checks_policy": True,
+            "required_status_checks": [{"context": "ci/test"}, {"context": "ci/build"}],
+        },
+    },
+]
+
+
+class TestProtectionResultMerge:
+    """``_protection_result`` merges classic and rules outcomes."""
+
+    def test_ruleset_only(self) -> None:
+        rows = _protection_result(
+            _classic_err(_NOT_PROTECTED),
+            RulesOutcome(_FULL_RULESET, ["Protect main"], None, None),
+        )
+        assert rows["branch_protection"]["value"] == (
+            'main protected (ruleset: "Protect main")'
+        )
+        for key in BRANCH_CHECK_KEYS:
+            assert rows[key]["ok"] is True, key
+            assert "error" not in rows[key]
+        assert rows["ci_checks_required"]["value"] == "2 checks configured"
+
+    def test_both_sources(self) -> None:
+        rows = _protection_result(
+            _classic_ok(),
+            RulesOutcome(_FULL_RULESET, ["Protect main"], None, None),
+        )
+        assert rows["branch_protection"]["value"] == (
+            'main protected (ruleset: "Protect main" + classic)'
+        )
+        # classic ci/test, ci/lint + rules ci/test, ci/build
+        assert rows["ci_checks_required"]["value"] == "3 checks configured"
+        for key in BRANCH_CHECK_KEYS:
+            assert rows[key]["ok"] is True, key
+
+    def test_classic_403_rules_empty(self) -> None:
+        rows = _protection_result(
+            _classic_err(_gh(403, "Forbidden")), RulesOutcome([], None, None, None)
+        )
+        for key in BRANCH_CHECK_KEYS:
+            assert rows[key]["ok"] is None, key
+            assert "token lacks Administration: Read" in rows[key]["value"]
+            assert rows[key]["error"] == "get_protection failed: HTTP 403: Forbidden"
+
+    def test_classic_403_with_ruleset(self) -> None:
+        rows = _protection_result(
+            _classic_err(_gh(403, "Forbidden")),
+            RulesOutcome([{"type": "deletion"}], None, None, None),
+        )
+        for key in ("branch_protection", "branch_deletion"):
+            assert rows[key]["ok"] is True, key
+        for key in (
+            "require_pull_request",
+            "ci_checks_required",
+            "strict_mode",
+            "force_push",
+        ):
+            assert rows[key]["ok"] is None, key
+            assert "token lacks Administration: Read" in rows[key]["value"]
+        for key in BRANCH_CHECK_KEYS:
+            assert rows[key]["error"] == "get_protection failed: HTTP 403: Forbidden"
+
+    def test_classic_ok_rules_403(self) -> None:
+        rows = _protection_result(
+            _classic_ok(require_pr=False), _rules_err(_gh(403, "Forbidden"))
+        )
+        for key in (
+            "branch_protection",
+            "ci_checks_required",
+            "strict_mode",
+            "force_push",
+            "branch_deletion",
+        ):
+            assert rows[key]["ok"] is True, key
+        pr = rows["require_pull_request"]
+        assert pr["ok"] is None
+        assert "HTTP 403" in pr["value"]
+        for key in BRANCH_CHECK_KEYS:
+            assert "rulesets not verifiable: HTTP 403" in rows[key]["error"]
+        assert rows["branch_protection"]["value"] == "main protected"
+
+    def test_classic_not_protected_rules_500(self) -> None:
+        rules = _rules_err(_gh(500, "oops"))
+        rows = _protection_result(_classic_err(_NOT_PROTECTED), rules)
+        for key in BRANCH_CHECK_KEYS:
+            assert rows[key]["ok"] is None, key
+            assert "HTTP 500" in rows[key]["value"]
+            assert rows[key]["error"] == rules.note
+
+    def test_classic_not_protected_rules_404_ghe(self) -> None:
+        rows = _protection_result(
+            _classic_err(_NOT_PROTECTED), _rules_err(_gh(404, "Not Found"))
+        )
+        for key in BRANCH_CHECK_KEYS:
+            assert rows[key]["ok"] is False, key
+            assert rows[key]["value"] == "not configured"
+            assert rows[key]["error"] == "no branch protection"
+
+    def test_classic_generic_404_rules_404(self) -> None:
+        rows = _protection_result(
+            _classic_err(_gh(404, "Not Found")), _rules_err(_gh(404, "Not Found"))
+        )
+        for key in BRANCH_CHECK_KEYS:
+            assert rows[key]["ok"] is None, key
+            assert rows[key]["error"] == (
+                "get_protection failed: HTTP 404: Not Found; "
+                "rulesets not verifiable: HTTP 404: Not Found"
+            )
+
+    def test_classic_ok_rules_404_is_ordinary_note(self) -> None:
+        rows = _protection_result(
+            _classic_ok(require_pr=False), _rules_err(_gh(404, "Not Found"))
+        )
+        assert rows["branch_protection"]["ok"] is True
+        pr = rows["require_pull_request"]
+        assert pr["ok"] is None
+        assert "HTTP 404" in pr["value"]
+        assert pr["error"] == "rulesets not verifiable: HTTP 404: Not Found"
+
+    def test_require_pull_request_negative(self) -> None:
+        rows = _protection_result(
+            _classic_ok(require_pr=False),
+            RulesOutcome([{"type": "deletion"}], None, None, None),
+        )
+        pr = rows["require_pull_request"]
+        assert pr["ok"] is False
+        assert pr["value"] == "not required"
+
+
+def _run_with_rules(
+    tmp_path: Path,
+    *,
+    rules: RulesOutcome | None = None,
+    default_branch_error: Exception | None = None,
+    get_branch_error: Exception | None = None,
+    protection_error: Exception | None = None,
+) -> tuple[dict[str, object], Mock]:
+    """Run verify_github with ``fetch_rules`` re-patched; return result and its mock."""
+    mock_user = Mock()
+    mock_user.login = "testuser"
+    mock_github_client = Mock()
+    mock_github_client.get_user.return_value = mock_user
+    mock_github_client.oauth_scopes = ["repo"]
+
+    mock_repo = Mock()
+    mock_repo.full_name = "owner/repo"
+    mock_branch = Mock()
+    mock_branch.get_protection.return_value = _make_mock_protection()
+    if protection_error is not None:
+        mock_branch.get_protection.side_effect = protection_error
+    mock_repo.get_branch.return_value = mock_branch
+    if get_branch_error is not None:
+        mock_repo.get_branch.side_effect = get_branch_error
+
+    mock_manager = Mock()
+    mock_manager._get_repository.return_value = mock_repo
+    mock_manager.get_default_branch.return_value = "main"
+    if default_branch_error is not None:
+        mock_manager.get_default_branch.side_effect = default_branch_error
+
+    with (
+        patch(
+            f"{MODULE}.get_github_token_with_source",
+            return_value=("ghp_test", "env"),
+        ),
+        patch(f"{CLIENT}.Github", return_value=mock_github_client),
+        patch(f"{MODULE}.get_repository_identifier", return_value=_make_identifier()),
+        patch(f"{MODULE}.BaseGitHubManager", return_value=mock_manager),
+        patch(
+            f"{MODULE}.fetch_rules",
+            return_value=rules or RulesOutcome([], None, None, None),
+        ) as mock_fetch,
+    ):
+        return verify_github(tmp_path), mock_fetch
+
+
+class TestFetchRulesWiring:
+    """``verify_github`` calls ``fetch_rules`` only when a branch name is known."""
+
+    def test_called_with_branch(self, tmp_path: Path) -> None:
+        _, mock_fetch = _run_with_rules(tmp_path)
+        mock_fetch.assert_called_once()
+        assert mock_fetch.call_args.args[2] == "main"
+
+    def test_not_called_when_default_branch_fails(self, tmp_path: Path) -> None:
+        _, mock_fetch = _run_with_rules(
+            tmp_path, default_branch_error=RuntimeError("boom")
+        )
+        mock_fetch.assert_not_called()
+
+    def test_called_when_get_branch_fails(self, tmp_path: Path) -> None:
+        _, mock_fetch = _run_with_rules(
+            tmp_path, get_branch_error=_gh(404, "Not Found")
+        )
+        mock_fetch.assert_called_once()
+        assert mock_fetch.call_args.args[2] == "main"
+
+    def test_not_called_on_skip(self, tmp_path: Path) -> None:
+        with patch(f"{MODULE}.fetch_rules") as mock_fetch:
+            _run_short_circuit(tmp_path, tcp_probe="timeout", proxy_applies=False)
+        mock_fetch.assert_not_called()
+
+    def test_admin_read_failed_despite_ruleset(self, tmp_path: Path) -> None:
+        result, _ = _run_with_rules(
+            tmp_path,
+            rules=RulesOutcome(_FULL_RULESET, ["Protect main"], None, None),
+            protection_error=_gh(403, "Forbidden"),
+        )
+        bp: CheckResult = result["branch_protection"]  # type: ignore[assignment]
+        assert bp["ok"] is True
+        admin: CheckResult = result["perm_administration_read"]  # type: ignore[assignment]
+        assert admin["ok"] is False
