@@ -37,6 +37,19 @@ class TestCommitOperations:
         assert result["error_category"] is None
         assert len(list(repo.iter_commits())) == 1
 
+    def test_commit_staged_files_validation_failure_has_no_returncode(
+        self, git_repo: tuple[Repo, Path]
+    ) -> None:
+        """A validation failure runs no git process: returncode/stderr are None."""
+        _, project_dir = git_repo
+
+        result = commit_staged_files("   ", project_dir)
+
+        assert result["success"] is False
+        assert result["error_category"] == "validation_failed"
+        assert result["returncode"] is None
+        assert result["stderr"] is None
+
     def test_commit_all_changes(self, git_repo: tuple[Repo, Path]) -> None:
         """Test commit_all_changes stages and commits in one operation."""
         repo, project_dir = git_repo

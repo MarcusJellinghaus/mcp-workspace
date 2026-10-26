@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 import git
-from git.exc import GitCommandError, InvalidGitRepositoryError
+from git import Repo
+from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
 from .branch_queries import branch_exists
-from .core import logger, safe_repo_context
+from .core import (
+    GIT_NONINTERACTIVE_ENV,
+    BranchProbe,
+    GitResult,
+    RemoteBranchesResult,
+    logger,
+    run_git_raw,
+    safe_repo_context,
+)
+from .porcelain_parsers import parse_ls_remote_heads
 from .repository_status import get_full_status, is_git_repository
 
 if TYPE_CHECKING:
@@ -41,28 +52,55 @@ def get_remote_url(project_dir: Path) -> Optional[str]:
         return None
 
 
+_USERINFO_RE = re.compile(r"(?<=://)[^/@\s]+@")
+
+
+def _scrub_credentials(text: str) -> str:
+    """Remove userinfo ('user:token@') from every URL in text.
+
+    Returns:
+        ``text`` with userinfo stripped from every URL.
+    """
+    return _USERINFO_RE.sub("", text)
+
+
 def clone_repo(url: str, target_path: Path) -> None:
     """Clone a git repository to *target_path*.
 
     Args:
         url: Remote repository URL to clone.
-        target_path: Local filesystem path for the clone.
+        target_path: Local filesystem path for the clone. May be an existing
+            empty directory.
 
     Raises:
         ValueError: If *url* is empty, *target_path* is empty, *target_path*
-            already exists, or the git clone command fails.
+            is an existing file or non-empty directory, or the git clone
+            command fails. Credentials embedded in URLs are removed from the
+            message, and the original exception is neither chained nor kept
+            as context.
     """
     if not url or not url.strip():
         raise ValueError("URL cannot be empty")
     if not str(target_path) or str(target_path) == ".":
         raise ValueError("Target path cannot be empty")
     if target_path.exists():
-        raise ValueError(f"Target path already exists: {target_path}")
+        if target_path.is_file() or any(target_path.iterdir()):
+            raise ValueError(
+                f"Target path exists and is not an empty directory: {target_path}"
+            )
 
+    error_msg: Optional[str] = None
     try:
         git.Repo.clone_from(url, str(target_path))
     except GitCommandError as e:
-        raise ValueError(f"Failed to clone '{url}': {e}") from e
+        error_msg = (
+            f"Failed to clone '{_scrub_credentials(url)}': "
+            f"{_scrub_credentials(str(e))}"
+        )
+    # Raised outside the except block: the GitCommandError holds the
+    # unscrubbed URL and must not survive in __context__
+    if error_msg is not None:
+        raise ValueError(error_msg)
 
 
 def git_push(project_dir: Path, force_with_lease: bool = False) -> dict[str, Any]:
@@ -226,6 +264,178 @@ def fetch_remote(project_dir: Path, remote: str = "origin") -> bool:
     ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.error("Unexpected error fetching from remote: %s", e)
         return False
+
+
+def pull(project_dir: Path) -> GitResult:
+    """Pull the current branch from its upstream with ``git pull --no-edit``.
+
+    Honors the repository's ``pull.rebase`` setting. A missing upstream
+    (including detached HEAD) is detected before pulling, not from pull's
+    stderr.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+
+    Returns:
+        GitResult; ``success`` is True when the pull completed. A non-repository
+        is an error result with ``returncode`` and ``stderr`` None.
+    """
+    logger.debug("Pulling current branch in %s", project_dir)
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            returncode, _, stderr = run_git_raw(
+                repo,
+                "rev_parse",
+                "--abbrev-ref",
+                "--symbolic-full-name",
+                "@{u}",
+                env=GIT_NONINTERACTIVE_ENV,
+            )
+            if returncode != 0:
+                logger.debug("No upstream for current branch: %s", stderr)
+                return {
+                    "success": False,
+                    "error": "No upstream branch configured for the current branch",
+                    "returncode": returncode,
+                    "stderr": stderr,
+                }
+
+            returncode, _, stderr = run_git_raw(
+                repo, "pull", "--no-edit", env=GIT_NONINTERACTIVE_ENV
+            )
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        logger.debug("Not a git repository: %s", project_dir)
+        return {
+            "success": False,
+            "error": f"Not a git repository: {project_dir}",
+            "returncode": None,
+            "stderr": None,
+        }
+
+    if returncode != 0:
+        logger.debug("git pull failed (exit %s): %s", returncode, stderr)
+        return {
+            "success": False,
+            "error": f"git pull failed (exit {returncode})",
+            "returncode": returncode,
+            "stderr": stderr,
+        }
+    return {"success": True, "error": None, "returncode": 0, "stderr": stderr}
+
+
+def _ls_remote_heads(repo: Repo, *refs: str) -> tuple[int, bytes, str]:
+    """Run ``git ls-remote --heads origin <refs>`` non-interactively.
+
+    Returns:
+        ``(returncode, stdout, stderr)`` from ``git ls-remote``.
+    """
+    return run_git_raw(
+        repo, "ls_remote", "--heads", "origin", *refs, env=GIT_NONINTERACTIVE_ENV
+    )
+
+
+def probe_origin_branch(project_dir: Path, branch: str) -> BranchProbe:
+    """Ask origin (git ls-remote, no fetch) whether ``refs/heads/<branch>`` exists.
+
+    The full ref is queried, so ``main`` does not match ``team/main``.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+        branch: Branch name to look for (without 'origin/' prefix)
+
+    Returns:
+        BranchProbe; ``exists`` is True/False when origin answered and None
+        when it couldn't (unreachable, authentication failure). A blank branch
+        name or a non-repository is an error result with ``returncode`` and
+        ``stderr`` None.
+    """
+    logger.debug("Probing origin for branch '%s' in %s", branch, project_dir)
+
+    if not branch or not branch.strip():
+        return {
+            "success": False,
+            "error": "Branch name cannot be empty",
+            "returncode": None,
+            "stderr": None,
+            "exists": None,
+        }
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            returncode, stdout, stderr = _ls_remote_heads(repo, f"refs/heads/{branch}")
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        logger.debug("Not a git repository: %s", project_dir)
+        return {
+            "success": False,
+            "error": f"Not a git repository: {project_dir}",
+            "returncode": None,
+            "stderr": None,
+            "exists": None,
+        }
+
+    if returncode != 0:
+        logger.debug("git ls-remote failed (exit %s): %s", returncode, stderr)
+        return {
+            "success": False,
+            "error": f"git ls-remote failed (exit {returncode})",
+            "returncode": returncode,
+            "stderr": stderr,
+            "exists": None,
+        }
+    return {
+        "success": True,
+        "error": None,
+        "returncode": returncode,
+        "stderr": stderr,
+        "exists": bool(stdout.strip()),
+    }
+
+
+def list_remote_branches(project_dir: Path) -> RemoteBranchesResult:
+    """List every head on origin (git ls-remote, no fetch), without truncation.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+
+    Returns:
+        RemoteBranchesResult; ``branches`` holds the names without the
+        ``refs/heads/`` prefix. An empty remote is a successful empty list.
+        An unreachable origin or a non-repository is an error result with
+        ``branches`` empty; for a non-repository ``returncode`` and ``stderr``
+        are None.
+    """
+    logger.debug("Listing origin branches in %s", project_dir)
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            returncode, stdout, stderr = _ls_remote_heads(repo)
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        logger.debug("Not a git repository: %s", project_dir)
+        return {
+            "success": False,
+            "error": f"Not a git repository: {project_dir}",
+            "returncode": None,
+            "stderr": None,
+            "branches": [],
+        }
+
+    if returncode != 0:
+        logger.debug("git ls-remote failed (exit %s): %s", returncode, stderr)
+        return {
+            "success": False,
+            "error": f"git ls-remote failed (exit {returncode})",
+            "returncode": returncode,
+            "stderr": stderr,
+            "branches": [],
+        }
+    return {
+        "success": True,
+        "error": None,
+        "returncode": returncode,
+        "stderr": stderr,
+        "branches": parse_ls_remote_heads(stdout),
+    }
 
 
 def get_repository_identifier(

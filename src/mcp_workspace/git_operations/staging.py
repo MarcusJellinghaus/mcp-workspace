@@ -2,9 +2,16 @@
 
 from pathlib import Path
 
-from git.exc import GitCommandError, InvalidGitRepositoryError
+from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
-from .core import _normalize_git_path, logger, safe_repo_context
+from .core import (
+    GitResult,
+    _normalize_git_path,
+    logger,
+    run_git_raw,
+    safe_repo_context,
+    to_git_paths,
+)
 from .repository_status import get_unstaged_changes, is_git_repository
 
 
@@ -115,6 +122,77 @@ def stage_specific_files(files: list[Path], project_dir: Path) -> bool:
     ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.error("Unexpected error staging files: %s", e)
         return False
+
+
+def unstage_paths(paths: list[Path], project_dir: Path) -> GitResult:
+    """Remove ``paths`` from the index, keeping their working-tree content.
+
+    Works on an unborn HEAD (the paths become untracked). Idempotent: paths
+    that are not staged are a success. Paths are matched literally (``*``,
+    ``[`` and ``:(`` have no special meaning) and long lists are split into
+    several git calls to stay under the Windows command-line limit.
+
+    Args:
+        paths: Absolute paths, or paths relative to ``project_dir``
+        project_dir: Path to the project directory containing the git repository
+
+    Returns:
+        GitResult; ``success`` is True when every path is unstaged. An empty
+        ``paths`` is a success without running git. A non-repository or a path
+        outside ``project_dir`` is an error result with ``returncode`` and
+        ``stderr`` None. A failing chunk leaves earlier chunks unstaged.
+    """
+    logger.debug("Unstaging paths %s in %s", paths, project_dir)
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            if not paths:
+                return {
+                    "success": True,
+                    "error": None,
+                    "returncode": None,
+                    "stderr": None,
+                }
+            try:
+                rel_paths = to_git_paths(paths, project_dir)
+            except ValueError as e:
+                logger.debug("unstage_paths failed: %s", e)
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "returncode": None,
+                    "stderr": None,
+                }
+
+            head_rc, _, _ = run_git_raw(repo, "rev_parse", "--verify", "-q", "HEAD")
+            returncode, stderr = 0, ""
+            for chunk in _chunk_paths(rel_paths):
+                if head_rc == 0:
+                    args: tuple[str, ...] = ("reset", "-q", "HEAD", "--", *chunk)
+                else:
+                    args = ("rm", "--cached", "-r", "-q", "--ignore-unmatch", "--")
+                    args += tuple(chunk)
+                returncode, _, stderr = run_git_raw(repo, *args, literal_paths=True)
+                if returncode != 0:
+                    logger.debug(
+                        "git %s failed (exit %s): %s", args[0], returncode, stderr
+                    )
+                    return {
+                        "success": False,
+                        "error": f"git {args[0]} failed (exit {returncode})",
+                        "returncode": returncode,
+                        "stderr": stderr,
+                    }
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        logger.debug("Not a git repository: %s", project_dir)
+        return {
+            "success": False,
+            "error": f"Not a git repository: {project_dir}",
+            "returncode": None,
+            "stderr": None,
+        }
+
+    return {"success": True, "error": None, "returncode": returncode, "stderr": stderr}
 
 
 def stage_all_changes(project_dir: Path) -> bool:

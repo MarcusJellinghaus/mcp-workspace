@@ -166,6 +166,24 @@ _.resolved_thread_count
 _.outcome
 # CommitResult TypedDict field - accessed via subscript
 _.error_category
+# StatusResult TypedDict field - accessed via subscript
+_.clean
+# RebaseProbe TypedDict field - accessed via subscript
+_.files
+# BranchProbe TypedDict field - accessed via subscript
+_.exists
+# RemoteBranchesResult TypedDict field - accessed via subscript
+_.branches
+# ConflictBlobInfoResult / ConflictBlobEntry / ConflictStageResult TypedDict fields
+_.entries
+_.stages
+_.is_binary
+_.content
+# TreeEntry TypedDict fields - accessed via subscript
+_.mode
+_.type
+_.sha
+_.path
 # CacheData TypedDict field - accessed via subscript
 _.cached_at
 # CIStatusData TypedDict field - accessed via subscript
@@ -204,3 +222,5 @@ _._empty_trusted_commenters
 # Fixtures for issue #342 untrusted base-branch tests, reached through their name= alias
 _._editor  # name="editor"
 _._token_login  # name="token_login"
+# Fixture for issue #352 base-branch source tests, reached through its name= alias
+_._git_mocks  # name="git_mocks"
