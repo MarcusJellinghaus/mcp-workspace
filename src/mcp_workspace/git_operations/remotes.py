@@ -21,6 +21,7 @@ from .core import (
     safe_repo_context,
 )
 from .porcelain_parsers import parse_ls_remote_heads
+from .rebase import rebase_abort, rebase_start
 from .repository_status import get_working_tree_status, is_git_repository
 
 if TYPE_CHECKING:
@@ -531,7 +532,8 @@ def rebase_onto_branch(project_dir: Path, target_branch: str) -> bool:
     """Attempt to rebase current branch onto origin/<target_branch>.
 
     Fetches from origin, then attempts rebase. If conflicts are detected,
-    automatically aborts the rebase. All outcomes are logged internally.
+    automatically aborts the rebase. A rebase already in progress is left
+    alone (returns False). All outcomes are logged internally.
 
     NOTE: This function was moved from branches.py because it's inherently
     remote-aware (operates on origin/<branch>) and required fetch_remote.
@@ -565,47 +567,28 @@ def rebase_onto_branch(project_dir: Path, target_branch: str) -> bool:
             logger.warning("Skipping rebase: failed to fetch from origin")
             return False
 
-        with safe_repo_context(project_dir) as repo:
-            # Attempt rebase onto origin/<target_branch>
-            try:
-                repo.git.rebase(f"origin/{target_branch}")
-                logger.info(f"Successfully rebased onto origin/{target_branch}")
-                return True
+        result = rebase_start(project_dir, f"origin/{target_branch}")
+        if result["status"] == "completed":
+            logger.info("Successfully rebased onto origin/%s", target_branch)
+            return True
 
-            except GitCommandError as e:
-                error_message = str(e).lower()
+        if result["status"] == "stopped_on_conflict":
+            logger.warning("Skipping rebase: merge conflicts detected, aborting rebase")
+            # Abort the rebase to restore original state
+            abort = rebase_abort(project_dir)
+            if not abort["success"]:
+                logger.warning(
+                    "Failed to abort rebase: %s", abort["stderr"] or abort["error"]
+                )
+            return False
 
-                # Check if already up-to-date (some git versions report this)
-                if "up to date" in error_message or "up-to-date" in error_message:
-                    logger.info(f"Already up-to-date with origin/{target_branch}")
-                    return True
-
-                # Check if rebase is in progress (conflicts detected).
-                # Use the repository's real git dir: in a linked worktree or a
-                # submodule, .git is a file and the rebase state lives elsewhere.
-                git_dir = Path(repo.git_dir)
-                rebase_merge_dir = git_dir / "rebase-merge"
-                rebase_apply_dir = git_dir / "rebase-apply"
-
-                if rebase_merge_dir.exists() or rebase_apply_dir.exists():
-                    logger.warning(
-                        "Skipping rebase: merge conflicts detected, aborting rebase"
-                    )
-                    # Abort the rebase to restore original state
-                    try:
-                        repo.git.rebase("--abort")
-                        logger.debug("Successfully aborted rebase")
-                    except GitCommandError as abort_error:
-                        logger.warning(f"Failed to abort rebase: {abort_error}")
-                    return False
-
-                # Other git command error (e.g., invalid branch name)
-                logger.warning(f"Skipping rebase: {e}{_format_dirty_tree(project_dir)}")
-                return False
-
-    except (InvalidGitRepositoryError, GitCommandError) as e:
-        logger.warning(f"Skipping rebase: {e}")
+        # Other error (e.g. invalid branch name, rebase already in progress)
+        logger.warning(
+            f"Skipping rebase: {result['stderr'] or result['error']}"
+            f"{_format_dirty_tree(project_dir)}"
+        )
         return False
+
     except (
         Exception
     ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError

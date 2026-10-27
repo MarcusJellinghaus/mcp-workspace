@@ -62,9 +62,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 9: Rebuild `rebase_onto_branch` on `rebase_start` / `rebase_abort` — [step_9.md](./steps/step_9.md)
-- [ ] Implementation (tests + production code + release notes)
-- [ ] Quality checks: pylint, pytest, mypy (+ lint-imports) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code + release notes)
+- [x] Quality checks: pylint, pytest, mypy (+ lint-imports) — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 - [ ] PR review: review full branch diff against `main`, address findings

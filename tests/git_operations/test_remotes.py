@@ -440,6 +440,46 @@ class TestRebaseOntoBranch:
         assert not (worktree_git_dir / "rebase-apply").exists()
         assert worktree_repo.head.commit.hexsha == original_head
 
+    def test_rebase_onto_branch_keeps_existing_rebase(
+        self, git_repo_with_remote: tuple[Repo, Path, Path]
+    ) -> None:
+        """Test a rebase already in progress is left alone, not aborted."""
+        repo, project_dir, _ = git_repo_with_remote
+
+        current_branch = repo.active_branch.name
+        repo.git.push("-u", "origin", current_branch)
+
+        # Conflicting file on the feature branch
+        repo.git.checkout("-b", "feature-branch")
+        conflict_file = project_dir / "conflict.txt"
+        conflict_file.write_text("feature branch content")
+        repo.index.add(["conflict.txt"])
+        repo.index.commit("Add conflict file on feature")
+
+        # Same file with different content on main, pushed to origin
+        repo.git.checkout(current_branch)
+        conflict_file.write_text("main branch content")
+        repo.index.add(["conflict.txt"])
+        repo.index.commit("Add conflict file on main")
+        repo.git.push("origin", current_branch)
+
+        repo.git.checkout("feature-branch")
+
+        # The user's own rebase, stopped on the conflict
+        with pytest.raises(GitCommandError):
+            repo.git.rebase(f"origin/{current_branch}")
+        git_dir = Path(repo.git_dir)
+        rebase_dirs = [git_dir / "rebase-merge", git_dir / "rebase-apply"]
+        assert any(d.exists() for d in rebase_dirs)
+
+        result = rebase_onto_branch(project_dir, current_branch)
+
+        assert result is False
+        # Verify: the user's rebase was not aborted
+        assert any(d.exists() for d in rebase_dirs)
+
+        repo.git.rebase("--abort")
+
 
 def _status_ok(
     staged: list[str], modified: list[str], untracked: list[str]

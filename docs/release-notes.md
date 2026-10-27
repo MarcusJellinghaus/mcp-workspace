@@ -80,7 +80,8 @@ with `-` are rejected.
 - `get_full_status` reads the `-z` status: paths are raw UTF-8 (no C-quoting), a
   staged-renamed-then-modified file is reported by its new path (not `old -> new`), and a
   status failure gives all-empty lists (never partial).
-- `rebase_onto_branch` is unchanged (keeps its inline rebase-dir check until #355).
+- `rebase_onto_branch` no longer aborts a rebase that was already in progress; it returns
+  `False` and leaves it alone.
 - `stage_all_changes` no longer reports success when it cannot read the status; it runs
   `git add --all` directly, so any git failure is `False`.
 - `commit_all_changes` returns `success=False` (`error_category="commit_failed"`) when
