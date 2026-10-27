@@ -27,9 +27,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 2: `_detect_from_merge_base` uses `probe_origin_branch`; delete `origin_has_branch` — [step_2.md](./steps/step_2.md)
-- [ ] Implementation (tests + production code + release notes)
-- [ ] Quality checks: pylint, pytest, mypy (+ lint-imports, vulture) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code + release notes)
+- [x] Quality checks: pylint, pytest, mypy (+ lint-imports, vulture) — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: Rebuild `get_full_status` on `get_working_tree_status` — [step_3.md](./steps/step_3.md)
 - [ ] Implementation (parity tests + production code + release notes)

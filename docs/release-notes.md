@@ -77,8 +77,6 @@ with `-` are rejected.
   no longer chain the original exception, and credentials are scrubbed from URLs in the
   message.
 - `detect_base_branch` gains an optional trailing `issue_manager`; return type unchanged.
-- `origin_has_branch` raises `GitCommandError` when origin can't answer (previously any
-  GitPython error, e.g. `InvalidGitRepositoryError` for a non-repo).
 - `rebase_onto_branch` is unchanged (keeps its inline rebase-dir check until #355).
 
 ### Migration traps

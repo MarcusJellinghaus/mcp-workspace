@@ -1,12 +1,10 @@
-"""Tests for origin queries: probe_origin_branch, its wrapper, list_remote_branches."""
+"""Tests for origin queries: probe_origin_branch, list_remote_branches."""
 
 from pathlib import Path
 
 import pytest
 from git import Repo
-from git.exc import GitCommandError
 
-from mcp_workspace.git_operations.base_branch import origin_has_branch
 from mcp_workspace.git_operations.remotes import (
     list_remote_branches,
     probe_origin_branch,
@@ -108,31 +106,6 @@ class TestProbeOriginBranch:
         assert result["exists"] is None
         assert result["returncode"] is None
         assert result["stderr"] is None
-
-
-@pytest.mark.git_integration
-class TestOriginHasBranchWrapper:
-    """Tests for origin_has_branch over probe_origin_branch."""
-
-    def test_returns_exists(
-        self, git_repo_with_remote: tuple[Repo, Path, Path]
-    ) -> None:
-        """True for a pushed branch, False for an absent one."""
-        repo, project_dir, _ = git_repo_with_remote
-        repo.git.push("origin", "main")
-
-        assert origin_has_branch(project_dir, "main") is True
-        assert origin_has_branch(project_dir, "gone") is False
-
-    def test_unreachable_remote_raises(
-        self, git_repo_with_remote: tuple[Repo, Path, Path], tmp_path: Path
-    ) -> None:
-        """Origin that can't answer raises GitCommandError."""
-        repo, project_dir, _ = git_repo_with_remote
-        repo.git.remote("set-url", "origin", str(tmp_path / "missing.git"))
-
-        with pytest.raises(GitCommandError):
-            origin_has_branch(project_dir, "main")
 
 
 @pytest.mark.git_integration
