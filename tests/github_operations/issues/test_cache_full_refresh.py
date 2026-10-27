@@ -199,6 +199,113 @@ class TestLastFullRefresh:
             state="open", include_pull_requests=False
         )
 
+    @staticmethod
+    def _issue(number: int, state: str = "open", title: str = "Test") -> IssueData:
+        """Create a minimal IssueData for testing."""
+        return IssueData(
+            number=number,
+            state=state,
+            labels=[],
+            updated_at="2025-12-31T09:00:00Z",
+            url=f"https://github.com/test/repo/issues/{number}",
+            title=title,
+            body="",
+            assignees=[],
+            user="testuser",
+            created_at="2025-12-31T08:00:00Z",
+            locked=False,
+            author_association="OWNER",
+        )
+
+    @patch(
+        "mcp_workspace.github_operations.issues.cache._get_cache_file_path",
+    )
+    @patch("mcp_workspace.github_operations.issues.cache.now_utc")
+    def test_full_refresh_keeps_cached_closed_session_issue(
+        self,
+        mock_now: Mock,
+        mock_cache_path: Mock,
+        tmp_path: Path,
+        mock_cache_issue_manager: Mock,
+    ) -> None:
+        """Full refresh puts back a cached closed session issue with its old stamp.
+
+        Non-session issues missing from the open list are still dropped.
+        """
+        mock_now.return_value = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+        cache_file = tmp_path / "test.json"
+        mock_cache_path.return_value = cache_file
+
+        old_stamp = "2025-12-31T11:00:00+00:00"
+        closed_session = self._issue(123, "closed", "Closed session issue")
+        cache_data: CacheData = {
+            "last_checked": "2025-12-31T11:58:00+00:00",
+            "last_full_refresh": "2025-12-30T11:00:00+00:00",  # 25 hours ago
+            "updates_covered_through": "2025-12-31T11:00:00+00:00",
+            "cached_at": {"1": old_stamp, "123": old_stamp},
+            "issues": {"1": self._issue(1), "123": closed_session},
+        }
+        _save_cache_file(cache_file, cache_data)
+
+        mock_cache_issue_manager._list_issues_no_error_handling.return_value = []
+
+        result = get_all_cached_issues(
+            RepoIdentifier.from_full_name("test/repo"),
+            mock_cache_issue_manager,
+            additional_issues=[123],
+        )
+
+        mock_cache_issue_manager._list_issues_no_error_handling.assert_called_once_with(
+            state="open", include_pull_requests=False
+        )
+        mock_cache_issue_manager.get_issue.assert_not_called()
+        assert result == [closed_session]
+
+        with cache_file.open("r") as f:
+            saved = json.load(f)
+        assert saved["issues"] == {"123": closed_session}
+        assert saved["cached_at"] == {"123": old_stamp}
+
+    @patch(
+        "mcp_workspace.github_operations.issues.cache._get_cache_file_path",
+    )
+    @patch("mcp_workspace.github_operations.issues.cache.now_utc")
+    def test_full_refresh_prefers_fresh_list_version_of_session_issue(
+        self,
+        mock_now: Mock,
+        mock_cache_path: Mock,
+        tmp_path: Path,
+        mock_cache_issue_manager: Mock,
+    ) -> None:
+        """Session issue in the open list → saved entry is the listed version, stamped now."""
+        mock_now.return_value = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+        cache_file = tmp_path / "test.json"
+        mock_cache_path.return_value = cache_file
+
+        cache_data: CacheData = {
+            "last_checked": "2025-12-31T11:58:00+00:00",
+            "last_full_refresh": "2025-12-30T11:00:00+00:00",  # 25 hours ago
+            "updates_covered_through": "2025-12-31T11:00:00+00:00",
+            "cached_at": {"123": "2025-12-31T11:00:00+00:00"},
+            "issues": {"123": self._issue(123, title="Cached version")},
+        }
+        _save_cache_file(cache_file, cache_data)
+
+        listed = self._issue(123, title="Listed version")
+        mock_cache_issue_manager._list_issues_no_error_handling.return_value = [listed]
+
+        get_all_cached_issues(
+            RepoIdentifier.from_full_name("test/repo"),
+            mock_cache_issue_manager,
+            additional_issues=[123],
+        )
+
+        mock_cache_issue_manager.get_issue.assert_not_called()
+        with cache_file.open("r") as f:
+            saved = json.load(f)
+        assert saved["issues"]["123"] == listed
+        assert saved["cached_at"]["123"] == "2025-12-31T12:00:00+00:00"
+
     def test_load_cache_without_last_full_refresh_field(self, tmp_path: Path) -> None:
         """Test backward compatibility: loading cache without last_full_refresh field."""
         cache_file = tmp_path / "test.json"

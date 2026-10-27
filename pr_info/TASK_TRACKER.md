@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: Fetch additional issues only when needed; keep session issues on full refresh — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: tests (fetch rule, full-refresh put-back) + `_needs_fetch`, `_fetch_additional_issues` returning fetched keys, steps 5b/5c in `get_all_cached_issues`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (fetch rule, full-refresh put-back) + `_needs_fetch`, `_fetch_additional_issues` returning fetched keys, steps 5b/5c in `get_all_cached_issues`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: Save fetched additional issues on duplicate-protection and list-failure paths — [step_3.md](./steps/step_3.md)
 

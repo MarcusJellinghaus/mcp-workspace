@@ -125,92 +125,6 @@ class TestAdditionalIssuesParameter:
             assert "100" in saved_data["issues"]
             assert "123" in saved_data["issues"]
 
-    def test_additional_issues_always_refreshed(
-        self, mock_cache_issue_manager: Mock
-    ) -> None:
-        """Test that additional issues are always re-fetched for freshness.
-
-        Given: Cache already has issue #123 with stale state (was open, now closed)
-        When: Call get_all_cached_issues(additional_issues=[123])
-        Then:
-        - API call is made for #123 to get fresh data
-        - Issue #123 is in returned list with updated state
-        """
-        from mcp_workspace.github_operations.issues.cache import get_all_cached_issues
-
-        # Cached issue with stale state (open)
-        existing_issue: IssueData = {
-            "number": 123,
-            "state": "open",  # Stale - was open, now closed
-            "labels": ["bug"],
-            "assignees": [],
-            "user": "testuser",
-            "created_at": "2025-12-31T07:00:00Z",
-            "locked": False,
-            "author_association": "OWNER",
-            "title": "Existing issue",
-            "body": "Existing body",
-            "url": "http://test.com/123",
-            "updated_at": "2025-12-31T09:00:00Z",
-        }
-
-        # Fresh issue state from API (closed)
-        fresh_issue: IssueData = {
-            "number": 123,
-            "state": "closed",  # Fresh - actually closed now
-            "labels": ["bug"],
-            "assignees": [],
-            "user": "testuser",
-            "created_at": "2025-12-31T07:00:00Z",
-            "locked": False,
-            "author_association": "OWNER",
-            "title": "Existing issue",
-            "body": "Existing body",
-            "url": "http://test.com/123",
-            "updated_at": "2025-12-31T09:00:00Z",
-        }
-
-        mock_cache_issue_manager.list_issues.return_value = []
-        mock_cache_issue_manager.repo_url = "https://github.com/owner/repo"
-        mock_cache_issue_manager.get_issue.return_value = fresh_issue
-
-        with (
-            patch(
-                "mcp_workspace.github_operations.issues.cache._get_cache_file_path"
-            ) as mock_path,
-            patch(
-                "mcp_workspace.github_operations.issues.cache._load_cache_file"
-            ) as mock_load,
-            patch(
-                "mcp_workspace.github_operations.issues.cache._save_cache_file"
-            ) as mock_save,
-        ):
-            import tempfile
-            from pathlib import Path
-
-            mock_path.return_value = Path(tempfile.gettempdir()) / "test_cache.json"
-            # Cache already has issue #123
-            mock_load.return_value = {
-                "last_checked": None,
-                "issues": {"123": existing_issue},
-            }
-            mock_save.return_value = True
-
-            # Call with additional_issues parameter
-            result = get_all_cached_issues(
-                RepoIdentifier.from_full_name("owner/repo"),
-                mock_cache_issue_manager,
-                additional_issues=[123],
-            )
-
-            # Verify get_issue WAS called to refresh data
-            mock_cache_issue_manager.get_issue.assert_called_once_with(123)
-
-            # Verify issue #123 is in result with FRESH state (closed)
-            assert len(result) == 1
-            assert result[0]["number"] == 123
-            assert result[0]["state"] == "closed"  # Fresh state, not stale
-
     def test_no_additional_issues_backward_compatible(
         self, mock_cache_issue_manager: Mock
     ) -> None:
@@ -404,6 +318,220 @@ class TestAdditionalIssuesParameter:
             # Verify only open issues returned
             assert len(result) == 1
             assert result[0]["number"] == 100
+
+
+_NOW = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+_NOW_STR = "2025-12-31T12:00:00+00:00"
+_FRESH_STAMP = "2025-12-31T11:00:00+00:00"  # 1 hour old, < 1440 min
+_STALE_STAMP = "2025-12-29T12:00:00+00:00"  # 2 days old, > 1440 min
+
+
+def _issue(number: int, state: str = "open", title: str = "Issue") -> IssueData:
+    """Create a minimal IssueData for testing."""
+    return IssueData(
+        number=number,
+        state=state,
+        labels=["bug"],
+        updated_at="2025-12-31T09:00:00Z",
+        url=f"https://github.com/owner/repo/issues/{number}",
+        title=title,
+        body="body",
+        assignees=[],
+        user="testuser",
+        created_at="2025-12-31T08:00:00Z",
+        locked=False,
+        author_association="OWNER",
+    )
+
+
+class TestAdditionalIssuesFetchRule:
+    """Tests for when additional issues are fetched individually."""
+
+    def _write_cache(
+        self,
+        cache_file: Path,
+        issues: Dict[str, IssueData],
+        cached_at: Dict[str, str],
+    ) -> None:
+        """Write a cache that triggers an incremental refresh at _NOW."""
+        cache_data: CacheData = {
+            "last_checked": "2025-12-31T11:58:00+00:00",  # outside 50s protection
+            "last_full_refresh": "2025-12-31T11:00:00+00:00",
+            "updates_covered_through": "2025-12-31T11:00:00+00:00",
+            "cached_at": cached_at,
+            "version": CACHE_SCHEMA_VERSION,
+            "issues": issues,
+        }
+        _save_cache_file(cache_file, cache_data)
+
+    def _run(
+        self,
+        cache_file: Path,
+        manager: Mock,
+        additional_issues: List[int],
+        force_refresh: bool = False,
+    ) -> List[IssueData]:
+        """Call get_all_cached_issues against cache_file at _NOW."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.issues.cache._get_cache_file_path",
+                return_value=cache_file,
+            ),
+            patch(
+                "mcp_workspace.github_operations.issues.cache.now_utc",
+                return_value=_NOW,
+            ),
+        ):
+            return get_all_cached_issues(
+                RepoIdentifier.from_full_name("owner/repo"),
+                manager,
+                force_refresh=force_refresh,
+                additional_issues=additional_issues,
+            )
+
+    def _saved(self, cache_file: Path) -> Dict[str, Any]:
+        with cache_file.open("r") as f:
+            data: Dict[str, Any] = json.load(f)
+        return data
+
+    def test_fresh_cached_issue_not_fetched(
+        self, mock_cache_issue_manager: Mock, tmp_path: Path
+    ) -> None:
+        """Cached with fresh cached_at → get_issue not called, cached issue returned."""
+        cache_file = tmp_path / "cache.json"
+        cached = _issue(123, "closed", "Cached")
+        self._write_cache(cache_file, {"123": cached}, {"123": _FRESH_STAMP})
+
+        result = self._run(cache_file, mock_cache_issue_manager, [123])
+
+        mock_cache_issue_manager.get_issue.assert_not_called()
+        assert result == [cached]
+
+    def test_stale_cached_issue_fetched_and_restamped(
+        self, mock_cache_issue_manager: Mock, tmp_path: Path
+    ) -> None:
+        """Cached with cached_at older than cache_refresh_minutes → fetched, re-stamped."""
+        cache_file = tmp_path / "cache.json"
+        self._write_cache(
+            cache_file, {"123": _issue(123, "open", "Cached")}, {"123": _STALE_STAMP}
+        )
+        mock_cache_issue_manager.get_issue.return_value = _issue(
+            123, "closed", "Fetched"
+        )
+
+        result = self._run(cache_file, mock_cache_issue_manager, [123])
+
+        mock_cache_issue_manager.get_issue.assert_called_once_with(123)
+        assert [i["title"] for i in result] == ["Fetched"]
+        saved = self._saved(cache_file)
+        assert saved["issues"]["123"]["state"] == "closed"
+        assert saved["cached_at"]["123"] == _NOW_STR
+
+    def test_missing_cached_at_fetched(
+        self, mock_cache_issue_manager: Mock, tmp_path: Path
+    ) -> None:
+        """Cached with missing cached_at → fetched."""
+        cache_file = tmp_path / "cache.json"
+        self._write_cache(cache_file, {"123": _issue(123, title="Cached")}, {})
+        mock_cache_issue_manager.get_issue.return_value = _issue(123, title="Fetched")
+
+        result = self._run(cache_file, mock_cache_issue_manager, [123])
+
+        mock_cache_issue_manager.get_issue.assert_called_once_with(123)
+        assert [i["title"] for i in result] == ["Fetched"]
+        assert self._saved(cache_file)["cached_at"]["123"] == _NOW_STR
+
+    def test_unparseable_cached_at_fetched(
+        self, mock_cache_issue_manager: Mock, tmp_path: Path
+    ) -> None:
+        """Cached with unparseable cached_at → fetched."""
+        cache_file = tmp_path / "cache.json"
+        self._write_cache(
+            cache_file, {"123": _issue(123, title="Cached")}, {"123": "not-a-date"}
+        )
+        mock_cache_issue_manager.get_issue.return_value = _issue(123, title="Fetched")
+
+        result = self._run(cache_file, mock_cache_issue_manager, [123])
+
+        mock_cache_issue_manager.get_issue.assert_called_once_with(123)
+        assert [i["title"] for i in result] == ["Fetched"]
+        assert self._saved(cache_file)["cached_at"]["123"] == _NOW_STR
+
+    def test_force_refresh_fetches_fresh_cached_issue(
+        self, mock_cache_issue_manager: Mock, tmp_path: Path
+    ) -> None:
+        """force_refresh bypasses a fresh cached_at; fetched version kept and stamped."""
+        cache_file = tmp_path / "cache.json"
+        self._write_cache(
+            cache_file,
+            {"123": _issue(123, "closed", "Cached")},
+            {"123": _FRESH_STAMP},
+        )
+        mock_cache_issue_manager.get_issue.return_value = _issue(
+            123, "closed", "Fetched"
+        )
+
+        result = self._run(
+            cache_file, mock_cache_issue_manager, [123], force_refresh=True
+        )
+
+        mock_cache_issue_manager.get_issue.assert_called_once_with(123)
+        assert [i["title"] for i in result] == ["Fetched"]
+        saved = self._saved(cache_file)
+        assert saved["issues"]["123"]["title"] == "Fetched"
+        assert saved["cached_at"]["123"] == _NOW_STR
+
+    def test_empty_issue_not_cached_and_fetched_again(
+        self, mock_cache_issue_manager: Mock, tmp_path: Path
+    ) -> None:
+        """get_issue returning number == 0 → not cached, fetched again next call."""
+        cache_file = tmp_path / "cache.json"
+        self._write_cache(cache_file, {}, {})
+        mock_cache_issue_manager.get_issue.return_value = _issue(0)
+
+        self._run(cache_file, mock_cache_issue_manager, [404])
+        saved = self._saved(cache_file)
+        assert "404" not in saved["issues"]
+        assert "404" not in saved["cached_at"]
+
+        result = self._run(cache_file, mock_cache_issue_manager, [404])
+
+        assert mock_cache_issue_manager.get_issue.call_count == 2
+        assert result == []
+
+    def test_failed_fetch_keeps_cached_copy_and_stamp(
+        self, mock_cache_issue_manager: Mock, tmp_path: Path
+    ) -> None:
+        """get_issue raises for a stale cached issue → cached copy kept, stamp unchanged."""
+        cache_file = tmp_path / "cache.json"
+        cached = _issue(123, "open", "Cached")
+        self._write_cache(cache_file, {"123": cached}, {"123": _STALE_STAMP})
+        mock_cache_issue_manager.get_issue.side_effect = Exception("API Error")
+
+        result = self._run(cache_file, mock_cache_issue_manager, [123])
+
+        mock_cache_issue_manager.get_issue.assert_called_once_with(123)
+        assert result == [cached]
+        saved = self._saved(cache_file)
+        assert saved["issues"]["123"] == cached
+        assert saved["cached_at"]["123"] == _STALE_STAMP
+
+    def test_fresh_open_session_issues_cost_zero_fetches(
+        self, mock_cache_issue_manager: Mock, tmp_path: Path
+    ) -> None:
+        """Acceptance: N fresh cached open session issues → zero get_issue calls."""
+        cache_file = tmp_path / "cache.json"
+        numbers = [101, 102, 103, 104, 105]
+        self._write_cache(
+            cache_file,
+            {str(n): _issue(n) for n in numbers},
+            {str(n): _FRESH_STAMP for n in numbers},
+        )
+
+        result = self._run(cache_file, mock_cache_issue_manager, numbers)
+
+        mock_cache_issue_manager.get_issue.assert_not_called()
+        assert sorted(i["number"] for i in result) == numbers
 
 
 class TestApiFailureHandling:
