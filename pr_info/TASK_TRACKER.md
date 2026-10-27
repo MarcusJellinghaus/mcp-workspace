@@ -23,9 +23,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: Unique temp file names in `_save_cache_file` — [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: tests (temp naming, cleanup, replace retry) + `_save_cache_file` with `mkstemp` and one `os.replace` retry
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (temp naming, cleanup, replace retry) + `_save_cache_file` with `mkstemp` and one `os.replace` retry
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: Fetch additional issues only when needed; keep session issues on full refresh — [step_2.md](./steps/step_2.md)
 

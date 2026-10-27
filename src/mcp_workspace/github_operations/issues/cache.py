@@ -11,6 +11,9 @@ and reduce API calls. It includes:
 
 import json
 import logging
+import os
+import tempfile
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import (
@@ -45,6 +48,9 @@ logger = logging.getLogger(__name__)
 # Cache-schema version written on every save. Not branched on: the self-healing
 # migration keys off updates_covered_through absence (see _fetch_and_merge_issues).
 CACHE_SCHEMA_VERSION: int = 1
+
+# Delay before the single os.replace retry in _save_cache_file.
+_REPLACE_RETRY_DELAY_SECONDS: float = 0.1
 
 
 class CacheData(TypedDict):
@@ -156,6 +162,11 @@ def _log_cache_metrics(action: str, repo_name: str, **kwargs: Any) -> None:
 def _save_cache_file(cache_file_path: Path, cache_data: CacheData) -> bool:
     """Save cache data to file using atomic write.
 
+    Each save writes to its own unique temp file in the target directory, so
+    concurrent writers never share a temp path. The final ``os.replace`` is
+    retried once after a short delay (Windows can briefly lock the target).
+    The temp file is removed on every failure path.
+
     Args:
         cache_file_path: Path to cache file
         cache_data: CacheData to save
@@ -163,21 +174,40 @@ def _save_cache_file(cache_file_path: Path, cache_data: CacheData) -> bool:
     Returns:
         True if successful, False otherwise
     """
+    temp_path: Optional[str] = None
     try:
         # Ensure directory exists
         cache_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Atomic write: write to temp file, then rename
-        temp_path = cache_file_path.with_suffix(".tmp")
-        with temp_path.open("w") as f:
+        # Atomic write: write to unique temp file, then rename
+        fd, temp_path = tempfile.mkstemp(
+            dir=cache_file_path.parent,
+            prefix=cache_file_path.name + ".",
+            suffix=".tmp",
+        )
+        with os.fdopen(fd, "w") as f:
             json.dump(cache_data, f, indent=2)
-        temp_path.replace(cache_file_path)  # Atomic rename
 
-        return True
+        for attempt in range(2):
+            try:
+                os.replace(temp_path, cache_file_path)  # Atomic rename
+                return True
+            except OSError:
+                if attempt == 1:
+                    raise
+                time.sleep(_REPLACE_RETRY_DELAY_SECONDS)
+        return False  # pragma: no cover - loop always returns or raises
 
-    except (OSError, PermissionError) as e:
+    except OSError as e:
         logger.warning(f"Cache save error for {cache_file_path}: {e}")
         return False
+
+    finally:
+        if temp_path is not None:
+            try:
+                Path(temp_path).unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def _get_cache_file_path(repo_identifier: RepoIdentifier) -> Path:

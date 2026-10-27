@@ -5,6 +5,7 @@ Split from the original test_issue_cache.py by whole test class.
 
 import json
 import logging
+import os
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -197,13 +198,114 @@ class TestCacheFileOperations:
             assert cache_path.exists()
 
     def test_save_cache_file_permission_error(
-        self, sample_cache_data: CacheData
+        self, sample_cache_data: CacheData, tmp_path: Path
     ) -> None:
-        """Test cache file save handles permission errors gracefully."""
-        with patch.object(Path, "open", side_effect=PermissionError("Access denied")):
-            cache_path = Path("/fake/path/cache.json")
+        """Test cache file save handles temp-file creation errors gracefully."""
+        cache_path = tmp_path / "cache.json"
+        with patch(
+            "mcp_workspace.github_operations.issues.cache.tempfile.mkstemp",
+            side_effect=PermissionError("Access denied"),
+        ):
             result = _save_cache_file(cache_path, sample_cache_data)
-            assert result is False
+        assert result is False
+        assert not cache_path.exists()
+
+
+class TestSaveCacheFileAtomicity:
+    """Tests for unique temp files, cleanup and replace retry in _save_cache_file."""
+
+    _REPLACE = "mcp_workspace.github_operations.issues.cache.os.replace"
+    _SLEEP = "mcp_workspace.github_operations.issues.cache.time.sleep"
+
+    def test_unique_temp_paths_in_target_directory(
+        self, sample_cache_data: CacheData, tmp_path: Path
+    ) -> None:
+        """Two saves use different temp files next to the target."""
+        cache_path = tmp_path / "x.issues.json"
+        sources: List[str] = []
+        real_replace = os.replace
+
+        def recording_replace(src: str, dst: Any) -> None:
+            sources.append(src)
+            real_replace(src, dst)
+
+        with patch(self._REPLACE, side_effect=recording_replace):
+            assert _save_cache_file(cache_path, sample_cache_data) is True
+            assert _save_cache_file(cache_path, sample_cache_data) is True
+
+        assert len(sources) == 2
+        assert sources[0] != sources[1]
+        for src in sources:
+            src_path = Path(src)
+            assert src_path.parent == tmp_path
+            assert src_path.name != "x.issues.tmp"
+            assert src_path.name.endswith(".tmp")
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_write_failure_cleans_up_temp_file(
+        self, sample_cache_data: CacheData, tmp_path: Path
+    ) -> None:
+        """A failing json.dump returns False and leaves no temp file."""
+        cache_path = tmp_path / "x.issues.json"
+        with patch(
+            "mcp_workspace.github_operations.issues.cache.json.dump",
+            side_effect=OSError("disk full"),
+        ):
+            result = _save_cache_file(cache_path, sample_cache_data)
+
+        assert result is False
+        assert list(tmp_path.glob("*.tmp")) == []
+        assert not cache_path.exists()
+
+    def test_replace_fails_once_then_succeeds(
+        self, sample_cache_data: CacheData, tmp_path: Path
+    ) -> None:
+        """One transient os.replace failure is retried after a sleep."""
+        cache_path = tmp_path / "x.issues.json"
+        real_replace = os.replace
+        calls = {"n": 0}
+
+        def flaky_replace(src: str, dst: Any) -> None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise PermissionError("locked")
+            real_replace(src, dst)
+
+        with (
+            patch(self._REPLACE, side_effect=flaky_replace),
+            patch(self._SLEEP) as mock_sleep,
+        ):
+            result = _save_cache_file(cache_path, sample_cache_data)
+
+        assert result is True
+        assert mock_sleep.call_count == 1
+        assert json.loads(cache_path.read_text()) == sample_cache_data
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_replace_fails_twice_returns_false(
+        self,
+        sample_cache_data: CacheData,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Two os.replace failures return False, log a warning, clean up."""
+        caplog.set_level(
+            logging.WARNING, logger="mcp_workspace.github_operations.issues.cache"
+        )
+        cache_path = tmp_path / "x.issues.json"
+
+        with (
+            patch(self._REPLACE, side_effect=PermissionError("locked")) as mock_rep,
+            patch(self._SLEEP) as mock_sleep,
+        ):
+            result = _save_cache_file(cache_path, sample_cache_data)
+
+        assert result is False
+        assert mock_rep.call_count == 2
+        assert mock_sleep.call_count == 1
+        assert "Cache save error" in caplog.text
+        assert list(tmp_path.glob("*.tmp")) == []
+        assert not cache_path.exists()
 
 
 class TestStalenessLogging:
