@@ -30,3 +30,11 @@ pr_info/steps/step_6.md:81 — high — The `feedback` rate-limit check only use
 Verdict(decision='tasks', tasks=['In pr_info/steps/step_6.md (~line 81): check each `unavailable` value with `to_rate_limit_error(v)` as now, and also with step 3\'s `graphql_rate_limit_error(getattr(v, "data", None))`. Raise `GitHubRateLimitError` (and set `_rate_limited`) if either check matches. This covers a GraphQL rate limit in the review-threads section, which `_build_graphql_exception` turns into a status-400 `GithubException`. Add a test where `unavailable["threads"]` is a 400 `GithubException` whose `data` is `{"data": null, "errors": [{"type": "RATE_LIMITED"}]}`, and assert that `GitHubRateLimitError` is raised.'], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 4 — 2026-10-27
+**Findings**:
+Reviewing plan steps 1–7 against the issue. Now checking whether PyGithub's `RateLimitExceededExceedsMaxWait` is caught by the plan's rate-limit rule.Checking whether `_get_issue_checked` lives on `BaseGitHubManager`, since step 6's unbound `get_issue_events` call on the PR manager depends on it.Plan claims check out so far. Last check: how `get_branch_with_pr_fallback` resolves branches today, which step 3 rewrites.pr_info/steps/step_4.md:55 — medium — After step 4, a successful `create_remote_branch_for_issue` calls `invalidate_branch_entry`, which resolves its path through `_store.get_user_app_data_dir`. The `cache_dir` autouse fixture only exists in `tests/github_operations/caching/conftest.py`, so the existing success tests in `tests/github_operations/issues/test_branch_manager_create.py` will read the real user's `coordinator_cache` directory, and could write to it. Fix: patch `invalidate_branch_entry` in those tests, or move the `cache_dir` fixture up to `tests/github_operations/conftest.py`.
+**Decisions**:
+Verdict(decision='dismiss', tasks=[], escalate_reason=None)
+**Changes**:
+dismiss
