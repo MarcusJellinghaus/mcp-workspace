@@ -21,6 +21,21 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Query alerts by PR, `AlertData` shape, new alert line
+See [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: tests first (mixin fixtures + exact request params, `_alert()` helper, `TestAlerts` lines), then `AlertData` in `pr_types.py`, `fetch_code_scanning_alerts` query by `pr`/`state`/`per_page`, new `[alert]` line in `checks/pr_feedback.py`
+- [ ] Quality checks: pylint, pytest, mypy, vulture — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: 403/404 on alerts → `skipped`, rendered as "alerts not checked"
+See [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: tests first (parametrized `test_code_scanning_error_routing`, `skipped == {}` asserts, `TestSkipped`, undeterminable/blocks-merge tests), then `PRFeedback.skipped`, fetch raises all errors, mixin routes 403/404 (non-rate-limit) to `skipped`, formatter clean-line note and `[skipped]` lines
+- [ ] Quality checks: pylint, pytest, mypy, vulture — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: review full branch diff against `main`, address findings
+- [ ] PR summary prepared
