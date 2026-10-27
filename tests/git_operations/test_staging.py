@@ -79,6 +79,15 @@ class TestStagingOperations:
         assert "file1.py" in staged
         assert "file2.py" in staged
 
+    def test_stage_all_changes_clean_tree_returns_true(
+        self, git_repo_with_commit: tuple[Repo, Path]
+    ) -> None:
+        """Test stage_all_changes on a clean tree is a successful no-op."""
+        repo, project_dir = git_repo_with_commit
+
+        assert stage_all_changes(project_dir) is True
+        assert repo.index.diff("HEAD") == []
+
     def test_stage_specific_files(
         self, git_repo_with_commit: tuple[Repo, Path]
     ) -> None:

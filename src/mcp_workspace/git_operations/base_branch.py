@@ -17,7 +17,7 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from git.exc import GitCommandError
+from git.exc import GitCommandNotFound
 
 from mcp_workspace.git_operations.branch_queries import (
     extract_issue_number_from_branch,
@@ -130,34 +130,6 @@ def _detect_from_pr(
     return None
 
 
-def origin_has_branch(project_dir: Path, branch_name: str) -> bool:
-    """Ask origin (git ls-remote, no fetch) whether refs/heads/<branch_name> exists.
-
-    Thin wrapper over ``probe_origin_branch`` for callers that want a bool.
-
-    Args:
-        project_dir: Path to git repository
-        branch_name: Branch name to look for (without 'origin/' prefix)
-
-    Returns:
-        True if origin lists the branch, False if origin answered and the
-        branch is absent.
-
-    Raises:
-        GitCommandError: Origin couldn't answer (unreachable, authentication
-            failure, not a repository, blank branch name), so callers can
-            distinguish "gone" from "unknown".
-    """
-    probe = probe_origin_branch(project_dir, branch_name)
-    if probe["exists"] is None:
-        raise GitCommandError(
-            ["git", "ls-remote", "--heads", "origin", f"refs/heads/{branch_name}"],
-            probe["returncode"],
-            probe["stderr"] or probe["error"] or "",
-        )
-    return probe["exists"]
-
-
 def _detect_from_merge_base(
     project_dir: Path,
     current_branch: str,
@@ -194,11 +166,18 @@ def _detect_from_merge_base(
         return result
 
     try:
-        still_there = origin_has_branch(project_dir, result)
-    except Exception as e:  # pylint: disable=broad-exception-caught
+        probe = probe_origin_branch(project_dir, result)
+    except (GitCommandNotFound, OSError) as e:
         logger.debug("Could not ask origin about branch '%s': %s", result, e)
         return result
-    if not still_there:
+    if probe["exists"] is None:
+        logger.debug(
+            "Could not ask origin about branch '%s': %s",
+            result,
+            probe["stderr"] or probe["error"],
+        )
+        return result
+    if not probe["exists"]:
         logger.debug("Discarding merge-base winner '%s': deleted on origin", result)
         return None
     return result

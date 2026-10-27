@@ -14,13 +14,13 @@ import logging
 from pathlib import Path
 from typing import Optional, Tuple
 
-from git.exc import GitCommandError, InvalidGitRepositoryError
+from git.exc import GitCommandError, GitCommandNotFound, InvalidGitRepositoryError
 
 from .branch_queries import get_current_branch_name, get_default_branch_name
 from .commits import commit_staged_files
 from .core import CommitResult, safe_repo_context
 from .remotes import fetch_remote
-from .repository_status import get_full_status, is_git_repository
+from .repository_status import get_working_tree_status, is_git_repository
 from .staging import stage_all_changes
 
 # Use same logging pattern as other git_operations modules
@@ -53,6 +53,7 @@ def commit_all_changes(message: str, project_dir: Path) -> CommitResult:
         - Requires non-empty commit message (after stripping whitespace)
         - If no unstaged changes exist but staged changes do, will commit staged changes
         - If no changes exist at all, will succeed with no commit hash
+        - Returns error_category 'commit_failed' if the status can't be read
     """
     logger.debug(
         "Orchestrating commit all changes workflow with message: %s in %s",
@@ -73,20 +74,43 @@ def commit_all_changes(message: str, project_dir: Path) -> CommitResult:
             "stderr": None,
         }
 
-    # Check if there are any changes to commit
-    status = get_full_status(project_dir)
-    if not status["staged"] and not status["modified"] and not status["untracked"]:
-        logger.info("No changes to commit")
-        return {
-            "success": True,
-            "commit_hash": None,
-            "error": None,
-            "error_category": None,
-            "returncode": None,
-            "stderr": None,
-        }
-
     try:
+        # Check if there are any changes to commit
+        try:
+            status = get_working_tree_status(project_dir)
+        except (GitCommandNotFound, OSError) as e:
+            error_msg = f"Failed to read working tree status: {e}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "commit_hash": None,
+                "error": error_msg,
+                "error_category": "commit_failed",
+                "returncode": None,
+                "stderr": None,
+            }
+        if not status["success"]:
+            error_msg = f"Failed to read working tree status: {status['error']}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "commit_hash": None,
+                "error": error_msg,
+                "error_category": "commit_failed",
+                "returncode": status["returncode"],
+                "stderr": status["stderr"],
+            }
+        if status["clean"]:
+            logger.info("No changes to commit")
+            return {
+                "success": True,
+                "commit_hash": None,
+                "error": None,
+                "error_category": None,
+                "returncode": None,
+                "stderr": None,
+            }
+
         # Stage all unstaged changes first (using staging module)
         logger.debug("Staging all unstaged changes")
         staging_result = stage_all_changes(project_dir)

@@ -15,7 +15,7 @@ from .core import (
     to_git_paths,
 )
 from .porcelain_parsers import parse_status_z
-from .repository_status import get_staged_changes, is_git_repository
+from .repository_status import has_staged_changes, is_git_repository
 
 _SIGNING_KEYWORDS = ("gpg", "signing", "secret key", "signing failed")
 _STDERR_LOG_LIMIT = 500
@@ -56,7 +56,7 @@ def commit_staged_files(message: str, project_dir: Path) -> CommitResult:
         - Returns commit hash on success
         - Provides error details on failure
         - Uses existing is_git_repository() for validation
-        - Uses get_staged_changes() to verify there's content to commit
+        - Uses has_staged_changes() to verify there's content to commit
         - Uses git porcelain (``repo.git.commit``) so ``commit.gpgsign``,
           ``user.signingkey``, ``gpg.format``, ``gpg.program``, and the
           ``pre-commit`` / ``commit-msg`` hooks are honored. Hooks now run
@@ -91,8 +91,20 @@ def commit_staged_files(message: str, project_dir: Path) -> CommitResult:
 
     try:
         # Check if there are staged files to commit
-        staged_files = get_staged_changes(project_dir)
-        if not staged_files:
+        try:
+            staged = has_staged_changes(project_dir)
+        except GitCommandError as e:
+            error_msg = f"Git error checking staged changes: {e}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "commit_hash": None,
+                "error": error_msg,
+                "error_category": "commit_failed",
+                "returncode": e.status if isinstance(e.status, int) else None,
+                "stderr": str(e.stderr or ""),
+            }
+        if not staged:
             error_msg = "No staged files to commit"
             logger.error(error_msg)
             return {
