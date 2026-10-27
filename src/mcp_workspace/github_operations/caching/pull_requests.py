@@ -78,6 +78,12 @@ def _parse_pr(pr: PullRequest) -> OpenPullRequest:
     """Parse a pull-request-simple list item field by field.
 
     Never touches ``mergeable*`` / ``merged``, which would lazy-load the PR.
+
+    Args:
+        pr: A PR item from the open-PR list.
+
+    Returns:
+        The parsed open PR.
     """
     return OpenPullRequest(
         number=pr.number,
@@ -94,7 +100,14 @@ def _parse_pr(pr: PullRequest) -> OpenPullRequest:
 
 
 def _fetch_open_prs(repo: Repository) -> list[OpenPullRequest]:
-    """Fetch every page of open PRs. Undecorated: all errors propagate."""
+    """Fetch every page of open PRs. Undecorated: all errors propagate.
+
+    Args:
+        repo: Repository to list open PRs of.
+
+    Returns:
+        All open PRs of the repository.
+    """
     return [_parse_pr(pr) for pr in repo.get_pulls(state="open")]
 
 
@@ -184,7 +197,14 @@ class PullRequestCache:
 
     @classmethod
     def load(cls, pr_manager: PullRequestManager) -> PullRequestCache:
-        """Load the cache file for the manager's repository. Never raises on bad data."""
+        """Load the cache file for the manager's repository. Never raises on bad data.
+
+        Args:
+            pr_manager: PR manager of the repository to cache results for.
+
+        Returns:
+            A cache seeded with the contents of the file on disk.
+        """
         path = cache_file_path(pr_manager.repo_identifier, _SUFFIX)
         return cls(pr_manager, load_json(path, PRS_CACHE_VERSION))
 
@@ -270,7 +290,18 @@ class PullRequestCache:
         )
 
     def _guarded(self, fn: Callable[..., _T], *args: Any) -> _T:
-        """Call fn under rate_limit_guard; a rate limit disables ``save()``."""
+        """Call fn under rate_limit_guard; a rate limit disables ``save()``.
+
+        Args:
+            fn: Function to call.
+            *args: Positional arguments passed to ``fn``.
+
+        Returns:
+            The result of ``fn``.
+
+        Raises:
+            GitHubRateLimitError: If ``fn`` hit a rate limit.
+        """
         try:
             with rate_limit_guard():
                 return fn(*args)
@@ -279,11 +310,14 @@ class PullRequestCache:
             raise
 
     def _repository(self) -> Repository:
-        """Return the manager's repository, raising if it is unavailable."""
+        """Return the manager's repository, raising if it is unavailable.
+
+        Raises:
+            RuntimeError: If the manager's repository is not accessible.
+        """
         if self._repo is None:
-            repo = (
-                self._pr_manager._get_repository()
-            )  # pylint: disable=protected-access
+            # pylint: disable-next=protected-access
+            repo = self._pr_manager._get_repository()
             if repo is None:
                 raise RuntimeError(
                     f"Repository {self.repo_identifier.full_name} not accessible"
@@ -420,7 +454,14 @@ class PullRequestCache:
         return events
 
     def _merged_snapshot(self, disk: dict[str, Any] | None) -> dict[str, Any] | None:
-        """Pick the newer of disk and my snapshot; on a tie, add my missing tips."""
+        """Pick the newer of disk and my snapshot; on a tie, add my missing tips.
+
+        Args:
+            disk: Valid snapshot currently on disk, or None.
+
+        Returns:
+            The snapshot to save, or None if neither exists.
+        """
         mine = self._snapshot
         if mine is None or disk is None:
             return mine or disk

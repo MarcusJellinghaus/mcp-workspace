@@ -33,7 +33,14 @@ _live: weakref.WeakSet[BranchLookupCache] = weakref.WeakSet()
 
 
 def _load_entries(repo_identifier: RepoIdentifier) -> dict[str, dict[str, Any]]:
-    """Load the valid-shaped entries of a repo's branches cache file. Never raises."""
+    """Load the valid-shaped entries of a repo's branches cache file. Never raises.
+
+    Args:
+        repo_identifier: Repository whose cache file is read.
+
+    Returns:
+        Entries keyed by issue number; empty if the file is missing or invalid.
+    """
     path = cache_file_path(repo_identifier, _SUFFIX)
     entries = load_json(path, BRANCHES_CACHE_VERSION).get("entries", {})
     if not isinstance(entries, dict):
@@ -63,7 +70,14 @@ class BranchLookupCache:
 
     @classmethod
     def load(cls, manager: IssueBranchManager) -> BranchLookupCache:
-        """Load the cache file for the manager's repository. Never raises on bad data."""
+        """Load the cache file for the manager's repository. Never raises on bad data.
+
+        Args:
+            manager: Branch manager of the repository to cache lookups for.
+
+        Returns:
+            A cache seeded with the valid entries from disk.
+        """
         cache = cls(manager, _load_entries(manager.repo_identifier))
         _live.add(cache)
         return cache

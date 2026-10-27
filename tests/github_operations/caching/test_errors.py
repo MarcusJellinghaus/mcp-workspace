@@ -9,6 +9,7 @@ import pytest
 from github.GithubException import GithubException, RateLimitExceededException
 from requests.exceptions import RetryError
 
+from mcp_workspace.github_operations import GitHubRateLimitError as Exported
 from mcp_workspace.github_operations.caching.errors import (
     GitHubRateLimitError,
     rate_limit_guard,
@@ -121,8 +122,4 @@ class TestRateLimitGuard:
 
 
 def test_exported_from_package() -> None:
-    from mcp_workspace.github_operations import (
-        GitHubRateLimitError as Exported,
-    )  # pylint: disable=import-outside-toplevel
-
     assert Exported is GitHubRateLimitError

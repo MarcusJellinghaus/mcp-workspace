@@ -14,6 +14,12 @@ from mcp_workspace.github_operations.caching._store import (
     cache_file_path,
     load_json,
 )
+from mcp_workspace.github_operations.issues import (
+    _get_cache_file_path,
+    _load_cache_file,
+    _log_stale_cache_entries,
+)
+from mcp_workspace.github_operations.issues import _save_cache_file as reexported
 from mcp_workspace.github_operations.issues import get_issue_cache_last_checked
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 
@@ -30,10 +36,6 @@ class TestCacheFilePath:
         )
 
     def test_issues_suffix_matches_issue_cache(self) -> None:
-        from mcp_workspace.github_operations.issues import (  # pylint: disable=import-outside-toplevel
-            _get_cache_file_path,
-        )
-
         assert _get_cache_file_path(_REPO) == cache_file_path(_REPO, "issues")
 
 
@@ -124,13 +126,4 @@ class TestGetIssueCacheLastChecked:
 
 
 def test_underscore_exports_still_importable() -> None:
-    from mcp_workspace.github_operations.issues import (
-        _get_cache_file_path,
-        _load_cache_file,
-        _log_stale_cache_entries,
-    )
-    from mcp_workspace.github_operations.issues import (
-        _save_cache_file as reexported,
-    )  # pylint: disable=import-outside-toplevel,unused-import
-
     assert reexported is _save_cache_file
