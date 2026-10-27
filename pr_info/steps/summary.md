@@ -11,7 +11,7 @@ cache subpackage (#361).
 | `additional_issues` (`issues/cache.py`) | `get_issue` for every number on every call, before duplicate protection | `get_issue` only when the issue is not cached, or its `cached_at` is missing, unparseable or older than `cache_refresh_minutes` |
 | `cached_at` stamping | Stamped for fresh + all additional issues after the refresh | Stamped **at fetch time** for individually fetched issues and for `fresh_dict` in step 5c; never for issues put back from the cache |
 | Full refresh + session issues | Step 5b re-applied the always-fetched additional issues, overwriting `fresh_dict` | Step 5b puts back session keys **not in `fresh_dict`** from the issue and `cached_at` snapshots, so closed session issues stay in the result with their old `cached_at` |
-| Duplicate-protection path | Fetched additional issues returned but not saved | When something was fetched: reload the file, merge only `issues[k]`/`cached_at[k]` for the fetched keys, save. Timestamps (`last_checked`, `updates_covered_through`, `last_full_refresh`) are never touched |
+| Duplicate-protection and list-failure paths | Fetched additional issues returned but not saved | When something was fetched: `_save_fetched_issues` reloads the file, merges only `issues[k]`/`cached_at[k]` for the fetched keys, saves. Timestamps (`last_checked`, `updates_covered_through`, `last_full_refresh`) are never touched |
 | `_save_cache_file` | Fixed temp name `x.issues.tmp` shared by all writers | Unique `tempfile.mkstemp` in the same directory, temp file deleted on failure, `os.replace` retried once after a short delay |
 | Repository lookup (`base_manager.py`) | `get_repo` once per manager instance | Per-process cache of `(raw_data, raw_headers)` keyed by `(api_base_url, sha256(token), full_name.lower())`; each manager rebuilds its own object with `self._github_client.create_from_raw_data(...)`, so the `Repository` object and its Requester are never shared |
 | Token keying | `_cached_login` computes its key inline | Shared `_token_key(base_url, token)` helper used by the login and repository caches |
@@ -56,7 +56,7 @@ No new modules or folders. Unchanged on purpose: `checks/pr_feedback.py`
 
 1. Unique temp file names in `_save_cache_file`
 2. Fetch additional issues only when needed; put back session issues after a full refresh
-3. Save fetched additional issues on the duplicate-protection path
+3. Save fetched additional issues on the duplicate-protection and list-failure paths
 4. Per-process `Repository` raw-data cache
 5. Optional code-scanning alerts in `get_pr_feedback`
 6. `IssueBranchManager` accepts `github_token`

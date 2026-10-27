@@ -22,14 +22,18 @@ Signature and return contract unchanged.
 
 ## ALGORITHM
 ```
-mkdir parent; fd, tmp = tempfile.mkstemp(dir=parent, prefix=name + ".", suffix=".tmp")
-try: write json via os.fdopen(fd, "w")
+tmp = None
+try: mkdir parent
+     fd, tmp = tempfile.mkstemp(dir=parent, prefix=name + ".", suffix=".tmp")
+     write json via os.fdopen(fd, "w")
      for attempt in range(2):
          try: os.replace(tmp, cache_file_path); return True
          except OSError: if attempt == 1: raise; time.sleep(delay)
 except OSError as e: log warning (as today); return False
-finally: if tmp still exists: unlink it (missing_ok, ignore OSError)
+finally: if tmp is not None and it still exists: unlink it (missing_ok, ignore OSError)
 ```
+`mkdir` and `mkstemp` stay inside the `try`, as today, so an unwritable cache
+dir returns `False` instead of propagating.
 `PermissionError` is a subclass of `OSError`; one `except OSError` covers both.
 
 ## DATA
@@ -45,4 +49,5 @@ after either outcome.
 - `os.replace` fails once then succeeds → returns `True`, file content correct,
   `time.sleep` called once.
 - `os.replace` fails twice → returns `False`, warning logged, no `*.tmp` left.
+- `tempfile.mkstemp` raises `OSError` → returns `False` (no exception propagates).
 - Existing save/load tests still pass.

@@ -67,6 +67,10 @@ for num in additional_issues or []: key = str(num)
   issues are never cached, so `_needs_fetch` is True on every call (unchanged).
 - A failed fetch of a cached-but-stale issue keeps the cached copy and its old
   `cached_at` (not re-stamped).
+- Step-4 exception path: restore `cache_data["cached_at"] = cached_at_snapshot`
+  next to the existing `issues_snapshot` restore (both snapshots carry the
+  step-2 fetches). Persisting `fetched_keys` on this path is added in step 3,
+  which introduces the reload-and-merge save.
 - Docstrings: fix `_fetch_additional_issues` (no longer claims "doesn't re-fetch";
   describe the fetch rule and return value) and the `additional_issues` arg of
   `get_all_cached_issues` (fetched only when not cached or stale; put back after
