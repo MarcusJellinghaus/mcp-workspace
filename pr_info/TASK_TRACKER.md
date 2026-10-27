@@ -21,6 +21,51 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: `github_pr_create` uses `probe_origin_branch` — [step_1.md](./steps/step_1.md)
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy (+ lint-imports) — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: `_detect_from_merge_base` uses `probe_origin_branch`; delete `origin_has_branch` — [step_2.md](./steps/step_2.md)
+- [ ] Implementation (tests + production code + release notes)
+- [ ] Quality checks: pylint, pytest, mypy (+ lint-imports, vulture) — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: Rebuild `get_full_status` on `get_working_tree_status` — [step_3.md](./steps/step_3.md)
+- [ ] Implementation (parity tests + production code + release notes)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 4: `_format_dirty_tree` uses `get_working_tree_status` — [step_4.md](./steps/step_4.md)
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy (+ lint-imports) — fix all issues
+- [ ] Commit message prepared
+
+### Step 5: `commit_staged_files` precheck uses `has_staged_changes` — [step_5.md](./steps/step_5.md)
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 6: `stage_all_changes` drops its precheck — [step_6.md](./steps/step_6.md)
+- [ ] Implementation (tests + production code + release notes)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 7: `commit_all_changes` precheck uses `get_working_tree_status`, fails closed — [step_7.md](./steps/step_7.md)
+- [ ] Implementation (tests + production code + release notes)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 8: Delete `get_staged_changes` / `get_unstaged_changes` — [step_8.md](./steps/step_8.md)
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy (+ lint-imports, vulture) — fix all issues
+- [ ] Commit message prepared
+
+### Step 9: Rebuild `rebase_onto_branch` on `rebase_start` / `rebase_abort` — [step_9.md](./steps/step_9.md)
+- [ ] Implementation (tests + production code + release notes)
+- [ ] Quality checks: pylint, pytest, mypy (+ lint-imports) — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+- [ ] PR review: review full branch diff against `main`, address findings
+- [ ] PR summary prepared
