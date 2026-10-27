@@ -63,9 +63,10 @@ try: ident = self._repo_identifier
      _repository_cache[key] = (repo.raw_data, repo.raw_headers); self._repository = repo; return repo
 except ...: unchanged error handling (nothing cached)
 ```
-`self._repo_identifier` is read inside the `try`, as today: in `project_dir`
-mode with no git remote its `ValueError` is caught by the existing
-`except Exception` branch and the method returns `None`.
+`ident` and the cache key are computed inside the `try`, as today. Error
+handling for the no-remote case stays as it is today: in `project_dir` mode with
+no git remote, the `except Exception` handler reads `self._repo_identifier`
+again, so the `ValueError` propagates (`_get_repository` raises). Nothing is cached.
 
 ## DATA
 Cache values are plain dicts. No lock: a simultaneous miss in two threads costs
@@ -83,8 +84,6 @@ Patch `build_github_client` to return a distinct `Mock` per manager.
 - `get_repo` raising 404 → returns None, next manager calls `get_repo` again.
 - `clear_repository_cache()` forces a new `get_repo`.
 - Second call on the same manager uses `self._repository` (no client call).
-- `project_dir` mode with `git_operations.get_repository_identifier` patched to
-  return `None` → `_get_repository()` returns `None` (no exception), nothing cached.
 - `_cached_login` tests still pass.
 
 Existing tests that build several managers against one mocked `get_repo` and
