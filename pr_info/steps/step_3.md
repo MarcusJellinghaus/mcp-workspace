@@ -94,7 +94,11 @@ Read lines from the single file in `tmp_path`.
 - off (fixture default) → `"_Requester__requestRaw" not in vars(client.requester)`, no file
 - missing attr: `monkeypatch.delattr(Requester, "_Requester__requestRaw")` → building two
   clients logs the warning once (caplog), no exception
-- no network: `client = build_github_client("tok", "https://api.github.com")`;
-  `repo = client.get_repo("o/r")` (lazy construction, no request);
-  assert `repo._requester is client._Github__requester` and `client.requester is client._Github__requester`.
+- requester identity, no network: log on; before building, patch
+  `Requester._Requester__requestRaw` with a fake returning `(200, {}, '{"full_name": "o/r"}')`
+  (the client is not lazy, so `get_repo` completes the object with one request, which the
+  fake answers). Then `client = build_github_client("tok", "https://api.github.com")`;
+  `repo = client.get_repo("o/r")`; assert `repo._requester is client._Github__requester`,
+  `client.requester is client._Github__requester`, and
+  `"_Requester__requestRaw" in vars(repo._requester)` (the wrapped instance).
   If the identity fails, write one line to `pr_info/.blocked.txt` and stop.
