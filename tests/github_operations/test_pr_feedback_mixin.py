@@ -603,6 +603,45 @@ class TestGetPRFeedback:
         ]
         assert result["unavailable"] == {}
 
+    def test_include_alerts_false_skips_code_scanning_request(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """include_alerts=False → no alerts request; threads and comments still fetched."""
+        self._setup_mocks(
+            mock_manager,
+            comments=[self._make_comment("alice", "general comment")],
+            alerts_raises=GithubException(500, {"message": "boom"}, None),
+        )
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources."
+            "fetch_code_scanning_alerts"
+        ) as fetch_alerts:
+            result = mock_manager.get_pr_feedback(42, include_alerts=False)
+
+        fetch_alerts.assert_not_called()
+        assert result["alerts"] == []
+        assert "alerts" not in result["unavailable"]
+        assert "alerts" not in result["skipped"]
+        assert result["unavailable"] == {}
+        assert _post_call_count(mock_manager) == 1
+        assert len(result["conversation_comments"]) == 1
+
+    def test_include_alerts_default_fetches_alerts_once(
+        self, mock_manager: PullRequestManager
+    ) -> None:
+        """Default call → code-scanning alerts fetched exactly once."""
+        self._setup_mocks(mock_manager, comments=[], alerts_response=[])
+
+        with patch(
+            "mcp_workspace.github_operations._pr_feedback_sources."
+            "fetch_code_scanning_alerts",
+            return_value=[],
+        ) as fetch_alerts:
+            mock_manager.get_pr_feedback(42)
+
+        fetch_alerts.assert_called_once_with(mock_manager, 42)
+
     def test_thread_missing_ids_falls_back_to_none(
         self, mock_manager: PullRequestManager
     ) -> None:

@@ -47,9 +47,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 5: Optional code-scanning alerts in `get_pr_feedback` — [step_5.md](./steps/step_5.md)
 
-- [ ] Implementation: tests + `include_alerts` parameter
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests + `include_alerts` parameter
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 6: `IssueBranchManager` accepts `github_token` — [step_6.md](./steps/step_6.md)
 
