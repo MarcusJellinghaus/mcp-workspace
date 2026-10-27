@@ -550,7 +550,8 @@ class TestGetPRFeedback:
         ]
         alerts_response = [
             {
-                "rule": {"description": "SQL injection"},
+                "number": 51,
+                "rule": {"id": "py/sql-injection", "description": "SQL injection"},
                 "most_recent_instance": {
                     "message": {"text": "potential SQLi"},
                     "location": {"path": "src/foo.py", "start_line": 42},
@@ -589,11 +590,16 @@ class TestGetPRFeedback:
         assert result["conversation_comments"][0]["body"] == "general comment 1"
         assert result["conversation_comments"][0]["id"] == 101
         assert result["conversation_comments"][0]["created_at"] == "2024-01-01T00:00:00"
-        assert len(result["alerts"]) == 1
-        assert result["alerts"][0]["rule_description"] == "SQL injection"
-        assert result["alerts"][0]["message"] == "potential SQLi"
-        assert result["alerts"][0]["path"] == "src/foo.py"
-        assert result["alerts"][0]["line"] == 42
+        assert result["alerts"] == [
+            {
+                "number": 51,
+                "rule_id": "py/sql-injection",
+                "rule_description": "SQL injection",
+                "message": "potential SQLi",
+                "path": "src/foo.py",
+                "line": 42,
+            }
+        ]
         assert result["unavailable"] == {}
 
     def test_thread_missing_ids_falls_back_to_none(
@@ -819,7 +825,8 @@ class TestGetPRFeedback:
         """requestJsonAndCheck returns (headers, data) — a 2-tuple, not a 3-tuple."""
         alerts_response = [
             {
-                "rule": {"description": "SQL injection"},
+                "number": 51,
+                "rule": {"id": "py/sql-injection", "description": "SQL injection"},
                 "most_recent_instance": {
                     "message": {"text": "potential SQLi"},
                     "location": {"path": "src/foo.py", "start_line": 42},
@@ -830,12 +837,28 @@ class TestGetPRFeedback:
 
         alerts = fetch_code_scanning_alerts(mock_manager, 42)
 
-        assert alerts is not None
-        assert len(alerts) == 1
-        assert alerts[0]["rule_description"] == "SQL injection"
-        assert alerts[0]["message"] == "potential SQLi"
-        assert alerts[0]["path"] == "src/foo.py"
-        assert alerts[0]["line"] == 42
+        assert alerts == [
+            {
+                "number": 51,
+                "rule_id": "py/sql-injection",
+                "rule_description": "SQL injection",
+                "message": "potential SQLi",
+                "path": "src/foo.py",
+                "line": 42,
+            }
+        ]
+        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
+        get_call = next(
+            c
+            for c in requester.requestJsonAndCheck.call_args_list
+            if c.args[0] == "GET"
+        )
+        assert get_call.args[1] == "/repos/test/repo/code-scanning/alerts"
+        assert get_call.kwargs["parameters"] == {
+            "pr": 42,
+            "state": "open",
+            "per_page": 100,
+        }
 
     def test_graphql_request_shape(self, mock_manager: PullRequestManager) -> None:
         """The direct call must reproduce `graphql_query`'s URL and payload.

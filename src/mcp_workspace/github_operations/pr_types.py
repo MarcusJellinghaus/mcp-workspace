@@ -4,7 +4,7 @@ This module contains TypedDict definitions used across the PullRequestManager
 and its mixins.
 """
 
-from typing import Any, Literal, Optional, TypedDict
+from typing import Literal, Optional, TypedDict
 
 
 class PullRequestData(TypedDict):
@@ -42,6 +42,17 @@ class ReviewThreadData(TypedDict):
     author_association: Optional[str]
 
 
+class AlertData(TypedDict):
+    """TypedDict for one open code-scanning alert on a PR."""
+
+    number: int
+    rule_id: str
+    rule_description: str
+    message: str
+    path: str
+    line: Optional[int]
+
+
 class ConversationCommentData(TypedDict):
     """TypedDict for a PR top-level conversation comment."""
 
@@ -68,7 +79,7 @@ class PRFeedback(TypedDict):
     resolved_thread_count: int
     changes_requested: list[ChangesRequestedData]
     conversation_comments: list[ConversationCommentData]
-    alerts: list[dict[str, Any]]
+    alerts: list[AlertData]
     unavailable: dict[str, Exception]
 
 

@@ -134,12 +134,13 @@ def format_pr_feedback(feedback: PRFeedback, trusted: frozenset[str]) -> str:
         rendered.append(f"[changes_requested] {author}{suffix}: {body}")
 
     for alert in alerts:
-        rule = alert.get("rule_description", "")
-        message = alert.get("message", "")
-        path = alert.get("path", "")
-        line_no = alert.get("line")
+        path = alert["path"]
+        line_no = alert["line"]
         location = f"{path}:{line_no}" if line_no else path
-        rendered.append(f"[alert] {rule}: {message} @ {location}")
+        rendered.append(
+            f"[alert] [alert_number={alert['number']}] "
+            f"{alert['rule_id']}: {alert['message']} @ {location}"
+        )
 
     # Conversation comments render last: they never drain, so ahead of the
     # verdict-bearing sections they would starve alerts under the shared cap.
