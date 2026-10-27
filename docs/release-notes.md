@@ -1,5 +1,48 @@
 # Release notes
 
+## Next minor release — github_operations: fingerprint-based PR and branch-lookup caches (#361)
+
+### Summary
+
+Adds the `mcp_workspace.github_operations.caching` subpackage: disk caches for open PRs,
+per-PR results and issue → branch lookups, valid while a fingerprint is unchanged, so
+mcp_coder's per-minute `vscodeclaude` runs stop re-querying GitHub
+(MarcusJellinghaus/mcp_coder#1300). Rate limits now raise a dedicated exception instead of
+being swallowed. See the README section "GitHub caches" for files, validity rules and what
+stays live.
+
+### New API
+
+- `GitHubRateLimitError` — exported from `mcp_workspace.github_operations`; attributes `message: str`, `reset_at: datetime | None`. Raised by all caches on a rate limit; nothing is saved for that run.
+- `caching.pull_requests.PullRequestCache` — `load(pr_manager)`, `find_pr(branch)`, `base_tip(base_branch)`, `mergeable_state(pr, issue)`, `ci_status(pr, issue)`, `feedback(pr, issue)`, `label_events(pr, issue)`, `save()`.
+- `caching.branches.BranchLookupCache` — `load(manager)`, `lookup(issue) -> BranchLookup`, `save()`.
+- `caching.branches.invalidate_branch_entry(repo_identifier, issue_number)` — called by `create_remote_branch_for_issue` on success.
+- `IssueBranchManager.resolve_branch_for_issue(issue_number, repo_owner, repo_name) -> BranchLookup` — raises on every error (`ValueError`, `BranchLookupError`, `GitHubRateLimitError`, `GithubException`) instead of returning `None`. `BranchLookupError` is exported from `github_operations.issues`.
+- `issues.BranchLookup` — `NamedTuple`: `status: "found" | "not_found" | "ambiguous"`, `branch: str | None`.
+- `issues.get_issue_cache_last_checked(repo_identifier) -> datetime | None`.
+
+### Behaviour changes
+
+- `get_all_cached_issues` raises `GitHubRateLimitError` on a rate limit instead of
+  returning stale data, and saves nothing. Other errors keep the stale-return path.
+- `get_branch_with_pr_fallback` returns `None` when the linked-branch query fails, instead
+  of continuing with the timeline fallback.
+
+### Deprecations
+
+- `_get_cache_file_path`, `_load_cache_file`, `_save_cache_file` and
+  `_log_stale_cache_entries` exports from `github_operations.issues` will be removed after
+  MarcusJellinghaus/mcp_coder#1300 ships. Use `get_issue_cache_last_checked`.
+
+### Assumptions still to verify against live GitHub
+
+- New comments and reviews bump the PR's `updated_at`.
+- Resolving a review thread may **not** bump the PR's `updated_at`; the issue `updated_at`
+  in the fingerprint and the maximum age cover this.
+- A CI run finishing and the base branch moving do **not** bump the PR's `updated_at`
+  (hence the CI and base-tip fingerprints).
+- Linking a branch to an issue, or a PR cross-referencing it, bumps the issue's `updated_at`.
+
 ## Next minor release — git_operations: missing operations, remote queries, rebase primitives (#352)
 
 ### Summary
