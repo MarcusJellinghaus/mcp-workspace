@@ -122,6 +122,7 @@ depends_on = [
     { path = "mcp_workspace.config" },
     { path = "mcp_workspace.constants" },
     { path = "mcp_workspace.utils" },
+    { path = "mcp_workspace.traffic_log" },
     { path = "mcp_coder_utils.log_utils" },
 ]
 
