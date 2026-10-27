@@ -8,6 +8,7 @@ import pytest
 from git import Repo
 from git.exc import GitCommandError
 
+from mcp_workspace.git_operations.core import StatusResult
 from mcp_workspace.git_operations.remotes import (
     _format_dirty_tree,
     _scrub_credentials,
@@ -440,17 +441,34 @@ class TestRebaseOntoBranch:
         assert worktree_repo.head.commit.hexsha == original_head
 
 
+def _status_ok(
+    staged: list[str], modified: list[str], untracked: list[str]
+) -> StatusResult:
+    """Build a successful StatusResult from the three path lists."""
+    return {
+        "success": True,
+        "error": None,
+        "returncode": 0,
+        "stderr": "",
+        "clean": not (staged or modified or untracked),
+        "staged": staged,
+        "modified": modified,
+        "untracked": untracked,
+    }
+
+
 class TestFormatDirtyTree:
     """Tests for the _format_dirty_tree helper."""
 
     @pytest.mark.parametrize("bucket", ["staged", "modified", "untracked"])
-    @patch("mcp_workspace.git_operations.remotes.get_full_status")
+    @patch("mcp_workspace.git_operations.remotes.get_working_tree_status")
     def test_format_dirty_tree_truncates_each_bucket(
         self, mock_status: MagicMock, bucket: str
     ) -> None:
         """Test each category is capped and annotated with its total count."""
-        empty: dict[str, list[str]] = {"staged": [], "modified": [], "untracked": []}
-        mock_status.return_value = {**empty, bucket: [f"f{i}.py" for i in range(25)]}
+        buckets: dict[str, list[str]] = {"staged": [], "modified": [], "untracked": []}
+        buckets[bucket] = [f"f{i}.py" for i in range(25)]
+        mock_status.return_value = _status_ok(**buckets)
 
         out = _format_dirty_tree(Path("/tmp"))
 
@@ -458,23 +476,35 @@ class TestFormatDirtyTree:
         assert f"... showing 20 of 25 {bucket}" in out
         assert "f24.py" not in out
 
-    @patch("mcp_workspace.git_operations.remotes.get_full_status")
+    @patch("mcp_workspace.git_operations.remotes.get_working_tree_status")
     def test_format_dirty_tree_all_buckets(self, mock_status: MagicMock) -> None:
         """Test labels and line order for a tree dirty in every category."""
-        mock_status.return_value = {
-            "staged": ["s.py"],
-            "modified": ["m.py"],
-            "untracked": ["u.py"],
-        }
+        mock_status.return_value = _status_ok(["s.py"], ["m.py"], ["u.py"])
 
         assert _format_dirty_tree(Path("/tmp")) == (
             "\nWorking tree:\n  staged: s.py\n  modified: m.py\n  untracked: u.py"
         )
 
-    @patch("mcp_workspace.git_operations.remotes.get_full_status")
+    @patch("mcp_workspace.git_operations.remotes.get_working_tree_status")
     def test_format_dirty_tree_clean(self, mock_status: MagicMock) -> None:
         """Test a clean tree renders nothing."""
-        mock_status.return_value = {"staged": [], "modified": [], "untracked": []}
+        mock_status.return_value = _status_ok([], [], [])
+
+        assert _format_dirty_tree(Path("/tmp")) == ""
+
+    @patch("mcp_workspace.git_operations.remotes.get_working_tree_status")
+    def test_format_dirty_tree_status_failure(self, mock_status: MagicMock) -> None:
+        """Test an unreadable status renders nothing."""
+        mock_status.return_value = {
+            "success": False,
+            "error": "git status failed (exit 128)",
+            "returncode": 128,
+            "stderr": "fatal: not a git repository",
+            "clean": False,
+            "staged": [],
+            "modified": [],
+            "untracked": [],
+        }
 
         assert _format_dirty_tree(Path("/tmp")) == ""
 

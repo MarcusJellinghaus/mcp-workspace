@@ -21,7 +21,7 @@ from .core import (
     safe_repo_context,
 )
 from .porcelain_parsers import parse_ls_remote_heads
-from .repository_status import get_full_status, is_git_repository
+from .repository_status import get_working_tree_status, is_git_repository
 
 if TYPE_CHECKING:
     from mcp_workspace.utils.repo_identifier import RepoIdentifier
@@ -503,9 +503,9 @@ def _format_dirty_tree(project_dir: Path) -> str:
         ``Working tree:``, then one indented line per non-empty category of
         staged, modified and untracked paths. A category listing more than
         ``_MAX_DIRTY_PATHS_PER_BUCKET`` paths is truncated and annotated with
-        the total count.
+        the total count. Also empty when the status could not be read.
     """
-    status = get_full_status(project_dir)
+    status = get_working_tree_status(project_dir)
 
     lines: list[str] = []
     for label in ("staged", "modified", "untracked"):
