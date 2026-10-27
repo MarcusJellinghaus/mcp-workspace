@@ -79,7 +79,12 @@ and `not is_expired(entry, now)`. `_store` writes
   can't decide finality. **No** `run.jobs()` calls. Undecorated — errors propagate
   (so `lookup_failed` never occurs here).
 - `feedback`: after the call, for each value in `feedback["unavailable"].values()`:
-  `if (rl := to_rate_limit_error(v)) is not None: raise rl from v` (via `_guarded` → flag set).
+  `rl = to_rate_limit_error(v) or graphql_rate_limit_error(getattr(v, "data", None))`;
+  `if rl is not None: raise rl from v` (via `_guarded` → flag set). The second check covers a
+  GraphQL rate limit in the review-threads section: `_build_graphql_exception`
+  (`_pr_feedback_sources.py:79-104`) turns a `RATE_LIMITED` body into a status-400
+  `GithubException`, which `format_rate_limit_error` does not recognise without
+  `X-RateLimit-Remaining: 0`.
   If `unavailable` is non-empty → return without storing. Store a JSON-safe copy with
   `unavailable={}` and `skipped={}` (both are empty when `include_alerts=False` and nothing failed).
   Why the undecorated `_collect_pr_feedback`: `_handle_github_errors` on `get_pr_feedback`
@@ -116,6 +121,8 @@ Errors / rate limits:
 - `get_pull` raises 500 → propagates, slot not stored.
 - `get_workflow_runs` raises rate limit → `GitHubRateLimitError`, `save()` writes nothing.
 - `_collect_pr_feedback` returns `unavailable={"comments": rate-limit exc}` → `GitHubRateLimitError`, no file written.
+- `_collect_pr_feedback` returns `unavailable={"threads": GithubException(400, data={"data": None, "errors": [{"type": "RATE_LIMITED"}]})}`
+  (no rate-limit headers) → `GitHubRateLimitError`, `save()` writes nothing.
 - An exception raised outside the per-section `try` blocks (e.g. patch `_validate_pr_number`
   or the result assembly to raise a 500 `GithubException`): `get_pr_feedback` still returns
   `_empty_pr_feedback()` (decorator default, unchanged), but `cache.feedback(...)` propagates
