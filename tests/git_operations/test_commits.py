@@ -204,8 +204,8 @@ class TestCommitStagedFilesPorcelain:
                 return_value=True,
             ),
             patch(
-                "mcp_workspace.git_operations.commits.get_staged_changes",
-                return_value=["some_file.py"],
+                "mcp_workspace.git_operations.commits.has_staged_changes",
+                return_value=True,
             ),
         ):
             result = commit_staged_files("hello", tmp_path)
@@ -246,8 +246,8 @@ class TestCommitStagedFilesPorcelain:
                 return_value=True,
             ),
             patch(
-                "mcp_workspace.git_operations.commits.get_staged_changes",
-                return_value=["some_file.py"],
+                "mcp_workspace.git_operations.commits.has_staged_changes",
+                return_value=True,
             ),
         ):
             result = commit_staged_files("hello", tmp_path)
@@ -256,6 +256,28 @@ class TestCommitStagedFilesPorcelain:
         assert result["error_category"] == expected_category
         assert result["error"] is not None
         assert stderr in result["error"]
+
+    def test_staged_check_failure_is_commit_failed(self, tmp_path: Path) -> None:
+        """A GitCommandError from the staged-changes precheck is commit_failed."""
+        with (
+            patch(
+                "mcp_workspace.git_operations.commits.is_git_repository",
+                return_value=True,
+            ),
+            patch(
+                "mcp_workspace.git_operations.commits.has_staged_changes",
+                side_effect=GitCommandError(
+                    ["git", "diff", "--cached", "--quiet"], 128, stderr="fatal: boom"
+                ),
+            ),
+        ):
+            result = commit_staged_files("hello", tmp_path)
+
+        assert result["success"] is False
+        assert result["error_category"] == "commit_failed"
+        assert result["returncode"] == 128
+        assert result["stderr"] is not None
+        assert "boom" in result["stderr"]
 
     @pytest.mark.parametrize(
         "case",
@@ -279,8 +301,8 @@ class TestCommitStagedFilesPorcelain:
                     return_value=True,
                 ),
                 patch(
-                    "mcp_workspace.git_operations.commits.get_staged_changes",
-                    return_value=[],
+                    "mcp_workspace.git_operations.commits.has_staged_changes",
+                    return_value=False,
                 ),
             ):
                 result = commit_staged_files("valid message", tmp_path)
