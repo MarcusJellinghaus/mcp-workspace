@@ -178,7 +178,7 @@ def _make_manager(
     identifier.full_name = full_name
     identifier.api_base_url = api_base_url
     identifier.web_host = web_host
-    manager._repo_identifier = identifier
+    manager.repo_identifier = identifier
     return manager
 
 
@@ -483,13 +483,13 @@ class TestSkipWhenUnreachable:
     def test_manager_not_dereferenced(self) -> None:
         manager = MagicMock()
         run_permission_probes(manager, None, protection_outcome=None)
-        # _repo_identifier should never have been accessed
-        assert "_repo_identifier" not in {c[0] for c in manager.mock_calls if c[0]}
+        # repo_identifier should never have been accessed
+        assert "repo_identifier" not in {c[0] for c in manager.mock_calls if c[0]}
         # Stronger: no attribute access at all besides the call itself
         # (MagicMock records both attribute lookups via method_calls but
         # bare attribute access goes through __getattr__ which is only
         # captured implicitly — we additionally confirm by direct check).
-        assert not manager._repo_identifier.called
+        assert not manager.repo_identifier.called
 
 
 # ===================================================================

@@ -1168,6 +1168,61 @@ class TestBaseGitHubManagerWithRepoUrl:
             mock_github_client.get_repo.assert_called_once_with("test-owner/test-repo")
 
 
+class TestRepoIdentifierProperty:
+    """Test suite for the public repo_identifier property."""
+
+    def test_repo_url_mode_returns_cached_identifier(self) -> None:
+        """repo_identifier returns the same instance as _repo_identifier."""
+        with patch(
+            "mcp_workspace.github_operations.base_manager.get_github_token",
+            return_value="fake_token",
+        ):
+            manager = BaseGitHubManager(repo_url="https://github.com/owner/repo")
+
+            assert manager.repo_identifier.full_name == "owner/repo"
+            assert manager.repo_identifier is manager._repo_identifier
+
+    def test_project_dir_mode_without_remote_raises(self) -> None:
+        """repo_identifier raises ValueError when no remote can be detected."""
+        mock_path = Mock(spec=Path)
+        mock_path.exists.return_value = True
+        mock_path.is_dir.return_value = True
+
+        with (
+            patch(
+                "mcp_workspace.github_operations.base_manager.git_operations.is_git_repository",
+                return_value=True,
+            ),
+            patch(
+                "mcp_workspace.github_operations.base_manager.git_operations.get_repository_identifier",
+                return_value=None,
+            ),
+            patch(
+                "mcp_workspace.github_operations.base_manager.get_github_token",
+                return_value="fake_token",
+            ),
+        ):
+            manager = BaseGitHubManager(project_dir=mock_path)
+
+            with pytest.raises(
+                ValueError, match="Could not detect repository from git remote"
+            ):
+                _ = manager.repo_identifier
+
+    def test_repo_identifier_is_read_only(self) -> None:
+        """Assigning to repo_identifier raises AttributeError."""
+        with patch(
+            "mcp_workspace.github_operations.base_manager.get_github_token",
+            return_value="fake_token",
+        ):
+            manager = BaseGitHubManager(repo_url="https://github.com/owner/repo")
+
+            with pytest.raises(AttributeError):
+                manager.repo_identifier = RepoIdentifier.from_repo_url(  # type: ignore[misc]
+                    "https://github.com/other/repo"
+                )
+
+
 class TestBaseGitHubManagerParameterValidation:
     """Test suite for BaseGitHubManager parameter validation.
 

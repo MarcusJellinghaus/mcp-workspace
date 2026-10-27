@@ -256,6 +256,7 @@ class BaseGitHubManager:
     Attributes:
         project_dir: Optional path to the project directory (when using local git repo)
         github_token: GitHub personal access token
+        repo_identifier: Read-only RepoIdentifier (lazy in project_dir mode)
         _cached_repo_identifier: Cached RepoIdentifier (set eagerly for repo_url, lazily for project_dir)
         _cached_github_client: Lazily-created PyGithub client instance
         _repository: Cached GitHub repository object
@@ -352,6 +353,16 @@ class BaseGitHubManager:
             raise ValueError("Could not detect repository from git remote")
         self._cached_repo_identifier = identifier
         return identifier
+
+    @property
+    def repo_identifier(self) -> RepoIdentifier:
+        """Repository identifier (read-only, lazy).
+
+        Raises:
+            ValueError: In project_dir mode when no repository can be detected
+                from the git remote.
+        """
+        return self._repo_identifier
 
     @property
     def _github_client(self) -> Github:

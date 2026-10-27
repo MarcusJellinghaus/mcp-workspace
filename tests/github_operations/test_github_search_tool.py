@@ -357,7 +357,7 @@ def test_github_search_no_repo(mock_manager_cls: MagicMock) -> None:
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = None
-    mock_mgr._repo_identifier.api_base_url = "https://gitlab.com/api/v3"
+    mock_mgr.repo_identifier.api_base_url = "https://gitlab.com/api/v3"
 
     result = github_search(query="test")
 

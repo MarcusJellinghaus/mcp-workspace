@@ -205,7 +205,7 @@ def _resolve_assignees(manager: Any, logins: List[str]) -> List[str]:
     # pylint: disable=protected-access
     login = _cached_login(
         manager.github_token,
-        manager._repo_identifier.api_base_url,
+        manager.repo_identifier.api_base_url,
         manager._github_client,
     )
     return [login if name == "@me" else name for name in logins]
@@ -941,7 +941,7 @@ def _repo_access_error(manager: "IssueManager") -> str:
         Error text naming the API base URL that was tried, so a non-GitHub or
         unreachable host is distinguishable from a missing repository.
     """
-    identifier = manager._repo_identifier  # pylint: disable=protected-access
+    identifier = manager.repo_identifier
     return f"Error: Could not access repository (tried {identifier.api_base_url})"
 
 

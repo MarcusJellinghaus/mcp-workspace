@@ -59,9 +59,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 7: Public `repo_identifier` property — [step_7.md](./steps/step_7.md)
 
-- [ ] Implementation: tests + property; switch `server.py`, `_permission_probes.py`, `base_branch_trust.py` to it
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests + property; switch `server.py`, `_permission_probes.py`, `base_branch_trust.py` to it
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

@@ -203,7 +203,7 @@ def run_permission_probes(
             for k in _PROBE_KEYS
         }
 
-    identifier = manager._repo_identifier
+    identifier = manager.repo_identifier
     base = f"{identifier.api_base_url}/repos/{identifier.full_name}"
     web_host = identifier.web_host
     default = repo.default_branch
