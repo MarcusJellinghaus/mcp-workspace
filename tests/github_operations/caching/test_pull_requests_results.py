@@ -451,6 +451,23 @@ class TestLabelEvents:
         assert env.issue.get_events.call_count == 2
 
 
+class TestSlotOnlyRun:
+    """A run that calls a slot without find_pr still saves its result."""
+
+    @pytest.mark.parametrize(
+        ("method", "slot"),
+        [
+            ("ci_status", "ci"),
+            ("feedback", "feedback"),
+            ("label_events", "label_events"),
+        ],
+    )
+    def test_result_written_to_disk(self, method: str, slot: str) -> None:
+        env = _Env()
+        _one_run(env, method, _open_pr(), _issue())
+        assert slot in _read()["results"]["5"]
+
+
 class TestExpiry:
     """The max-age safety net."""
 

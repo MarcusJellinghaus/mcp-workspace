@@ -381,7 +381,12 @@ class PullRequestCache:
         return False, None
 
     def _store(self, pr: OpenPullRequest, slot: str, fp: list[Any], value: Any) -> None:
-        """Record a final result for this run's ``save()``."""
+        """Record a final result for this run's ``save()``.
+
+        Ensures a snapshot exists: ``save()`` only writes results against
+        one, so a slot-only run would otherwise lose them.
+        """
+        self._snapshot_or_fetch()
         self._fetched_results.setdefault(str(pr["number"]), {})[slot] = {
             "fp": fp,
             "value": value,
