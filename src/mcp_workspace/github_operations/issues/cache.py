@@ -21,6 +21,7 @@ from mcp_workspace.utils.timezone_utils import (
     parse_iso_timestamp,
 )
 
+from ..base_manager import IssueIdentityMismatchError
 from ._cache_io import (
     CacheData,
     _get_cache_file_path,
@@ -267,6 +268,98 @@ def _save_fetched_issues(
     _save_cache_file(cache_file_path, on_disk)
 
 
+def _put_back_session_issues(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    issue_manager: "IssueManager",
+    additional_issue_numbers: list[int],
+    cache_data: CacheData,
+    fresh_dict: dict[str, IssueData],
+    issues_snapshot: dict[str, IssueData],
+    cached_at_snapshot: dict[str, str],
+    fetched_keys: set[str],
+    now: datetime,
+) -> None:
+    """Put back cached session issues a full refresh cleared, if they still exist.
+
+    Session issues missing from the ``state=open`` list are closed, deleted or
+    transferred. Each is re-fetched once to tell them apart, except keys
+    already fetched this call (put back with their new stamp). A confirmed
+    issue is stored and stamped with ``now``; a deleted (``number == 0``) or
+    transferred (``IssueIdentityMismatchError``) one is left out. Any other
+    failure keeps the cached copy and its old stamp.
+
+    Args:
+        issue_manager: IssueManager for GitHub API calls
+        additional_issue_numbers: Session issue numbers
+        cache_data: Cache data after the full refresh (modified in place)
+        fresh_dict: Issues returned by the full refresh, keyed by number
+        issues_snapshot: Cached issues from before the full refresh
+        cached_at_snapshot: ``cached_at`` stamps from before the full refresh
+        fetched_keys: Keys fetched individually in step 2 of this call
+        now: Current UTC timestamp
+    """
+    now_str = format_for_cache(now)
+    cached_at = cache_data.setdefault("cached_at", {})
+    for issue_num in additional_issue_numbers:
+        issue_key = str(issue_num)
+        if issue_key in fresh_dict or issue_key not in issues_snapshot:
+            continue
+        if issue_key not in fetched_keys:
+            try:
+                issue = issue_manager.get_issue(issue_num)
+            except IssueIdentityMismatchError as e:
+                logger.info(f"Issue #{issue_num} dropped from cache: {e}")
+                continue
+            except (
+                Exception
+            ) as e:  # pylint: disable=broad-exception-caught  # keep cached copy on any other failure
+                logger.warning(
+                    f"Failed to re-check issue #{issue_num}: {e}, using cached version"
+                )
+            else:
+                if issue["number"] == 0:
+                    logger.info(f"Issue #{issue_num}: no longer exists in repository")
+                    continue
+                cache_data["issues"][issue_key] = issue
+                cached_at[issue_key] = now_str
+                continue
+        cache_data["issues"][issue_key] = issues_snapshot[issue_key]
+        if issue_key in cached_at_snapshot:
+            cached_at[issue_key] = cached_at_snapshot[issue_key]
+
+
+def _is_full_refresh_due(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    force_refresh: bool,
+    last_checked: Optional[datetime],
+    last_full_refresh: Optional[datetime],
+    updates_covered_through: Optional[datetime],
+    now: datetime,
+    cache_refresh_minutes: int,
+) -> bool:
+    """Return True when the next refresh must be a full ``state=open`` refresh.
+
+    A missing ``updates_covered_through`` (old-shape cache) self-heals via one
+    full refresh.
+
+    Args:
+        force_refresh: Whether a full refresh is forced
+        last_checked: Last cache check timestamp (or None)
+        last_full_refresh: Last full refresh timestamp (or None)
+        updates_covered_through: Parsed data cursor (or None)
+        now: Current UTC timestamp
+        cache_refresh_minutes: Full refresh threshold in minutes
+
+    Returns:
+        Whether a full refresh is due.
+    """
+    return bool(
+        force_refresh
+        or not last_checked
+        or not last_full_refresh
+        or not updates_covered_through
+        or (now - last_full_refresh) > timedelta(minutes=cache_refresh_minutes)
+    )
+
+
 def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
     issue_manager: "IssueManager",
     cache_data: CacheData,
@@ -306,14 +399,13 @@ def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-posi
         or None when the incremental list is empty (so the caller leaves the
         stored cursor unchanged).
     """
-    # Determine refresh strategy. A missing updates_covered_through (old-shape
-    # cache) self-heals via one full refresh.
-    is_full_refresh = (
-        force_refresh
-        or not last_checked
-        or not last_full_refresh
-        or not updates_covered_through
-        or (now - last_full_refresh) > timedelta(minutes=cache_refresh_minutes)
+    is_full_refresh = _is_full_refresh_due(
+        force_refresh,
+        last_checked,
+        last_full_refresh,
+        updates_covered_through,
+        now,
+        cache_refresh_minutes,
     )
 
     # Fetch issues using appropriate method
@@ -413,8 +505,10 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
                           Full refresh uses state="open" so closed issues are never returned.
                           Pass session issue numbers here; each is fetched individually
                           (before the duplicate protection check) only when not cached,
-                          its cached_at is missing/stale, or force_refresh is set. Cached
-                          copies are put back after a full refresh clears the cache.
+                          its cached_at is missing/stale, or force_refresh is set. When a
+                          full refresh runs, cached ones are not fetched up front; those
+                          missing from the open list are re-checked once and put back,
+                          unless deleted or transferred.
 
     Returns:
         List of ALL cached issues (unfiltered). Caller is responsible for filtering.
@@ -469,16 +563,36 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
             )
 
     now = now_utc()
+    duplicate_protected = bool(
+        not force_refresh
+        and last_checked
+        and is_within_duration(last_checked, DUPLICATE_PROTECTION_SECONDS, now)
+    )
+    full_refresh_will_run = not duplicate_protected and _is_full_refresh_due(
+        force_refresh,
+        last_checked,
+        last_full_refresh,
+        updates_covered_through,
+        now,
+        cache_refresh_minutes,
+    )
 
-    # Step 2: Fetch additional issues BEFORE duplicate protection check
+    # Step 2: Fetch additional issues BEFORE duplicate protection check. When a
+    # full refresh runs in this call, cached ones are left to step 5b: the open
+    # list restamps open ones, and step 5b re-checks the rest once.
     fetched_keys: set[str] = set()
     if additional_issues:
         logger.debug(
             f"Checking {len(additional_issues)} additional issues for {repo_name}"
         )
+        to_fetch = [
+            n
+            for n in additional_issues
+            if not full_refresh_will_run or str(n) not in cache_data["issues"]
+        ]
         fetched_keys = _fetch_additional_issues(
             issue_manager,
-            additional_issues,
+            to_fetch,
             repo_name,
             cache_data,
             now,
@@ -491,11 +605,8 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
             )
 
     # Step 3: Check duplicate protection (50 second window)
-    if (
-        not force_refresh
-        and last_checked
-        and is_within_duration(last_checked, DUPLICATE_PROTECTION_SECONDS, now)
-    ):
+    if duplicate_protected:
+        assert last_checked is not None
         age_seconds = int((now - last_checked).total_seconds())
         _log_cache_metrics(
             "hit",
@@ -530,24 +641,28 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
         fresh_dict = {str(issue["number"]): issue for issue in fresh_issues}
         cache_data["issues"].update(fresh_dict)
 
-        # Step 5b: Put back additional issues the full refresh cleared (closed
-        # session issues are never in the state=open list), with their cached_at
-        # stamp. Issues in fresh_dict keep the fresh version.
+        # Step 5b: Put back session issues the full refresh cleared (closed
+        # session issues are never in the state=open list), dropping deleted or
+        # transferred ones. Issues in fresh_dict keep the fresh version.
         # Note: additional issues are fetched by number, bypassing `since`, so
         # they must never feed the data cursor (new_cursor already excludes them).
-        cached_at = cache_data.setdefault("cached_at", {})
-        for issue_num in additional_issues or []:
-            issue_key = str(issue_num)
-            if issue_key in fresh_dict or issue_key not in issues_snapshot:
-                continue
-            cache_data["issues"][issue_key] = issues_snapshot[issue_key]
-            if issue_key in cached_at_snapshot:
-                cached_at[issue_key] = cached_at_snapshot[issue_key]
+        if was_full_refresh and additional_issues:
+            _put_back_session_issues(
+                issue_manager,
+                additional_issues,
+                cache_data,
+                fresh_dict,
+                issues_snapshot,
+                cached_at_snapshot,
+                fetched_keys,
+                now,
+            )
 
         # Step 5c: Stamp the cached_at sidecar for every issue in fresh_dict. On
         # full refresh cached_at was reset to {} in _fetch_and_merge_issues, so
         # this (with step 5b) rebuilds it from scratch.
         now_str = format_for_cache(now)
+        cached_at = cache_data.setdefault("cached_at", {})
         for issue_key in fresh_dict:
             cached_at[issue_key] = now_str
         cache_data["version"] = CACHE_SCHEMA_VERSION

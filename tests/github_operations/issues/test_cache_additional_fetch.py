@@ -158,7 +158,7 @@ class TestAdditionalIssuesFetchRule:
     def test_force_refresh_fetches_fresh_cached_issue(
         self, mock_cache_issue_manager: Mock, tmp_path: Path
     ) -> None:
-        """force_refresh bypasses a fresh cached_at; fetched version kept and stamped."""
+        """force_refresh bypasses a fresh cached_at; re-checked once, kept and stamped."""
         cache_file = tmp_path / "cache.json"
         self._write_cache(
             cache_file,
