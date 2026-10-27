@@ -77,7 +77,7 @@ Files live next to the existing issue cache:
   |---|---|---|---|
   | `mergeable_state` | `head_sha`, base tip SHA | `repo.get_pull(n).mergeable_state` | `unknown` / `None` |
   | `ci` | `head_sha` | `repo.get_workflow_runs(head_sha=…)` + `aggregate_conclusion`, no jobs | any run not `completed`, no runs |
-  | `feedback` | PR `updated_at` | `get_pr_feedback(n, include_alerts=False)` | any `unavailable` |
+  | `feedback` | PR `updated_at` | undecorated `_collect_pr_feedback(n, include_alerts=False)` (body of `get_pr_feedback`) | any `unavailable` |
   | `label_events` | — | `get_issue_events(n, LABELED)` | — |
 
 - Branch with no open PR: `check_pr_health` keeps calling live `get_latest_ci_status`
@@ -139,6 +139,8 @@ No tach / import-linter changes: everything stays inside `github_operations`.
 - `src/mcp_workspace/github_operations/issues/_cache_io.py` — use `_store`; `get_issue_cache_last_checked`
 - `src/mcp_workspace/github_operations/issues/__init__.py` — export `get_issue_cache_last_checked`, `BranchLookup`, `BranchLookupError`; keep underscore aliases
 - `src/mcp_workspace/github_operations/issues/branch_manager.py` — `BranchLookup`, `resolve_branch_for_issue`, wrapper, invalidation hook
+- `src/mcp_workspace/github_operations/issues/linked_branches_mixin.py` — raise `GitHubRateLimitError` on a GraphQL `RATE_LIMITED` body in `_query_linked_branches`
+- `src/mcp_workspace/github_operations/pr_feedback_mixin.py` — undecorated `_collect_pr_feedback`; `get_pr_feedback` wraps it
 - `tests/github_operations/issues/test_cache_io.py` — patch targets if the temp-file tests patch the moved helper
 - `tests/github_operations/issues/test_branch_manager_pr_fallback_a.py`, `_b.py` — mock `_pattern_lookup` instead of `_search_branches_by_pattern`, `_fetch_linked_branches` instead of `get_linked_branches`
 - `README.md` — caches section

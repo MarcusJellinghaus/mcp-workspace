@@ -16,6 +16,8 @@ error, so the branch cache (step 4) never caches an error as "no branch".
 
 - Modify `src/mcp_workspace/github_operations/issues/branch_manager.py`
 - Modify `src/mcp_workspace/github_operations/issues/__init__.py` — export `BranchLookup`, `BranchLookupError`
+- Modify `src/mcp_workspace/github_operations/caching/errors.py` — add `graphql_rate_limit_error`
+- Modify `src/mcp_workspace/github_operations/issues/linked_branches_mixin.py` — rate-limit check in `_query_linked_branches`
 - Tests: create `tests/github_operations/issues/test_branch_manager_resolve.py`;
   update `test_branch_manager_pr_fallback_a.py` / `_b.py`:
   - where they mock `_search_branches_by_pattern`: mock `_pattern_lookup` instead, returning a `BranchLookup`;
@@ -35,6 +37,10 @@ class BranchLookup(NamedTuple):
 
 class BranchLookupError(Exception):
     """Branch resolution could not be completed (not a GitHub 'no branch' answer)."""
+
+# caching/errors.py (module-level import is safe: errors.py only imports .._diagnostics)
+def graphql_rate_limit_error(result: Any) -> GitHubRateLimitError | None:
+    """GitHubRateLimitError if a GraphQL body has errors[*].type == "RATE_LIMITED", else None."""
 
 class IssueBranchManager:
     def resolve_branch_for_issue(
@@ -65,6 +71,7 @@ Error mapping inside `resolve_branch_for_issue`:
 |---|---|---|
 | invalid issue number | `None` | `ValueError` |
 | `_get_repository()` is `None` | `None` | `BranchLookupError` |
+| GraphQL body (linked-branches or timeline) has `errors[*].type == "RATE_LIMITED"` | `None` / continues | `GitHubRateLimitError` |
 | `_query_linked_branches(self, n)` returns `None` | treated as `[]`, continues | `BranchLookupError` |
 | `GithubException` anywhere (incl. 5xx, rate limit) | `None` / continues | propagates |
 | GraphQL `data`/`repository`/`issue` is `None`, `KeyError`/`TypeError` | `None` | `BranchLookupError` |
@@ -77,6 +84,20 @@ Error mapping inside `resolve_branch_for_issue`:
   `_query_linked_branches` (module function in `linked_branches_mixin.py`) directly,
   **not** `get_linked_branches` / `get_linked_branches_or_none` (they swallow errors).
   Being a method, it is what the fallback tests mock.
+- GraphQL rate limits arrive in the body (`{"data": null, "errors": [{"type": "RATE_LIMITED"}]}`)
+  without an exception, and `_query_linked_branches` (`linked_branches_mixin.py:149-153`)
+  would turn that into `None`, losing the error type. So:
+  - `_query_linked_branches`: right after `graphql_query`, before parsing,
+    `if (rl := graphql_rate_limit_error(result)) is not None: raise rl`.
+    The decorated `get_linked_branches` / `get_linked_branches_or_none` still return `[]` /
+    `None` (their decorator/except catch it as a non-GitHub exception), so their behaviour
+    is unchanged; only the raising core sees it.
+  - Timeline query in `resolve_branch_for_issue`: same check right after `graphql_query`,
+    before the `data is None` → `BranchLookupError` mapping.
+  - The wrapper `get_branch_with_pr_fallback` catches only `BranchLookupError`; a
+    `GitHubRateLimitError` reaches `_handle_github_errors`, whose "other exception" path
+    returns `None` — the same result as today for a body-level rate limit. Accepted:
+    the cache (step 4) calls the core, not the wrapper.
 - Wrapper: validate with `validate_issue_number_or_log` first (keeps today's `None` for
   invalid input), then `try: return self.resolve_branch_for_issue(...).branch`
   `except BranchLookupError as e: logger.debug(...); return None`. The decorator keeps
@@ -107,6 +128,10 @@ return self._pattern_lookup(n, repo)
 - `_query_linked_branches` returning `None` (patch `linked_branches_mixin`'s function as
   imported into `branch_manager`) → `_fetch_linked_branches` raises `BranchLookupError`.
 - Linked-branches GraphQL raising a rate-limit `GithubException` → propagates.
+- Linked-branches GraphQL **returning** (not raising) `{"data": None, "errors": [{"type": "RATE_LIMITED"}]}`
+  → `resolve_branch_for_issue` raises `GitHubRateLimitError`. Same for the timeline query.
+- `graphql_rate_limit_error`: RATE_LIMITED body → error; other `errors` type, no `errors`,
+  non-dict → `None`. `get_linked_branches` with a RATE_LIMITED body still returns `[]`.
 - Closed-PR probe: 404 → next PR; 500 → raises.
 - Wrapper: `BranchLookupError` → `None`; invalid number → `None`; existing
   `test_branch_manager_pr_fallback_*` tests green.

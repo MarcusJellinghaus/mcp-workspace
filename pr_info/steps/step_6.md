@@ -15,6 +15,8 @@ Check with `mcp__mcp-tools-py__get_library_source` that PyGithub's
 ## WHERE
 
 - Modify `src/mcp_workspace/github_operations/caching/pull_requests.py`
+- Modify `src/mcp_workspace/github_operations/pr_feedback_mixin.py` — extract undecorated
+  `_collect_pr_feedback`; `get_pr_feedback` becomes a thin decorated wrapper
 - Tests: `tests/github_operations/caching/test_pull_requests_results.py`
 
 ## WHAT
@@ -28,6 +30,16 @@ class PullRequestCache:
 
     def _cached(self, pr: OpenPullRequest, slot: str, fp: list[Any]) -> tuple[bool, Any]: ...
     def _store(self, pr: OpenPullRequest, slot: str, fp: list[Any], value: Any) -> None: ...
+
+# pr_feedback_mixin.py
+class PRFeedbackMixin:
+    def _collect_pr_feedback(self, pr_number: int, include_alerts: bool = True) -> PRFeedback:
+        """Today's get_pr_feedback body, undecorated: per-section failures go to
+        `unavailable`; anything raised outside the sections propagates."""
+    @log_function_call
+    @_handle_github_errors(default_return=_empty_pr_feedback)
+    def get_pr_feedback(self, pr_number: int, include_alerts: bool = True) -> PRFeedback:
+        """Unchanged signature/behaviour; returns self._collect_pr_feedback(...)."""
 
 def _fetch_ci_status(
     repo: Repository, head_sha: str, branch: str
@@ -55,7 +67,7 @@ and `not is_expired(entry, now)`. `_store` writes
 |---|---|---|---|
 | `mergeable_state` | `pr["head_sha"]`, `self.base_tip(pr["base_branch"])` | `repo.get_pull(n).mergeable_state` | value not in `(None, "unknown")` |
 | `ci` | `pr["head_sha"]` | `_fetch_ci_status(repo, pr["head_sha"], pr["head_branch"])` | runs non-empty and **every** run's `status == "completed"` (not the aggregate status) |
-| `feedback` | `pr["updated_at"]` | `pr_manager.get_pr_feedback(n, include_alerts=False)` | `unavailable` empty |
+| `feedback` | `pr["updated_at"]` | `pr_manager._collect_pr_feedback(n, include_alerts=False)` (undecorated) | `unavailable` empty |
 | `label_events` | — | `EventsMixin.get_issue_events(pr_manager, issue["number"], IssueEventType.LABELED)` | always |
 
 - `_fetch_ci_status`: `runs = list(repo.get_workflow_runs(head_sha=head_sha)[:25])`; no runs →
@@ -70,8 +82,12 @@ and `not is_expired(entry, now)`. `_store` writes
   `if (rl := to_rate_limit_error(v)) is not None: raise rl from v` (via `_guarded` → flag set).
   If `unavailable` is non-empty → return without storing. Store a JSON-safe copy with
   `unavailable={}` and `skipped={}` (both are empty when `include_alerts=False` and nothing failed).
-  Note in a comment: the decorator default of `get_pr_feedback` only fires for an invalid PR
-  number, which cannot come from the snapshot.
+  Why the undecorated `_collect_pr_feedback`: `_handle_github_errors` on `get_pr_feedback`
+  returns `_empty_pr_feedback()` (empty `unavailable`) for an invalid PR number **and** for
+  any non-rate-limit, non-auth exception raised outside the per-section `try` blocks. That
+  default looks like "no feedback" and would be cached. Calling the undecorated body makes
+  such an exception propagate, so nothing is stored (design rule 4). Existing
+  `get_pr_feedback` tests must stay green unchanged.
 - `label_events`: unbound call on `EventsMixin` with the `PullRequestManager` (it only needs
   `_get_repository` / `_get_issue_checked` from `BaseGitHubManager`); comment why — avoids a
   second manager.
@@ -99,11 +115,15 @@ Not final → re-fetched next run (new `load` from the saved file):
 Errors / rate limits:
 - `get_pull` raises 500 → propagates, slot not stored.
 - `get_workflow_runs` raises rate limit → `GitHubRateLimitError`, `save()` writes nothing.
-- `get_pr_feedback` returns `unavailable={"comments": rate-limit exc}` → `GitHubRateLimitError`, no file written.
+- `_collect_pr_feedback` returns `unavailable={"comments": rate-limit exc}` → `GitHubRateLimitError`, no file written.
+- An exception raised outside the per-section `try` blocks (e.g. patch `_validate_pr_number`
+  or the result assembly to raise a 500 `GithubException`): `get_pr_feedback` still returns
+  `_empty_pr_feedback()` (decorator default, unchanged), but `cache.feedback(...)` propagates
+  the exception and nothing is stored — after `save()`, a fresh `load` re-fetches feedback.
 - `_fetch_ci_status` never calls `run.jobs()`.
 
 Steady state (acceptance): save a fully populated cache for 3 PRs; age the snapshot past
 60 s; new `load` + full `check_pr_health`-like pass (`find_pr`, `mergeable_state`,
 `ci_status`, `feedback`, `label_events` per PR) with unchanged fingerprints → exactly
 **2** repo calls (`get_pulls` + one `get_branch`) and no `get_pull` / `get_workflow_runs` /
-`get_pr_feedback` / events calls. Count via Mock call counts.
+`_collect_pr_feedback` / events calls. Count via Mock call counts.
