@@ -61,16 +61,20 @@ def _parse_pr(pr: PullRequest) -> OpenPullRequest: ...                # no _pr_t
     `{"fetched_at": now, "prs": {str(n): pr}, "base_tips": {}}`, mark it fetched.
 - `base_tip(base)`: return `snapshot["base_tips"][base]` if present, else
   `with rate_limit_guard(): sha = repo.get_branch(base).commit.sha`, store in the snapshot
-  (once per distinct base per run). Within the duplicate window a missing base is still fetched.
+  (once per distinct base per run). Within the duplicate window a missing base is still fetched;
+  adding it marks the snapshot dirty (`self._snapshot_dirty = True`, also set when the list is
+  fetched) without changing `fetched_at`, so `save()` writes it even if nothing else was fetched.
 - `find_pr(branch)`: `f"{repo_identifier.owner}:{branch}"` matched against `head_label`
   (fork PRs with the same branch name don't match). `None` if no match.
 - `_fetch_open_prs`: `repo.get_pulls(state="open")`, iterate all pages, `_parse_pr` each.
   Undecorated: every exception propagates (never `list_pull_requests`, which returns `[]`).
 - Any `GitHubRateLimitError` raised from a public method sets `self._rate_limited = True`
   (one small helper `_guarded(fn, *args)` used by every public method).
-- `save()`: no-op if `_rate_limited`, or nothing fetched this run. Else:
+- `save()`: no-op if `_rate_limited`, or nothing fetched this run (no dirty snapshot, no results). Else:
   reload `disk = load_json(path, PRS_CACHE_VERSION)`;
-  snapshot = newer of (disk snapshot, my snapshot) by `fetched_at`;
+  snapshot = newer of (disk snapshot, my snapshot) by `fetched_at`. Tie (equal `fetched_at`,
+  i.e. both reused the same list): keep the disk snapshot and add my `base_tips` keys that it
+  lacks (same list, so tips for other bases can't conflict; existing keys are not overwritten);
   results = disk results, drop expired slots (via `_store.is_expired`), overlay my fetched
   results (per PR, per slot — step 6 fills them), then drop PR keys not in the snapshot;
   write `{"version": 1, "snapshot": ..., "results": ...}`.
@@ -104,6 +108,9 @@ save: pick newer snapshot; merge results (disk − expired) ∪ mine; prune keys
 - Duplicate protection: snapshot saved < 60 s ago → `get_pulls` and `get_branch` not called;
   older → called.
 - `base_tip` called twice for `main` → one `get_branch` call.
+- Inside the duplicate window, `base_tip("develop")` on a reused snapshot → `save()` writes it;
+  fresh `load` serves `develop` with no `get_branch` call. Equal `fetched_at` on disk with another
+  base tip → both tips kept.
 - `get_pulls` raises 500 → exception propagates, `save()` writes nothing new
   (a fetch error is never stored as "no PR").
 - `get_pulls` raises rate limit → `GitHubRateLimitError`; `save()` writes no file.

@@ -29,7 +29,9 @@ class PullRequestCache:
     def _cached(self, pr: OpenPullRequest, slot: str, fp: list[Any]) -> tuple[bool, Any]: ...
     def _store(self, pr: OpenPullRequest, slot: str, fp: list[Any], value: Any) -> None: ...
 
-def _fetch_ci_status(repo: Repository, head_sha: str) -> CIStatusData: ...  # undecorated
+def _fetch_ci_status(
+    repo: Repository, head_sha: str, branch: str
+) -> tuple[CIStatusData, bool]: ...  # undecorated; bool = final (every run completed)
 ```
 
 ## HOW
@@ -52,15 +54,18 @@ and `not is_expired(entry, now)`. `_store` writes
 | slot | extra fp | fetch | final when |
 |---|---|---|---|
 | `mergeable_state` | `pr["head_sha"]`, `self.base_tip(pr["base_branch"])` | `repo.get_pull(n).mergeable_state` | value not in `(None, "unknown")` |
-| `ci` | `pr["head_sha"]` | `_fetch_ci_status(repo, head_sha)` | `run` non-empty and `run["status"] == "completed"` |
+| `ci` | `pr["head_sha"]` | `_fetch_ci_status(repo, pr["head_sha"], pr["head_branch"])` | runs non-empty and **every** run's `status == "completed"` (not the aggregate status) |
 | `feedback` | `pr["updated_at"]` | `pr_manager.get_pr_feedback(n, include_alerts=False)` | `unavailable` empty |
 | `label_events` | — | `EventsMixin.get_issue_events(pr_manager, issue["number"], IssueEventType.LABELED)` | always |
 
 - `_fetch_ci_status`: `runs = list(repo.get_workflow_runs(head_sha=head_sha)[:25])`; no runs →
-  `CIStatusData(run={}, jobs=[])` (not final); else `aggregate_conclusion(runs)` (reuse from
+  `(CIStatusData(run={}, jobs=[]), False)`; else `aggregate_conclusion(runs)` (reuse from
   `ci_results_manager`), build `RunData` from the first run like `get_latest_ci_status` does
-  (`branch=pr head_branch` passed in, `commit_sha=head_sha`, `run_ids` of all runs), `jobs=[]`.
-  **No** `run.jobs()` calls. Undecorated — errors propagate (so `lookup_failed` never occurs here).
+  (`branch=branch`, `commit_sha=head_sha`, `run_ids` of all runs), `jobs=[]`.
+  `final = all(r.status == "completed" for r in runs)` — `aggregate_conclusion` reports
+  `("failure", "completed")` while other runs are still queued/in progress, so its status
+  can't decide finality. **No** `run.jobs()` calls. Undecorated — errors propagate
+  (so `lookup_failed` never occurs here).
 - `feedback`: after the call, for each value in `feedback["unavailable"].values()`:
   `if (rl := to_rate_limit_error(v)) is not None: raise rl from v` (via `_guarded` → flag set).
   If `unavailable` is non-empty → return without storing. Store a JSON-safe copy with
@@ -88,6 +93,8 @@ One test per fingerprint row — change it, assert re-fetch:
 
 Not final → re-fetched next run (new `load` from the saved file):
 - mergeable `"unknown"` and `None`; CI `in_progress`; CI no runs; feedback with `unavailable["threads"]` = 500 error.
+- CI with one run `completed`/`failure` and another `in_progress` on the same SHA → returned
+  aggregate is `("failure", "completed")`, but the slot is **not** stored; next run re-fetches.
 
 Errors / rate limits:
 - `get_pull` raises 500 → propagates, slot not stored.

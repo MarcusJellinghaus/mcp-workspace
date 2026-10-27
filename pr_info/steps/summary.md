@@ -76,7 +76,7 @@ Files live next to the existing issue cache:
   | slot | fp (after issue `updated_at`) | fetch | not final |
   |---|---|---|---|
   | `mergeable_state` | `head_sha`, base tip SHA | `repo.get_pull(n).mergeable_state` | `unknown` / `None` |
-  | `ci` | `head_sha` | `repo.get_workflow_runs(head_sha=…)` + `aggregate_conclusion`, no jobs | status ≠ `completed`, no runs |
+  | `ci` | `head_sha` | `repo.get_workflow_runs(head_sha=…)` + `aggregate_conclusion`, no jobs | any run not `completed`, no runs |
   | `feedback` | PR `updated_at` | `get_pr_feedback(n, include_alerts=False)` | any `unavailable` |
   | `label_events` | — | `get_issue_events(n, LABELED)` | — |
 
@@ -140,7 +140,7 @@ No tach / import-linter changes: everything stays inside `github_operations`.
 - `src/mcp_workspace/github_operations/issues/__init__.py` — export `get_issue_cache_last_checked`, `BranchLookup`, `BranchLookupError`; keep underscore aliases
 - `src/mcp_workspace/github_operations/issues/branch_manager.py` — `BranchLookup`, `resolve_branch_for_issue`, wrapper, invalidation hook
 - `tests/github_operations/issues/test_cache_io.py` — patch targets if the temp-file tests patch the moved helper
-- `tests/github_operations/issues/test_branch_manager_pr_fallback_a.py`, `_b.py` — mock `_pattern_lookup` instead of `_search_branches_by_pattern`
+- `tests/github_operations/issues/test_branch_manager_pr_fallback_a.py`, `_b.py` — mock `_pattern_lookup` instead of `_search_branches_by_pattern`, `_fetch_linked_branches` instead of `get_linked_branches`
 - `README.md` — caches section
 - `docs/release-notes.md` — new exception, issue-cache rate-limit change, underscore-export deprecation
 

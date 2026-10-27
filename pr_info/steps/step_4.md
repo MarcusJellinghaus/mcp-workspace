@@ -46,8 +46,12 @@ def invalidate_branch_entry(repo_identifier: RepoIdentifier, issue_number: int) 
   All three statuses are cached.
 - `save()`: no-op if `_rate_limited` or nothing fetched. Else reload with `load_json`,
   drop expired, overlay `_fetched`, write `{"version": 1, "entries": ...}` with `_save_cache_file`.
-- `invalidate_branch_entry`: `load_json` → `entries.pop(key, None)` → save if it was
-  present. Wrap in `try/except Exception` → log warning (must never break branch creation).
+- `invalidate_branch_entry`: first drop the key from `_fetched` **and** `_loaded` of every
+  **live** `BranchLookupCache` for the same `repo_identifier` in this process (module-level
+  `_live: weakref.WeakSet[BranchLookupCache]`, filled in `load`), so such an instance neither
+  serves nor writes back the stale entry; then `load_json` → `entries.pop(key, None)` →
+  save if it was present. Wrap in `try/except Exception` → log warning (must never break
+  branch creation).
 - `branch_manager.create_remote_branch_for_issue`: on a successful result (before
   `return last_result` when `success`), call
   `from ..caching.branches import invalidate_branch_entry` **inside the method**
@@ -82,5 +86,9 @@ save: if rate_limited or not fetched: return; disk = load_json(...).entries; dro
 - Corrupt file / version mismatch → empty cache, no exception.
 - Two caches loaded from the same file, each fetches a different issue, both save → both entries present.
 - Invalidation: A loaded with entry #5; `invalidate_branch_entry(...)` deletes it; A fetches #6 and saves → #5 still absent.
+- In-process invalidation: live A looks up #7 (miss → `not_found` in `_fetched`);
+  `invalidate_branch_entry(repo, 7)`; `A.save()`; fresh `load` → no entry for #7.
+  Same for a `_loaded` entry: after invalidation, `A.lookup(#7)` calls the resolver again.
+  A cache for another repo keeps its `_fetched` entry for the same issue number.
 - Expired entry on disk is dropped at save.
 - `create_remote_branch_for_issue` success → `invalidate_branch_entry` called; failure → not called.

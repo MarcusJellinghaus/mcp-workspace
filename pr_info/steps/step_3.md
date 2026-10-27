@@ -17,9 +17,14 @@ error, so the branch cache (step 4) never caches an error as "no branch".
 - Modify `src/mcp_workspace/github_operations/issues/branch_manager.py`
 - Modify `src/mcp_workspace/github_operations/issues/__init__.py` — export `BranchLookup`, `BranchLookupError`
 - Tests: create `tests/github_operations/issues/test_branch_manager_resolve.py`;
-  update `test_branch_manager_pr_fallback_a.py` / `_b.py` where they mock
-  `_search_branches_by_pattern` (mock `_pattern_lookup` instead, returning a `BranchLookup`).
-  `test_branch_manager_resolution.py` (tests of `_search_branches_by_pattern`) stays unchanged.
+  update `test_branch_manager_pr_fallback_a.py` / `_b.py`:
+  - where they mock `_search_branches_by_pattern`: mock `_pattern_lookup` instead, returning a `BranchLookup`;
+  - every `mock_manager.get_linked_branches = Mock(return_value=X)` and
+    `mock_manager.get_linked_branches.assert_called_once_with(123)` (e.g. `_a.py:32,48,74`):
+    rename to `_fetch_linked_branches` (same return values, same assertions). Mechanical rename only.
+  Unaffected: `test_branch_manager_create.py` (`create_remote_branch_for_issue` keeps calling
+  `get_linked_branches`), `test_branch_manager_linked.py`, `test_branch_manager_resolution.py`
+  (tests of `_search_branches_by_pattern`), `test_branch_manager_integration.py` (live GitHub).
 
 ## WHAT
 
@@ -36,6 +41,9 @@ class IssueBranchManager:
         self, issue_number: int, repo_owner: str, repo_name: str
     ) -> BranchLookup:
         """Undecorated 4-step resolution. Raises on any error."""
+
+    def _fetch_linked_branches(self, issue_number: int) -> list[str]:
+        """_query_linked_branches(self, n); None → BranchLookupError. Patchable seam for tests."""
 
     def _pattern_lookup(self, issue_number: int, repo: Any) -> BranchLookup:
         """Today's _search_branches_by_pattern logic, returning BranchLookup."""
@@ -65,8 +73,10 @@ Error mapping inside `resolve_branch_for_issue`:
 | >1 linked branches / >1 open PRs / pattern ambiguous | `None` | `BranchLookup("ambiguous")` |
 | nothing found | `None` | `BranchLookup("not_found")` |
 
-- Call `_query_linked_branches` (module function in `linked_branches_mixin.py`) directly,
+- The core gets linked branches only via `self._fetch_linked_branches(n)`, which calls
+  `_query_linked_branches` (module function in `linked_branches_mixin.py`) directly,
   **not** `get_linked_branches` / `get_linked_branches_or_none` (they swallow errors).
+  Being a method, it is what the fallback tests mock.
 - Wrapper: validate with `validate_issue_number_or_log` first (keeps today's `None` for
   invalid input), then `try: return self.resolve_branch_for_issue(...).branch`
   `except BranchLookupError as e: logger.debug(...); return None`. The decorator keeps
@@ -79,7 +89,7 @@ Error mapping inside `resolve_branch_for_issue`:
 
 ```
 validate n (ValueError); repo = _get_repository() or raise BranchLookupError
-linked = _query_linked_branches(self, n); if linked is None: raise BranchLookupError
+linked = self._fetch_linked_branches(n)   # raises BranchLookupError if _query_linked_branches → None
 if len(linked)==1: found; if >1: ambiguous
 timeline = graphql(...); parse or raise BranchLookupError; open PRs: 1→found, >1→ambiguous
 closed PRs (desc, ≤25): get_branch → found; 404 → continue; other → raise
@@ -94,7 +104,8 @@ return self._pattern_lookup(n, repo)
 
 - One test per row of the table above (found via linked / open PR / closed PR / pattern;
   ambiguous linked / open PRs / pattern; not_found).
-- `_query_linked_branches` returning `None` → `BranchLookupError`.
+- `_query_linked_branches` returning `None` (patch `linked_branches_mixin`'s function as
+  imported into `branch_manager`) → `_fetch_linked_branches` raises `BranchLookupError`.
 - Linked-branches GraphQL raising a rate-limit `GithubException` → propagates.
 - Closed-PR probe: 404 → next PR; 500 → raises.
 - Wrapper: `BranchLookupError` → `None`; invalid number → `None`; existing
