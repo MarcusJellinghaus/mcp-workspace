@@ -48,6 +48,9 @@
   - cap: 25 threads + skipped 403 → `"[skipped] alerts not checked (403)"` still present.
 - `TestCollectPrFeedbackUndeterminable`: add `test_skipped_alerts_neither_blocks_nor_undeterminable`
   (skipped 403 only → `blocks_merge is False`, `undeterminable is False`).
+- `TestCollectPrFeedbackUndeterminable`: add `test_alert_blocks_merge`
+  (`feedback["alerts"] = [_alert()]`, no threads → `blocks_merge is True`,
+  `undeterminable is False`).
 
 ## WHAT / HOW
 
