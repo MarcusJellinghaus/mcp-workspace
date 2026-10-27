@@ -77,6 +77,9 @@ with `-` are rejected.
   no longer chain the original exception, and credentials are scrubbed from URLs in the
   message.
 - `detect_base_branch` gains an optional trailing `issue_manager`; return type unchanged.
+- `get_full_status` reads the `-z` status: paths are raw UTF-8 (no C-quoting), a
+  staged-renamed-then-modified file is reported by its new path (not `old -> new`), and a
+  status failure gives all-empty lists (never partial).
 - `rebase_onto_branch` is unchanged (keeps its inline rebase-dir check until #355).
 
 ### Migration traps

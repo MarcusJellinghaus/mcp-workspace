@@ -174,8 +174,8 @@ def get_full_status(project_dir: Path) -> dict[str, list[str]]:
 
     Returns:
         Dictionary with 'staged', 'modified', and 'untracked' keys containing lists of file paths.
-        File paths are relative to project root.
-        Returns empty dict if not a git repository.
+        Paths are repo-relative, forward-slash, raw UTF-8.
+        All lists are empty if the status could not be read.
 
     Example:
         {
@@ -191,35 +191,26 @@ def get_full_status(project_dir: Path) -> dict[str, list[str]]:
     """
     logger.debug("Getting full git status for %s", project_dir)
 
-    if not is_git_repository(project_dir):
-        logger.debug("Not a git repository: %s", project_dir)
-        return {"staged": [], "modified": [], "untracked": []}
-
     try:
-        # Use existing functions for consistency and efficiency
-        staged_files = get_staged_changes(project_dir)
-        unstaged_changes = get_unstaged_changes(project_dir)
-
-        result = {
-            "staged": staged_files,
-            "modified": unstaged_changes["modified"],
-            "untracked": unstaged_changes["untracked"],
-        }
-
-        logger.debug(
-            "Full status: %d staged, %d modified, %d untracked files",
-            len(result["staged"]),
-            len(result["modified"]),
-            len(result["untracked"]),
-        )
-
-        return result
-
+        status = get_working_tree_status(project_dir)
     except (
         Exception
     ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.warning("Unexpected error getting full git status: %s", e)
         return {"staged": [], "modified": [], "untracked": []}
+
+    logger.debug(
+        "Full status: %d staged, %d modified, %d untracked files",
+        len(status["staged"]),
+        len(status["modified"]),
+        len(status["untracked"]),
+    )
+
+    return {
+        "staged": status["staged"],
+        "modified": status["modified"],
+        "untracked": status["untracked"],
+    }
 
 
 def get_unstaged_changes(project_dir: Path) -> dict[str, list[str]]:

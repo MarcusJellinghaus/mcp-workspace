@@ -32,9 +32,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 3: Rebuild `get_full_status` on `get_working_tree_status` — [step_3.md](./steps/step_3.md)
-- [ ] Implementation (parity tests + production code + release notes)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (parity tests + production code + release notes)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: `_format_dirty_tree` uses `get_working_tree_status` — [step_4.md](./steps/step_4.md)
 - [ ] Implementation (tests + production code)
