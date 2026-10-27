@@ -227,8 +227,14 @@ class TestGithubPrCreate:
     def origin_has_base(self) -> Generator[MagicMock, None, None]:
         """Every resolved base exists on origin unless a test says otherwise."""
         with patch(
-            "mcp_workspace.git_operations.base_branch.origin_has_branch",
-            return_value=True,
+            "mcp_workspace.git_operations.probe_origin_branch",
+            return_value={
+                "success": True,
+                "error": None,
+                "returncode": 0,
+                "stderr": None,
+                "exists": True,
+            },
         ) as mock_origin:
             yield mock_origin
 

@@ -1929,8 +1929,10 @@ def github_pr_create(
         "Error: could not verify base branch '<base>' on origin: <cause>".
     """
     # Lazy imports: keep PyGithub/GitPython off the server startup import path
-    from mcp_workspace.git_operations import get_current_branch_name
-    from mcp_workspace.git_operations.base_branch import origin_has_branch
+    from mcp_workspace.git_operations import (
+        get_current_branch_name,
+        probe_origin_branch,
+    )
     from mcp_workspace.github_operations.pr_manager import PullRequestManager
 
     try:
@@ -1950,10 +1952,15 @@ def github_pr_create(
             if not base:
                 return f"Error: could not determine base branch for {head}"
             try:
-                exists = origin_has_branch(project_dir, base)
+                probe = probe_origin_branch(project_dir, base)
             except Exception as e:  # pylint: disable=broad-exception-caught
                 return f"Error: could not verify base branch '{base}' on origin: {e}"
-            if not exists:
+            if probe["exists"] is None:
+                cause = probe["stderr"] or probe["error"]
+                return (
+                    f"Error: could not verify base branch '{base}' on origin: {cause}"
+                )
+            if not probe["exists"]:
                 return f"Error: base branch '{base}' not found on origin"
         if head == base:
             return f"Error: head and base are the same branch ({head})"

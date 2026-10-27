@@ -22,9 +22,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ## Tasks
 
 ### Step 1: `github_pr_create` uses `probe_origin_branch` — [step_1.md](./steps/step_1.md)
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy (+ lint-imports) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy (+ lint-imports) — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `_detect_from_merge_base` uses `probe_origin_branch`; delete `origin_has_branch` — [step_2.md](./steps/step_2.md)
 - [ ] Implementation (tests + production code + release notes)

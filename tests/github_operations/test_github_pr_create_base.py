@@ -5,18 +5,32 @@ verified on origin; every failure is an ``Error:`` string and no PR is created.
 """
 
 from pathlib import Path
-from typing import Generator
+from typing import Any, Generator, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
-from git.exc import GitCommandError
 
 from mcp_workspace.server import github_pr_create, set_project_dir
 
 RESOLVE = "mcp_workspace.server._resolve_base_branch"
-ORIGIN_HAS_BRANCH = "mcp_workspace.git_operations.base_branch.origin_has_branch"
+PROBE_ORIGIN = "mcp_workspace.git_operations.probe_origin_branch"
 CURRENT_BRANCH = "mcp_workspace.git_operations.get_current_branch_name"
 PR_MANAGER = "mcp_workspace.github_operations.pr_manager.PullRequestManager"
+
+
+def _probe(
+    exists: Optional[bool],
+    stderr: Optional[str] = None,
+    error: Optional[str] = None,
+) -> dict[str, Any]:
+    """Build a ``BranchProbe``-shaped dict; ``exists=None`` is a failed probe."""
+    return {
+        "success": exists is not None,
+        "error": error,
+        "returncode": 0 if exists is not None else 128,
+        "stderr": stderr,
+        "exists": exists,
+    }
 
 
 @pytest.fixture(autouse=True)
@@ -56,7 +70,7 @@ class TestGithubPrCreateBase:
         """An explicit head, not the current branch, is what gets resolved."""
         with (
             patch(RESOLVE, return_value=("epic/x", None)) as mock_resolve,
-            patch(ORIGIN_HAS_BRANCH, return_value=True),
+            patch(PROBE_ORIGIN, return_value=_probe(True)),
         ):
             github_pr_create(title="T", head="feature/y")
 
@@ -72,7 +86,7 @@ class TestGithubPrCreateBase:
         error = "Error: issue #42: Base Branch section has more than one branch name."
         with (
             patch(RESOLVE, return_value=(None, error)),
-            patch(ORIGIN_HAS_BRANCH) as mock_origin,
+            patch(PROBE_ORIGIN) as mock_origin,
         ):
             result = github_pr_create(title="T")
 
@@ -86,7 +100,7 @@ class TestGithubPrCreateBase:
         """No detected base errors instead of guessing; nothing created."""
         with (
             patch(RESOLVE, return_value=(None, None)),
-            patch(ORIGIN_HAS_BRANCH) as mock_origin,
+            patch(PROBE_ORIGIN) as mock_origin,
         ):
             result = github_pr_create(title="T")
 
@@ -100,7 +114,7 @@ class TestGithubPrCreateBase:
         """A resolved base absent from origin errors; nothing created."""
         with (
             patch(RESOLVE, return_value=("epic/x", None)),
-            patch(ORIGIN_HAS_BRANCH, return_value=False) as mock_origin,
+            patch(PROBE_ORIGIN, return_value=_probe(False)) as mock_origin,
         ):
             result = github_pr_create(title="T")
 
@@ -109,19 +123,27 @@ class TestGithubPrCreateBase:
         manager.create_pull_request.assert_not_called()
 
     @pytest.mark.parametrize(
-        "exc",
+        "probe_kwargs",
         [
-            GitCommandError("ls-remote", 128, stderr="boom"),
-            RuntimeError("boom"),
+            {
+                "return_value": _probe(
+                    None, stderr="boom", error="git ls-remote failed (exit 128)"
+                )
+            },
+            {"side_effect": OSError("boom")},
         ],
+        ids=["failed_probe", "raised"],
     )
     def test_origin_check_failure_returns_error(
-        self, manager: MagicMock, current: MagicMock, exc: Exception
+        self,
+        manager: MagicMock,
+        current: MagicMock,
+        probe_kwargs: dict[str, Any],
     ) -> None:
         """A failed origin check errors with the cause; nothing created."""
         with (
             patch(RESOLVE, return_value=("epic/x", None)),
-            patch(ORIGIN_HAS_BRANCH, side_effect=exc),
+            patch(PROBE_ORIGIN, **probe_kwargs),
         ):
             result = github_pr_create(title="T")
 
@@ -137,7 +159,7 @@ class TestGithubPrCreateBase:
         """A resolved base present on origin is used for the PR."""
         with (
             patch(RESOLVE, return_value=("epic/x", None)),
-            patch(ORIGIN_HAS_BRANCH, return_value=True),
+            patch(PROBE_ORIGIN, return_value=_probe(True)),
         ):
             result = github_pr_create(title="T")
 
@@ -152,7 +174,7 @@ class TestGithubPrCreateBase:
         """An explicit base is used unchanged, with no lookup at all."""
         with (
             patch(RESOLVE) as mock_resolve,
-            patch(ORIGIN_HAS_BRANCH) as mock_origin,
+            patch(PROBE_ORIGIN) as mock_origin,
         ):
             result = github_pr_create(title="T", base="develop")
 
