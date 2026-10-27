@@ -358,9 +358,8 @@ class BaseGitHubManager:
     def repo_identifier(self) -> RepoIdentifier:
         """Repository identifier (read-only, lazy).
 
-        Raises:
-            ValueError: In project_dir mode when no repository can be detected
-                from the git remote.
+        Accessing it raises ValueError in project_dir mode when no repository
+        can be detected from the git remote.
         """
         return self._repo_identifier
 

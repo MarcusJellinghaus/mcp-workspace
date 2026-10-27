@@ -20,13 +20,15 @@ from mcp_workspace.github_operations.issues import (
     IssueData,
     update_issue_labels_in_cache,
 )
-from mcp_workspace.github_operations.issues.cache import (
-    CACHE_SCHEMA_VERSION,
+from mcp_workspace.github_operations.issues._cache_io import (
     _get_cache_file_path,
     _load_cache_file,
     _log_cache_metrics,
-    _log_stale_cache_entries,
     _save_cache_file,
+)
+from mcp_workspace.github_operations.issues.cache import (
+    CACHE_SCHEMA_VERSION,
+    _log_stale_cache_entries,
     get_all_cached_issues,
 )
 from mcp_workspace.utils.repo_identifier import RepoIdentifier

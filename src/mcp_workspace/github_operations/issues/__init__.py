@@ -8,20 +8,22 @@ This package provides:
 - Utilities: generate_branch_name_from_issue, BranchCreationResult, CacheData
 """
 
+# Cache functions and types
+from ._cache_io import (
+    CacheData,
+    _get_cache_file_path,
+    _load_cache_file,
+    _save_cache_file,
+)
+
 # Base utilities
 from .base import MalformedBaseBranchError, parse_base_branch
 
 # Branch manager and utilities
 from .branch_manager import IssueBranchManager
 from .branch_naming import BranchCreationResult, generate_branch_name_from_issue
-
-# Cache functions and types
 from .cache import (
-    CacheData,
-    _get_cache_file_path,
-    _load_cache_file,
     _log_stale_cache_entries,
-    _save_cache_file,
     get_all_cached_issues,
     update_issue_labels_in_cache,
 )
