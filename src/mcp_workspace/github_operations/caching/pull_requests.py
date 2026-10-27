@@ -5,6 +5,12 @@ query methods, then ``save()`` once. Layer 1 is a snapshot of the open-PR
 list plus base-branch tip SHAs; within ``DUPLICATE_PROTECTION_SECONDS`` of
 its ``fetched_at`` neither is re-fetched. On save the newer snapshot wins
 whole, and results for PRs not in it are pruned.
+
+Layer 2 keeps four result slots per PR (``mergeable_state``, ``ci``,
+``feedback``, ``label_events``). Each entry stores a fingerprint ``fp`` that
+starts with the issue's ``updated_at``; a hit needs a matching ``fp`` and an
+unexpired entry. Not-final results are returned but never stored, and fetch
+errors propagate without storing anything.
 """
 
 from __future__ import annotations
@@ -23,9 +29,24 @@ from mcp_workspace.utils.timezone_utils import (
     utc_now,
 )
 
+from ..ci_results_manager import CIStatusData, RunData, aggregate_conclusion
+from ..issues.events_mixin import EventsMixin
+from ..issues.types import EventData, IssueData, IssueEventType
+from ..pr_types import PRFeedback
 from ..trust import normalize_author_association
-from ._store import _save_cache_file, cache_file_path, is_expired, load_json
-from .errors import GitHubRateLimitError, rate_limit_guard
+from ._store import (
+    _save_cache_file,
+    cache_file_path,
+    is_expired,
+    load_json,
+    new_expiry,
+)
+from .errors import (
+    GitHubRateLimitError,
+    graphql_rate_limit_error,
+    rate_limit_guard,
+    to_rate_limit_error,
+)
 
 if TYPE_CHECKING:
     from ..pr_manager import PullRequestManager
@@ -75,6 +96,40 @@ def _parse_pr(pr: PullRequest) -> OpenPullRequest:
 def _fetch_open_prs(repo: Repository) -> list[OpenPullRequest]:
     """Fetch every page of open PRs. Undecorated: all errors propagate."""
     return [_parse_pr(pr) for pr in repo.get_pulls(state="open")]
+
+
+def _fetch_ci_status(
+    repo: Repository, head_sha: str, branch: str
+) -> tuple[CIStatusData, bool]:
+    """Fetch the aggregate CI status of a commit, without jobs.
+
+    Undecorated: all errors propagate.
+
+    Returns:
+        ``(status, final)`` — ``final`` is True only if there are runs and
+        every run is ``completed``. ``aggregate_conclusion`` already reports
+        ``("failure", "completed")`` while other runs are still going, so its
+        status cannot decide finality.
+    """
+    runs: list[Any] = list(repo.get_workflow_runs(head_sha=head_sha)[:25])
+    if not runs:
+        return CIStatusData(run={}, jobs=[]), False  # type: ignore[typeddict-item]
+    conclusion, status = aggregate_conclusion(runs)
+    first = runs[0]
+    run_data: RunData = {
+        "run_ids": [r.id for r in runs],
+        "status": status,
+        "conclusion": conclusion,
+        "workflow_name": first.name,
+        "event": first.event,
+        "workflow_path": first.path,
+        "branch": branch,
+        "commit_sha": head_sha,
+        "created_at": first.created_at.isoformat() if first.created_at else "",
+        "url": first.html_url,
+    }
+    final = all(r.status == "completed" for r in runs)
+    return CIStatusData(run=run_data, jobs=[]), final
 
 
 def _valid_snapshot(value: Any) -> dict[str, Any] | None:
@@ -150,6 +205,42 @@ class PullRequestCache:
                 then becomes a no-op.
         """  # noqa: DOC502  # other fetch errors propagate unchanged
         return self._guarded(self._base_tip, base_branch)
+
+    def mergeable_state(self, pr: OpenPullRequest, issue: IssueData) -> str | None:
+        """Return the PR's ``mergeable_state``; stored unless ``unknown`` / None.
+
+        Raises:
+            GitHubRateLimitError: If fetching hit a rate limit; ``save()``
+                then becomes a no-op.
+        """  # noqa: DOC502  # other fetch errors propagate unchanged
+        return self._guarded(self._mergeable_state, pr, issue)
+
+    def ci_status(self, pr: OpenPullRequest, issue: IssueData) -> CIStatusData:
+        """Return the aggregate CI status of the PR head; stored once all runs completed.
+
+        Raises:
+            GitHubRateLimitError: If fetching hit a rate limit; ``save()``
+                then becomes a no-op.
+        """  # noqa: DOC502  # other fetch errors propagate unchanged
+        return self._guarded(self._ci_status, pr, issue)
+
+    def feedback(self, pr: OpenPullRequest, issue: IssueData) -> PRFeedback:
+        """Return PR feedback without alerts; stored unless a section is unavailable.
+
+        Raises:
+            GitHubRateLimitError: If fetching (or any feedback section) hit a
+                rate limit; ``save()`` then becomes a no-op.
+        """  # noqa: DOC502  # other fetch errors propagate unchanged
+        return self._guarded(self._feedback, pr, issue)
+
+    def label_events(self, pr: OpenPullRequest, issue: IssueData) -> list[EventData]:
+        """Return the issue's ``labeled`` events; always stored.
+
+        Raises:
+            GitHubRateLimitError: If fetching hit a rate limit; ``save()``
+                then becomes a no-op.
+        """  # noqa: DOC502  # other fetch errors propagate unchanged
+        return self._guarded(self._label_events, pr, issue)
 
     def save(self) -> None:
         """Merge this run's snapshot and fetched results into the file on disk.
@@ -238,6 +329,95 @@ class PullRequestCache:
             )
             self._snapshot_dirty = True
         return base_tips[base_branch]
+
+    def _cached(
+        self, pr: OpenPullRequest, slot: str, fp: list[Any]
+    ) -> tuple[bool, Any]:
+        """Return ``(True, value)`` for an unexpired entry with matching fp."""
+        key = str(pr["number"])
+        now = utc_now()
+        for results in (self._fetched_results, self._loaded_results):
+            entry = results.get(key, {}).get(slot)
+            if (
+                entry is not None
+                and entry.get("fp") == fp
+                and not is_expired(entry, now)
+            ):
+                return True, entry.get("value")
+        return False, None
+
+    def _store(self, pr: OpenPullRequest, slot: str, fp: list[Any], value: Any) -> None:
+        """Record a final result for this run's ``save()``."""
+        self._fetched_results.setdefault(str(pr["number"]), {})[slot] = {
+            "fp": fp,
+            "value": value,
+            "expires_at": new_expiry(utc_now()),
+        }
+
+    def _mergeable_state(self, pr: OpenPullRequest, issue: IssueData) -> str | None:
+        fp = [issue["updated_at"], pr["head_sha"], self._base_tip(pr["base_branch"])]
+        hit, value = self._cached(pr, "mergeable_state", fp)
+        if hit:
+            cached: str | None = value
+            return cached
+        state = self._repository().get_pull(pr["number"]).mergeable_state
+        if state not in (None, "unknown"):
+            self._store(pr, "mergeable_state", fp, state)
+        return state
+
+    def _ci_status(self, pr: OpenPullRequest, issue: IssueData) -> CIStatusData:
+        fp = [issue["updated_at"], pr["head_sha"]]
+        hit, value = self._cached(pr, "ci", fp)
+        if hit:
+            cached: CIStatusData = value
+            return cached
+        status, final = _fetch_ci_status(
+            self._repository(), pr["head_sha"], pr["head_branch"]
+        )
+        if final:
+            self._store(pr, "ci", fp, status)
+        return status
+
+    def _feedback(self, pr: OpenPullRequest, issue: IssueData) -> PRFeedback:
+        fp = [issue["updated_at"], pr["updated_at"]]
+        hit, value = self._cached(pr, "feedback", fp)
+        if hit:
+            cached: PRFeedback = value
+            return cached
+        # Undecorated body: the decorator's empty default on an unexpected
+        # error would look like "no feedback" and be cached.
+        feedback = (
+            self._pr_manager._collect_pr_feedback(  # pylint: disable=protected-access
+                pr["number"], include_alerts=False
+            )
+        )
+        for exc in feedback["unavailable"].values():
+            # A GraphQL RATE_LIMITED body arrives as a status-400 exception
+            # without rate-limit headers, so check its data as well.
+            rl = to_rate_limit_error(exc) or graphql_rate_limit_error(
+                getattr(exc, "data", None)
+            )
+            if rl is not None:
+                raise rl from exc
+        if feedback["unavailable"]:
+            return feedback
+        self._store(pr, "feedback", fp, {**feedback, "unavailable": {}, "skipped": {}})
+        return feedback
+
+    def _label_events(self, pr: OpenPullRequest, issue: IssueData) -> list[EventData]:
+        fp = [issue["updated_at"]]
+        hit, value = self._cached(pr, "label_events", fp)
+        if hit:
+            cached: list[EventData] = value
+            return cached
+        # Unbound call with the PullRequestManager: get_issue_events only needs
+        # BaseGitHubManager's _get_repository / _get_issue_checked, so no
+        # second (IssueManager) instance is needed.
+        events = EventsMixin.get_issue_events(
+            self._pr_manager, issue["number"], IssueEventType.LABELED
+        )
+        self._store(pr, "label_events", fp, events)
+        return events
 
     def _merged_snapshot(self, disk: dict[str, Any] | None) -> dict[str, Any] | None:
         """Pick the newer of disk and my snapshot; on a tie, add my missing tips."""
