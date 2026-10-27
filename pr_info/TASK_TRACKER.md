@@ -31,9 +31,9 @@ See [step_1.md](./steps/step_1.md)
 ### Step 2: 403/404 on alerts → `skipped`, rendered as "alerts not checked"
 See [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: tests first (parametrized `test_code_scanning_error_routing`, `skipped == {}` asserts, `TestSkipped`, undeterminable/blocks-merge tests), then `PRFeedback.skipped`, fetch raises all errors, mixin routes 403/404 (non-rate-limit) to `skipped`, formatter clean-line note and `[skipped]` lines
-- [ ] Quality checks: pylint, pytest, mypy, vulture — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests first (parametrized `test_code_scanning_error_routing`, `skipped == {}` asserts, `TestSkipped`, undeterminable/blocks-merge tests), then `PRFeedback.skipped`, fetch raises all errors, mixin routes 403/404 (non-rate-limit) to `skipped`, formatter clean-line note and `[skipped]` lines
+- [x] Quality checks: pylint, pytest, mypy, vulture — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

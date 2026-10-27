@@ -403,37 +403,27 @@ def fetch_conversation_comments(
 
 def fetch_code_scanning_alerts(
     manager: "PullRequestManager", pr_number: int
-) -> Optional[list["AlertData"]]:
+) -> list["AlertData"]:
     """Fetch open code-scanning alerts for the PR via REST (first page only).
 
     Returns:
-        None on 403 (silent skip — caller does not flag as unavailable).
-        [] on success with no alerts or if repository is unavailable.
-        list of alert dicts on success.
+        list[AlertData] of open alerts (first page only); [] when the
+        repository is unavailable or there are no alerts.
 
     Raises:
-        GithubException: For non-403 errors (caller flags as unavailable).
-    """
+        GithubException: Any API error (caller classifies).
+    """  # noqa: DOC502  # GithubException propagates from requestJsonAndCheck
     repo = manager._get_repository()  # pylint: disable=protected-access
     if repo is None:
         return []
 
     owner, repo_name = repo.owner.login, repo.name
 
-    try:
-        _, data = manager._github_client._Github__requester.requestJsonAndCheck(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public alerts API in PyGithub
-            "GET",
-            f"/repos/{owner}/{repo_name}/code-scanning/alerts",
-            parameters={"pr": pr_number, "state": "open", "per_page": 100},
-        )
-    except GithubException as e:
-        if e.status == 403:
-            logger.debug(
-                "Code-scanning alerts unavailable (403): token lacks "
-                "security_events:read or code-scanning is disabled"
-            )
-            return None
-        raise
+    _, data = manager._github_client._Github__requester.requestJsonAndCheck(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public alerts API in PyGithub
+        "GET",
+        f"/repos/{owner}/{repo_name}/code-scanning/alerts",
+        parameters={"pr": pr_number, "state": "open", "per_page": 100},
+    )
 
     alerts: list["AlertData"] = []
     for alert in data or []:

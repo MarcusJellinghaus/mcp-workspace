@@ -81,6 +81,7 @@ class PRFeedback(TypedDict):
     conversation_comments: list[ConversationCommentData]
     alerts: list[AlertData]
     unavailable: dict[str, Exception]
+    skipped: dict[str, Exception]
 
 
 class MergeResult(TypedDict):

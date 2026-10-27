@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, List
 from mcp_coder_utils.log_utils import log_function_call
 
 from . import _pr_feedback_sources
+from ._diagnostics import format_rate_limit_error
 from .base_manager import _handle_github_errors
 from .pr_types import PRFeedback
 
@@ -32,6 +33,7 @@ def _empty_pr_feedback() -> PRFeedback:
         "conversation_comments": [],
         "alerts": [],
         "unavailable": {},
+        "skipped": {},
     }
 
 
@@ -112,13 +114,16 @@ class PRFeedbackMixin:
         Returns:
             PRFeedback dict containing unresolved threads, resolved thread count,
             standing CHANGES_REQUESTED reviews, conversation comments, code-scanning alerts,
-            and a dict mapping failed section names to the raised or returned
-            exception (excluding 403 on alerts, which is silently skipped).
+            a dict mapping failed section names to the raised or returned
+            exception (``unavailable``), and a dict of sections that could not
+            be checked (``skipped``) — a 403/404 on alerts that is not a rate
+            limit goes into ``skipped``, every other failure into ``unavailable``.
         """
         if not self._validate_pr_number(pr_number):
             return _empty_pr_feedback()
 
         unavailable: dict[str, Exception] = {}
+        skipped: dict[str, Exception] = {}
 
         try:
             threads, resolved_count, changes_requested, review_error = (
@@ -150,18 +155,26 @@ class PRFeedbackMixin:
             unavailable["comments"] = e
 
         try:
-            alerts_or_none = _pr_feedback_sources.fetch_code_scanning_alerts(
-                self, pr_number
-            )
-            alerts = alerts_or_none if alerts_or_none is not None else []
+            alerts = _pr_feedback_sources.fetch_code_scanning_alerts(self, pr_number)
         except (
             Exception
         ) as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
-            logger.warning(
-                f"Failed to fetch code-scanning alerts for PR #{pr_number}: {e}"
-            )
             alerts = []
-            unavailable["alerts"] = e
+            # 403/404 without a rate limit: token lacks security_events:read,
+            # code scanning is disabled, or no analysis exists — not a failure.
+            if (
+                getattr(e, "status", None) in (403, 404)
+                and format_rate_limit_error(e) is None
+            ):
+                logger.debug(
+                    f"Code-scanning alerts not checked for PR #{pr_number}: {e}"
+                )
+                skipped["alerts"] = e
+            else:
+                logger.warning(
+                    f"Failed to fetch code-scanning alerts for PR #{pr_number}: {e}"
+                )
+                unavailable["alerts"] = e
 
         return {
             "unresolved_threads": threads,
@@ -170,4 +183,5 @@ class PRFeedbackMixin:
             "conversation_comments": comments,
             "alerts": alerts,
             "unavailable": unavailable,
+            "skipped": skipped,
         }

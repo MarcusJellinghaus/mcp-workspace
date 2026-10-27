@@ -28,6 +28,7 @@ def _empty_feedback() -> PRFeedback:
         "conversation_comments": [],
         "alerts": [],
         "unavailable": {},
+        "skipped": {},
     }
 
 
@@ -353,6 +354,40 @@ class TestUnavailableSection:
         assert t_idx < c_idx < a_idx
 
 
+class TestSkipped:
+    """`skipped` sections render as "not checked" and never make a report non-clean."""
+
+    def test_clean_line_notes_skipped_alerts(self) -> None:
+        feedback = _empty_feedback()
+        feedback["skipped"] = {"alerts": GithubException(403, {"message": "x"}, None)}
+        result = format_pr_feedback(feedback, frozenset())
+        assert result == (
+            "Reviews: clean (0 unresolved threads, alerts not checked: 403)"
+        )
+
+    def test_skipped_line_follows_unavailable_lines(self) -> None:
+        feedback = _empty_feedback()
+        feedback["unresolved_threads"] = [_thread()]
+        feedback["unavailable"] = {
+            "threads": GithubException(500, {"message": "Server Error"}, None)
+        }
+        feedback["skipped"] = {"alerts": GithubException(404, {"message": "x"}, None)}
+        lines = format_pr_feedback(feedback, frozenset()).split("\n")
+        assert "[skipped] alerts not checked (404)" in lines
+        skipped_idx = lines.index("[skipped] alerts not checked (404)")
+        unavailable_idx = next(
+            i for i, line in enumerate(lines) if line.startswith("[unavailable]")
+        )
+        assert skipped_idx > unavailable_idx
+
+    def test_skipped_line_survives_item_cap(self) -> None:
+        feedback = _empty_feedback()
+        feedback["unresolved_threads"] = [_thread(body=f"t{i}") for i in range(25)]
+        feedback["skipped"] = {"alerts": GithubException(403, {"message": "x"}, None)}
+        lines = format_pr_feedback(feedback, frozenset()).split("\n")
+        assert "[skipped] alerts not checked (403)" in lines
+
+
 class TestMixedFullExample:
     """Mixed example matching issue spec."""
 
@@ -438,6 +473,24 @@ class TestCollectPrFeedbackUndeterminable:
     def test_blocking_feedback_reports_blocks_merge(self) -> None:
         feedback = _empty_feedback()
         feedback["unresolved_threads"] = [_thread()]
+        _text, blocks_merge, undeterminable = collect_pr_feedback(
+            self._manager(feedback), 1, frozenset()
+        )
+        assert blocks_merge is True
+        assert undeterminable is False
+
+    def test_skipped_alerts_neither_blocks_nor_undeterminable(self) -> None:
+        feedback = _empty_feedback()
+        feedback["skipped"] = {"alerts": GithubException(403, {"message": "x"}, None)}
+        _text, blocks_merge, undeterminable = collect_pr_feedback(
+            self._manager(feedback), 1, frozenset()
+        )
+        assert blocks_merge is False
+        assert undeterminable is False
+
+    def test_alert_blocks_merge(self) -> None:
+        feedback = _empty_feedback()
+        feedback["alerts"] = [_alert()]
         _text, blocks_merge, undeterminable = collect_pr_feedback(
             self._manager(feedback), 1, frozenset()
         )
