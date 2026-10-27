@@ -57,9 +57,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 8: Delete `get_staged_changes` / `get_unstaged_changes` — [step_8.md](./steps/step_8.md)
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy (+ lint-imports, vulture) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy (+ lint-imports, vulture) — fix all issues
+- [x] Commit message prepared
 
 ### Step 9: Rebuild `rebase_onto_branch` on `rebase_start` / `rebase_abort` — [step_9.md](./steps/step_9.md)
 - [ ] Implementation (tests + production code + release notes)

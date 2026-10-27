@@ -9,8 +9,6 @@ from git.exc import GitCommandError
 
 from mcp_workspace.git_operations.repository_status import (
     get_full_status,
-    get_staged_changes,
-    get_unstaged_changes,
     is_git_repository,
     is_working_directory_clean,
 )
@@ -47,43 +45,6 @@ class TestRepositoryReaders:
         new_file = project_dir / "new.py"
         new_file.write_text("# New file")
         assert is_working_directory_clean(project_dir) is False
-
-    def test_get_staged_changes(self, git_repo_with_commit: tuple[Repo, Path]) -> None:
-        """Test get_staged_changes returns staged files."""
-        repo, project_dir = git_repo_with_commit
-
-        # No staged changes initially
-        staged = get_staged_changes(project_dir)
-        assert staged == []
-
-        # Stage a file
-        new_file = project_dir / "staged.py"
-        new_file.write_text("# Staged file")
-        repo.index.add(["staged.py"])
-
-        # Should detect staged file
-        staged = get_staged_changes(project_dir)
-        assert len(staged) == 1
-        assert "staged.py" in staged[0]
-
-    def test_get_unstaged_changes(
-        self, git_repo_with_commit: tuple[Repo, Path]
-    ) -> None:
-        """Test get_unstaged_changes returns modified files."""
-        _repo, project_dir = git_repo_with_commit
-
-        # No unstaged changes initially
-        unstaged = get_unstaged_changes(project_dir)
-        assert unstaged == {"modified": [], "untracked": []}
-
-        # Modify tracked file
-        readme = project_dir / "README.md"
-        readme.write_text("# Modified")
-
-        # Should detect unstaged change
-        unstaged = get_unstaged_changes(project_dir)
-        assert len(unstaged["modified"]) == 1
-        assert "README.md" in unstaged["modified"][0]
 
     def test_get_full_status(self, git_repo_with_commit: tuple[Repo, Path]) -> None:
         """Test get_full_status returns complete status."""
