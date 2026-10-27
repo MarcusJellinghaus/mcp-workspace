@@ -22,7 +22,7 @@ from mcp_workspace.utils.timezone_utils import (
 )
 
 from ..base_manager import IssueIdentityMismatchError
-from ..caching.errors import to_rate_limit_error
+from ..caching.errors import GitHubRateLimitError, to_rate_limit_error
 from ._cache_io import (
     CacheData,
     _get_cache_file_path,
@@ -683,6 +683,9 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
             _log_cache_metrics(
                 "save", repo_name, total_issues=len(cache_data["issues"])
             )
+    except GitHubRateLimitError:
+        # Already converted (e.g. step 5b); keep its original __cause__.
+        raise
     except Exception as e:  # pylint: disable=broad-exception-caught
         if (rl := to_rate_limit_error(e)) is not None:
             raise rl from e
