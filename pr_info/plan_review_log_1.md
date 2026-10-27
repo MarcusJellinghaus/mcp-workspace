@@ -20,3 +20,11 @@ Plan files and source checked; three findings.
 Verdict(decision='tasks', tasks=['pr_info/steps/step_4.md:57 — In the _get_repository ALGORITHM, read `ident = self._repo_identifier` and build the cache key inside the existing `try`. The current behaviour must stay: in project_dir mode with no git remote, the ValueError is caught and the method returns None. Add a test that _get_repository returns None in the no-remote case.', "pr_info/steps/step_2.md:33 — Make `_needs_fetch` return True when `force_refresh` is set, so a forced refresh fetches every session issue again, as the 'Bypass cache entirely' docstring says. Add a test that force_refresh fetches a closed session issue even though a fresh cached copy exists."], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 3 — 2026-10-27
+**Findings**:
+`pr_info/steps/step_4.md:66` — high — The plan says error handling stays "unchanged" and that a no-remote `ValueError` from `self._repo_identifier` is "caught by the existing `except Exception` branch and the method returns `None`". The test at lines 86-87 relies on that. It is not true of the current code: the `except Exception` branch (`base_manager.py:426`, also `:424` and `:429`) reads `self._repo_identifier.api_base_url` and `.full_name` again. So the `ValueError` is raised a second time inside the handler and reaches the caller. Today `_get_repository` already raises in this case, so the planned test fails unless the handler changes. Fix: say explicitly that the step changes this. Either resolve `ident` once and catch `ValueError` separately (set `_last_repository_error`, return `None`, never touch `self._repo_identifier` in the handlers), or drop the "returns None" claim and its test so the current raising behaviour stays.
+**Decisions**:
+Verdict(decision='tasks', tasks=["pr_info/steps/step_4.md:66 — The plan wrongly says a no-remote ValueError is caught and returns None: today the `except Exception` handler (base_manager.py:424-429) reads `self._repo_identifier` again, so _get_repository already raises. Keep that raising behaviour. Remove the 'returns None' claim, and remove the no-remote test at lines 86-87 that relies on it. Keep `ident` and the cache-key computation inside the `try`, and state that no-remote error handling stays as it is today (it raises)."], escalate_reason=None)
+**Changes**:
+applied
