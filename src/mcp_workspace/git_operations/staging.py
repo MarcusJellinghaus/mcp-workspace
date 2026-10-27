@@ -12,7 +12,7 @@ from .core import (
     safe_repo_context,
     to_git_paths,
 )
-from .repository_status import get_unstaged_changes, is_git_repository
+from .repository_status import is_git_repository
 
 
 def _chunk_paths(paths: list[str], max_chars: int = 24000) -> list[list[str]]:
@@ -206,7 +206,7 @@ def stage_all_changes(project_dir: Path) -> bool:
 
     Note:
         - Stages both modified tracked files (including deletions) and untracked files
-        - Returns True if no unstaged changes exist (no-op case)
+        - Returns True on a clean tree (`git add --all` is a no-op)
         - Uses git add --all to handle deletions properly
         - Returns False if staging operation fails
     """
@@ -217,36 +217,12 @@ def stage_all_changes(project_dir: Path) -> bool:
         return False
 
     try:
-        # Get all unstaged changes
-        unstaged_changes = get_unstaged_changes(project_dir)
-
-        # Combine modified and untracked files
-        all_unstaged_files = (
-            unstaged_changes["modified"] + unstaged_changes["untracked"]
-        )
-
-        # If no unstaged changes, this is a successful no-op
-        if not all_unstaged_files:
-            logger.debug("No unstaged changes to stage - success")
-            return True
-
-        # Use git add --all to stage everything including deletions
-        # This is more robust than trying to handle individual files
         with safe_repo_context(project_dir) as repo:
-            logger.debug(
-                "Staging %d unstaged files using git add --all: %s",
-                len(all_unstaged_files),
-                all_unstaged_files,
-            )
-
             # Use git add --all to stage all changes (additions, modifications, deletions)
             repo.git.add("--all")
 
-            logger.debug(
-                "Successfully staged all %d unstaged changes", len(all_unstaged_files)
-            )
-
-            return True
+        logger.debug("Staged all changes")
+        return True
 
     except (InvalidGitRepositoryError, GitCommandError) as e:
         logger.error("Git error staging all changes: %s", e)

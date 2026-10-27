@@ -47,9 +47,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 6: `stage_all_changes` drops its precheck — [step_6.md](./steps/step_6.md)
-- [ ] Implementation (tests + production code + release notes)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code + release notes)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 7: `commit_all_changes` precheck uses `get_working_tree_status`, fails closed — [step_7.md](./steps/step_7.md)
 - [ ] Implementation (tests + production code + release notes)

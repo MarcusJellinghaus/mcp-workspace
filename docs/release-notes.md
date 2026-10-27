@@ -81,6 +81,8 @@ with `-` are rejected.
   staged-renamed-then-modified file is reported by its new path (not `old -> new`), and a
   status failure gives all-empty lists (never partial).
 - `rebase_onto_branch` is unchanged (keeps its inline rebase-dir check until #355).
+- `stage_all_changes` no longer reports success when it cannot read the status; it runs
+  `git add --all` directly, so any git failure is `False`.
 
 ### Migration traps
 
