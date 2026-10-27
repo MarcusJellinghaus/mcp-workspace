@@ -83,6 +83,8 @@ with `-` are rejected.
 - `rebase_onto_branch` is unchanged (keeps its inline rebase-dir check until #355).
 - `stage_all_changes` no longer reports success when it cannot read the status; it runs
   `git add --all` directly, so any git failure is `False`.
+- `commit_all_changes` returns `success=False` (`error_category="commit_failed"`) when
+  `git status` fails, instead of reporting "nothing to commit".
 
 ### Migration traps
 

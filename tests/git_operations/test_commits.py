@@ -2,11 +2,12 @@
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 from git import Repo
-from git.exc import GitCommandError
+from git.exc import GitCommandError, GitCommandNotFound
 
 from mcp_workspace.git_operations.commits import (
     commit_staged_files,
@@ -79,6 +80,63 @@ class TestCommitOperations:
         assert result["success"] is True
         assert result["commit_hash"] is None
         assert result["error"] is None
+
+    @pytest.mark.parametrize(
+        ("status_kwargs", "expected_returncode", "expected_stderr"),
+        [
+            (
+                {
+                    "return_value": {
+                        "success": False,
+                        "error": "git status failed (exit 128)",
+                        "returncode": 128,
+                        "stderr": "fatal: boom",
+                        "clean": False,
+                        "staged": [],
+                        "modified": [],
+                        "untracked": [],
+                    }
+                },
+                128,
+                "fatal: boom",
+            ),
+            (
+                {"side_effect": GitCommandNotFound("git", "not found")},
+                None,
+                None,
+            ),
+        ],
+        ids=["status_failure", "status_raises"],
+    )
+    def test_commit_all_changes_status_failure_is_commit_failed(
+        self,
+        git_repo: tuple[Repo, Path],
+        status_kwargs: dict[str, Any],
+        expected_returncode: int | None,
+        expected_stderr: str | None,
+    ) -> None:
+        """A status failure fails closed instead of reporting nothing to commit."""
+        repo, project_dir = git_repo
+        (project_dir / "test.py").write_text("# Test file")
+
+        with (
+            patch(
+                "mcp_workspace.git_operations.workflows.get_working_tree_status",
+                **status_kwargs,
+            ),
+            patch(
+                "mcp_workspace.git_operations.workflows.stage_all_changes"
+            ) as mock_stage,
+        ):
+            result = commit_all_changes("Test message", project_dir)
+
+        assert result["success"] is False
+        assert result["commit_hash"] is None
+        assert result["error_category"] == "commit_failed"
+        assert result["returncode"] == expected_returncode
+        assert result["stderr"] == expected_stderr
+        mock_stage.assert_not_called()
+        assert not repo.head.is_valid()
 
     def test_commit_with_multiline_message(self, git_repo: tuple[Repo, Path]) -> None:
         """Test commit handles multiline commit messages."""
