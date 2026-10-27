@@ -36,18 +36,25 @@ def _reset_at(exc: BaseException) -> datetime | None:
 
 
 def to_rate_limit_error(exc: BaseException) -> GitHubRateLimitError | None:
-    """Return a GitHubRateLimitError for a rate-limit exc, else None."""
+    """Return a GitHubRateLimitError for a rate-limit exc, else None.
+
+    PyGithub's ``graphql_query`` raises a status-400 GithubException for a
+    body with ``errors``, without rate-limit headers, so a ``RATE_LIMITED``
+    body in its ``data`` counts as a rate limit too.
+    """
     msg = format_rate_limit_error(exc)
-    if msg is None:
-        return None
-    return GitHubRateLimitError(msg, _reset_at(exc))
+    if msg is not None:
+        return GitHubRateLimitError(msg, _reset_at(exc))
+    if isinstance(exc, GithubException):
+        return graphql_rate_limit_error(exc.data)
+    return None
 
 
 def graphql_rate_limit_error(result: Any) -> GitHubRateLimitError | None:
     """Return a GitHubRateLimitError for a RATE_LIMITED GraphQL body, else None.
 
     GraphQL reports rate limits in the response body
-    (``errors[*].type == "RATE_LIMITED"``), without an exception.
+    (``errors[*].type == "RATE_LIMITED"``).
     """
     if not isinstance(result, dict):
         return None

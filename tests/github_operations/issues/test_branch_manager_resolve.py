@@ -11,6 +11,7 @@ from github import GithubException
 from mcp_workspace.github_operations.caching.errors import (
     GitHubRateLimitError,
     graphql_rate_limit_error,
+    rate_limit_guard,
 )
 from mcp_workspace.github_operations.issues import (
     BranchLookup,
@@ -22,6 +23,11 @@ _RATE_LIMITED_BODY: dict[str, Any] = {
     "data": None,
     "errors": [{"type": "RATE_LIMITED", "message": "API rate limit exceeded"}],
 }
+
+
+def _rate_limited_exception() -> GithubException:
+    """What Requester.graphql_query raises for a RATE_LIMITED body."""
+    return GithubException(400, _RATE_LIMITED_BODY, {})
 
 
 def _pr_node(number: int, state: str, head: str) -> dict[str, Any]:
@@ -226,11 +232,15 @@ class TestResolveBranchForIssue:
     def test_timeline_rate_limited_body_raises(
         self, mock_manager: IssueBranchManager
     ) -> None:
-        """A RATE_LIMITED timeline body raises GitHubRateLimitError."""
-        _setup(mock_manager, timeline=_RATE_LIMITED_BODY)
+        """A RATE_LIMITED timeline reply propagates and the guard converts it."""
+        _setup(mock_manager)
+        mock_manager._github_client._Github__requester.graphql_query = Mock(  # type: ignore[attr-defined]
+            side_effect=_rate_limited_exception()
+        )
 
         with pytest.raises(GitHubRateLimitError):
-            _resolve(mock_manager)
+            with rate_limit_guard():
+                _resolve(mock_manager)
 
 
 class TestLinkedBranchesInCore:
@@ -287,22 +297,23 @@ class TestLinkedBranchesInCore:
     def test_linked_query_rate_limited_body_raises(
         self, mock_manager: IssueBranchManager
     ) -> None:
-        """A RATE_LIMITED linked-branches body raises GitHubRateLimitError."""
+        """A RATE_LIMITED linked-branches reply propagates and the guard converts it."""
         self._wire_repo(mock_manager)
         mock_manager._github_client._Github__requester.graphql_query = Mock(  # type: ignore[attr-defined]
-            return_value=({}, _RATE_LIMITED_BODY)
+            side_effect=_rate_limited_exception()
         )
 
         with pytest.raises(GitHubRateLimitError):
-            _resolve(mock_manager)
+            with rate_limit_guard():
+                _resolve(mock_manager)
 
     def test_get_linked_branches_rate_limited_body_returns_empty(
         self, mock_manager: IssueBranchManager
     ) -> None:
-        """The decorated get_linked_branches keeps returning [] on a RATE_LIMITED body."""
+        """The decorated get_linked_branches keeps returning [] on a RATE_LIMITED reply."""
         self._wire_repo(mock_manager)
         mock_manager._github_client._Github__requester.graphql_query = Mock(  # type: ignore[attr-defined]
-            return_value=({}, _RATE_LIMITED_BODY)
+            side_effect=_rate_limited_exception()
         )
 
         assert mock_manager.get_linked_branches(123) == []

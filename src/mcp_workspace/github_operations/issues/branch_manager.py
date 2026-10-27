@@ -10,7 +10,6 @@ from github import GithubException
 from mcp_coder_utils.log_utils import log_function_call
 
 from ..base_manager import BaseGitHubManager, _handle_github_errors
-from ..caching.errors import graphql_rate_limit_error
 from .base import validate_issue_number_or_log
 from .branch_naming import BranchCreationResult, generate_branch_name_from_issue
 from .linked_branches_mixin import LinkedBranchesMixin, _query_linked_branches
@@ -498,9 +497,9 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
             ValueError: If the issue number is invalid.
             BranchLookupError: If the repository or a GraphQL response is
                 unavailable or malformed.
-            GitHubRateLimitError: If a GraphQL response reports a rate limit.
             GithubException: On any GitHub API error other than a closed-PR
-                branch probe returning 404.
+                branch probe returning 404, rate limits included (callers
+                convert them with ``caching.errors.rate_limit_guard``).
         """  # noqa: DOC502  # GithubException propagates from PyGithub calls
         # Step 1: Validate issue number
         if not validate_issue_number_or_log(issue_number):
@@ -542,9 +541,6 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
         _, result = self._github_client._Github__requester.graphql_query(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public GraphQL API in PyGithub
             query=_TIMELINE_PRS_QUERY, variables=variables
         )
-
-        if (rl := graphql_rate_limit_error(result)) is not None:
-            raise rl
 
         # Step 5: Parse response and filter for OPEN PRs
         try:

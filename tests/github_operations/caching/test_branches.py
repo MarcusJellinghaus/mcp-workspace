@@ -209,6 +209,53 @@ class TestLookup:
 
         assert not _path().exists()
 
+    def test_graphql_rate_limited_linked_query_raises_and_save_is_noop(
+        self,
+    ) -> None:
+        """A RATE_LIMITED linked-branches reply, as PyGithub raises it, stops the run."""
+        with patch("mcp_workspace.github_operations._client.Github") as mock_github:
+            manager = IssueBranchManager(
+                repo_url="https://github.com/o/r", github_token="tok"
+            )
+            manager._cached_github_client = mock_github.return_value
+        repo = Mock()
+        repo.owner.login = "o"
+        repo.name = "r"
+        manager._repository = repo
+        graphql_query = Mock(
+            side_effect=[
+                (
+                    {},
+                    {
+                        "data": {
+                            "repository": {
+                                "issue": {
+                                    "linkedBranches": {
+                                        "nodes": [{"ref": {"name": "4-x"}}]
+                                    }
+                                }
+                            }
+                        }
+                    },
+                ),
+                GithubException(
+                    400,
+                    {"data": None, "errors": [{"type": "RATE_LIMITED"}]},
+                    {},
+                ),
+            ]
+        )
+        manager._github_client._Github__requester = Mock()  # type: ignore[attr-defined]
+        manager._github_client._Github__requester.graphql_query = graphql_query  # type: ignore[attr-defined]
+        cache = BranchLookupCache.load(manager)
+        assert cache.lookup(_issue(4)) == BranchLookup("found", "4-x")
+
+        with pytest.raises(GitHubRateLimitError):
+            cache.lookup(_issue(5))
+        cache.save()
+
+        assert not _path().exists()
+
     @pytest.mark.parametrize(
         "content",
         [

@@ -41,12 +41,7 @@ from ._store import (
     load_json,
     new_expiry,
 )
-from .errors import (
-    GitHubRateLimitError,
-    graphql_rate_limit_error,
-    rate_limit_guard,
-    to_rate_limit_error,
-)
+from .errors import GitHubRateLimitError, rate_limit_guard, to_rate_limit_error
 
 if TYPE_CHECKING:
     from ..pr_manager import PullRequestManager
@@ -431,12 +426,7 @@ class PullRequestCache:
             )
         )
         for exc in feedback["unavailable"].values():
-            # A GraphQL RATE_LIMITED body arrives as a status-400 exception
-            # without rate-limit headers, so check its data as well.
-            rl = to_rate_limit_error(exc) or graphql_rate_limit_error(
-                getattr(exc, "data", None)
-            )
-            if rl is not None:
+            if (rl := to_rate_limit_error(exc)) is not None:
                 raise rl from exc
         if feedback["unavailable"]:
             return feedback
