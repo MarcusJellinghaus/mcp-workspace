@@ -19,3 +19,11 @@ Round-1 fixes in `pull_requests.py` look correct. Next I'm reviewing `branches.p
 Verdict(decision='tasks', tasks=['In src/mcp_workspace/github_operations/caching/errors.py:68, extend to_rate_limit_error (which rate_limit_guard uses) so it also treats a GithubException as a rate limit when graphql_rate_limit_error(getattr(exc, "data", None)) matches. This makes GraphQL RATE_LIMITED replies, including the linked-branches query, raise GitHubRateLimitError, set _rate_limited, and stop save() from writing.', 'Remove the dead graphql_rate_limit_error(result) checks on the returned body at src/mcp_workspace/github_operations/issues/linked_branches_mixin.py:138 and src/mcp_workspace/github_operations/issues/branch_manager.py:546, because Requester.graphql_query raises on any body with errors. Rely on the exception-path detection from the errors.py fix instead.', 'In tests/github_operations/issues/test_branch_manager_resolve.py (the RATE_LIMITED tests at lines 229, 290 and 302), make the graphql_query mock raise GithubException(400, _RATE_LIMITED_BODY, {}) instead of returning an error body. Add a BranchLookupCache.lookup test that asserts GitHubRateLimitError is raised and save() writes no cache file.'], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 3 — 2026-10-28
+**Findings**:
+Still reviewing: the caching modules look sound. Now checking the branch-manager resolver and the issue-cache rate-limit paths.Nearly done: checking whether `get_issue_events`, which the PR cache calls for label events, swallows errors before I write the report.`src/mcp_workspace/github_operations/caching/pull_requests.py:346` — medium — `_find_pr` compares `head_label` to `f"{repo_identifier.owner}:{branch}"` with exact case, but `find_pull_request_by_head` passes the same string to GitHub's `head=` filter, which (unverified) ignores owner case; a remote URL whose owner casing differs from the GitHub login (e.g. lowercase) would make every PR look absent. Compare the owner part case-insensitively.
+**Decisions**:
+Verdict(decision='dismiss', tasks=[], escalate_reason=None)
+**Changes**:
+dismiss
