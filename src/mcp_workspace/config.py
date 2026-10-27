@@ -1,8 +1,10 @@
 """Configuration helpers for GitHub token and test repo resolution."""
 
+import functools
 import logging
 import os
 import tomllib
+from pathlib import Path
 from typing import Any, Literal
 
 from mcp_coder_utils.user_app_data import get_user_app_data_dir
@@ -61,6 +63,27 @@ def get_trusted_commenters() -> frozenset[str]:
     return frozenset(
         v.lower() for v in _read_config_list("github", "trusted_commenters")
     )
+
+
+@functools.cache
+def get_traffic_log_dir() -> Path | None:
+    """Resolve the GitHub traffic log directory from ``[github]`` once per process.
+
+    ``traffic_log`` must be the boolean ``true``; any other value turns the
+    log off. A missing, empty or non-string ``traffic_log_dir`` falls back to
+    the default directory. Callers use ``config.get_traffic_log_dir()`` via
+    the module attribute, so tests can replace it.
+
+    Returns:
+        The directory when ``traffic_log = true``, else None (log off).
+    """
+    section = _load_config().get("github", {})
+    if not isinstance(section, dict) or section.get("traffic_log") is not True:
+        return None
+    value = section.get("traffic_log_dir")
+    if isinstance(value, str) and value:
+        return Path(value)
+    return get_user_app_data_dir("mcp_coder") / "logs" / "github_traffic"
 
 
 def _read_config_value(section: str, key: str) -> str | None:

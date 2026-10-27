@@ -12,6 +12,7 @@ from mcp_workspace.config import (
     get_github_token,
     get_github_token_with_source,
     get_test_repo_url,
+    get_traffic_log_dir,
     get_trusted_commenters,
 )
 
@@ -296,3 +297,77 @@ class TestGetTrustedCommenters:
             return_value=tmp_path,
         ):
             assert get_trusted_commenters() == frozenset()
+
+
+class TestGetTrafficLogDir:
+    """Tests for get_traffic_log_dir()."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_cache(self) -> None:
+        get_traffic_log_dir.cache_clear()
+
+    def _resolve(self, tmp_path: Path) -> Path | None:
+        with patch(
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
+        ):
+            return get_traffic_log_dir()
+
+    def test_missing_file_returns_none(self, tmp_path: Path) -> None:
+        assert self._resolve(tmp_path) is None
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "[github]\ntraffic_log = false\n",
+            '[github]\ntoken = "ghp_test"\n',
+            '[github]\ntraffic_log = "true"\n',
+        ],
+        ids=["false", "key-missing", "string-true"],
+    )
+    def test_not_enabled_returns_none(self, tmp_path: Path, text: str) -> None:
+        _write_config(tmp_path, text)
+        assert self._resolve(tmp_path) is None
+
+    def test_enabled_without_dir_returns_default(self, tmp_path: Path) -> None:
+        _write_config(tmp_path, "[github]\ntraffic_log = true\n")
+        assert self._resolve(tmp_path) == tmp_path / "logs" / "github_traffic"
+
+    def test_enabled_with_dir_returns_dir(self, tmp_path: Path) -> None:
+        _write_config(
+            tmp_path, '[github]\ntraffic_log = true\ntraffic_log_dir = "D:/logs/gh"\n'
+        )
+        assert self._resolve(tmp_path) == Path("D:/logs/gh")
+
+    @pytest.mark.parametrize("value", ["5", '""'], ids=["int", "empty"])
+    def test_invalid_dir_returns_default(self, tmp_path: Path, value: str) -> None:
+        _write_config(
+            tmp_path, f"[github]\ntraffic_log = true\ntraffic_log_dir = {value}\n"
+        )
+        assert self._resolve(tmp_path) == tmp_path / "logs" / "github_traffic"
+
+    def test_result_is_cached(self, tmp_path: Path) -> None:
+        _write_config(tmp_path, "[github]\ntraffic_log = true\n")
+        with patch(
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
+        ):
+            first = get_traffic_log_dir()
+            _write_config(tmp_path, "[github]\ntraffic_log = false\n")
+            assert get_traffic_log_dir() == first
+        assert first == tmp_path / "logs" / "github_traffic"
+
+    def test_trusted_commenters_stays_uncached(self, tmp_path: Path) -> None:
+        _write_config(
+            tmp_path, '[github]\ntraffic_log = true\ntrusted_commenters = ["alice"]\n'
+        )
+        with patch(
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
+        ):
+            get_traffic_log_dir()
+            assert get_trusted_commenters() == frozenset({"alice"})
+            _write_config(
+                tmp_path, '[github]\ntraffic_log = true\ntrusted_commenters = ["bob"]\n'
+            )
+            assert get_trusted_commenters() == frozenset({"bob"})

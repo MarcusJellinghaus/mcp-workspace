@@ -10,6 +10,7 @@ from typing import Any, Type, TypeVar, cast
 import git
 import pytest
 
+from mcp_workspace import config
 from mcp_workspace.config import get_github_token, get_test_repo_url
 from mcp_workspace.github_operations import clear_repository_cache
 
@@ -93,6 +94,16 @@ def _reset_repository_cache() -> Generator[None, None, None]:
     clear_repository_cache()
     yield
     clear_repository_cache()
+
+
+@pytest.fixture(autouse=True)
+def _traffic_log_off(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    """Keep tests from reading the real traffic-log config or writing log files."""
+    original = config.get_traffic_log_dir
+    original.cache_clear()
+    monkeypatch.setattr("mcp_workspace.config.get_traffic_log_dir", lambda: None)
+    yield
+    original.cache_clear()
 
 
 try:

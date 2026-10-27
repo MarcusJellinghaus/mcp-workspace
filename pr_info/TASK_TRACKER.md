@@ -24,9 +24,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ### Step 1: Config switch `get_traffic_log_dir()` + autouse test fixture
 See [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `traffic_log.py` writer module + architecture registration + concurrency probe
 See [step_2.md](./steps/step_2.md)
