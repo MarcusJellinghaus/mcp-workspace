@@ -11,6 +11,7 @@ import git
 import pytest
 
 from mcp_workspace.config import get_github_token, get_test_repo_url
+from mcp_workspace.github_operations import clear_repository_cache
 
 # Python path is now configured via pytest configuration in pyproject.toml
 
@@ -84,6 +85,14 @@ def setup_and_cleanup() -> Generator[None, None, None]:
 def _empty_trusted_commenters(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep tests from reading the real ``~/.mcp_coder/config.toml`` allowlist."""
     monkeypatch.setattr("mcp_workspace.config.get_trusted_commenters", frozenset)
+
+
+@pytest.fixture(autouse=True)
+def _reset_repository_cache() -> Generator[None, None, None]:
+    """Clear the per-process repository cache for test isolation."""
+    clear_repository_cache()
+    yield
+    clear_repository_cache()
 
 
 try:

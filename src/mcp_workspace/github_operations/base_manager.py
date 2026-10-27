@@ -33,6 +33,7 @@ __all__ = [
     "GithubException",
     "IssueIdentityMismatchError",
     "clear_login_cache",
+    "clear_repository_cache",
     "get_authenticated_username",
 ]
 
@@ -42,6 +43,25 @@ T = TypeVar("T")
 
 # (api_base_url, sha256(token) hexdigest) -> login. Never key by format_token_fingerprint.
 _login_cache: dict[tuple[str, str], str] = {}
+
+# (api_base_url, sha256(token), full_name.lower()) -> (raw_data, raw_headers).
+# Plain data only: each manager rebuilds its own Repository on its own client.
+_repository_cache: dict[tuple[str, str, str], tuple[dict[str, Any], dict[str, Any]]] = (
+    {}
+)
+
+
+def _token_key(base_url: str, token: str) -> tuple[str, str]:
+    """Return the cache key part identifying token on base_url.
+
+    Args:
+        base_url: GitHub API base URL the token belongs to.
+        token: GitHub token; only its SHA-256 hexdigest is kept.
+
+    Returns:
+        ``(base_url, sha256(token).hexdigest())``.
+    """
+    return (base_url, hashlib.sha256(token.encode()).hexdigest())
 
 
 def _cached_login(token: str, base_url: str, client: Optional[Github] = None) -> str:
@@ -59,7 +79,7 @@ def _cached_login(token: str, base_url: str, client: Optional[Github] = None) ->
     Raises:
         Whatever ``get_user()`` raises; failures are not cached.
     """
-    key = (base_url, hashlib.sha256(token.encode()).hexdigest())
+    key = _token_key(base_url, token)
     if key not in _login_cache:
         github = client if client is not None else build_github_client(token, base_url)
         _login_cache[key] = github.get_user().login
@@ -69,6 +89,11 @@ def _cached_login(token: str, base_url: str, client: Optional[Github] = None) ->
 def clear_login_cache() -> None:
     """Forget every cached login (used by tests)."""
     _login_cache.clear()
+
+
+def clear_repository_cache() -> None:
+    """Forget every cached repository (used by tests)."""
+    _repository_cache.clear()
 
 
 class IssueIdentityMismatchError(ValueError):
@@ -366,18 +391,32 @@ class BaseGitHubManager:
                 to the caller.
 
         Note:
-            The repository object is cached after the first successful retrieval
-            to avoid unnecessary API calls. A requests RetryError from retries
-            exhausted on rate-limit responses (or with an unknown status) also
-            propagates to the caller.
+            The repository object is cached on the instance after the first
+            successful retrieval. Its raw data and headers are also cached per
+            process, keyed by API host, token hash and lower-cased full name;
+            other managers rebuild their own object from that data on their own
+            client instead of calling GET /repos. Failures are not cached. A
+            requests RetryError from retries exhausted on rate-limit responses
+            (or with an unknown status) also propagates to the caller.
         """
         if self._repository is not None:
             return self._repository
 
         try:
-            self._repository = self._github_client.get_repo(
-                self._repo_identifier.full_name
+            ident = self._repo_identifier
+            key = (
+                *_token_key(ident.api_base_url, self.github_token),
+                ident.full_name.lower(),
             )
+            if key in _repository_cache:
+                raw_data, raw_headers = _repository_cache[key]
+                self._repository = self._github_client.create_from_raw_data(
+                    Repository, raw_data, raw_headers
+                )
+                return self._repository
+            repo = self._github_client.get_repo(ident.full_name)
+            _repository_cache[key] = (repo.raw_data, repo.raw_headers)
+            self._repository = repo
             return self._repository
 
         except GithubException as e:

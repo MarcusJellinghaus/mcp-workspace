@@ -41,9 +41,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 4: Per-process `Repository` raw-data cache — [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: scratch probe (then delete `.scratch/`), tests + `_token_key`, `_repository_cache`, `clear_repository_cache`, `_get_repository`, export, autouse conftest fixture
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: scratch probe (then delete `.scratch/`), tests + `_token_key`, `_repository_cache`, `clear_repository_cache`, `_get_repository`, export, autouse conftest fixture
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 5: Optional code-scanning alerts in `get_pr_feedback` — [step_5.md](./steps/step_5.md)
 

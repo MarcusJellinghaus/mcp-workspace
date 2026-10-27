@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 import pytest
 from github import Auth
 from github.GithubException import GithubException
+from github.Repository import Repository
 from requests.exceptions import RetryError
 
 from mcp_workspace.github_operations.base_manager import (
@@ -17,6 +18,7 @@ from mcp_workspace.github_operations.base_manager import (
     _cached_login,
     _handle_github_errors,
     clear_login_cache,
+    clear_repository_cache,
     get_authenticated_username,
 )
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
@@ -2049,3 +2051,135 @@ class TestLastRepositoryError:
         assert error is not None
         assert header_value not in error
         assert self.TOKEN not in error
+
+
+def _client_with_repo(full_name: str = "test-owner/test-repo") -> Mock:
+    """Build a mock client whose get_repo returns a repo with raw data."""
+    client = Mock()
+    client.get_repo.return_value.raw_data = {"full_name": full_name}
+    client.get_repo.return_value.raw_headers = {"etag": "abc"}
+    return client
+
+
+class TestRepositoryCache:
+    """Tests for the per-process (host, token, full_name) repository raw-data cache."""
+
+    @staticmethod
+    def _managers(
+        repo_urls: list[str], tokens: list[str]
+    ) -> tuple[list[BaseGitHubManager], list[Mock]]:
+        """Build one manager per (repo_url, token), each with its own mock client."""
+        clients = [_client_with_repo() for _ in repo_urls]
+        with patch(
+            "mcp_workspace.github_operations.base_manager.build_github_client",
+            side_effect=clients,
+        ):
+            managers = [
+                BaseGitHubManager(repo_url=url, github_token=token)
+                for url, token in zip(repo_urls, tokens)
+            ]
+            for manager in managers:
+                manager._get_repository()
+        return managers, clients
+
+    def test_same_repo_token_host_fetches_once(self) -> None:
+        """A second manager rebuilds the repo from cached raw data."""
+        url = "https://github.com/test-owner/test-repo.git"
+        managers, clients = self._managers([url, url], ["t", "t"])
+
+        clients[0].get_repo.assert_called_once_with("test-owner/test-repo")
+        clients[1].get_repo.assert_not_called()
+        clients[1].create_from_raw_data.assert_called_once_with(
+            Repository,
+            {"full_name": "test-owner/test-repo"},
+            {"etag": "abc"},
+        )
+        assert managers[0]._repository is clients[0].get_repo.return_value
+        assert managers[1]._repository is clients[1].create_from_raw_data.return_value
+
+    def test_each_manager_uses_its_own_client(self) -> None:
+        """The cached repository object is never shared between managers."""
+        url = "https://github.com/test-owner/test-repo.git"
+        managers, clients = self._managers([url, url], ["t", "t"])
+
+        assert managers[1]._repository is not managers[0]._repository
+        clients[0].create_from_raw_data.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("second_url", "second_token"),
+        [
+            ("https://github.com/test-owner/test-repo.git", "other-token"),
+            ("https://ghe.corp.com/test-owner/test-repo.git", "t"),
+            ("https://github.com/test-owner/other-repo.git", "t"),
+        ],
+        ids=["token", "host", "repo"],
+    )
+    def test_different_key_misses(self, second_url: str, second_token: str) -> None:
+        """A different token, host or repository fetches again."""
+        _, clients = self._managers(
+            ["https://github.com/test-owner/test-repo.git", second_url],
+            ["t", second_token],
+        )
+
+        clients[1].get_repo.assert_called_once()
+        clients[1].create_from_raw_data.assert_not_called()
+
+    def test_full_name_case_insensitive(self) -> None:
+        """Owner/repo case differences share one cache entry."""
+        _, clients = self._managers(
+            [
+                "https://github.com/test-owner/test-repo.git",
+                "https://github.com/Test-Owner/Test-Repo.git",
+            ],
+            ["t", "t"],
+        )
+
+        clients[1].get_repo.assert_not_called()
+        clients[1].create_from_raw_data.assert_called_once()
+
+    def test_failure_is_not_cached(self) -> None:
+        """A 404 returns None and the next manager calls get_repo again."""
+        failing = _client_with_repo()
+        failing.get_repo.side_effect = GithubException(
+            404, {"message": "Not Found"}, None
+        )
+        succeeding = _client_with_repo()
+        url = "https://github.com/test-owner/test-repo.git"
+        with patch(
+            "mcp_workspace.github_operations.base_manager.build_github_client",
+            side_effect=[failing, succeeding],
+        ):
+            first = BaseGitHubManager(repo_url=url, github_token="t")
+            second = BaseGitHubManager(repo_url=url, github_token="t")
+
+            assert first._get_repository() is None
+            assert second._get_repository() is succeeding.get_repo.return_value
+
+        succeeding.get_repo.assert_called_once()
+        succeeding.create_from_raw_data.assert_not_called()
+
+    def test_clear_repository_cache_forces_fetch(self) -> None:
+        """clear_repository_cache() drops cached repositories."""
+        first = _client_with_repo()
+        second = _client_with_repo()
+        url = "https://github.com/test-owner/test-repo.git"
+        with patch(
+            "mcp_workspace.github_operations.base_manager.build_github_client",
+            side_effect=[first, second],
+        ):
+            BaseGitHubManager(repo_url=url, github_token="t")._get_repository()
+            clear_repository_cache()
+            BaseGitHubManager(repo_url=url, github_token="t")._get_repository()
+
+        second.get_repo.assert_called_once()
+        second.create_from_raw_data.assert_not_called()
+
+    def test_second_call_uses_instance_cache(self) -> None:
+        """A repeated call on one manager makes no client call."""
+        url = "https://github.com/test-owner/test-repo.git"
+        managers, clients = self._managers([url], ["t"])
+        clients[0].reset_mock()
+
+        assert managers[0]._get_repository() is clients[0].get_repo.return_value
+        clients[0].get_repo.assert_not_called()
+        clients[0].create_from_raw_data.assert_not_called()

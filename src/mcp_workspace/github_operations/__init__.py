@@ -14,6 +14,7 @@ from .base_manager import (
     GithubException,
     IssueIdentityMismatchError,
     clear_login_cache,
+    clear_repository_cache,
     get_authenticated_username,
 )
 from .ci_results_manager import CIResultsManager, CIStatusData
@@ -46,6 +47,7 @@ __all__ = [
     "RepoIdentifier",
     "RetryError",
     "clear_login_cache",
+    "clear_repository_cache",
     "format_rate_limit_error",
     "get_authenticated_username",
     "get_trusted_commenters",
