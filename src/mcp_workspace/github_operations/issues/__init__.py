@@ -14,6 +14,7 @@ from ._cache_io import (
     _get_cache_file_path,
     _load_cache_file,
     _save_cache_file,
+    get_issue_cache_last_checked,
 )
 
 # Base utilities
@@ -58,6 +59,7 @@ __all__ = [
     # Cache
     "CacheData",
     "get_all_cached_issues",
+    "get_issue_cache_last_checked",
     "update_issue_labels_in_cache",
     # Utility functions (exported for testing)
     "parse_base_branch",

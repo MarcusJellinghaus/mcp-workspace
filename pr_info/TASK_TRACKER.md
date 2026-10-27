@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: `caching/_store.py` + `get_issue_cache_last_checked` — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: Raising branch-resolution core in `IssueBranchManager` — [step_3.md](./steps/step_3.md)
 
