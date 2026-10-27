@@ -6,21 +6,47 @@ Shape-agnostic: each cache validates and merges its own data.
 import json
 import logging
 import os
+import random
 import tempfile
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
 from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
+from mcp_workspace.utils.timezone_utils import format_for_cache, parse_iso_timestamp
 
 logger = logging.getLogger(__name__)
 
 CACHE_DIR_PARTS = ("mcp_coder", "coordinator_cache")
 
+# Safety-net maximum age of a cache entry; fingerprints decide validity first.
+MAX_AGE = timedelta(hours=6)
+
 # Delay before the single os.replace retry in _save_cache_file.
 _REPLACE_RETRY_DELAY_SECONDS: float = 0.1
+
+
+def new_expiry(now: datetime) -> str:
+    """Return an ``expires_at`` string jittered within the last quarter of MAX_AGE.
+
+    The jitter spreads rechecks of entries written in the same run over
+    later runs.
+    """
+    return format_for_cache(now + MAX_AGE * random.uniform(0.75, 1.0))  # nosec B311
+
+
+def is_expired(entry: Mapping[str, Any], now: datetime) -> bool:
+    """Return True if the entry's ``expires_at`` is past, missing or unparseable."""
+    expires_at = entry.get("expires_at")
+    if not isinstance(expires_at, str):
+        return True
+    try:
+        return parse_iso_timestamp(expires_at) <= now
+    except ValueError:
+        return True
 
 
 def cache_file_path(repo_identifier: RepoIdentifier, suffix: str) -> Path:

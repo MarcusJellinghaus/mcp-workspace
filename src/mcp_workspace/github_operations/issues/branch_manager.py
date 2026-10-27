@@ -4,7 +4,7 @@ import logging
 import re
 import time
 from pathlib import Path
-from typing import Any, List, Literal, NamedTuple, Optional, cast
+from typing import Any, List, Optional, cast
 
 from github import GithubException
 from mcp_coder_utils.log_utils import log_function_call
@@ -14,6 +14,9 @@ from ..caching.errors import graphql_rate_limit_error
 from .base import validate_issue_number_or_log
 from .branch_naming import BranchCreationResult, generate_branch_name_from_issue
 from .linked_branches_mixin import LinkedBranchesMixin, _query_linked_branches
+from .types import BranchLookup
+
+__all__ = ["BranchLookup", "BranchLookupError", "IssueBranchManager"]
 
 # Configure logger for GitHub operations
 logger = logging.getLogger(__name__)
@@ -47,13 +50,6 @@ query($owner: String!, $repo: String!, $issueNumber: Int!) {
   }
 }
 """
-
-
-class BranchLookup(NamedTuple):
-    """Outcome of resolving an issue's branch."""
-
-    status: Literal["found", "not_found", "ambiguous"]
-    branch: str | None = None  # set only when status == "found"
 
 
 class BranchLookupError(Exception):
@@ -313,7 +309,10 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
             last_result, retryable = self._parse_create_linked_branch_response(
                 result, issue_number
             )
-            if last_result.get("success") or not retryable:
+            if last_result.get("success"):
+                self._invalidate_branch_cache(issue_number)
+                return last_result
+            if not retryable:
                 return last_result
 
             if attempt < _CREATE_LINKED_BRANCH_MAX_ATTEMPTS - 1:
@@ -331,6 +330,21 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
         # Retries exhausted — last_result holds the final failure
         assert last_result is not None
         return last_result
+
+    def _invalidate_branch_cache(self, issue_number: int) -> None:
+        """Drop the issue's branch-lookup cache entry. Never raises."""
+        # Function-local import avoids the load-time cycle
+        # issues/_cache_io -> caching._store / caching.branches -> issues
+        from ..caching.branches import (  # pylint: disable=import-outside-toplevel
+            invalidate_branch_entry,
+        )
+
+        try:
+            repo_identifier = self.repo_identifier
+        except ValueError as e:
+            logger.warning(f"Skipping branch cache invalidation: {e}")
+            return
+        invalidate_branch_entry(repo_identifier, issue_number)
 
     @staticmethod
     def _parse_create_linked_branch_response(

@@ -4,7 +4,15 @@ This module contains TypedDict and Enum definitions used across the issues subpa
 """
 
 from enum import Enum
-from typing import TYPE_CHECKING, List, NotRequired, Optional, TypedDict
+from typing import (
+    TYPE_CHECKING,
+    List,
+    Literal,
+    NamedTuple,
+    NotRequired,
+    Optional,
+    TypedDict,
+)
 
 from ..trust import normalize_author_association
 
@@ -73,6 +81,13 @@ class IssueData(TypedDict):
     author_association: Optional[str]
     base_branch: NotRequired[Optional[str]]
     base_branch_error: NotRequired[Optional[str]]
+
+
+class BranchLookup(NamedTuple):
+    """Outcome of resolving an issue's branch."""
+
+    status: Literal["found", "not_found", "ambiguous"]
+    branch: str | None = None  # set only when status == "found"
 
 
 class CommentData(TypedDict):
