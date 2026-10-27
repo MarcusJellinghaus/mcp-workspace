@@ -3,7 +3,9 @@
 ## LLM prompt
 
 > Read `pr_info/steps/summary.md`, then implement `pr_info/steps/step_3.md` exactly.
-> Tests first (watch the new parity cases fail on the old code), then code. Run format,
+> Tests first, then code. On the old code, expect only the non-ASCII and
+> rename-then-modify cases to fail. Staged, modified, untracked, rename and unborn HEAD
+> already pass. Run format,
 > pylint, pytest (`-n auto`), mypy; all must pass. Make one commit:
 > `refactor(repository_status): build get_full_status on the -z status parser (#355)`.
 

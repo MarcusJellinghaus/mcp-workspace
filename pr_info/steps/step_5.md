@@ -21,24 +21,27 @@ New outcome: precheck raises `GitCommandError` → `success=False`,
 ## HOW
 
 - Import: `from .repository_status import has_staged_changes, is_git_repository`.
-- Precheck: `if not has_staged_changes(project_dir):` → the existing "No staged files to
-  commit" / `validation_failed` return.
-- Add one clause after the existing `except InvalidGitRepositoryError` on the outer `try`:
-  `except GitCommandError as e:`. No new `try`. The inner `git commit` already catches its
-  own `GitCommandError`, so only the precheck can reach this clause.
+- Precheck: `staged = has_staged_changes(project_dir)`; `if not staged:` → the existing
+  "No staged files to commit" / `validation_failed` return.
+- Wrap only the `has_staged_changes` call in its own `try` / `except GitCommandError`,
+  as the first statement inside the existing outer `try`. The outer `except` clauses stay
+  unchanged, so `repo.head.commit`, `config_reader` and the rest of the commit block cannot
+  reach the "checking staged changes" message.
 - Docstring Note: "Uses get_staged_changes() ..." → "Uses has_staged_changes() ...".
 
 ## ALGORITHM
 
 ```
 try:
-    if not has_staged_changes(project_dir): return <validation_failed, "No staged files to commit">
+    try:
+        staged = has_staged_changes(project_dir)
+    except GitCommandError as e:
+        error_msg = f"Git error checking staged changes: {e}"; logger.error(error_msg)
+        return {success False, commit_hash None, error error_msg, error_category "commit_failed",
+                returncode e.status if isinstance(e.status, int) else None, stderr str(e.stderr or "")}
+    if not staged: return <validation_failed, "No staged files to commit">
     ... unchanged commit block ...
 except InvalidGitRepositoryError as e: ... unchanged ...
-except GitCommandError as e:
-    error_msg = f"Git error checking staged changes: {e}"; logger.error(error_msg)
-    return {success False, commit_hash None, error error_msg, error_category "commit_failed",
-            returncode e.status if isinstance(e.status, int) else None, stderr str(e.stderr or "")}
 ```
 
 ## DATA

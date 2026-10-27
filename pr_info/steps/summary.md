@@ -30,10 +30,9 @@ consumer check or rationale.
     tree, so a status error can no longer report success without staging.
 - **One origin probe.** `server.github_pr_create` and `base_branch._detect_from_merge_base`
   read the `BranchProbe` dict (`exists` True / False / None) instead of a bool-or-raise
-  wrapper. Each keeps its existing `except Exception` around the single call. "Narrow" here
-  means narrow in *scope* (only the probe call is wrapped). `server.py` may not import
-  `git.exc` (the `gitpython_isolation` contract), so the exception *types* cannot be
-  narrowed there without changing the user-facing message.
+  wrapper. Each wraps only the probe call. `_detect_from_merge_base` catches
+  `(GitCommandNotFound, OSError)`. `server.py` keeps its existing `except Exception`, scoped
+  to the call, because it may not import `git.exc` (`gitpython_isolation` contract).
 - **One rebase implementation.** `rebase_onto_branch` becomes
   `fetch_remote` → `rebase_start` → (`rebase_abort` on a stop). The duplicate inline
   rebase-dir check is gone. Side effect, a bug fix: a rebase already in progress is now

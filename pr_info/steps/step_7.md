@@ -23,13 +23,22 @@ New outcome: status failure → `success=False`, `error_category="commit_failed"
   (drop `get_full_status`).
 - Move the "no changes" check inside the existing `try` (first statements), reading
   `get_working_tree_status`.
+- Wrap only the `get_working_tree_status` call in an inner
+  `except (GitCommandNotFound, OSError)` that returns `commit_failed`. Without it, a raised
+  status error would reach the broad outer `except` and get `error_category=None`. Add
+  `GitCommandNotFound` to the existing `git.exc` import.
 - Docstring Note: add "- Returns error_category 'commit_failed' if the status can't be read".
 
 ## ALGORITHM
 
 ```
 try:
-    status = get_working_tree_status(project_dir)
+    try:
+        status = get_working_tree_status(project_dir)
+    except (GitCommandNotFound, OSError) as e:
+        error_msg = f"Failed to read working tree status: {e}"; logger.error(error_msg)
+        return {success False, commit_hash None, error error_msg, error_category "commit_failed",
+                returncode None, stderr None}
     if not status["success"]:
         error_msg = f"Failed to read working tree status: {status['error']}"; logger.error(error_msg)
         return {success False, commit_hash None, error error_msg, error_category "commit_failed",
@@ -51,8 +60,15 @@ class or the existing one, without needing a real repo beyond `git_repo`). Patch
 stderr="fatal: boom", clean=False`, empty lists). Assert `success is False`,
 `error_category == "commit_failed"`, `returncode == 128`, `stderr == "fatal: boom"`, and no
 commit created (`len(list(repo.iter_commits()))` unchanged, or `stage_all_changes` not
-called). `test_commit_all_changes` and `test_commit_all_changes_no_changes_returns_success`
-must still pass.
+called).
+
+New `test_commit_all_changes_status_raises_is_commit_failed`: patch the same target with
+`side_effect=GitCommandNotFound("git", "not found")`. Assert `success is False`,
+`error_category == "commit_failed"`, `returncode is None`, `stderr is None`, and
+`stage_all_changes` not called. The two new tests may share one parametrized test.
+
+`test_commit_all_changes` and `test_commit_all_changes_no_changes_returns_success` must
+still pass.
 
 ## Release notes
 

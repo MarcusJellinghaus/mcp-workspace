@@ -29,15 +29,19 @@ still does, write one line to `pr_info/.blocked.txt` and stop.
 ## HOW
 
 - `probe_origin_branch` is already imported in `base_branch.py` from `.remotes`.
-- Remove `from git.exc import GitCommandError` (only `origin_has_branch` used it).
-- Keep the existing `except Exception` around the single call.
+- Replace `from git.exc import GitCommandError` (only `origin_has_branch` used it) with
+  `from git.exc import GitCommandNotFound`.
+- Narrow the `except` around the single call to `(GitCommandNotFound, OSError)`, the
+  exceptions `probe_origin_branch` can still raise (issue Constraints). Drop the
+  `broad-exception-caught` pylint disable. `detect_base_branch_with_source` has no outer
+  `try`, so nothing else changes.
 
 ## ALGORITHM
 
 ```
 try:
     probe = probe_origin_branch(project_dir, result)
-except Exception as e:                       # existing broad catch, scoped to the call
+except (GitCommandNotFound, OSError) as e:   # narrow, scoped to the call
     logger.debug("Could not ask origin about branch '%s': %s", result, e); return result
 if probe["exists"] is None:
     logger.debug("Could not ask origin about branch '%s': %s", result, probe["stderr"] or probe["error"]); return result
@@ -66,6 +70,11 @@ winner.
   `test_winner_still_on_origin_is_kept` and `test_unreachable_origin_keeps_the_winner`
   already cover the three `exists` outcomes against real git. They stay unchanged and must
   pass.
+- New `test_probe_exception_keeps_the_winner`: same setup as
+  `test_winner_still_on_origin_is_kept`, but patch
+  `"mcp_workspace.git_operations.base_branch.probe_origin_branch"` with
+  `side_effect=OSError("boom")`. Assert the merge-base winner is still returned, so the
+  narrowed `except` stays covered.
 
 `test_remote_queries.py`:
 - Delete `TestOriginHasBranchWrapper` and the `origin_has_branch` import. Drop the
