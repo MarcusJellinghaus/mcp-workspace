@@ -22,6 +22,7 @@ from mcp_workspace.utils.timezone_utils import (
 )
 
 from ..base_manager import IssueIdentityMismatchError
+from ..caching.errors import to_rate_limit_error
 from ._cache_io import (
     CacheData,
     _get_cache_file_path,
@@ -220,6 +221,8 @@ def _fetch_additional_issues(  # pylint: disable=too-many-arguments,too-many-pos
         except (
             Exception
         ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+            if (rl := to_rate_limit_error(e)) is not None:
+                raise rl from e
             if issue_key in cache_data["issues"]:
                 logger.warning(
                     f"Failed to fetch issue #{issue_num}: {e}, using cached version"
@@ -678,7 +681,9 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
             _log_cache_metrics(
                 "save", repo_name, total_issues=len(cache_data["issues"])
             )
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        if (rl := to_rate_limit_error(e)) is not None:
+            raise rl from e
         logger.warning("API fetch failed for %s, returning stale cache", repo_name)
         cache_data["issues"] = issues_snapshot
         cache_data["cached_at"] = cached_at_snapshot

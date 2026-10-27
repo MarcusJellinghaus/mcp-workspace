@@ -23,7 +23,7 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: `GitHubRateLimitError` + issue cache raises on rate limit — [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation (tests + production code)
+- [x] Implementation (tests + production code)
 - [ ] Quality checks: pylint, pytest, mypy — fix all issues
 - [ ] Commit message prepared
 

@@ -17,6 +17,7 @@ from .base_manager import (
     clear_repository_cache,
     get_authenticated_username,
 )
+from .caching.errors import GitHubRateLimitError
 from .ci_results_manager import CIResultsManager, CIStatusData
 from .labels_manager import LabelData, LabelsManager
 from .pr_manager import PullRequestManager
@@ -38,6 +39,7 @@ __all__ = [
     "CIResultsManager",
     "CIStatusData",
     "GithubException",
+    "GitHubRateLimitError",
     "IssueIdentityMismatchError",
     "LabelData",
     "LabelsManager",
