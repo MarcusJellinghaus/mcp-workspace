@@ -21,6 +21,56 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Config switch `get_traffic_log_dir()` + autouse test fixture
+See [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: `traffic_log.py` writer module + architecture registration + concurrency probe
+See [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy, lint-imports, tach — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: `__requestRaw` wrapper in `build_github_client`
+See [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy, lint-imports, tach — fix all issues
+- [ ] Commit message prepared
+
+### Step 4: Retry lines in `_LoggingGithubRetry.increment` + end-to-end line counts
+See [step_4.md](./steps/step_4.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 5: Raw download logging in `CIResultsManager`
+See [step_5.md](./steps/step_5.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 6: `mcp-workspace server` command name in `main.py`
+See [step_6.md](./steps/step_6.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks: pylint, pytest, mypy, lint-imports, tach — fix all issues
+- [ ] Commit message prepared
+
+### Step 7: README docs
+See [step_7.md](./steps/step_7.md)
+
+- [ ] Implementation (README `traffic_log` / `traffic_log_dir` docs, line format, hop semantics)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: review the full branch diff against `main`, address findings
+- [ ] PR summary prepared
