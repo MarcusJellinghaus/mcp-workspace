@@ -53,9 +53,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 6: `IssueBranchManager` accepts `github_token` — [step_6.md](./steps/step_6.md)
 
-- [ ] Implementation: tests + `github_token` constructor pass-through
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests + `github_token` constructor pass-through
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 7: Public `repo_identifier` property — [step_7.md](./steps/step_7.md)
 

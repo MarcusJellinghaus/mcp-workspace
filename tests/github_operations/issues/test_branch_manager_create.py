@@ -13,6 +13,34 @@ from mcp_workspace.github_operations.issues import (
 from .._issue_test_helpers import make_mock_issue
 
 
+class TestIssueBranchManagerInit:
+    """Test suite for IssueBranchManager constructor token handling."""
+
+    def test_explicit_github_token_skips_config_lookup(self) -> None:
+        """Explicit github_token is used and config lookup is not called."""
+        with patch(
+            "mcp_workspace.github_operations.base_manager.get_github_token",
+            return_value=None,
+        ) as mock_get_token:
+            manager = IssueBranchManager(
+                repo_url="https://github.com/owner/repo", github_token="tok"
+            )
+
+        assert manager.github_token == "tok"
+        mock_get_token.assert_not_called()
+
+    def test_without_github_token_uses_config_lookup(self) -> None:
+        """Without github_token, the token comes from config lookup."""
+        with patch(
+            "mcp_workspace.github_operations.base_manager.get_github_token",
+            return_value="config_token",
+        ) as mock_get_token:
+            manager = IssueBranchManager(repo_url="https://github.com/owner/repo")
+
+        assert manager.github_token == "config_token"
+        mock_get_token.assert_called_once()
+
+
 class TestCreateLinkedBranch:
     """Test suite for IssueBranchManager.create_remote_branch_for_issue() method."""
 
