@@ -52,6 +52,15 @@ No new modules or folders. Unchanged on purpose: `checks/pr_feedback.py`
 (keeps default alerts), `pr_manager.py` (internal `_repo_identifier` reads),
 `PullRequestManager` constructor.
 
+**Deliberate change from the plan:** to meet the file-size limit, `CacheData`
+and the cache file I/O helpers (`_load_cache_file`, `_save_cache_file`,
+`_get_cache_file_path`, `_log_cache_metrics`) were moved from
+`issues/cache.py` into a new `issues/_cache_io.py`, the one exception to "No
+new modules or folders". #361 will move them again into `caching/_store.py`.
+The move commit (693ba4c) also flattened the `os.replace` retry in
+`_save_cache_file` (behaviour unchanged) because the step-1 loop's bare
+`raise` fails ruff DOC501; that rewrite is required, not part of the move.
+
 ## Steps
 
 1. Unique temp file names in `_save_cache_file`
