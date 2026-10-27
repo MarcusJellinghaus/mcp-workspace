@@ -57,7 +57,10 @@
 `pr_types.py` — `PRFeedback` gains `skipped: dict[str, Exception]` after `unavailable`.
 
 `_pr_feedback_sources.py` — `fetch_code_scanning_alerts(...) -> list["AlertData"]`:
-remove the `try/except GithubException` and the 403 debug log; docstring
+remove the `try/except GithubException` and the 403 debug log. Docstring:
+rewrite `Returns:` to `list[AlertData] of open alerts (first page only); [] when
+the repository is unavailable or there are no alerts.` (drop the "None on 403
+(silent skip)" and "alert dicts" wording), and set
 `Raises: GithubException: Any API error (caller classifies).`
 
 `pr_feedback_mixin.py`
