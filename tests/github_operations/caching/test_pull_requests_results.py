@@ -450,6 +450,21 @@ class TestLabelEvents:
         _one_run(env, "label_events", _open_pr(), _issue(updated_at="later"))
         assert env.issue.get_events.call_count == 2
 
+    def test_repository_unavailable_raises_not_stored(self) -> None:
+        env = _Env()
+        cache = env.load()
+        cache.find_pr("5-x")
+        cache.save()  # snapshot on disk, reused by the next run
+        env.manager._get_repository.return_value = None
+
+        cache = env.load()
+        with pytest.raises(RuntimeError):
+            cache.label_events(_open_pr(), _issue())
+        cache.save()
+
+        assert "5" not in _read()["results"]
+        env.issue.get_events.assert_not_called()
+
 
 class TestSlotOnlyRun:
     """A run that calls a slot without find_pr still saves its result."""

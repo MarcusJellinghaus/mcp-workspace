@@ -45,7 +45,11 @@ def _load_entries(repo_identifier: RepoIdentifier) -> dict[str, dict[str, Any]]:
     entries = load_json(path, BRANCHES_CACHE_VERSION).get("entries", {})
     if not isinstance(entries, dict):
         return {}
-    return {k: v for k, v in entries.items() if isinstance(v, dict)}
+    return {
+        k: v
+        for k, v in entries.items()
+        if isinstance(v, dict) and "status" in v and "branch" in v
+    }
 
 
 def _write_entries(

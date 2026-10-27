@@ -315,6 +315,8 @@ def _put_back_session_issues(  # pylint: disable=too-many-arguments,too-many-pos
             except (
                 Exception
             ) as e:  # pylint: disable=broad-exception-caught  # keep cached copy on any other failure
+                if (rl := to_rate_limit_error(e)) is not None:
+                    raise rl from e
                 logger.warning(
                     f"Failed to re-check issue #{issue_num}: {e}, using cached version"
                 )

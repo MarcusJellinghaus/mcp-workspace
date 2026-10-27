@@ -228,6 +228,16 @@ class TestLookup:
         cache.save()
         assert set(_read_entries()) == {"5"}
 
+    @pytest.mark.parametrize("missing", ["status", "branch"])
+    def test_malformed_entry_is_miss(self, missing: str) -> None:
+        entry = _entry()
+        del entry[missing]  # fp still matches
+        _write_entries({"5": entry})
+        manager = _manager()
+        cache = BranchLookupCache.load(manager)
+        assert cache.lookup(_issue(5)) == BranchLookup("found", "5-x")
+        manager.resolve_branch_for_issue.assert_called_once()
+
     def test_concurrent_writers_both_kept(self) -> None:
         a = BranchLookupCache.load(_manager(BranchLookup("found", "1-a")))
         b = BranchLookupCache.load(_manager(BranchLookup("found", "2-b")))

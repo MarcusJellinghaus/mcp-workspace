@@ -449,6 +449,9 @@ class PullRequestCache:
         if hit:
             cached: list[EventData] = value
             return cached
+        # get_issue_events returns [] for an unavailable repository; raise
+        # first so that is never stored as "no label events".
+        self._repository()
         # Unbound call with the PullRequestManager: get_issue_events only needs
         # BaseGitHubManager's _get_repository / _get_issue_checked, so no
         # second (IssueManager) instance is needed.

@@ -134,6 +134,34 @@ class TestIssueCacheRateLimit:
         mock_save.assert_not_called()
         mock_cache_issue_manager._list_issues_no_error_handling.assert_not_called()
 
+    def test_put_back_rate_limit_raises_without_save(
+        self, mock_cache_issue_manager: Mock, tmp_path: Path
+    ) -> None:
+        """A rate limit while re-checking a cleared session issue is not swallowed."""
+        cache_file = tmp_path / "cache.json"
+        cache_data: CacheData = {
+            "last_checked": _OUTSIDE_LAST_CHECKED,
+            "last_full_refresh": "2025-12-01T00:00:00+00:00",  # full refresh due
+            "updates_covered_through": _COVERED_THROUGH,
+            "cached_at": {"5": _FRESH_STAMP},
+            "version": CACHE_SCHEMA_VERSION,
+            "issues": {"5": _issue(5)},
+        }
+        _save_cache_file(cache_file, cache_data)
+        mock_cache_issue_manager._list_issues_no_error_handling.return_value = []
+        original = _rate_limit()
+        mock_cache_issue_manager.get_issue.side_effect = original
+
+        with (
+            patch(_SAVE_TARGET) as mock_save,
+            pytest.raises(GitHubRateLimitError) as info,
+        ):
+            _run(cache_file, mock_cache_issue_manager, additional_issues=[5])
+
+        assert info.value.__cause__ is original
+        mock_cache_issue_manager.get_issue.assert_called_once_with(5)
+        mock_save.assert_not_called()
+
     def test_non_rate_limit_error_returns_stale(
         self, mock_cache_issue_manager: Mock, tmp_path: Path
     ) -> None:
