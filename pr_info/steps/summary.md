@@ -8,7 +8,7 @@ cache subpackage (#361).
 
 | Area | Before | After |
 |---|---|---|
-| `additional_issues` (`issues/cache.py`) | `get_issue` for every number on every call, before duplicate protection | `get_issue` only when the issue is not cached, or its `cached_at` is missing, unparseable or older than `cache_refresh_minutes` |
+| `additional_issues` (`issues/cache.py`) | `get_issue` for every number on every call, before duplicate protection | `get_issue` only when `force_refresh` is set, the issue is not cached, or its `cached_at` is missing, unparseable or older than `cache_refresh_minutes` |
 | `cached_at` stamping | Stamped for fresh + all additional issues after the refresh | Stamped **at fetch time** for individually fetched issues and for `fresh_dict` in step 5c; never for issues put back from the cache |
 | Full refresh + session issues | Step 5b re-applied the always-fetched additional issues, overwriting `fresh_dict` | Step 5b puts back session keys **not in `fresh_dict`** from the issue and `cached_at` snapshots, so closed session issues stay in the result with their old `cached_at` |
 | Duplicate-protection and list-failure paths | Fetched additional issues returned but not saved | When something was fetched: `_save_fetched_issues` reloads the file, merges only `issues[k]`/`cached_at[k]` for the fetched keys, saves. Timestamps (`last_checked`, `updates_covered_through`, `last_full_refresh`) are never touched |

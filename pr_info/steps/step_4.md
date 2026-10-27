@@ -54,15 +54,18 @@ def clear_repository_cache() -> None
 ## ALGORITHM
 ```
 if self._repository is not None: return it
-ident = self._repo_identifier
-key = (*_token_key(ident.api_base_url, self.github_token), ident.full_name.lower())
-if key in _repository_cache:
-    raw, headers = _repository_cache[key]
-    self._repository = self._github_client.create_from_raw_data(Repository, raw, headers); return it
-try: repo = self._github_client.get_repo(ident.full_name)
+try: ident = self._repo_identifier
+     key = (*_token_key(ident.api_base_url, self.github_token), ident.full_name.lower())
+     if key in _repository_cache:
+         raw, headers = _repository_cache[key]
+         self._repository = self._github_client.create_from_raw_data(Repository, raw, headers); return it
+     repo = self._github_client.get_repo(ident.full_name)
      _repository_cache[key] = (repo.raw_data, repo.raw_headers); self._repository = repo; return repo
 except ...: unchanged error handling (nothing cached)
 ```
+`self._repo_identifier` is read inside the `try`, as today: in `project_dir`
+mode with no git remote its `ValueError` is caught by the existing
+`except Exception` branch and the method returns `None`.
 
 ## DATA
 Cache values are plain dicts. No lock: a simultaneous miss in two threads costs
@@ -80,6 +83,8 @@ Patch `build_github_client` to return a distinct `Mock` per manager.
 - `get_repo` raising 404 → returns None, next manager calls `get_repo` again.
 - `clear_repository_cache()` forces a new `get_repo`.
 - Second call on the same manager uses `self._repository` (no client call).
+- `project_dir` mode with `git_operations.get_repository_identifier` patched to
+  return `None` → `_get_repository()` returns `None` (no exception), nothing cached.
 - `_cached_login` tests still pass.
 
 Existing tests that build several managers against one mocked `get_repo` and

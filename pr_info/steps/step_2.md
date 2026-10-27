@@ -20,6 +20,7 @@ def _fetch_additional_issues(
     cache_data: CacheData,
     now: datetime,
     cache_refresh_minutes: int,
+    force_refresh: bool,
 ) -> set[str]
 ```
 Returns the keys actually fetched. Writes each fetched issue into
@@ -28,9 +29,12 @@ in place.
 
 Helper (private, same module):
 ```python
-def _needs_fetch(cache_data: CacheData, key: str, now: datetime, cache_refresh_minutes: int) -> bool
+def _needs_fetch(
+    cache_data: CacheData, key: str, now: datetime, cache_refresh_minutes: int, force_refresh: bool
+) -> bool
 ```
-True when `key` not in `issues`, or `cached_at[key]` is missing, unparseable
+True when `force_refresh` is set (a forced refresh bypasses the cache, as the
+`force_refresh` docstring says), or `key` not in `issues`, or `cached_at[key]` is missing, unparseable
 (`ValueError` from `parse_iso_timestamp`), or older than `cache_refresh_minutes`.
 
 ## HOW
@@ -82,7 +86,9 @@ for num in additional_issues or []: key = str(num)
   - cached with fresh `cached_at` → `get_issue` not called, cached issue returned;
   - cached with `cached_at` older than `cache_refresh_minutes` → fetched, re-stamped with `now`;
   - cached with missing `cached_at` → fetched;
-  - cached with unparseable `cached_at` → fetched.
+  - cached with unparseable `cached_at` → fetched;
+  - `force_refresh=True`, closed session issue cached with fresh `cached_at` →
+    `get_issue` called for it, fetched version returned and re-stamped with `now`.
 - `get_issue` returns empty issue (`number == 0`) → not cached, fetched again on
   the next call (call twice with a real tmp cache file or a stateful load mock).
 - `get_issue` raises for a stale cached issue → cached copy returned, its
