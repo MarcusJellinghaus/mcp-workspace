@@ -534,6 +534,236 @@ class TestAdditionalIssuesFetchRule:
         assert sorted(i["number"] for i in result) == numbers
 
 
+_PROTECTED_LAST_CHECKED = "2025-12-31T11:59:30+00:00"  # 30s ago, inside 50s window
+_OUTSIDE_LAST_CHECKED = "2025-12-31T11:58:00+00:00"  # outside 50s window
+_LAST_FULL_REFRESH = "2025-12-31T11:00:00+00:00"
+_COVERED_THROUGH = "2025-12-31T11:00:00+00:00"
+
+
+class TestSaveFetchedIssuesOnEarlyReturn:
+    """Fetched additional issues are saved on duplicate-protection and list-failure paths."""
+
+    def _cache(
+        self,
+        last_checked: str,
+        issues: Optional[Dict[str, IssueData]] = None,
+        cached_at: Optional[Dict[str, str]] = None,
+    ) -> CacheData:
+        return {
+            "last_checked": last_checked,
+            "last_full_refresh": _LAST_FULL_REFRESH,
+            "updates_covered_through": _COVERED_THROUGH,
+            "cached_at": cached_at or {},
+            "version": CACHE_SCHEMA_VERSION,
+            "issues": issues or {},
+        }
+
+    def _run(
+        self, cache_file: Path, manager: Mock, additional_issues: List[int]
+    ) -> List[IssueData]:
+        """Call get_all_cached_issues against a real cache_file at _NOW."""
+        with (
+            patch(
+                "mcp_workspace.github_operations.issues.cache._get_cache_file_path",
+                return_value=cache_file,
+            ),
+            patch(
+                "mcp_workspace.github_operations.issues.cache.now_utc",
+                return_value=_NOW,
+            ),
+        ):
+            return get_all_cached_issues(
+                RepoIdentifier.from_full_name("owner/repo"),
+                manager,
+                additional_issues=additional_issues,
+            )
+
+    def _saved(self, cache_file: Path) -> Dict[str, Any]:
+        with cache_file.open("r") as f:
+            data: Dict[str, Any] = json.load(f)
+        return data
+
+    def test_uncached_issue_saved_with_timestamps_untouched(
+        self, mock_cache_issue_manager: Mock, tmp_path: Path
+    ) -> None:
+        """Duplicate protection: uncached issue fetched once, saved, timestamps kept."""
+        snapshots = [
+            self._cache(_PROTECTED_LAST_CHECKED),
+            self._cache(_PROTECTED_LAST_CHECKED),
+        ]
+        mock_cache_issue_manager.get_issue.return_value = _issue(123, "closed")
+
+        with (
+            patch(
+                "mcp_workspace.github_operations.issues.cache._get_cache_file_path",
+                return_value=tmp_path / "cache.json",
+            ),
+            patch(
+                "mcp_workspace.github_operations.issues.cache._load_cache_file",
+                side_effect=snapshots,
+            ),
+            patch(
+                "mcp_workspace.github_operations.issues.cache._save_cache_file",
+                return_value=True,
+            ) as mock_save,
+            patch(
+                "mcp_workspace.github_operations.issues.cache.now_utc",
+                return_value=_NOW,
+            ),
+        ):
+            result = get_all_cached_issues(
+                RepoIdentifier.from_full_name("owner/repo"),
+                mock_cache_issue_manager,
+                additional_issues=[123],
+            )
+
+        mock_cache_issue_manager.get_issue.assert_called_once_with(123)
+        mock_cache_issue_manager._list_issues_no_error_handling.assert_not_called()
+        assert [i["number"] for i in result] == [123]
+        mock_save.assert_called_once()
+        saved = mock_save.call_args[0][1]
+        assert saved["last_checked"] == _PROTECTED_LAST_CHECKED
+        assert saved["updates_covered_through"] == _COVERED_THROUGH
+        assert saved["last_full_refresh"] == _LAST_FULL_REFRESH
+        assert saved["cached_at"]["123"] == _NOW_STR
+        assert saved["issues"]["123"]["state"] == "closed"
+
+    def test_reload_merges_into_newer_on_disk_cache(
+        self, mock_cache_issue_manager: Mock, tmp_path: Path
+    ) -> None:
+        """Save reloads the file: another process's issues and timestamps survive."""
+        newer_last_checked = "2025-12-31T11:59:45+00:00"
+        first = self._cache(_PROTECTED_LAST_CHECKED)
+        second = self._cache(
+            newer_last_checked,
+            issues={"200": _issue(200)},
+            cached_at={"200": _FRESH_STAMP},
+        )
+        mock_cache_issue_manager.get_issue.return_value = _issue(123, "closed")
+
+        with (
+            patch(
+                "mcp_workspace.github_operations.issues.cache._get_cache_file_path",
+                return_value=tmp_path / "cache.json",
+            ),
+            patch(
+                "mcp_workspace.github_operations.issues.cache._load_cache_file",
+                side_effect=[first, second],
+            ),
+            patch(
+                "mcp_workspace.github_operations.issues.cache._save_cache_file",
+                return_value=True,
+            ) as mock_save,
+            patch(
+                "mcp_workspace.github_operations.issues.cache.now_utc",
+                return_value=_NOW,
+            ),
+        ):
+            get_all_cached_issues(
+                RepoIdentifier.from_full_name("owner/repo"),
+                mock_cache_issue_manager,
+                additional_issues=[123],
+            )
+
+        mock_save.assert_called_once()
+        saved = mock_save.call_args[0][1]
+        assert set(saved["issues"]) == {"123", "200"}
+        assert saved["cached_at"] == {"200": _FRESH_STAMP, "123": _NOW_STR}
+        assert saved["last_checked"] == newer_last_checked
+        assert saved["updates_covered_through"] == _COVERED_THROUGH
+        assert saved["last_full_refresh"] == _LAST_FULL_REFRESH
+
+    def test_nothing_fetched_no_save(
+        self, mock_cache_issue_manager: Mock, tmp_path: Path
+    ) -> None:
+        """All additional issues cached and fresh → nothing saved."""
+        cached = self._cache(
+            _PROTECTED_LAST_CHECKED,
+            issues={"123": _issue(123, "closed")},
+            cached_at={"123": _FRESH_STAMP},
+        )
+
+        with (
+            patch(
+                "mcp_workspace.github_operations.issues.cache._get_cache_file_path",
+                return_value=tmp_path / "cache.json",
+            ),
+            patch(
+                "mcp_workspace.github_operations.issues.cache._load_cache_file",
+                return_value=cached,
+            ),
+            patch(
+                "mcp_workspace.github_operations.issues.cache._save_cache_file",
+                return_value=True,
+            ) as mock_save,
+            patch(
+                "mcp_workspace.github_operations.issues.cache.now_utc",
+                return_value=_NOW,
+            ),
+        ):
+            get_all_cached_issues(
+                RepoIdentifier.from_full_name("owner/repo"),
+                mock_cache_issue_manager,
+                additional_issues=[123],
+            )
+
+        mock_cache_issue_manager.get_issue.assert_not_called()
+        mock_save.assert_not_called()
+
+    def test_second_call_after_save_does_not_refetch(
+        self, mock_cache_issue_manager: Mock, tmp_path: Path
+    ) -> None:
+        """Duplicate protection with a real cache file: second call costs no fetch."""
+        cache_file = tmp_path / "cache.json"
+        _save_cache_file(cache_file, self._cache(_PROTECTED_LAST_CHECKED))
+        mock_cache_issue_manager.get_issue.return_value = _issue(123, "closed")
+
+        self._run(cache_file, mock_cache_issue_manager, [123])
+        result = self._run(cache_file, mock_cache_issue_manager, [123])
+
+        mock_cache_issue_manager.get_issue.assert_called_once_with(123)
+        assert [i["number"] for i in result] == [123]
+        assert self._saved(cache_file)["last_checked"] == _PROTECTED_LAST_CHECKED
+
+    def test_list_outage_saves_fetched_issue_once(
+        self, mock_cache_issue_manager: Mock, tmp_path: Path
+    ) -> None:
+        """List API down: stale session issue fetched once, saved, timestamps kept."""
+        cache_file = tmp_path / "cache.json"
+        _save_cache_file(
+            cache_file,
+            self._cache(
+                _OUTSIDE_LAST_CHECKED,
+                issues={"100": _issue(100), "123": _issue(123, "open", "Cached")},
+                cached_at={"100": _FRESH_STAMP, "123": _STALE_STAMP},
+            ),
+        )
+        mock_cache_issue_manager._list_issues_no_error_handling.side_effect = (
+            ConnectionError("Network failure")
+        )
+        mock_cache_issue_manager.get_issue.return_value = _issue(
+            123, "closed", "Fetched"
+        )
+
+        result = self._run(cache_file, mock_cache_issue_manager, [123])
+
+        mock_cache_issue_manager.get_issue.assert_called_once_with(123)
+        assert {i["number"]: i["title"] for i in result} == {
+            100: "Issue",
+            123: "Fetched",
+        }
+        saved = self._saved(cache_file)
+        assert saved["last_checked"] == _OUTSIDE_LAST_CHECKED
+        assert saved["updates_covered_through"] == _COVERED_THROUGH
+        assert saved["last_full_refresh"] == _LAST_FULL_REFRESH
+        assert saved["issues"]["123"]["state"] == "closed"
+        assert saved["cached_at"] == {"100": _FRESH_STAMP, "123": _NOW_STR}
+
+        self._run(cache_file, mock_cache_issue_manager, [123])
+
+        mock_cache_issue_manager.get_issue.assert_called_once_with(123)
+
+
 class TestApiFailureHandling:
     """Tests for API failure handling with snapshot restore in get_all_cached_issues()."""
 

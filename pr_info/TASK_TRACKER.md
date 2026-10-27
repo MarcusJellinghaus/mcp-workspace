@@ -35,9 +35,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 3: Save fetched additional issues on duplicate-protection and list-failure paths — [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: tests (reload-merge save, timestamps untouched, list outage) + `_save_fetched_issues` wired into both early-return paths
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (reload-merge save, timestamps untouched, list outage) + `_save_fetched_issues` wired into both early-return paths
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: Per-process `Repository` raw-data cache — [step_4.md](./steps/step_4.md)
 

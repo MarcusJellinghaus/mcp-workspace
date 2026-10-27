@@ -422,6 +422,34 @@ def _fetch_additional_issues(  # pylint: disable=too-many-arguments,too-many-pos
     return fetched
 
 
+def _save_fetched_issues(
+    repo_identifier: RepoIdentifier, cache_data: CacheData, fetched_keys: set[str]
+) -> None:
+    """Persist individually fetched issues on paths that skip the main save.
+
+    Reloads the cache file first (another process may have refreshed it) and
+    merges only the fetched entries and their ``cached_at`` stamps. Never
+    touches ``last_checked``, ``updates_covered_through`` or
+    ``last_full_refresh``: bumping ``last_checked`` would extend the duplicate
+    protection window forever. ``version`` is left as loaded.
+
+    Args:
+        repo_identifier: Repository identifier with owner and repo name
+        cache_data: In-memory cache data holding the fetched entries
+        fetched_keys: Issue keys returned by ``_fetch_additional_issues``
+    """
+    if not fetched_keys:
+        return
+    cache_file_path = _get_cache_file_path(repo_identifier)
+    on_disk = _load_cache_file(cache_file_path)
+    on_disk_cached_at = on_disk.setdefault("cached_at", {})
+    cached_at = cache_data.get("cached_at", {})
+    for key in fetched_keys:
+        on_disk["issues"][key] = cache_data["issues"][key]
+        on_disk_cached_at[key] = cached_at[key]
+    _save_cache_file(cache_file_path, on_disk)
+
+
 def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
     issue_manager: "IssueManager",
     cache_data: CacheData,
@@ -659,6 +687,7 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
             reason=f"duplicate_protection_{age_seconds}s",
         )
         logger.debug(f"Skipping {repo_name} - checked {age_seconds}s ago")
+        _save_fetched_issues(repo_identifier, cache_data, fetched_keys)
         return list(cache_data["issues"].values())
 
     # Save snapshots BEFORE fetch (in case full refresh clears cache_data["issues"]
@@ -721,6 +750,7 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
         logger.warning("API fetch failed for %s, returning stale cache", repo_name)
         cache_data["issues"] = issues_snapshot
         cache_data["cached_at"] = cached_at_snapshot
+        _save_fetched_issues(repo_identifier, cache_data, fetched_keys)
         return list(cache_data["issues"].values())
 
     # Step 7: Return ALL cached issues (unfiltered)
