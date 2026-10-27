@@ -33,7 +33,8 @@
      hop repeats the final hop's status and headers, and its duration is cumulative (for 202
      it includes PyGithub's 2 s wait)
    - never written: token, auth headers, request/response bodies, GraphQL query text, query
-     strings of followed 302 redirects
+     strings of requests to hosts other than the API host (the signed blob URL a 302
+     redirects to); API request lines keep their query
    - a write failure skips the line and never affects the request
 
 ## HOW / ALGORITHM / DATA

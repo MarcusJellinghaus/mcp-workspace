@@ -16,6 +16,12 @@
 
 ```python
 class _LoggingGithubRetry(GithubRetry):
+    def __init__(self, *, api_host: str | None = None, **kwargs: Any) -> None:
+        """Remember the API host so retry lines can redact foreign-host queries."""
+
+    def new(self, **kw: Any) -> Self:
+        """Carry ``api_host`` into the copy urllib3 makes on every ``increment``."""
+
     def increment(  # type: ignore[override]
         self,
         method: str | None = None,
@@ -28,8 +34,9 @@ class _LoggingGithubRetry(GithubRetry):
         """Write a ``retry`` traffic line when another attempt follows."""
 ```
 
-Use `TYPE_CHECKING` imports for `ConnectionPool`, `TracebackType`, `Retry`, matching the
-existing `BaseHTTPResponse` import. Update the class docstring.
+Use `TYPE_CHECKING` imports for `ConnectionPool`, `TracebackType`, `Retry`, `Self`, matching
+the existing `BaseHTTPResponse` import; `from typing import Any` and
+`from urllib.parse import urlsplit` at runtime. Update the class docstring.
 
 ## HOW
 
@@ -38,6 +45,13 @@ existing `BaseHTTPResponse` import. Update the class docstring.
   wrapper writes the `ERR` line.
 - `increment` sees urllib3's case-insensitive headers; `log_request` handles both.
 - The existing `sleep` override stays unchanged.
+- `build_github_client` passes `api_host=urlsplit(base_url).hostname`. `GithubRetry.new`
+  already forwards its own two kwargs the same way; the override adds `api_host` and calls
+  `super().new(**kw)`.
+- Redaction: urllib3 passes `url` as path + query, without the host. The 302 hop to a signed
+  blob URL runs on a separate pool for that host, so `_pool.host != self.api_host` marks it;
+  drop the query then, matching the step 3 wrapper's rule for the same hop. API-host retry
+  lines keep their query.
 
 ## ALGORITHM
 
@@ -45,7 +59,10 @@ existing `BaseHTTPResponse` import. Update the class docstring.
 new_retry = super().increment(method, url, response, error, _pool, _stacktrace)
 if response is not None: status, headers = f"retry {response.status}", response.headers
 else: status, headers = f"retry {type(error).__name__}", None
-log_request(method or "-", url or "-", status, headers, None)
+logged_url = url or "-"
+if _pool is not None and self.api_host is not None and _pool.host != self.api_host:
+    logged_url = logged_url.split("?", 1)[0]
+log_request(method or "-", logged_url, status, headers, None)
 return new_retry
 ```
 
@@ -64,6 +81,10 @@ Direct `increment` tests (as in `test_client.py`, `urllib3.HTTPResponse` stubs):
 - 403 primary rate limit with reset 600 s away → raises `RateLimitExceededExceedsMaxWait`, no line
 - 403 with message `"Resource not accessible by integration"` → raises, no line
 - log off (fixture default) → no file
+- retry built with `api_host="api.github.com"`, 500 response, `url="/blob?sig=secret"`,
+  `_pool=Mock(host="blob.example.net")` → line has `/blob`, no `sig=`; same call with
+  `_pool=Mock(host="api.github.com")` and `url="/x?page=2"` → query kept
+- `new()` keeps `api_host` (`retry.new(total=1).api_host == "api.github.com"`)
 
 End-to-end through urllib3 (no fakes in PyGithub): a local `http.server.ThreadingHTTPServer` on
 `127.0.0.1:0` in a daemon thread serves a scripted sequence of responses; build

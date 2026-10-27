@@ -42,10 +42,10 @@ timestamp | pid | command | METHOD path | status | resource remaining | duration
 | Topic | Decision |
 |---|---|
 | Settings | One cached value, `Path \| None`; no settings type. Bad config values silently fall back (no warning). |
-| Public API | `set_traffic_log_context(command)`, `log_request(method, url, status, headers, duration_ms)`, `error_status(exc)`. Everything else is private. |
+| Public API | `set_traffic_log_context(command)`, `log_request(method, url, status, headers, started)`, `error_status(exc)`. `started` is the caller's `time.monotonic()`; `log_request` computes the duration (`None` → `-`). Everything else is private. |
 | Off path | `log_request` returns at once when off; the wrapper is installed only when on. |
 | Own frames | The chain walk skips the modules `mcp_workspace.traffic_log` and `mcp_workspace.github_operations._client`. |
-| Signed URLs | Drop the query string on `follow_302_redirect=True` calls (blob downloads carry SAS signatures). The raw download logs the original API URL. |
+| Signed URLs | Drop the query string only on hops to a host other than the API host (the 302 to a signed blob URL carries a SAS signature): in the wrapper when PyGithub passes a custom `cnx`, in retry lines when `_pool.host != api_host`. API-host lines keep their query. The raw download logs the original API URL. |
 | Write | Thread lock + non-blocking file lock (`msvcrt.locking` / `fcntl.flock`), a few short retries, one `os.write` per line, file opened per line. Any failure skips the line silently. |
 | Rotation | The daily file name does it; no rotating handlers. |
 | Concurrency check | A scratch probe in step 2 (deleted afterwards), not a permanent test. |

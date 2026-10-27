@@ -34,9 +34,9 @@ No new functions. `_download_and_extract_zip(self, url: str) -> Dict[str, str]` 
 start = time.monotonic()
 try: response = requests.get(...)            # unchanged arguments
 except Exception as exc:
-    log_request("GET", url, error_status(exc), None, ms(start)); raise
+    log_request("GET", url, error_status(exc), None, start); raise
 first = response.history[0] if response.history else response
-log_request("GET", url, str(response.status_code), first.headers, ms(start))
+log_request("GET", url, str(response.status_code), first.headers, start)
 response.raise_for_status()                  # unchanged from here on
 ```
 

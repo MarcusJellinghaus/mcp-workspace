@@ -28,8 +28,10 @@ def get_traffic_log_dir() -> Path | None:
 ## HOW
 
 - `import functools` and `from pathlib import Path` in `config.py`.
-- Reuse `_read_config_value("github", ...)`. `_load_config`, `get_github_token*` and
-  `get_trusted_commenters` stay uncached.
+- Read the `[github]` section directly from `_load_config()` (one file read). Don't reuse
+  `_read_config_value`: it is typed `-> str | None`, which fits neither the bool
+  `traffic_log` nor an `isinstance` narrowing without casts. `_load_config`,
+  `get_github_token*` and `get_trusted_commenters` stay uncached.
 - Other code must call it as `config.get_traffic_log_dir()` (module attribute) so the fixture
   replacement takes effect. Note this in the docstring.
 - Fixture in `tests/conftest.py`, next to `_empty_trusted_commenters`:
@@ -51,8 +53,9 @@ def _traffic_log_off(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
 ## ALGORITHM
 
 ```
-if _read_config_value("github", "traffic_log") is not True: return None
-value = _read_config_value("github", "traffic_log_dir")
+section = _load_config().get("github", {})
+if not isinstance(section, dict) or section.get("traffic_log") is not True: return None
+value = section.get("traffic_log_dir")
 if isinstance(value, str) and value: return Path(value)
 return get_user_app_data_dir("mcp_coder") / "logs" / "github_traffic"
 ```

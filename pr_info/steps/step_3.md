@@ -52,15 +52,17 @@ Module flag `_warned_missing = False` for the warn-once.
 original = getattr(requester, "_Requester__requestRaw", None)
 if original is None: warn once on logger ("traffic log disabled: PyGithub internals changed"); return
 def wrapper(cnx, verb, url, *args, **kwargs):
-    logged_url = url.split("?", 1)[0] if kwargs.get("follow_302_redirect") else url
+    # PyGithub passes a non-None cnx only for a host other than base_url (__customConnection,
+    # e.g. the 302 hop to a signed blob URL); drop that hop's query (SAS signature).
+    logged_url = url.split("?", 1)[0] if cnx is not None else url
     start = time.monotonic()
     try: status, headers, output = original(cnx, verb, url, *args, **kwargs)
     except Exception as exc:
         if not getattr(exc, "_traffic_logged", False):
-            log_request(verb, logged_url, error_status(exc), getattr(exc, "headers", None), ms(start))
+            log_request(verb, logged_url, error_status(exc), getattr(exc, "headers", None), start)
             try: setattr(exc, "_traffic_logged", True) except Exception: pass
         raise
-    log_request(verb, logged_url, str(status), headers, ms(start)); return status, headers, output
+    log_request(verb, logged_url, str(status), headers, start); return status, headers, output
 requester._Requester__requestRaw = wrapper
 ```
 
@@ -85,7 +87,10 @@ Read lines from the single file in `tmp_path`.
 - 301 hop to `/y`, then 200 → two lines (`/y` then `/x`), both `200`
 - fake raises `GithubException(403, {"message": "x"}, {})` → one line `ERR GithubException 403`
 - 301 hop then `RateLimitExceededExceedsMaxWait` → exactly one `ERR RateLimitExceededExceedsMaxWait` line
-- `follow_302_redirect=True` with `?sig=secret` → no `sig=` in the file
+- 302 hop to another host: fake called with `cnx=None`, `"/x?archive=zip"`,
+  `follow_302_redirect=True` calls `self._Requester__requestRaw(object(), "GET",
+  "/blob?sig=secret", {}, None, follow_302_redirect=True)` → no `sig=` in the file, and the
+  `/x` line keeps `?archive=zip`
 - off (fixture default) → `"_Requester__requestRaw" not in vars(client.requester)`, no file
 - missing attr: `monkeypatch.delattr(Requester, "_Requester__requestRaw")` → building two
   clients logs the warning once (caplog), no exception

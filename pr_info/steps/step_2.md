@@ -25,9 +25,13 @@ def log_request(
     url: str,
     status: str,
     headers: Mapping[str, Any] | None,
-    duration_ms: float | None,
+    started: float | None,
 ) -> None:
-    """Append one traffic line when the log is on. Never raises."""
+    """Append one traffic line when the log is on. Never raises.
+
+    ``started`` is the caller's ``time.monotonic()`` before the request; the duration
+    is computed here. ``None`` (retry lines) prints ``-``.
+    """
 
 def error_status(exc: BaseException) -> str:
     """Return ``ERR <Type>`` plus `` <status>`` when ``exc.status`` is an int."""
@@ -63,7 +67,7 @@ log_request: directory = config.get_traffic_log_dir(); if None: return
   path = parts.path + ("?" + parts.query if parts.query else "")
   line = " | ".join([now.isoformat(timespec="milliseconds"), str(os.getpid()), _command,
          f"{method} {path}", status, f"{_header(h,'x-ratelimit-resource')} {_header(h,'x-ratelimit-remaining')}",
-         f"{round(duration_ms)}ms" if duration_ms is not None else "-", _call_chain()])
+         f"{round((time.monotonic() - started) * 1000)}ms" if started is not None else "-", _call_chain()])
   _append(directory, now.strftime("%Y-%m-%d"), line)
 
 _call_chain: frame = sys._getframe(1); names = []
@@ -95,7 +99,8 @@ Reset `_command` after tests that set it (monkeypatch `traffic_log._command`).
 
 - off (fixture default) → no file created, `_call_chain` not called
 - line fields: timestamp with offset, pid, command, `GET /repos/o/r?page=2` (host stripped
-  from an absolute URL, query kept), status, `core 4211`, `182ms`; `duration_ms=None` → `-`
+  from an absolute URL, query kept), status, `core 4211`, `182ms` (monkeypatch
+  `traffic_log.time.monotonic` to return `started + 0.182`); `started=None` → `-`
 - headers: lowercased keys, mixed-case keys, missing → `- -`, `headers=None` → `- -`
 - `error_status` with and without `.status`
 - chain filtering: build fake frames by `exec`-ing code with `__name__` set in globals
