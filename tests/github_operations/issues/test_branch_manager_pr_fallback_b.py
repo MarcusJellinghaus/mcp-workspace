@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 from github import GithubException
 
-from mcp_workspace.github_operations.issues import IssueBranchManager
+from mcp_workspace.github_operations.issues import BranchLookup, IssueBranchManager
 
 
 class TestGetBranchWithPRFallback:
@@ -22,7 +22,7 @@ class TestGetBranchWithPRFallback:
         mock_repo.name = "test-repo"
         mock_manager._repository = mock_repo
 
-        mock_manager.get_linked_branches = Mock(  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(  # type: ignore[method-assign]
             return_value=["123-branch-a", "123-branch-b"]
         )
 
@@ -47,7 +47,7 @@ class TestGetBranchWithPRFallback:
         mock_repo.name = "test-repo"
         mock_manager._repository = mock_repo
 
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         timeline_response = {
             "data": {
@@ -95,7 +95,7 @@ class TestGetBranchWithPRFallback:
         mock_repo.name = "test-repo"
         mock_manager._repository = mock_repo
 
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         timeline_response = {
             "data": {
@@ -130,7 +130,7 @@ class TestGetBranchWithPRFallback:
         )
 
         # Pattern search also returns None
-        mock_manager._search_branches_by_pattern = Mock(return_value=None)  # type: ignore[method-assign]
+        mock_manager._pattern_lookup = Mock(return_value=BranchLookup("not_found"))  # type: ignore[method-assign]
 
         result = mock_manager.get_branch_with_pr_fallback(
             issue_number=123, repo_owner="test-owner", repo_name="test-repo"
@@ -138,7 +138,7 @@ class TestGetBranchWithPRFallback:
 
         assert result is None
         mock_repo.get_branch.assert_called_once_with("123-deleted-branch")
-        mock_manager._search_branches_by_pattern.assert_called_once_with(123, mock_repo)
+        mock_manager._pattern_lookup.assert_called_once_with(123, mock_repo)
 
     def test_merged_pr_not_matched(self, mock_manager: IssueBranchManager) -> None:
         """Merged PR in timeline is skipped (state is MERGED, not CLOSED)."""
@@ -147,7 +147,7 @@ class TestGetBranchWithPRFallback:
         mock_repo.name = "test-repo"
         mock_manager._repository = mock_repo
 
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         timeline_response = {
             "data": {
@@ -178,7 +178,7 @@ class TestGetBranchWithPRFallback:
 
         # get_branch should NOT be called (MERGED is not CLOSED)
         mock_repo.get_branch = Mock()
-        mock_manager._search_branches_by_pattern = Mock(return_value=None)  # type: ignore[method-assign]
+        mock_manager._pattern_lookup = Mock(return_value=BranchLookup("not_found"))  # type: ignore[method-assign]
 
         result = mock_manager.get_branch_with_pr_fallback(
             issue_number=123, repo_owner="test-owner", repo_name="test-repo"
@@ -194,7 +194,7 @@ class TestGetBranchWithPRFallback:
         mock_repo.name = "test-repo"
         mock_manager._repository = mock_repo
 
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         # Build 30 closed PRs
         nodes = [
@@ -224,7 +224,7 @@ class TestGetBranchWithPRFallback:
             side_effect=GithubException(404, {"message": "Not found"}, None)
         )
 
-        mock_manager._search_branches_by_pattern = Mock(return_value=None)  # type: ignore[method-assign]
+        mock_manager._pattern_lookup = Mock(return_value=BranchLookup("not_found"))  # type: ignore[method-assign]
 
         result = mock_manager.get_branch_with_pr_fallback(
             issue_number=123, repo_owner="test-owner", repo_name="test-repo"
@@ -243,7 +243,7 @@ class TestGetBranchWithPRFallback:
         mock_repo.name = "test-repo"
         mock_manager._repository = mock_repo
 
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         timeline_response = {
             "data": {
@@ -308,7 +308,7 @@ class TestGetBranchWithPRFallback:
         mock_repo.name = "test-repo"
         mock_manager._repository = mock_repo
 
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         timeline_response = {
             "data": {
@@ -362,7 +362,7 @@ class TestGetBranchWithPRFallback:
         mock_repo.name = "test-repo"
         mock_manager._repository = mock_repo
 
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         timeline_response: dict[str, Any] = {
             "data": {"repository": {"issue": {"timelineItems": {"nodes": []}}}}
@@ -374,8 +374,8 @@ class TestGetBranchWithPRFallback:
         )
 
         # Pattern search finds a branch
-        mock_manager._search_branches_by_pattern = Mock(  # type: ignore[method-assign]
-            return_value="123-pattern-match"
+        mock_manager._pattern_lookup = Mock(  # type: ignore[method-assign]
+            return_value=BranchLookup("found", "123-pattern-match")
         )
 
         result = mock_manager.get_branch_with_pr_fallback(
@@ -383,7 +383,7 @@ class TestGetBranchWithPRFallback:
         )
 
         assert result == "123-pattern-match"
-        mock_manager._search_branches_by_pattern.assert_called_once_with(123, mock_repo)
+        mock_manager._pattern_lookup.assert_called_once_with(123, mock_repo)
 
     def test_pattern_fallback_not_called_when_linked_branch_found(
         self, mock_manager: IssueBranchManager
@@ -394,15 +394,15 @@ class TestGetBranchWithPRFallback:
         mock_repo.name = "test-repo"
         mock_manager._repository = mock_repo
 
-        mock_manager.get_linked_branches = Mock(  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(  # type: ignore[method-assign]
             return_value=["123-linked"]
         )
 
-        mock_manager._search_branches_by_pattern = Mock()  # type: ignore[method-assign]
+        mock_manager._pattern_lookup = Mock()  # type: ignore[method-assign]
 
         result = mock_manager.get_branch_with_pr_fallback(
             issue_number=123, repo_owner="test-owner", repo_name="test-repo"
         )
 
         assert result == "123-linked"
-        mock_manager._search_branches_by_pattern.assert_not_called()
+        mock_manager._pattern_lookup.assert_not_called()

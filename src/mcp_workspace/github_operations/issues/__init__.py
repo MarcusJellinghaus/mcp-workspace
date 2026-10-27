@@ -21,7 +21,7 @@ from ._cache_io import (
 from .base import MalformedBaseBranchError, parse_base_branch
 
 # Branch manager and utilities
-from .branch_manager import IssueBranchManager
+from .branch_manager import BranchLookup, BranchLookupError, IssueBranchManager
 from .branch_naming import BranchCreationResult, generate_branch_name_from_issue
 from .cache import (
     _log_stale_cache_entries,
@@ -53,6 +53,8 @@ __all__ = [
     "IssueManager",
     # Branch manager
     "IssueBranchManager",
+    "BranchLookup",
+    "BranchLookupError",
     "BranchCreationResult",
     "generate_branch_name_from_issue",
     "ClosingPRRef",

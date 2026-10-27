@@ -13,6 +13,7 @@ from typing import List, NamedTuple, Optional, Tuple
 from mcp_coder_utils.log_utils import log_function_call
 
 from ..base_manager import BaseGitHubManager, _handle_github_errors
+from ..caching.errors import graphql_rate_limit_error
 from .base import validate_issue_number_or_log
 
 logger = logging.getLogger(__name__)
@@ -132,6 +133,10 @@ def _query_linked_branches(
     _, result = manager._github_client._Github__requester.graphql_query(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public GraphQL API in PyGithub
         query=_LINKED_BRANCHES_QUERY, variables=variables
     )
+
+    # A body-level rate limit would otherwise become None below, losing its type
+    if (rl := graphql_rate_limit_error(result)) is not None:
+        raise rl
 
     # Parse response
     try:
