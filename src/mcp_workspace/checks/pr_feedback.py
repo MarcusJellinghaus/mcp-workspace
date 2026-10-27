@@ -76,11 +76,18 @@ def format_pr_feedback(feedback: PRFeedback, trusted: frozenset[str]) -> str:
     all_changes_requested = feedback["changes_requested"]
     alerts = feedback["alerts"]
     unavailable = feedback["unavailable"]
+    skipped = feedback["skipped"]
     resolved_count = feedback["resolved_thread_count"]
 
     blocking = bool(all_unresolved or all_changes_requested or alerts)
+    # `skipped` never makes a report non-clean; only alerts can be skipped.
     if not blocking and not all_comments and not unavailable:
-        return "Reviews: clean (0 unresolved threads, 0 alerts)"
+        note = (
+            f"alerts not checked: {getattr(skipped['alerts'], 'status', None)}"
+            if "alerts" in skipped
+            else "0 alerts"
+        )
+        return f"Reviews: clean (0 unresolved threads, {note})"
 
     def ok(
         item: ReviewThreadData | ChangesRequestedData | ConversationCommentData,
@@ -134,12 +141,13 @@ def format_pr_feedback(feedback: PRFeedback, trusted: frozenset[str]) -> str:
         rendered.append(f"[changes_requested] {author}{suffix}: {body}")
 
     for alert in alerts:
-        rule = alert.get("rule_description", "")
-        message = alert.get("message", "")
-        path = alert.get("path", "")
-        line_no = alert.get("line")
+        path = alert["path"]
+        line_no = alert["line"]
         location = f"{path}:{line_no}" if line_no else path
-        rendered.append(f"[alert] {rule}: {message} @ {location}")
+        rendered.append(
+            f"[alert] [alert_number={alert['number']}] "
+            f"{alert['rule_id']}: {alert['message']} @ {location}"
+        )
 
     # Conversation comments render last: they never drain, so ahead of the
     # verdict-bearing sections they would starve alerts under the shared cap.
@@ -167,6 +175,11 @@ def format_pr_feedback(feedback: PRFeedback, trusted: frozenset[str]) -> str:
 
     for section, exc in unavailable.items():
         lines.append(f"[unavailable] {section}: {render_exception_for_display(exc)}")
+
+    for section, exc in skipped.items():
+        lines.append(
+            f"[skipped] {section} not checked ({getattr(exc, 'status', None)})"
+        )
 
     if resolved_count > 0:
         lines.append(f"{resolved_count} resolved threads")

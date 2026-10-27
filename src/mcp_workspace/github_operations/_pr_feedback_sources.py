@@ -20,6 +20,7 @@ from .trust import normalize_author_association
 if TYPE_CHECKING:
     from .pr_manager import PullRequestManager
     from .pr_types import (
+        AlertData,
         ChangesRequestedData,
         ConversationCommentData,
         ReviewThreadData,
@@ -402,48 +403,39 @@ def fetch_conversation_comments(
 
 def fetch_code_scanning_alerts(
     manager: "PullRequestManager", pr_number: int
-) -> Optional[list[dict[str, Any]]]:
-    """Fetch code-scanning alerts for the PR head ref via REST.
+) -> list["AlertData"]:
+    """Fetch open code-scanning alerts for the PR via REST (first page only).
 
     Returns:
-        None on 403 (silent skip — caller does not flag as unavailable).
-        [] on success with no alerts or if repository is unavailable.
-        list of alert dicts on success.
+        list[AlertData] of open alerts (first page only); [] when the
+        repository is unavailable or there are no alerts.
 
     Raises:
-        GithubException: For non-403 errors (caller flags as unavailable).
-    """
+        GithubException: Any API error (caller classifies).
+    """  # noqa: DOC502  # GithubException propagates from requestJsonAndCheck
     repo = manager._get_repository()  # pylint: disable=protected-access
     if repo is None:
         return []
 
     owner, repo_name = repo.owner.login, repo.name
 
-    try:
-        _, data = manager._github_client._Github__requester.requestJsonAndCheck(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public alerts API in PyGithub
-            "GET",
-            f"/repos/{owner}/{repo_name}/code-scanning/alerts",
-            parameters={"ref": f"refs/pull/{pr_number}/head"},
-        )
-    except GithubException as e:
-        if e.status == 403:
-            logger.debug(
-                "Code-scanning alerts unavailable (403): token lacks "
-                "security_events:read or code-scanning is disabled"
-            )
-            return None
-        raise
+    _, data = manager._github_client._Github__requester.requestJsonAndCheck(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public alerts API in PyGithub
+        "GET",
+        f"/repos/{owner}/{repo_name}/code-scanning/alerts",
+        parameters={"pr": pr_number, "state": "open", "per_page": 100},
+    )
 
-    alerts: list[dict[str, Any]] = []
+    alerts: list["AlertData"] = []
     for alert in data or []:
         instance = alert.get("most_recent_instance") or {}
         location = instance.get("location") or {}
-        message = (instance.get("message") or {}).get("text") or ""
-        rule_description = (alert.get("rule") or {}).get("description") or ""
+        rule = alert.get("rule") or {}
         alerts.append(
             {
-                "rule_description": rule_description,
-                "message": message,
+                "number": alert["number"],
+                "rule_id": rule.get("id") or "",
+                "rule_description": rule.get("description") or "",
+                "message": (instance.get("message") or {}).get("text") or "",
                 "path": location.get("path") or "",
                 "line": location.get("start_line"),
             }

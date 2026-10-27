@@ -1,6 +1,6 @@
 """Tests for the `format_pr_feedback` pure formatter."""
 
-from typing import Any, Optional
+from typing import Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,6 +12,7 @@ from mcp_workspace.checks.pr_feedback import (
     format_pr_feedback,
 )
 from mcp_workspace.github_operations.pr_types import (
+    AlertData,
     ChangesRequestedData,
     ConversationCommentData,
     PRFeedback,
@@ -27,6 +28,7 @@ def _empty_feedback() -> PRFeedback:
         "conversation_comments": [],
         "alerts": [],
         "unavailable": {},
+        "skipped": {},
     }
 
 
@@ -83,17 +85,21 @@ def _changes_requested(
 
 
 def _alert(
-    rule_description: str = "py/sql-injection",
+    number: int = 51,
+    rule_id: str = "py/sql-injection",
+    rule_description: str = "SQL injection",
     message: str = "SQL injection vulnerability",
     path: str = "src/db.py",
-    line: int = 17,
-) -> dict[str, Any]:
-    return {
-        "rule_description": rule_description,
-        "message": message,
-        "path": path,
-        "line": line,
-    }
+    line: Optional[int] = 17,
+) -> AlertData:
+    return AlertData(
+        number=number,
+        rule_id=rule_id,
+        rule_description=rule_description,
+        message=message,
+        path=path,
+        line=line,
+    )
 
 
 class TestEmptyFeedback:
@@ -215,7 +221,7 @@ class TestAlerts:
         feedback = _empty_feedback()
         feedback["alerts"] = [
             _alert(
-                rule_description="py/sql-injection",
+                rule_id="py/sql-injection",
                 message="SQL injection",
                 path="src/db.py",
                 line=17,
@@ -223,26 +229,27 @@ class TestAlerts:
         ]
         result = format_pr_feedback(feedback, frozenset())
         assert result.startswith("PR Reviews:")
-        assert "[alert]" in result
-        assert "py/sql-injection" in result
-        assert "SQL injection" in result
-        assert "src/db.py:17" in result
+        assert (
+            "[alert] [alert_number=51] py/sql-injection: SQL injection @ src/db.py:17"
+            in result.split("\n")
+        )
 
     def test_alert_without_line_no(self) -> None:
         """Alerts without a specific line number render path only."""
         feedback = _empty_feedback()
-        alert = _alert(
-            rule_description="py/sql-injection",
-            message="SQL injection",
-            path="src/db.py",
-        )
-        alert["line"] = None
-        feedback["alerts"] = [alert]
+        feedback["alerts"] = [
+            _alert(
+                rule_id="py/sql-injection",
+                message="SQL injection",
+                path="src/db.py",
+                line=None,
+            )
+        ]
         result = format_pr_feedback(feedback, frozenset())
-        assert "[alert]" in result
-        assert "src/db.py" in result
-        assert ":None" not in result
-        assert "@ src/db.py" in result
+        assert (
+            "[alert] [alert_number=51] py/sql-injection: SQL injection @ src/db.py"
+            in result.split("\n")
+        )
 
 
 class TestResolvedThreadsTrailingLine:
@@ -347,6 +354,40 @@ class TestUnavailableSection:
         assert t_idx < c_idx < a_idx
 
 
+class TestSkipped:
+    """`skipped` sections render as "not checked" and never make a report non-clean."""
+
+    def test_clean_line_notes_skipped_alerts(self) -> None:
+        feedback = _empty_feedback()
+        feedback["skipped"] = {"alerts": GithubException(403, {"message": "x"}, None)}
+        result = format_pr_feedback(feedback, frozenset())
+        assert result == (
+            "Reviews: clean (0 unresolved threads, alerts not checked: 403)"
+        )
+
+    def test_skipped_line_follows_unavailable_lines(self) -> None:
+        feedback = _empty_feedback()
+        feedback["unresolved_threads"] = [_thread()]
+        feedback["unavailable"] = {
+            "threads": GithubException(500, {"message": "Server Error"}, None)
+        }
+        feedback["skipped"] = {"alerts": GithubException(404, {"message": "x"}, None)}
+        lines = format_pr_feedback(feedback, frozenset()).split("\n")
+        assert "[skipped] alerts not checked (404)" in lines
+        skipped_idx = lines.index("[skipped] alerts not checked (404)")
+        unavailable_idx = next(
+            i for i, line in enumerate(lines) if line.startswith("[unavailable]")
+        )
+        assert skipped_idx > unavailable_idx
+
+    def test_skipped_line_survives_item_cap(self) -> None:
+        feedback = _empty_feedback()
+        feedback["unresolved_threads"] = [_thread(body=f"t{i}") for i in range(25)]
+        feedback["skipped"] = {"alerts": GithubException(403, {"message": "x"}, None)}
+        lines = format_pr_feedback(feedback, frozenset()).split("\n")
+        assert "[skipped] alerts not checked (403)" in lines
+
+
 class TestMixedFullExample:
     """Mixed example matching issue spec."""
 
@@ -367,7 +408,7 @@ class TestMixedFullExample:
         ]
         feedback["alerts"] = [
             _alert(
-                rule_description="py/sql-injection",
+                rule_id="py/sql-injection",
                 message="SQL injection",
                 path="src/db.py",
                 line=17,
@@ -432,6 +473,24 @@ class TestCollectPrFeedbackUndeterminable:
     def test_blocking_feedback_reports_blocks_merge(self) -> None:
         feedback = _empty_feedback()
         feedback["unresolved_threads"] = [_thread()]
+        _text, blocks_merge, undeterminable = collect_pr_feedback(
+            self._manager(feedback), 1, frozenset()
+        )
+        assert blocks_merge is True
+        assert undeterminable is False
+
+    def test_skipped_alerts_neither_blocks_nor_undeterminable(self) -> None:
+        feedback = _empty_feedback()
+        feedback["skipped"] = {"alerts": GithubException(403, {"message": "x"}, None)}
+        _text, blocks_merge, undeterminable = collect_pr_feedback(
+            self._manager(feedback), 1, frozenset()
+        )
+        assert blocks_merge is False
+        assert undeterminable is False
+
+    def test_alert_blocks_merge(self) -> None:
+        feedback = _empty_feedback()
+        feedback["alerts"] = [_alert()]
         _text, blocks_merge, undeterminable = collect_pr_feedback(
             self._manager(feedback), 1, frozenset()
         )

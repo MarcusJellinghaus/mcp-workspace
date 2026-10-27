@@ -1,6 +1,7 @@
 """Unit tests for PullRequestManager.get_pr_feedback() and mergeable_state field."""
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
@@ -550,7 +551,8 @@ class TestGetPRFeedback:
         ]
         alerts_response = [
             {
-                "rule": {"description": "SQL injection"},
+                "number": 51,
+                "rule": {"id": "py/sql-injection", "description": "SQL injection"},
                 "most_recent_instance": {
                     "message": {"text": "potential SQLi"},
                     "location": {"path": "src/foo.py", "start_line": 42},
@@ -589,11 +591,16 @@ class TestGetPRFeedback:
         assert result["conversation_comments"][0]["body"] == "general comment 1"
         assert result["conversation_comments"][0]["id"] == 101
         assert result["conversation_comments"][0]["created_at"] == "2024-01-01T00:00:00"
-        assert len(result["alerts"]) == 1
-        assert result["alerts"][0]["rule_description"] == "SQL injection"
-        assert result["alerts"][0]["message"] == "potential SQLi"
-        assert result["alerts"][0]["path"] == "src/foo.py"
-        assert result["alerts"][0]["line"] == 42
+        assert result["alerts"] == [
+            {
+                "number": 51,
+                "rule_id": "py/sql-injection",
+                "rule_description": "SQL injection",
+                "message": "potential SQLi",
+                "path": "src/foo.py",
+                "line": 42,
+            }
+        ]
         assert result["unavailable"] == {}
 
     def test_thread_missing_ids_falls_back_to_none(
@@ -759,11 +766,36 @@ class TestGetPRFeedback:
         assert result["conversation_comments"] == []
         assert result["alerts"] == []
         assert result["unavailable"] == {}
+        assert result["skipped"] == {}
 
-    def test_code_scanning_403_silent_skip(
-        self, mock_manager: PullRequestManager
+    @pytest.mark.parametrize(
+        ("exc", "section"),
+        [
+            (GithubException(403, {"message": "forbidden"}, None), "skipped"),
+            (GithubException(404, {"message": "no analysis found"}, None), "skipped"),
+            (
+                GithubException(
+                    403,
+                    {"message": "API rate limit exceeded"},
+                    {
+                        "x-ratelimit-remaining": "0",
+                        "x-ratelimit-resource": "core",
+                        "x-ratelimit-reset": str(int(time.time()) + 600),
+                    },
+                ),
+                "unavailable",
+            ),
+            (GithubException(500, {"message": "server error"}, None), "unavailable"),
+        ],
+        ids=["403", "404", "403-rate-limit", "500"],
+    )
+    def test_code_scanning_error_routing(
+        self,
+        mock_manager: PullRequestManager,
+        exc: GithubException,
+        section: str,
     ) -> None:
-        """403 on code-scanning → empty alerts, NOT in unavailable."""
+        """403/404 (not rate-limited) on alerts → skipped; anything else → unavailable."""
         graphql_response: dict[str, Any] = {
             "data": {
                 "repository": {
@@ -778,40 +810,15 @@ class TestGetPRFeedback:
             mock_manager,
             graphql_response=graphql_response,
             comments=[],
-            alerts_raises=GithubException(403, {"message": "forbidden"}, None),
+            alerts_raises=exc,
         )
 
         result = mock_manager.get_pr_feedback(42)
 
+        other = "unavailable" if section == "skipped" else "skipped"
         assert result["alerts"] == []
-        assert "alerts" not in result["unavailable"]
-
-    def test_code_scanning_500_unavailable(
-        self, mock_manager: PullRequestManager
-    ) -> None:
-        """500 on code-scanning → empty alerts, 'alerts' in unavailable."""
-        graphql_response: dict[str, Any] = {
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {"nodes": []},
-                        "latestOpinionatedReviews": {"nodes": []},
-                    }
-                }
-            }
-        }
-        self._setup_mocks(
-            mock_manager,
-            graphql_response=graphql_response,
-            comments=[],
-            alerts_raises=GithubException(500, {"message": "server error"}, None),
-        )
-
-        result = mock_manager.get_pr_feedback(42)
-
-        assert result["alerts"] == []
-        assert "alerts" in result["unavailable"]
-        assert isinstance(result["unavailable"]["alerts"], GithubException)
+        assert result[section]["alerts"] is exc  # type: ignore[literal-required]
+        assert "alerts" not in result[other]  # type: ignore[literal-required]
 
     def test_code_scanning_alerts_unpacks_two_tuple(
         self, mock_manager: PullRequestManager
@@ -819,7 +826,8 @@ class TestGetPRFeedback:
         """requestJsonAndCheck returns (headers, data) — a 2-tuple, not a 3-tuple."""
         alerts_response = [
             {
-                "rule": {"description": "SQL injection"},
+                "number": 51,
+                "rule": {"id": "py/sql-injection", "description": "SQL injection"},
                 "most_recent_instance": {
                     "message": {"text": "potential SQLi"},
                     "location": {"path": "src/foo.py", "start_line": 42},
@@ -830,12 +838,28 @@ class TestGetPRFeedback:
 
         alerts = fetch_code_scanning_alerts(mock_manager, 42)
 
-        assert alerts is not None
-        assert len(alerts) == 1
-        assert alerts[0]["rule_description"] == "SQL injection"
-        assert alerts[0]["message"] == "potential SQLi"
-        assert alerts[0]["path"] == "src/foo.py"
-        assert alerts[0]["line"] == 42
+        assert alerts == [
+            {
+                "number": 51,
+                "rule_id": "py/sql-injection",
+                "rule_description": "SQL injection",
+                "message": "potential SQLi",
+                "path": "src/foo.py",
+                "line": 42,
+            }
+        ]
+        requester = mock_manager._github_client._Github__requester  # type: ignore[attr-defined]
+        get_call = next(
+            c
+            for c in requester.requestJsonAndCheck.call_args_list
+            if c.args[0] == "GET"
+        )
+        assert get_call.args[1] == "/repos/test/repo/code-scanning/alerts"
+        assert get_call.kwargs["parameters"] == {
+            "pr": 42,
+            "state": "open",
+            "per_page": 100,
+        }
 
     def test_graphql_request_shape(self, mock_manager: PullRequestManager) -> None:
         """The direct call must reproduce `graphql_query`'s URL and payload.
@@ -1759,6 +1783,7 @@ class TestGetPRFeedback:
         assert result["conversation_comments"] == []
         assert result["alerts"] == []
         assert result["unavailable"] == {}
+        assert result["skipped"] == {}
 
 
 @pytest.mark.git_integration
