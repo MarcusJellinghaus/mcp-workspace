@@ -135,6 +135,13 @@ layer = "utilities"
 depends_on = []
 
 [[modules]]
+path = "mcp_workspace.traffic_log"
+layer = "utilities"
+depends_on = [
+    { path = "mcp_workspace.config" },
+]
+
+[[modules]]
 path = "mcp_workspace.constants"
 layer = "utilities"
 depends_on = []
@@ -172,6 +179,7 @@ depends_on = [
     { path = "mcp_workspace.workflows" },
     { path = "mcp_workspace.reference_projects" },
     { path = "mcp_workspace.config" },
+    { path = "mcp_workspace.traffic_log" },
     { path = "mcp_workspace.constants" },
     { path = "mcp_workspace.utils" },
     { path = "mcp_workspace._ssl" },
