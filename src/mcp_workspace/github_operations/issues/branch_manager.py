@@ -39,16 +39,24 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
     """
 
     def __init__(
-        self, project_dir: Optional[Path] = None, repo_url: Optional[str] = None
+        self,
+        project_dir: Optional[Path] = None,
+        repo_url: Optional[str] = None,
+        github_token: Optional[str] = None,
     ) -> None:
         """Initialize the IssueBranchManager.
 
         Args:
             project_dir: Path to the project directory containing git repository
             repo_url: GitHub repository URL (e.g., "https://github.com/user/repo.git")
+            github_token: Optional explicit token — overrides config lookup when provided.
 
         """
-        super().__init__(project_dir=project_dir, repo_url=repo_url)
+        super().__init__(
+            project_dir=project_dir,
+            repo_url=repo_url,
+            github_token=github_token,
+        )
 
     @staticmethod
     def _extract_prs_by_states(

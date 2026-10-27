@@ -2,29 +2,15 @@
 
 This module provides caching functionality for GitHub issues to improve performance
 and reduce API calls. It includes:
-- CacheData TypedDict for cache structure
-- Cache file operations (load, save, get path)
-- Cache metrics logging
 - Cache update operations for issue labels
 - Main cache retrieval function get_all_cached_issues()
+
+Cache file I/O (CacheData, load, save, path, metrics) lives in ``_cache_io``.
 """
 
-import json
 import logging
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    List,
-    NotRequired,
-    Optional,
-    Tuple,
-    TypedDict,
-)
-
-from mcp_coder_utils.user_app_data import get_user_app_data_dir
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from mcp_workspace.constants import DUPLICATE_PROTECTION_SECONDS, SINCE_OVERLAP_MINUTES
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
@@ -35,6 +21,14 @@ from mcp_workspace.utils.timezone_utils import (
     parse_iso_timestamp,
 )
 
+from ..base_manager import IssueIdentityMismatchError
+from ._cache_io import (
+    CacheData,
+    _get_cache_file_path,
+    _load_cache_file,
+    _log_cache_metrics,
+    _save_cache_file,
+)
 from .types import IssueData
 
 if TYPE_CHECKING:
@@ -45,152 +39,6 @@ logger = logging.getLogger(__name__)
 # Cache-schema version written on every save. Not branched on: the self-healing
 # migration keys off updates_covered_through absence (see _fetch_and_merge_issues).
 CACHE_SCHEMA_VERSION: int = 1
-
-
-class CacheData(TypedDict):
-    """Type definition for coordinator issue cache structure.
-
-    Attributes:
-        last_checked: ISO 8601 timestamp of last cache refresh, or None if never checked
-        last_full_refresh: ISO 8601 timestamp of last successful full refresh, or None
-        updates_covered_through: ISO 8601 data cursor (max observed issue
-            ``updated_at``) used as the ``since`` floor for incremental refreshes,
-            or None if never set (old-shape caches). Distinct from
-            ``last_checked`` (wall-clock poll time).
-        cached_at: Sidecar map ``{issue_number: ISO 8601 timestamp}`` recording
-            when each cached entry was last written. Cache-level metadata, never
-            a field on IssueData.
-        version: Cache-schema version for safe migrations, or None if unset.
-        issues: Dictionary mapping issue number (as string) to IssueData
-    """
-
-    last_checked: Optional[str]
-    last_full_refresh: NotRequired[Optional[str]]
-    updates_covered_through: NotRequired[Optional[str]]
-    cached_at: NotRequired[Dict[str, str]]
-    version: NotRequired[Optional[int]]
-    issues: Dict[str, IssueData]
-
-
-def _load_cache_file(cache_file_path: Path) -> CacheData:
-    """Load cache file or return empty cache structure.
-
-    Surfaces the schema fields with safe defaults on every return path, so
-    callers always receive a fully-shaped ``CacheData``. Old-shape files (no
-    ``updates_covered_through`` / ``version``) load with those set to None and
-    ``cached_at`` defaulting to an empty dict, which is the precondition for the
-    self-healing full refresh.
-
-    Args:
-        cache_file_path: Path to cache file
-
-    Returns:
-        CacheData with ``last_checked``, ``last_full_refresh``,
-        ``updates_covered_through``, ``cached_at``, ``version`` and ``issues``.
-        Returns an empty structure (new fields defaulted) on missing files,
-        invalid structure or load errors.
-    """
-    empty: CacheData = {
-        "last_checked": None,
-        "last_full_refresh": None,
-        "updates_covered_through": None,
-        "cached_at": {},
-        "version": None,
-        "issues": {},
-    }
-    try:
-        if not cache_file_path.exists():
-            return empty
-
-        with cache_file_path.open("r") as f:
-            data = json.load(f)
-
-        # Validate structure
-        if not isinstance(data, dict) or "issues" not in data:
-            logger.warning(f"Invalid cache structure in {cache_file_path}, recreating")
-            return empty
-
-        # Return as CacheData since we validated the structure
-        return {
-            "last_checked": data.get("last_checked"),
-            "last_full_refresh": data.get("last_full_refresh"),
-            "updates_covered_through": data.get("updates_covered_through"),
-            "cached_at": data.get("cached_at", {}),
-            "version": data.get("version"),
-            "issues": data["issues"],
-        }
-
-    except (json.JSONDecodeError, OSError, PermissionError) as e:
-        logger.warning(f"Cache load error for {cache_file_path}: {e}, starting fresh")
-        return empty
-
-
-def _log_cache_metrics(action: str, repo_name: str, **kwargs: Any) -> None:
-    """Log detailed cache performance metrics at DEBUG level.
-
-    Args:
-        action: Cache action ('hit', 'miss', 'refresh', 'save')
-        repo_name: Repository name for logging context
-        **kwargs: Additional metrics (age_minutes, issue_count, reason, etc.)
-    """
-    if action == "hit":
-        age_minutes = kwargs.get("age_minutes", 0)
-        issue_count = kwargs.get("issue_count", 0)
-        logger.debug(
-            f"Cache hit for {repo_name}: age={age_minutes}m, issues={issue_count}"
-        )
-    elif action == "miss":
-        reason = kwargs.get("reason", "unknown")
-        logger.debug(f"Cache miss for {repo_name}: reason='{reason}'")
-    elif action == "refresh":
-        refresh_type = kwargs.get("refresh_type", "unknown")
-        issue_count = kwargs.get("issue_count", 0)
-        logger.debug(
-            f"Cache refresh for {repo_name}: type={refresh_type}, new_issues={issue_count}"
-        )
-    elif action == "save":
-        total_issues = kwargs.get("total_issues", 0)
-        logger.debug(f"Cache save for {repo_name}: total_issues={total_issues}")
-
-
-def _save_cache_file(cache_file_path: Path, cache_data: CacheData) -> bool:
-    """Save cache data to file using atomic write.
-
-    Args:
-        cache_file_path: Path to cache file
-        cache_data: CacheData to save
-
-    Returns:
-        True if successful, False otherwise
-    """
-    try:
-        # Ensure directory exists
-        cache_file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Atomic write: write to temp file, then rename
-        temp_path = cache_file_path.with_suffix(".tmp")
-        with temp_path.open("w") as f:
-            json.dump(cache_data, f, indent=2)
-        temp_path.replace(cache_file_path)  # Atomic rename
-
-        return True
-
-    except (OSError, PermissionError) as e:
-        logger.warning(f"Cache save error for {cache_file_path}: {e}")
-        return False
-
-
-def _get_cache_file_path(repo_identifier: RepoIdentifier) -> Path:
-    """Get cache file path using RepoIdentifier.
-
-    Args:
-        repo_identifier: Repository identifier with owner and repo name
-
-    Returns:
-        Path to cache file
-    """
-    cache_dir = get_user_app_data_dir("mcp_coder") / "coordinator_cache"
-    return cache_dir / f"{repo_identifier.cache_safe_name}.issues.json"
 
 
 def update_issue_labels_in_cache(
@@ -295,54 +143,221 @@ def _log_stale_cache_entries(
                 logger.info(f"Issue #{issue_num}: no longer exists in repository")
 
 
-def _fetch_additional_issues(
+def _needs_fetch(
+    cache_data: CacheData,
+    key: str,
+    now: datetime,
+    cache_refresh_minutes: int,
+    force_refresh: bool,
+) -> bool:
+    """Decide whether an additional issue must be fetched individually.
+
+    Args:
+        cache_data: Current cache data
+        key: Issue number as string
+        now: Current UTC timestamp
+        cache_refresh_minutes: Maximum age of a cached entry in minutes
+        force_refresh: A forced refresh bypasses the cache
+
+    Returns:
+        True when ``force_refresh`` is set, the issue is not cached, or its
+        ``cached_at`` stamp is missing, unparseable or older than
+        ``cache_refresh_minutes``.
+    """
+    if force_refresh or key not in cache_data["issues"]:
+        return True
+    cached_at_str = cache_data.get("cached_at", {}).get(key)
+    if not cached_at_str:
+        return True
+    try:
+        cached_at = parse_iso_timestamp(cached_at_str)
+    except ValueError:
+        return True
+    return (now - cached_at) > timedelta(minutes=cache_refresh_minutes)
+
+
+def _fetch_additional_issues(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     issue_manager: "IssueManager",
     additional_issue_numbers: list[int],
     repo_name: str,
     cache_data: CacheData,
-) -> dict[str, IssueData]:
-    """Fetch specific issues by number via individual API calls.
+    now: datetime,
+    cache_refresh_minutes: int,
+    force_refresh: bool,
+) -> set[str]:
+    """Fetch specific issues by number via individual API calls, when needed.
+
+    An issue is fetched only when ``_needs_fetch`` says so (forced refresh, not
+    cached, or ``cached_at`` missing/unparseable/stale). Fetched issues are
+    written into ``cache_data["issues"]`` and stamped in ``cache_data["cached_at"]``
+    with ``now``, in place. A failed fetch keeps any cached copy and its old stamp.
 
     Args:
         issue_manager: IssueManager for GitHub API calls
         additional_issue_numbers: List of issue numbers to fetch
         repo_name: Repository name for logging
-        cache_data: Current cache data to check for existing issues
+        cache_data: Current cache data (modified in place)
+        now: Current UTC timestamp
+        cache_refresh_minutes: Maximum age of a cached entry in minutes
+        force_refresh: Fetch every issue regardless of cache state
 
     Returns:
-        Dict mapping issue number (as string) to IssueData.
-        Includes issues already in cache (doesn't re-fetch but returns them).
+        Set of issue keys (issue number as string) actually fetched and written.
     """
-    result: dict[str, IssueData] = {}
+    fetched: set[str] = set()
+    now_str = format_for_cache(now)
+    cached_at = cache_data.setdefault("cached_at", {})
 
     for issue_num in additional_issue_numbers:
         issue_key = str(issue_num)
+        if not _needs_fetch(
+            cache_data, issue_key, now, cache_refresh_minutes, force_refresh
+        ):
+            continue
 
-        # Always re-fetch additional_issues to ensure fresh data
         try:
             issue = issue_manager.get_issue(issue_num)
-            if issue["number"] != 0:  # Valid issue
-                result[issue_key] = issue
-                if issue_key in cache_data["issues"]:
-                    logger.debug(
-                        f"Refreshed issue #{issue_num} in cache for {repo_name}"
-                    )
-                else:
-                    logger.debug(
-                        f"Fetched additional issue #{issue_num} for {repo_name}"
-                    )
         except (
             Exception
         ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
             if issue_key in cache_data["issues"]:
-                result[issue_key] = cache_data["issues"][issue_key]
                 logger.warning(
                     f"Failed to fetch issue #{issue_num}: {e}, using cached version"
                 )
             else:
                 logger.warning(f"Failed to fetch issue #{issue_num}: {e}")
+            continue
 
-    return result
+        if issue["number"] != 0:  # Valid issue
+            if issue_key in cache_data["issues"]:
+                logger.debug(f"Refreshed issue #{issue_num} in cache for {repo_name}")
+            else:
+                logger.debug(f"Fetched additional issue #{issue_num} for {repo_name}")
+            cache_data["issues"][issue_key] = issue
+            cached_at[issue_key] = now_str
+            fetched.add(issue_key)
+
+    return fetched
+
+
+def _save_fetched_issues(
+    repo_identifier: RepoIdentifier, cache_data: CacheData, fetched_keys: set[str]
+) -> None:
+    """Persist individually fetched issues on paths that skip the main save.
+
+    Reloads the cache file first (another process may have refreshed it) and
+    merges only the fetched entries and their ``cached_at`` stamps. Never
+    touches ``last_checked``, ``updates_covered_through`` or
+    ``last_full_refresh``: bumping ``last_checked`` would extend the duplicate
+    protection window forever. ``version`` is left as loaded.
+
+    Args:
+        repo_identifier: Repository identifier with owner and repo name
+        cache_data: In-memory cache data holding the fetched entries
+        fetched_keys: Issue keys returned by ``_fetch_additional_issues``
+    """
+    if not fetched_keys:
+        return
+    cache_file_path = _get_cache_file_path(repo_identifier)
+    on_disk = _load_cache_file(cache_file_path)
+    on_disk_cached_at = on_disk.setdefault("cached_at", {})
+    cached_at = cache_data.get("cached_at", {})
+    for key in fetched_keys:
+        on_disk["issues"][key] = cache_data["issues"][key]
+        on_disk_cached_at[key] = cached_at[key]
+    _save_cache_file(cache_file_path, on_disk)
+
+
+def _put_back_session_issues(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    issue_manager: "IssueManager",
+    additional_issue_numbers: list[int],
+    cache_data: CacheData,
+    fresh_dict: dict[str, IssueData],
+    issues_snapshot: dict[str, IssueData],
+    cached_at_snapshot: dict[str, str],
+    fetched_keys: set[str],
+    now: datetime,
+) -> None:
+    """Put back cached session issues a full refresh cleared, if they still exist.
+
+    Session issues missing from the ``state=open`` list are closed, deleted or
+    transferred. Each is re-fetched once to tell them apart, except keys
+    already fetched this call (put back with their new stamp). A confirmed
+    issue is stored and stamped with ``now``; a deleted (``number == 0``) or
+    transferred (``IssueIdentityMismatchError``) one is left out. Any other
+    failure keeps the cached copy and its old stamp.
+
+    Args:
+        issue_manager: IssueManager for GitHub API calls
+        additional_issue_numbers: Session issue numbers
+        cache_data: Cache data after the full refresh (modified in place)
+        fresh_dict: Issues returned by the full refresh, keyed by number
+        issues_snapshot: Cached issues from before the full refresh
+        cached_at_snapshot: ``cached_at`` stamps from before the full refresh
+        fetched_keys: Keys fetched individually in step 2 of this call
+        now: Current UTC timestamp
+    """
+    now_str = format_for_cache(now)
+    cached_at = cache_data.setdefault("cached_at", {})
+    for issue_num in additional_issue_numbers:
+        issue_key = str(issue_num)
+        if issue_key in fresh_dict or issue_key not in issues_snapshot:
+            continue
+        if issue_key not in fetched_keys:
+            try:
+                issue = issue_manager.get_issue(issue_num)
+            except IssueIdentityMismatchError as e:
+                logger.info(f"Issue #{issue_num} dropped from cache: {e}")
+                continue
+            except (
+                Exception
+            ) as e:  # pylint: disable=broad-exception-caught  # keep cached copy on any other failure
+                logger.warning(
+                    f"Failed to re-check issue #{issue_num}: {e}, using cached version"
+                )
+            else:
+                if issue["number"] == 0:
+                    logger.info(f"Issue #{issue_num}: no longer exists in repository")
+                    continue
+                cache_data["issues"][issue_key] = issue
+                cached_at[issue_key] = now_str
+                continue
+        cache_data["issues"][issue_key] = issues_snapshot[issue_key]
+        if issue_key in cached_at_snapshot:
+            cached_at[issue_key] = cached_at_snapshot[issue_key]
+
+
+def _is_full_refresh_due(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    force_refresh: bool,
+    last_checked: Optional[datetime],
+    last_full_refresh: Optional[datetime],
+    updates_covered_through: Optional[datetime],
+    now: datetime,
+    cache_refresh_minutes: int,
+) -> bool:
+    """Return True when the next refresh must be a full ``state=open`` refresh.
+
+    A missing ``updates_covered_through`` (old-shape cache) self-heals via one
+    full refresh.
+
+    Args:
+        force_refresh: Whether a full refresh is forced
+        last_checked: Last cache check timestamp (or None)
+        last_full_refresh: Last full refresh timestamp (or None)
+        updates_covered_through: Parsed data cursor (or None)
+        now: Current UTC timestamp
+        cache_refresh_minutes: Full refresh threshold in minutes
+
+    Returns:
+        Whether a full refresh is due.
+    """
+    return bool(
+        force_refresh
+        or not last_checked
+        or not last_full_refresh
+        or not updates_covered_through
+        or (now - last_full_refresh) > timedelta(minutes=cache_refresh_minutes)
+    )
 
 
 def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
@@ -384,14 +399,13 @@ def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-posi
         or None when the incremental list is empty (so the caller leaves the
         stored cursor unchanged).
     """
-    # Determine refresh strategy. A missing updates_covered_through (old-shape
-    # cache) self-heals via one full refresh.
-    is_full_refresh = (
-        force_refresh
-        or not last_checked
-        or not last_full_refresh
-        or not updates_covered_through
-        or (now - last_full_refresh) > timedelta(minutes=cache_refresh_minutes)
+    is_full_refresh = _is_full_refresh_due(
+        force_refresh,
+        last_checked,
+        last_full_refresh,
+        updates_covered_through,
+        now,
+        cache_refresh_minutes,
     )
 
     # Fetch issues using appropriate method
@@ -489,9 +503,12 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
         cache_refresh_minutes: Full refresh threshold (default: 1440 = 24 hours)
         additional_issues: Extends the full refresh with known closed issues.
                           Full refresh uses state="open" so closed issues are never returned.
-                          Pass session issue numbers here to ensure closed session issues
-                          are always fetched individually, regardless of refresh type or the
-                          duplicate protection window (fetched before that check).
+                          Pass session issue numbers here; each is fetched individually
+                          (before the duplicate protection check) only when not cached,
+                          its cached_at is missing/stale, or force_refresh is set. When a
+                          full refresh runs, cached ones are not fetched up front; those
+                          missing from the open list are re-checked once and put back,
+                          unless deleted or transferred.
 
     Returns:
         List of ALL cached issues (unfiltered). Caller is responsible for filtering.
@@ -545,31 +562,51 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
                 f"{updates_covered_through_str}, error: {e}"
             )
 
-    # Step 2: Fetch additional issues BEFORE duplicate protection check
-    additional_dict: dict[str, IssueData] = {}
-    if additional_issues:
-        logger.debug(
-            f"Fetching {len(additional_issues)} additional issues for {repo_name}"
-        )
-        additional_dict = _fetch_additional_issues(
-            issue_manager,
-            additional_issues,
-            repo_name,
-            cache_data,
-        )
-        cache_data["issues"].update(additional_dict)
-        if additional_dict:
-            logger.debug(
-                f"Added {len(additional_dict)} additional issues to cache for {repo_name}"
-            )
-
-    # Step 3: Check duplicate protection (50 second window)
     now = now_utc()
-    if (
+    duplicate_protected = bool(
         not force_refresh
         and last_checked
         and is_within_duration(last_checked, DUPLICATE_PROTECTION_SECONDS, now)
-    ):
+    )
+    full_refresh_will_run = not duplicate_protected and _is_full_refresh_due(
+        force_refresh,
+        last_checked,
+        last_full_refresh,
+        updates_covered_through,
+        now,
+        cache_refresh_minutes,
+    )
+
+    # Step 2: Fetch additional issues BEFORE duplicate protection check. When a
+    # full refresh runs in this call, cached ones are left to step 5b: the open
+    # list restamps open ones, and step 5b re-checks the rest once.
+    fetched_keys: set[str] = set()
+    if additional_issues:
+        logger.debug(
+            f"Checking {len(additional_issues)} additional issues for {repo_name}"
+        )
+        to_fetch = [
+            n
+            for n in additional_issues
+            if not full_refresh_will_run or str(n) not in cache_data["issues"]
+        ]
+        fetched_keys = _fetch_additional_issues(
+            issue_manager,
+            to_fetch,
+            repo_name,
+            cache_data,
+            now,
+            cache_refresh_minutes,
+            force_refresh,
+        )
+        if fetched_keys:
+            logger.debug(
+                f"Fetched {len(fetched_keys)} additional issues into cache for {repo_name}"
+            )
+
+    # Step 3: Check duplicate protection (50 second window)
+    if duplicate_protected:
+        assert last_checked is not None
         age_seconds = int((now - last_checked).total_seconds())
         _log_cache_metrics(
             "hit",
@@ -578,10 +615,13 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
             reason=f"duplicate_protection_{age_seconds}s",
         )
         logger.debug(f"Skipping {repo_name} - checked {age_seconds}s ago")
+        _save_fetched_issues(repo_identifier, cache_data, fetched_keys)
         return list(cache_data["issues"].values())
 
-    # Save snapshot BEFORE fetch (in case full refresh clears cache_data["issues"])
+    # Save snapshots BEFORE fetch (in case full refresh clears cache_data["issues"]
+    # and cached_at). Taken after step 2, so fetched keys carry the new stamp.
     issues_snapshot = dict(cache_data["issues"])
+    cached_at_snapshot = dict(cache_data.get("cached_at", {}))
 
     try:
         # Step 4: Fetch and merge issues
@@ -601,20 +641,30 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
         fresh_dict = {str(issue["number"]): issue for issue in fresh_issues}
         cache_data["issues"].update(fresh_dict)
 
-        # Step 5b: Restore additional issues (they may have been cleared during full refresh)
+        # Step 5b: Put back session issues the full refresh cleared (closed
+        # session issues are never in the state=open list), dropping deleted or
+        # transferred ones. Issues in fresh_dict keep the fresh version.
         # Note: additional issues are fetched by number, bypassing `since`, so
         # they must never feed the data cursor (new_cursor already excludes them).
-        if additional_dict:
-            cache_data["issues"].update(additional_dict)
+        if was_full_refresh and additional_issues:
+            _put_back_session_issues(
+                issue_manager,
+                additional_issues,
+                cache_data,
+                fresh_dict,
+                issues_snapshot,
+                cached_at_snapshot,
+                fetched_keys,
+                now,
+            )
 
-        # Step 5c: Stamp the cached_at sidecar for every issue written this
-        # refresh (fresh + additional). On full refresh cached_at was reset to {}
-        # in _fetch_and_merge_issues, so this rebuilds it from scratch.
+        # Step 5c: Stamp the cached_at sidecar for every issue in fresh_dict. On
+        # full refresh cached_at was reset to {} in _fetch_and_merge_issues, so
+        # this (with step 5b) rebuilds it from scratch.
         now_str = format_for_cache(now)
+        cached_at = cache_data.setdefault("cached_at", {})
         for issue_key in fresh_dict:
-            cache_data["cached_at"][issue_key] = now_str
-        for issue_key in additional_dict:
-            cache_data["cached_at"][issue_key] = now_str
+            cached_at[issue_key] = now_str
         cache_data["version"] = CACHE_SCHEMA_VERSION
 
         cache_data["last_checked"] = format_for_cache(now)
@@ -631,6 +681,8 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
     except Exception:  # pylint: disable=broad-exception-caught
         logger.warning("API fetch failed for %s, returning stale cache", repo_name)
         cache_data["issues"] = issues_snapshot
+        cache_data["cached_at"] = cached_at_snapshot
+        _save_fetched_issues(repo_identifier, cache_data, fetched_keys)
         return list(cache_data["issues"].values())
 
     # Step 7: Return ALL cached issues (unfiltered)

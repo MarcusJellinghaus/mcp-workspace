@@ -14,7 +14,7 @@ from mcp_coder_utils.log_utils import log_function_call
 from . import _pr_feedback_sources
 from ._diagnostics import format_rate_limit_error
 from .base_manager import _handle_github_errors
-from .pr_types import PRFeedback
+from .pr_types import AlertData, PRFeedback
 
 if TYPE_CHECKING:
     from .pr_manager import PullRequestManager
@@ -105,11 +105,16 @@ class PRFeedbackMixin:
 
     @log_function_call
     @_handle_github_errors(default_return=_empty_pr_feedback)
-    def get_pr_feedback(self: "PullRequestManager", pr_number: int) -> PRFeedback:
+    def get_pr_feedback(
+        self: "PullRequestManager", pr_number: int, include_alerts: bool = True
+    ) -> PRFeedback:
         """Fetch aggregated PR feedback (review threads, comments, alerts).
 
         Args:
             pr_number: Pull request number to query
+            include_alerts: Fetch code-scanning alerts. When False, no
+                code-scanning request is made: ``alerts`` is ``[]`` and neither
+                ``unavailable`` nor ``skipped`` has an ``"alerts"`` key.
 
         Returns:
             PRFeedback dict containing unresolved threads, resolved thread count,
@@ -154,27 +159,30 @@ class PRFeedbackMixin:
             comments = []
             unavailable["comments"] = e
 
-        try:
-            alerts = _pr_feedback_sources.fetch_code_scanning_alerts(self, pr_number)
-        except (
-            Exception
-        ) as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
-            alerts = []
-            # 403/404 without a rate limit: token lacks security_events:read,
-            # code scanning is disabled, or no analysis exists — not a failure.
-            if (
-                getattr(e, "status", None) in (403, 404)
-                and format_rate_limit_error(e) is None
-            ):
-                logger.debug(
-                    f"Code-scanning alerts not checked for PR #{pr_number}: {e}"
+        alerts: list[AlertData] = []
+        if include_alerts:
+            try:
+                alerts = _pr_feedback_sources.fetch_code_scanning_alerts(
+                    self, pr_number
                 )
-                skipped["alerts"] = e
-            else:
-                logger.warning(
-                    f"Failed to fetch code-scanning alerts for PR #{pr_number}: {e}"
-                )
-                unavailable["alerts"] = e
+            except (
+                Exception
+            ) as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
+                # 403/404 without a rate limit: token lacks security_events:read,
+                # code scanning is disabled, or no analysis exists — not a failure.
+                if (
+                    getattr(e, "status", None) in (403, 404)
+                    and format_rate_limit_error(e) is None
+                ):
+                    logger.debug(
+                        f"Code-scanning alerts not checked for PR #{pr_number}: {e}"
+                    )
+                    skipped["alerts"] = e
+                else:
+                    logger.warning(
+                        f"Failed to fetch code-scanning alerts for PR #{pr_number}: {e}"
+                    )
+                    unavailable["alerts"] = e
 
         return {
             "unresolved_threads": threads,

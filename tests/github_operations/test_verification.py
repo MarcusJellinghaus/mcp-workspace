@@ -1365,8 +1365,8 @@ class TestPermissionProbeOverallOkUnaffected:
             mock_manager = Mock()
             mock_manager._get_repository.return_value = mock_repo
             mock_manager.get_default_branch.return_value = "main"
-            # _repo_identifier is a property used by run_permission_probes
-            mock_manager._repo_identifier = identifier
+            # repo_identifier is a property used by run_permission_probes
+            mock_manager.repo_identifier = identifier
             mock_mgr_cls.return_value = mock_manager
             result = verify_github(tmp_path)
 

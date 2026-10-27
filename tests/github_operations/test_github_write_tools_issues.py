@@ -485,9 +485,9 @@ def test_github_issue_create_me_lookup_is_per_host(
     elsewhere must not inherit the workspace host's login.
     """
     workspace = _make_manager(login="marcus")
-    workspace._repo_identifier.api_base_url = "https://api.github.com"
+    workspace.repo_identifier.api_base_url = "https://api.github.com"
     other_host = _make_manager(login="marcus-ghe")
-    other_host._repo_identifier.api_base_url = "https://ghe.example.com/api/v3"
+    other_host.repo_identifier.api_base_url = "https://ghe.example.com/api/v3"
 
     mock_manager_cls.return_value = workspace
     github_issue_create(title="First", assignees=["@me"])
@@ -508,10 +508,10 @@ def test_github_issue_create_me_lookup_is_per_token(
     cache key alongside the host.
     """
     first = _make_manager(login="marcus")
-    first._repo_identifier.api_base_url = "https://api.github.com"
+    first.repo_identifier.api_base_url = "https://api.github.com"
     first.github_token = "token-a"
     second = _make_manager(login="bot")
-    second._repo_identifier.api_base_url = "https://api.github.com"
+    second.repo_identifier.api_base_url = "https://api.github.com"
     second.github_token = "token-b"
 
     mock_manager_cls.return_value = first

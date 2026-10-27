@@ -101,7 +101,7 @@ def is_body_trusted(  # pylint: disable=too-many-arguments,too-many-positional-a
         # pylint: disable=protected-access
         token_user = _cached_login(
             manager.github_token,
-            manager._repo_identifier.api_base_url,
+            manager.repo_identifier.api_base_url,
             manager._github_client,
         )
         return editor.lower() == token_user.lower()

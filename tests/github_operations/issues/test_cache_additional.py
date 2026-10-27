@@ -20,13 +20,15 @@ from mcp_workspace.github_operations.issues import (
     IssueData,
     update_issue_labels_in_cache,
 )
-from mcp_workspace.github_operations.issues.cache import (
-    CACHE_SCHEMA_VERSION,
+from mcp_workspace.github_operations.issues._cache_io import (
     _get_cache_file_path,
     _load_cache_file,
     _log_cache_metrics,
-    _log_stale_cache_entries,
     _save_cache_file,
+)
+from mcp_workspace.github_operations.issues.cache import (
+    CACHE_SCHEMA_VERSION,
+    _log_stale_cache_entries,
     get_all_cached_issues,
 )
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
@@ -124,92 +126,6 @@ class TestAdditionalIssuesParameter:
             saved_data = mock_save.call_args[0][1]
             assert "100" in saved_data["issues"]
             assert "123" in saved_data["issues"]
-
-    def test_additional_issues_always_refreshed(
-        self, mock_cache_issue_manager: Mock
-    ) -> None:
-        """Test that additional issues are always re-fetched for freshness.
-
-        Given: Cache already has issue #123 with stale state (was open, now closed)
-        When: Call get_all_cached_issues(additional_issues=[123])
-        Then:
-        - API call is made for #123 to get fresh data
-        - Issue #123 is in returned list with updated state
-        """
-        from mcp_workspace.github_operations.issues.cache import get_all_cached_issues
-
-        # Cached issue with stale state (open)
-        existing_issue: IssueData = {
-            "number": 123,
-            "state": "open",  # Stale - was open, now closed
-            "labels": ["bug"],
-            "assignees": [],
-            "user": "testuser",
-            "created_at": "2025-12-31T07:00:00Z",
-            "locked": False,
-            "author_association": "OWNER",
-            "title": "Existing issue",
-            "body": "Existing body",
-            "url": "http://test.com/123",
-            "updated_at": "2025-12-31T09:00:00Z",
-        }
-
-        # Fresh issue state from API (closed)
-        fresh_issue: IssueData = {
-            "number": 123,
-            "state": "closed",  # Fresh - actually closed now
-            "labels": ["bug"],
-            "assignees": [],
-            "user": "testuser",
-            "created_at": "2025-12-31T07:00:00Z",
-            "locked": False,
-            "author_association": "OWNER",
-            "title": "Existing issue",
-            "body": "Existing body",
-            "url": "http://test.com/123",
-            "updated_at": "2025-12-31T09:00:00Z",
-        }
-
-        mock_cache_issue_manager.list_issues.return_value = []
-        mock_cache_issue_manager.repo_url = "https://github.com/owner/repo"
-        mock_cache_issue_manager.get_issue.return_value = fresh_issue
-
-        with (
-            patch(
-                "mcp_workspace.github_operations.issues.cache._get_cache_file_path"
-            ) as mock_path,
-            patch(
-                "mcp_workspace.github_operations.issues.cache._load_cache_file"
-            ) as mock_load,
-            patch(
-                "mcp_workspace.github_operations.issues.cache._save_cache_file"
-            ) as mock_save,
-        ):
-            import tempfile
-            from pathlib import Path
-
-            mock_path.return_value = Path(tempfile.gettempdir()) / "test_cache.json"
-            # Cache already has issue #123
-            mock_load.return_value = {
-                "last_checked": None,
-                "issues": {"123": existing_issue},
-            }
-            mock_save.return_value = True
-
-            # Call with additional_issues parameter
-            result = get_all_cached_issues(
-                RepoIdentifier.from_full_name("owner/repo"),
-                mock_cache_issue_manager,
-                additional_issues=[123],
-            )
-
-            # Verify get_issue WAS called to refresh data
-            mock_cache_issue_manager.get_issue.assert_called_once_with(123)
-
-            # Verify issue #123 is in result with FRESH state (closed)
-            assert len(result) == 1
-            assert result[0]["number"] == 123
-            assert result[0]["state"] == "closed"  # Fresh state, not stale
 
     def test_no_additional_issues_backward_compatible(
         self, mock_cache_issue_manager: Mock

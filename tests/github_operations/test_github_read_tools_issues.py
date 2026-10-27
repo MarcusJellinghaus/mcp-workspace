@@ -118,7 +118,7 @@ def test_github_issue_view_not_found_repo_unreachable(
         author_association="OWNER",
     )
     mock_mgr._get_repository.return_value = None
-    mock_mgr._repo_identifier.api_base_url = "https://gitlab.com/api/v3"
+    mock_mgr.repo_identifier.api_base_url = "https://gitlab.com/api/v3"
     mock_manager_cls.return_value = mock_mgr
 
     result = github_issue_view(number=999)
@@ -379,7 +379,7 @@ def test_github_issue_list_empty_repo_unreachable(mock_manager_cls: MagicMock) -
     mock_mgr = MagicMock()
     mock_mgr.list_issues.return_value = []
     mock_mgr._get_repository.return_value = None
-    mock_mgr._repo_identifier.api_base_url = "https://gitlab.com/api/v3"
+    mock_mgr.repo_identifier.api_base_url = "https://gitlab.com/api/v3"
     mock_manager_cls.return_value = mock_mgr
 
     result = github_issue_list()

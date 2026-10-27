@@ -226,3 +226,5 @@ _._token_login  # name="token_login"
 _._git_mocks  # name="git_mocks"
 # Autouse fixture defaulting fetch_rules to no rulesets (issue #350, pytest collection only)
 _._default_rules_empty
+# Autouse fixture clearing the per-process repository cache (issue #360, pytest collection only)
+_._reset_repository_cache
