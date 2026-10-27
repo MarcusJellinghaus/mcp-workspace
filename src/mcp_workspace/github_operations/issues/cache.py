@@ -519,8 +519,14 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
         List of ALL cached issues (unfiltered). Caller is responsible for filtering.
         Returns empty list if duplicate protection triggers.
 
+    Raises:
+        GitHubRateLimitError: If the GitHub API reports a rate limit during
+            the fetch, whether raised as such or converted from the underlying
+            API exception. Rate limits propagate instead of returning stale cache.
+
     Note:
-        Caller (thin wrapper) should handle fallback to direct API fetch.
+        Other API failures return the stale cache; the caller (thin wrapper)
+        should handle fallback to direct API fetch.
     """
     # Step 1: Load cache
     cache_data = _load_cache_file(_get_cache_file_path(repo_identifier))
