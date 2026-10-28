@@ -188,6 +188,8 @@ _.path
 _.cached_at
 # CIStatusData TypedDict field - accessed via subscript
 _.lookup_failed
+# OpenPullRequest TypedDict field - accessed via subscript / .get()
+_.head_label
 
 # Test fixtures
 _.mock_zip_content

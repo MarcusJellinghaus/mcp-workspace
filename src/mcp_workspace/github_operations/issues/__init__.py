@@ -14,13 +14,14 @@ from ._cache_io import (
     _get_cache_file_path,
     _load_cache_file,
     _save_cache_file,
+    get_issue_cache_last_checked,
 )
 
 # Base utilities
 from .base import MalformedBaseBranchError, parse_base_branch
 
 # Branch manager and utilities
-from .branch_manager import IssueBranchManager
+from .branch_manager import BranchLookup, BranchLookupError, IssueBranchManager
 from .branch_naming import BranchCreationResult, generate_branch_name_from_issue
 from .cache import (
     _log_stale_cache_entries,
@@ -52,12 +53,15 @@ __all__ = [
     "IssueManager",
     # Branch manager
     "IssueBranchManager",
+    "BranchLookup",
+    "BranchLookupError",
     "BranchCreationResult",
     "generate_branch_name_from_issue",
     "ClosingPRRef",
     # Cache
     "CacheData",
     "get_all_cached_issues",
+    "get_issue_cache_last_checked",
     "update_issue_labels_in_cache",
     # Utility functions (exported for testing)
     "parse_base_branch",

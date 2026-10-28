@@ -124,6 +124,24 @@ class PRFeedbackMixin:
             be checked (``skipped``) — a 403/404 on alerts that is not a rate
             limit goes into ``skipped``, every other failure into ``unavailable``.
         """
+        return self._collect_pr_feedback(pr_number, include_alerts=include_alerts)
+
+    def _collect_pr_feedback(  # type: ignore[misc]  # mixin self-type; decorated siblings hide the same check
+        self: "PullRequestManager", pr_number: int, include_alerts: bool = True
+    ) -> PRFeedback:
+        """Undecorated body of ``get_pr_feedback``.
+
+        Per-section failures go to ``unavailable`` / ``skipped``; anything
+        raised outside the sections propagates (the PR cache relies on this
+        so that such an error is never cached as "no feedback").
+
+        Args:
+            pr_number: Pull request number to query
+            include_alerts: Fetch code-scanning alerts
+
+        Returns:
+            PRFeedback dict, as documented on ``get_pr_feedback``.
+        """
         if not self._validate_pr_number(pr_number):
             return _empty_pr_feedback()
 

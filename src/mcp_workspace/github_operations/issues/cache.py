@@ -22,6 +22,7 @@ from mcp_workspace.utils.timezone_utils import (
 )
 
 from ..base_manager import IssueIdentityMismatchError
+from ..caching.errors import GitHubRateLimitError, to_rate_limit_error
 from ._cache_io import (
     CacheData,
     _get_cache_file_path,
@@ -220,6 +221,8 @@ def _fetch_additional_issues(  # pylint: disable=too-many-arguments,too-many-pos
         except (
             Exception
         ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+            if (rl := to_rate_limit_error(e)) is not None:
+                raise rl from e
             if issue_key in cache_data["issues"]:
                 logger.warning(
                     f"Failed to fetch issue #{issue_num}: {e}, using cached version"
@@ -312,6 +315,8 @@ def _put_back_session_issues(  # pylint: disable=too-many-arguments,too-many-pos
             except (
                 Exception
             ) as e:  # pylint: disable=broad-exception-caught  # keep cached copy on any other failure
+                if (rl := to_rate_limit_error(e)) is not None:
+                    raise rl from e
                 logger.warning(
                     f"Failed to re-check issue #{issue_num}: {e}, using cached version"
                 )
@@ -514,8 +519,14 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
         List of ALL cached issues (unfiltered). Caller is responsible for filtering.
         Returns empty list if duplicate protection triggers.
 
+    Raises:
+        GitHubRateLimitError: If the GitHub API reports a rate limit during
+            the fetch, whether raised as such or converted from the underlying
+            API exception. Rate limits propagate instead of returning stale cache.
+
     Note:
-        Caller (thin wrapper) should handle fallback to direct API fetch.
+        Other API failures return the stale cache; the caller (thin wrapper)
+        should handle fallback to direct API fetch.
     """
     # Step 1: Load cache
     cache_data = _load_cache_file(_get_cache_file_path(repo_identifier))
@@ -678,7 +689,12 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
             _log_cache_metrics(
                 "save", repo_name, total_issues=len(cache_data["issues"])
             )
-    except Exception:  # pylint: disable=broad-exception-caught
+    except GitHubRateLimitError:
+        # Already converted (e.g. step 5b); keep its original __cause__.
+        raise
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        if (rl := to_rate_limit_error(e)) is not None:
+            raise rl from e
         logger.warning("API fetch failed for %s, returning stale cache", repo_name)
         cache_data["issues"] = issues_snapshot
         cache_data["cached_at"] = cached_at_snapshot

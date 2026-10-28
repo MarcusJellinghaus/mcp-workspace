@@ -12,7 +12,10 @@ from mcp_coder_utils.log_utils import log_function_call
 from ..base_manager import BaseGitHubManager, _handle_github_errors
 from .base import validate_issue_number_or_log
 from .branch_naming import BranchCreationResult, generate_branch_name_from_issue
-from .linked_branches_mixin import LinkedBranchesMixin
+from .linked_branches_mixin import LinkedBranchesMixin, _query_linked_branches
+from .types import BranchLookup
+
+__all__ = ["BranchLookup", "BranchLookupError", "IssueBranchManager"]
 
 # Configure logger for GitHub operations
 logger = logging.getLogger(__name__)
@@ -21,6 +24,35 @@ logger = logging.getLogger(__name__)
 # flake where the mutation succeeds but the response omits linkedBranch.ref.
 _CREATE_LINKED_BRANCH_MAX_ATTEMPTS = 3
 _CREATE_LINKED_BRANCH_RETRY_BASE_DELAY_SECONDS = 1.0
+
+# Issue timeline query used by the open/closed-PR fallback of branch resolution.
+_TIMELINE_PRS_QUERY = """
+query($owner: String!, $repo: String!, $issueNumber: Int!) {
+  repository(owner: $owner, name: $repo) {
+    issue(number: $issueNumber) {
+      timelineItems(itemTypes: [CROSS_REFERENCED_EVENT], first: 100) {
+        nodes {
+          __typename
+          ... on CrossReferencedEvent {
+            source {
+              ... on PullRequest {
+                number
+                state
+                isDraft
+                headRefName
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+
+class BranchLookupError(Exception):
+    """Branch resolution could not be completed (not a GitHub 'no branch' answer)."""
 
 
 class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
@@ -97,6 +129,18 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
     ) -> Optional[str]:
         """Search for branches matching an issue number pattern.
 
+        Args:
+            issue_number: Issue number to search for
+            repo: PyGithub Repository object
+
+        Returns:
+            Branch name if exactly one match found, None otherwise
+        """
+        return self._pattern_lookup(issue_number, repo).branch
+
+    def _pattern_lookup(self, issue_number: int, repo: Any) -> BranchLookup:
+        """Search for branches matching an issue number pattern.
+
         Uses a two-pass strategy:
         1. Prefix match (cheap) - catches "123-foo" style branches
         2. Full scan fallback - catches "feature/123-foo" style branches
@@ -106,7 +150,8 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
             repo: PyGithub Repository object
 
         Returns:
-            Branch name if exactly one match found, None otherwise
+            ``found`` for exactly one match, ``ambiguous`` for several,
+            ``not_found`` for none
         """
         pattern = re.compile(r"(^|/)" + str(issue_number) + r"[-_]")
 
@@ -121,12 +166,12 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
             logger.info(
                 f"Issue #{issue_number}: Found branch via pattern match: {matches[0]}"
             )
-            return matches[0]
+            return BranchLookup("found", matches[0])
         if len(matches) > 1:
             logger.warning(
                 f"Issue #{issue_number}: Ambiguous branch pattern match: {matches}"
             )
-            return None
+            return BranchLookup("ambiguous")
 
         # Pass 2: full scan fallback (catches "feature/123-foo" style)
         all_refs = list(repo.get_git_matching_refs("heads/"))
@@ -146,14 +191,14 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
             logger.info(
                 f"Issue #{issue_number}: Found branch via full scan pattern match: {matches[0]}"
             )
-            return matches[0]
+            return BranchLookup("found", matches[0])
         if len(matches) > 1:
             logger.warning(
                 f"Issue #{issue_number}: Ambiguous branch pattern match in full scan: {matches}"
             )
-            return None
+            return BranchLookup("ambiguous")
 
-        return None
+        return BranchLookup("not_found")
 
     @log_function_call
     @_handle_github_errors(
@@ -263,7 +308,10 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
             last_result, retryable = self._parse_create_linked_branch_response(
                 result, issue_number
             )
-            if last_result.get("success") or not retryable:
+            if last_result.get("success"):
+                self._invalidate_branch_cache(issue_number)
+                return last_result
+            if not retryable:
                 return last_result
 
             if attempt < _CREATE_LINKED_BRANCH_MAX_ATTEMPTS - 1:
@@ -281,6 +329,21 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
         # Retries exhausted — last_result holds the final failure
         assert last_result is not None
         return last_result
+
+    def _invalidate_branch_cache(self, issue_number: int) -> None:
+        """Drop the issue's branch-lookup cache entry. Never raises."""
+        # Function-local import avoids the load-time cycle
+        # issues/_cache_io -> caching._store / caching.branches -> issues
+        from ..caching.branches import (  # pylint: disable=import-outside-toplevel
+            invalidate_branch_entry,
+        )
+
+        try:
+            repo_identifier = self.repo_identifier
+        except ValueError as e:
+            logger.warning(f"Skipping branch cache invalidation: {e}")
+            return
+        invalidate_branch_entry(repo_identifier, issue_number)
 
     @staticmethod
     def _parse_create_linked_branch_response(
@@ -362,15 +425,8 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
     ) -> Optional[str]:
         """Get branch for issue using a 4-step resolution strategy.
 
-        Resolution order:
-        1. Linked branches via GitHub's linked-branch API (fast)
-        2. Open PRs mentioning the issue in the timeline
-        3. Closed PRs whose branch still exists (most recent first)
-        4. Pattern-matching branch names by issue number
-
-        Returns the first unambiguous match. Steps 1, 2, and 4 treat
-        multiple matches as ambiguous (returns None). Step 3 returns
-        the most recent closed PR whose branch still exists.
+        Wraps resolve_branch_for_issue(): ambiguous, not-found and
+        incomplete lookups all return None.
 
         Args:
             issue_number: Issue number to find branch for
@@ -380,60 +436,100 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
         Returns:
             Branch name if found, None otherwise
         """
-        # Step 1: Validate issue number
         if not validate_issue_number_or_log(issue_number):
             logger.debug(f"Invalid issue number: {issue_number}")
             return None
+
+        try:
+            return self.resolve_branch_for_issue(
+                issue_number, repo_owner, repo_name
+            ).branch
+        except BranchLookupError as e:
+            logger.debug(f"Issue #{issue_number}: Branch resolution incomplete: {e}")
+            return None
+
+    def _fetch_linked_branches(self, issue_number: int) -> list[str]:
+        """Query the issue's linked branches, raising when they cannot be determined.
+
+        Args:
+            issue_number: Issue number to query linked branches for
+
+        Returns:
+            Linked branch names (possibly empty)
+
+        Raises:
+            BranchLookupError: If the linked-branch query could not be completed.
+        """
+        branch_names = _query_linked_branches(self, issue_number)
+        if branch_names is None:
+            raise BranchLookupError(
+                f"Issue #{issue_number}: Linked-branch query could not be completed"
+            )
+        return branch_names
+
+    def resolve_branch_for_issue(
+        self, issue_number: int, repo_owner: str, repo_name: str
+    ) -> BranchLookup:
+        """Resolve the branch for an issue using a 4-step strategy, undecorated.
+
+        Resolution order:
+        1. Linked branches via GitHub's linked-branch API (fast)
+        2. Open PRs mentioning the issue in the timeline
+        3. Closed PRs whose branch still exists (most recent first)
+        4. Pattern-matching branch names by issue number
+
+        Returns the first unambiguous match. Steps 1, 2, and 4 treat
+        multiple matches as ambiguous. Step 3 returns the most recent
+        closed PR whose branch still exists.
+
+        Unlike get_branch_with_pr_fallback(), every error raises, so a
+        failed lookup is never mistaken for "no branch".
+
+        Args:
+            issue_number: Issue number to find branch for
+            repo_owner: Repository owner (e.g., "anthropics")
+            repo_name: Repository name (e.g., "mcp-coder")
+
+        Returns:
+            BranchLookup with status ``found``, ``not_found`` or ``ambiguous``
+
+        Raises:
+            ValueError: If the issue number is invalid.
+            BranchLookupError: If the repository or a GraphQL response is
+                unavailable or malformed.
+            GithubException: On any GitHub API error other than a closed-PR
+                branch probe returning 404, rate limits included (callers
+                convert them with ``caching.errors.rate_limit_guard``).
+        """  # noqa: DOC502  # GithubException propagates from PyGithub calls
+        # Step 1: Validate issue number
+        if not validate_issue_number_or_log(issue_number):
+            raise ValueError(f"Invalid issue number: {issue_number}")
 
         # Step 2: Get repository
         repo = self._get_repository()
         if repo is None:
             logger.warning("Failed to get repository for branch resolution")
-            return None
+            raise BranchLookupError("Failed to get repository for branch resolution")
 
         # Step 3: Try primary path - query linkedBranches (fast)
-        linked_branches = self.get_linked_branches(issue_number)
+        linked_branches = self._fetch_linked_branches(issue_number)
         if len(linked_branches) == 1:
             branch_name = linked_branches[0]
             logger.debug(
                 f"Issue #{issue_number}: Found branch via linkedBranches: {branch_name}"
             )
-            return branch_name
+            return BranchLookup("found", branch_name)
         if len(linked_branches) > 1:
             logger.warning(
                 f"Issue #{issue_number}: Multiple linked branches found: "
                 f"{linked_branches}. Cannot determine which branch to use."
             )
-            return None
+            return BranchLookup("ambiguous")
 
         # Step 4: Fallback - query issue timeline for PRs
         logger.debug(
             f"Issue #{issue_number}: No linkedBranches found, querying PR timeline"
         )
-
-        query = """
-        query($owner: String!, $repo: String!, $issueNumber: Int!) {
-          repository(owner: $owner, name: $repo) {
-            issue(number: $issueNumber) {
-              timelineItems(itemTypes: [CROSS_REFERENCED_EVENT], first: 100) {
-                nodes {
-                  __typename
-                  ... on CrossReferencedEvent {
-                    source {
-                      ... on PullRequest {
-                        number
-                        state
-                        isDraft
-                        headRefName
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-        """
 
         variables = {
             "owner": repo_owner,
@@ -443,7 +539,7 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
 
         # Execute GraphQL query
         _, result = self._github_client._Github__requester.graphql_query(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public GraphQL API in PyGithub
-            query=query, variables=variables
+            query=_TIMELINE_PRS_QUERY, variables=variables
         )
 
         # Step 5: Parse response and filter for OPEN PRs
@@ -451,17 +547,19 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
             data = result.get("data")
             if data is None:
                 logger.debug(f"Issue #{issue_number}: Malformed GraphQL response")
-                return None
+                raise BranchLookupError(
+                    f"Issue #{issue_number}: Malformed GraphQL response"
+                )
 
             repository = data.get("repository")
             if repository is None:
                 logger.debug(f"Issue #{issue_number}: Repository not found")
-                return None
+                raise BranchLookupError(f"Issue #{issue_number}: Repository not found")
 
             issue_data = repository.get("issue")
             if issue_data is None:
                 logger.debug(f"Issue #{issue_number}: Issue not found")
-                return None
+                raise BranchLookupError(f"Issue #{issue_number}: Issue not found")
 
             timeline_items = issue_data.get("timelineItems", {}).get("nodes", [])
 
@@ -483,7 +581,7 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
                 logger.debug(
                     f"Issue #{issue_number}: Found branch via {pr_type} PR #{pr_number}: {branch_name}"
                 )
-                return branch_name
+                return BranchLookup("found", branch_name)
 
             if len(open_prs) > 1:
                 pr_numbers = [pr["number"] for pr in open_prs]
@@ -491,7 +589,7 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
                     f"Issue #{issue_number}: Multiple open PRs found: {pr_numbers}. "
                     f"Cannot determine which branch to use."
                 )
-                return None
+                return BranchLookup("ambiguous")
 
             # Step 7: Closed PR fallback
             logger.debug(
@@ -515,13 +613,17 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
                         f"Issue #{issue_number}: Found branch via closed "
                         f"PR #{pr['number']}: {branch_name}"
                     )
-                    return branch_name
-                except GithubException:
-                    continue
+                    return BranchLookup("found", branch_name)
+                except GithubException as e:
+                    if e.status == 404:  # branch gone
+                        continue
+                    raise
 
-            # Step 8: Pattern search fallback
-            return self._search_branches_by_pattern(issue_number, repo)
-
-        except (KeyError, TypeError) as e:
+        except (AttributeError, KeyError, TypeError) as e:
             logger.error(f"Issue #{issue_number}: Error parsing timeline response: {e}")
-            return None
+            raise BranchLookupError(
+                f"Issue #{issue_number}: Error parsing timeline response: {e}"
+            ) from e
+
+        # Step 8: Pattern search fallback
+        return self._pattern_lookup(issue_number, repo)

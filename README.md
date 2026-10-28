@@ -110,6 +110,53 @@ An author is trusted if their GitHub association is `OWNER`, `MEMBER` or `COLLAB
 - Roles are relative to the repository being read, including with `reference_name`.
 - The allowlist lives outside the repository on purpose, so a PR cannot add itself.
 
+## GitHub caches
+
+`mcp_workspace.github_operations` keeps disk caches so repeated short-lived commands (e.g. mcp_coder's `vscodeclaude status` / `launch`) don't re-query GitHub every run.
+
+Files, one set per repository, in `<app-data>/mcp_coder/coordinator_cache/`:
+
+| File | Contents |
+|---|---|
+| `<owner_repo>.issues.json` | Issue cache |
+| `<owner_repo>.prs.json` | Open-PR snapshot and per-PR results |
+| `<owner_repo>.branches.json` | Issue → branch lookups |
+
+All three are safe to delete; they are rebuilt on the next run. A corrupt or version-mismatched `.prs.json` / `.branches.json` is treated as empty.
+
+### Validity
+
+- An entry is valid while its **fingerprint** (the data it depends on) is unchanged.
+- A 6 h maximum age per entry is only a safety net; expiry is spread out so entries are rechecked a few at a time.
+- Not-final results are returned but never stored. Errors are never stored.
+- On a rate limit, `GitHubRateLimitError` is raised (`message`, `reset_at`) and nothing is saved for that run.
+
+### What is cached
+
+| Entry | Fingerprint | Not final (re-fetched next run) |
+|---|---|---|
+| Open-PR snapshot + base-branch tip SHAs | — (re-fetched after 60 s duplicate protection) | — |
+| `mergeable_state` | issue `updated_at`, PR `head_sha`, base tip SHA | `unknown` / `None` |
+| CI status | issue `updated_at`, PR `head_sha` | any run not `completed`, no runs |
+| PR feedback | issue `updated_at`, PR `updated_at` | any section `unavailable` |
+| Label events | issue `updated_at` | — |
+| Branch lookup (found / not found / ambiguous) | issue `updated_at` | — |
+
+A relabel bumps the issue's `updated_at` and so invalidates every entry for that issue. Creating a branch with `create_remote_branch_for_issue` deletes its branch-lookup entry. The cached `mergeable_state` is reliable for conflict detection (`dirty`) only.
+
+### What stays live
+
+- `set_status` and label transitions
+- `create_plan` prerequisites
+- `fix_conflict` mergeability polling
+- CI wait loops in `check_branch_status` / `create_pr`
+- CI status for a branch without an open PR
+- All MCP server tools
+
+### Concurrency
+
+`save()` reloads the file and merges per entry: entries fetched this run overwrite those on disk, everything else on disk is kept. Two concurrent writers both keep their entries; deleted entries are not resurrected. There is no file lock.
+
 ## Structured Logging
 
 The server provides flexible logging options:

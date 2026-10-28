@@ -205,7 +205,7 @@ class TestCacheFileOperations:
         """Test cache file save handles temp-file creation errors gracefully."""
         cache_path = tmp_path / "cache.json"
         with patch(
-            "mcp_workspace.github_operations.issues._cache_io.tempfile.mkstemp",
+            "mcp_workspace.github_operations.caching._store.tempfile.mkstemp",
             side_effect=PermissionError("Access denied"),
         ):
             result = _save_cache_file(cache_path, sample_cache_data)
@@ -216,8 +216,8 @@ class TestCacheFileOperations:
 class TestSaveCacheFileAtomicity:
     """Tests for unique temp files, cleanup and replace retry in _save_cache_file."""
 
-    _REPLACE = "mcp_workspace.github_operations.issues._cache_io.os.replace"
-    _SLEEP = "mcp_workspace.github_operations.issues._cache_io.time.sleep"
+    _REPLACE = "mcp_workspace.github_operations.caching._store.os.replace"
+    _SLEEP = "mcp_workspace.github_operations.caching._store.time.sleep"
 
     def test_unique_temp_paths_in_target_directory(
         self, sample_cache_data: CacheData, tmp_path: Path
@@ -250,7 +250,7 @@ class TestSaveCacheFileAtomicity:
         """A failing json.dump returns False and leaves no temp file."""
         cache_path = tmp_path / "x.issues.json"
         with patch(
-            "mcp_workspace.github_operations.issues._cache_io.json.dump",
+            "mcp_workspace.github_operations.caching._store.json.dump",
             side_effect=OSError("disk full"),
         ):
             result = _save_cache_file(cache_path, sample_cache_data)

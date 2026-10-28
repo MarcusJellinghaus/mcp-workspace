@@ -4,26 +4,33 @@ This module provides:
 - CacheData TypedDict for cache structure
 - Cache file operations (load, save, get path)
 - Cache metrics logging
+
+Generic JSON load/save and paths live in ``caching._store``.
 """
 
-import json
 import logging
-import os
-import tempfile
-import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, NotRequired, Optional, TypedDict
 
-from mcp_coder_utils.user_app_data import get_user_app_data_dir
-
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
+from mcp_workspace.utils.timezone_utils import parse_iso_timestamp
 
+from ..caching._store import _save_cache_file
+from ..caching._store import cache_file_path as _store_cache_file_path
+from ..caching._store import load_json
 from .types import IssueData
 
-logger = logging.getLogger(__name__)
+__all__ = [
+    "CacheData",
+    "_get_cache_file_path",
+    "_load_cache_file",
+    "_log_cache_metrics",
+    "_save_cache_file",
+    "get_issue_cache_last_checked",
+]
 
-# Delay before the single os.replace retry in _save_cache_file.
-_REPLACE_RETRY_DELAY_SECONDS: float = 0.1
+logger = logging.getLogger(__name__)
 
 
 class CacheData(TypedDict):
@@ -77,31 +84,26 @@ def _load_cache_file(cache_file_path: Path) -> CacheData:
         "version": None,
         "issues": {},
     }
-    try:
-        if not cache_file_path.exists():
-            return empty
-
-        with cache_file_path.open("r") as f:
-            data = json.load(f)
-
-        # Validate structure
-        if not isinstance(data, dict) or "issues" not in data:
-            logger.warning(f"Invalid cache structure in {cache_file_path}, recreating")
-            return empty
-
-        # Return as CacheData since we validated the structure
-        return {
-            "last_checked": data.get("last_checked"),
-            "last_full_refresh": data.get("last_full_refresh"),
-            "updates_covered_through": data.get("updates_covered_through"),
-            "cached_at": data.get("cached_at", {}),
-            "version": data.get("version"),
-            "issues": data["issues"],
-        }
-
-    except (json.JSONDecodeError, OSError, PermissionError) as e:
-        logger.warning(f"Cache load error for {cache_file_path}: {e}, starting fresh")
+    if not cache_file_path.exists():
         return empty
+
+    # load_json logs corrupt files itself and returns {} for them
+    data = load_json(cache_file_path)
+
+    # Validate structure
+    if "issues" not in data:
+        logger.warning(f"Invalid cache structure in {cache_file_path}, recreating")
+        return empty
+
+    # Return as CacheData since we validated the structure
+    return {
+        "last_checked": data.get("last_checked"),
+        "last_full_refresh": data.get("last_full_refresh"),
+        "updates_covered_through": data.get("updates_covered_through"),
+        "cached_at": data.get("cached_at", {}),
+        "version": data.get("version"),
+        "issues": data["issues"],
+    }
 
 
 def _log_cache_metrics(action: str, repo_name: str, **kwargs: Any) -> None:
@@ -132,55 +134,6 @@ def _log_cache_metrics(action: str, repo_name: str, **kwargs: Any) -> None:
         logger.debug(f"Cache save for {repo_name}: total_issues={total_issues}")
 
 
-def _save_cache_file(cache_file_path: Path, cache_data: CacheData) -> bool:
-    """Save cache data to file using atomic write.
-
-    Each save writes to its own unique temp file in the target directory, so
-    concurrent writers never share a temp path. The final ``os.replace`` is
-    retried once after a short delay (Windows can briefly lock the target).
-    The temp file is removed on every failure path.
-
-    Args:
-        cache_file_path: Path to cache file
-        cache_data: CacheData to save
-
-    Returns:
-        True if successful, False otherwise
-    """
-    temp_path: Optional[str] = None
-    try:
-        # Ensure directory exists
-        cache_file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Atomic write: write to unique temp file, then rename
-        fd, temp_path = tempfile.mkstemp(
-            dir=cache_file_path.parent,
-            prefix=cache_file_path.name + ".",
-            suffix=".tmp",
-        )
-        with os.fdopen(fd, "w") as f:
-            json.dump(cache_data, f, indent=2)
-
-        try:
-            os.replace(temp_path, cache_file_path)  # Atomic rename
-        except OSError:
-            # Single retry; a second failure falls through to the outer handler
-            time.sleep(_REPLACE_RETRY_DELAY_SECONDS)
-            os.replace(temp_path, cache_file_path)
-        return True
-
-    except OSError as e:
-        logger.warning(f"Cache save error for {cache_file_path}: {e}")
-        return False
-
-    finally:
-        if temp_path is not None:
-            try:
-                Path(temp_path).unlink(missing_ok=True)
-            except OSError:
-                pass
-
-
 def _get_cache_file_path(repo_identifier: RepoIdentifier) -> Path:
     """Get cache file path using RepoIdentifier.
 
@@ -190,5 +143,25 @@ def _get_cache_file_path(repo_identifier: RepoIdentifier) -> Path:
     Returns:
         Path to cache file
     """
-    cache_dir = get_user_app_data_dir("mcp_coder") / "coordinator_cache"
-    return cache_dir / f"{repo_identifier.cache_safe_name}.issues.json"
+    return _store_cache_file_path(repo_identifier, "issues")
+
+
+def get_issue_cache_last_checked(repo_identifier: RepoIdentifier) -> datetime | None:
+    """Get when the issue cache was last refreshed.
+
+    Args:
+        repo_identifier: Repository identifier with owner and repo name
+
+    Returns:
+        Timezone-aware ``last_checked`` of the issue cache, or None if the
+        file or key is missing or the value is unparseable.
+    """
+    last_checked = _load_cache_file(_get_cache_file_path(repo_identifier))[
+        "last_checked"
+    ]
+    if not isinstance(last_checked, str):
+        return None
+    try:
+        return parse_iso_timestamp(last_checked)
+    except ValueError:
+        return None

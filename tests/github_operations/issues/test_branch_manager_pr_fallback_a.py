@@ -8,7 +8,7 @@ from unittest.mock import Mock
 import pytest
 from github import GithubException
 
-from mcp_workspace.github_operations.issues import IssueBranchManager
+from mcp_workspace.github_operations.issues import BranchLookup, IssueBranchManager
 
 
 class TestGetBranchWithPRFallback:
@@ -29,7 +29,7 @@ class TestGetBranchWithPRFallback:
         mock_manager._repository = mock_repo
 
         # Setup: Mock get_linked_branches to return branch
-        mock_manager.get_linked_branches = Mock(  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(  # type: ignore[method-assign]
             return_value=["123-feature-branch"]
         )
 
@@ -45,7 +45,7 @@ class TestGetBranchWithPRFallback:
 
         # Verify
         assert result == "123-feature-branch"
-        mock_manager.get_linked_branches.assert_called_once_with(123)
+        mock_manager._fetch_linked_branches.assert_called_once_with(123)
         # GraphQL should NOT be called (short-circuit)
         mock_graphql_query.assert_not_called()
 
@@ -71,7 +71,7 @@ class TestGetBranchWithPRFallback:
         mock_manager._repository = mock_repo
 
         # Setup: Mock get_linked_branches to return empty
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         # Setup: Mock GraphQL timeline response with single PR
         timeline_response = {
@@ -108,7 +108,7 @@ class TestGetBranchWithPRFallback:
 
         # Verify
         assert result == "123-feature-branch"
-        mock_manager.get_linked_branches.assert_called_once_with(123)
+        mock_manager._fetch_linked_branches.assert_called_once_with(123)
         mock_manager._github_client._Github__requester.graphql_query.assert_called_once()  # type: ignore[attr-defined]
 
     def test_no_linked_branch_multiple_prs_returns_none(
@@ -122,7 +122,7 @@ class TestGetBranchWithPRFallback:
         mock_manager._repository = mock_repo
 
         # Setup: Mock get_linked_branches to return empty
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         # Setup: Mock GraphQL timeline response with TWO PRs
         timeline_response = {
@@ -168,7 +168,7 @@ class TestGetBranchWithPRFallback:
 
         # Verify
         assert result is None
-        mock_manager.get_linked_branches.assert_called_once_with(123)
+        mock_manager._fetch_linked_branches.assert_called_once_with(123)
         mock_manager._github_client._Github__requester.graphql_query.assert_called_once()  # type: ignore[attr-defined]
 
     def test_no_linked_branch_no_prs_returns_none(
@@ -182,7 +182,7 @@ class TestGetBranchWithPRFallback:
         mock_manager._repository = mock_repo
 
         # Setup: Mock get_linked_branches to return empty
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         # Setup: Mock GraphQL timeline response with empty nodes
         timeline_response: dict[str, Any] = {
@@ -195,7 +195,7 @@ class TestGetBranchWithPRFallback:
         )
 
         # Setup: Mock pattern search to return None
-        mock_manager._search_branches_by_pattern = Mock(return_value=None)  # type: ignore[method-assign]
+        mock_manager._pattern_lookup = Mock(return_value=BranchLookup("not_found"))  # type: ignore[method-assign]
 
         # Execute
         result = mock_manager.get_branch_with_pr_fallback(
@@ -204,9 +204,9 @@ class TestGetBranchWithPRFallback:
 
         # Verify
         assert result is None
-        mock_manager.get_linked_branches.assert_called_once_with(123)
+        mock_manager._fetch_linked_branches.assert_called_once_with(123)
         mock_manager._github_client._Github__requester.graphql_query.assert_called_once()  # type: ignore[attr-defined]
-        mock_manager._search_branches_by_pattern.assert_called_once_with(123, mock_repo)
+        mock_manager._pattern_lookup.assert_called_once_with(123, mock_repo)
 
     def test_invalid_issue_number_returns_none(
         self, mock_manager: IssueBranchManager
@@ -233,7 +233,7 @@ class TestGetBranchWithPRFallback:
         mock_manager._repository = mock_repo
 
         # Setup: Mock get_linked_branches to return empty
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         # Setup: Mock GraphQL to raise exception
         mock_manager._github_client._Github__requester = Mock()  # type: ignore[attr-defined]
@@ -276,7 +276,7 @@ class TestGetBranchWithPRFallback:
         mock_manager._repository = mock_repo
 
         # Setup: Mock get_linked_branches to return empty
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         # Setup: Mock GraphQL response with malformed data
         malformed_response: dict[str, Any] = {"data": None}  # Malformed response
@@ -305,7 +305,7 @@ class TestGetBranchWithPRFallback:
         mock_manager._repository = mock_repo
 
         # Setup: Mock get_linked_branches to return empty
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         # Setup: Mock GraphQL response with null issue
         timeline_response: dict[str, Any] = {"data": {"repository": {"issue": None}}}
@@ -332,7 +332,7 @@ class TestGetBranchWithPRFallback:
         mock_manager._repository = mock_repo
 
         # Setup: Mock get_linked_branches to return empty
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         # Setup: Mock GraphQL timeline response with closed and open PRs
         timeline_response = {
@@ -390,7 +390,7 @@ class TestGetBranchWithPRFallback:
         mock_manager._repository = mock_repo
 
         # Setup: Mock get_linked_branches to return empty
-        mock_manager.get_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
+        mock_manager._fetch_linked_branches = Mock(return_value=[])  # type: ignore[method-assign]
 
         # Setup: Mock GraphQL timeline response with non-PR cross-reference
         timeline_response = {
@@ -420,7 +420,7 @@ class TestGetBranchWithPRFallback:
         )
 
         # Setup: Mock pattern search to return None
-        mock_manager._search_branches_by_pattern = Mock(return_value=None)  # type: ignore[method-assign]
+        mock_manager._pattern_lookup = Mock(return_value=BranchLookup("not_found"))  # type: ignore[method-assign]
 
         # Execute
         result = mock_manager.get_branch_with_pr_fallback(
