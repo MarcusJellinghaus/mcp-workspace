@@ -116,7 +116,7 @@ An author is trusted if their GitHub association is `OWNER`, `MEMBER` or `COLLAB
 
 ### GitHub traffic log
 
-With `traffic_log = true`, every GitHub HTTP attempt is appended as one line to `github_requests_YYYY-MM-DD.log` (local date) in `traffic_log_dir`. Several processes and machines may append to the same folder; there is no locking, so concurrent writers can occasionally mix or lose a line.
+With `traffic_log = true`, every GitHub HTTP attempt is appended as one line to `github_requests_YYYY-MM-DD.log` (local date) in `traffic_log_dir`. Several processes and machines may append to the same folder. Each line is written in one call under a file lock, so concurrent appends from multiple processes are safe and lose no lines.
 
 ```
 timestamp | pid | command | METHOD path | status | resource remaining | duration | call chain

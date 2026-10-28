@@ -7,6 +7,7 @@ request/response bodies.
 
 import os
 import sys
+import threading
 import time
 from collections.abc import Mapping
 from datetime import datetime
@@ -17,7 +18,16 @@ from urllib.parse import urlsplit
 
 from mcp_workspace import config
 
+if sys.platform == "win32":
+    import msvcrt  # pylint: disable=import-error
+else:
+    import fcntl  # pylint: disable=import-error
+
 _command = ""
+_thread_lock = threading.Lock()
+
+_LOCK_TRIES = 50
+_LOCK_WAIT_SECONDS = 0.002
 
 _PACKAGES = frozenset({"mcp_coder", "mcp_workspace"})
 _SKIP_MODULES = frozenset(
@@ -129,12 +139,53 @@ def _header(headers: Mapping[str, Any] | None, name: str) -> str:
     return "-"
 
 
+def _try_lock(fd: int) -> bool:
+    """Take the non-blocking file lock, retrying briefly.
+
+    Returns:
+        True when the lock is held, False when it could not be taken.
+    """
+    for _ in range(_LOCK_TRIES):
+        try:
+            if sys.platform == "win32":
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except OSError:
+            time.sleep(_LOCK_WAIT_SECONDS)
+    return False
+
+
+def _unlock(fd: int) -> None:
+    """Release the file lock taken by ``_try_lock``."""
+    if sys.platform == "win32":
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+    else:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+
+
 def _append(directory: Path, day: str, line: str) -> None:
-    """Append ``line`` to the daily file (plain append, no locking)."""
-    # No cross-process lock: on Windows, concurrent writers can silently overwrite
-    # each other's lines (~13% lost with 8 processes writing flat out). Accepted
-    # for a debug log; use one file per process if that ever matters.
+    """Append ``line`` to the daily file in one ``os.write`` under a thread and file lock.
+
+    Windows ``O_APPEND`` is not atomic across processes (seek, then write), so
+    the file lock keeps concurrent writers from overwriting each other's lines.
+    Skips the line when the file lock cannot be taken.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"github_requests_{day}.log"
-    with path.open("a", encoding="utf-8", newline="\n") as file:
-        file.write(line + "\n")
+    data = (line + "\n").encode("utf-8")
+    flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_BINARY", 0)
+    with _thread_lock:
+        fd = os.open(path, flags)
+        try:
+            if not _try_lock(fd):
+                return
+            try:
+                os.write(fd, data)
+            finally:
+                _unlock(fd)
+        finally:
+            os.close(fd)

@@ -1,6 +1,8 @@
 """Tests for the opt-in GitHub traffic log writer."""
 
 import re
+import subprocess
+import sys
 import textwrap
 from collections.abc import Callable
 from pathlib import Path
@@ -97,6 +99,35 @@ class TestLogRequestLine:
         not_a_dir.write_text("x", encoding="utf-8")
         _enable(monkeypatch, not_a_dir)
         traffic_log.log_request("GET", "/a", "200", None, None)
+
+
+_WRITER = """
+import sys
+from pathlib import Path
+from mcp_workspace.traffic_log import _append
+
+directory, writer, count = Path(sys.argv[1]), sys.argv[2], int(sys.argv[3])
+for i in range(count):
+    _append(directory, "2026-01-01", f"{writer}-{i:04d}-" + "x" * 200)
+"""
+
+
+def test_concurrent_processes_lose_no_lines(tmp_path: Path) -> None:
+    """N processes appending to one daily file lose no lines and mix none."""
+    processes, count = 8, 200
+    children = [
+        subprocess.Popen(  # pylint: disable=consider-using-with
+            [sys.executable, "-c", _WRITER, str(tmp_path), f"w{n}", str(count)]
+        )
+        for n in range(processes)
+    ]
+    for child in children:
+        assert child.wait(timeout=120) == 0
+
+    lines = _lines(tmp_path)
+    assert len(lines) == processes * count
+    assert all(re.fullmatch(r"w\d-\d{4}-x{200}", line) for line in lines)
+    assert len(set(lines)) == processes * count
 
 
 class TestHeaders:
