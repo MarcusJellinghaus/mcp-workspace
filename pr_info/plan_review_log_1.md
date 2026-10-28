@@ -10,3 +10,12 @@ pr_info/steps/step_3.md:29 — low — With no own "neither given" check, `_issu
 Verdict(decision='tasks', tasks=["In pr_info/steps/step_3.md:46, rewrite the 'neither body nor body_file' test so it exercises real behaviour: use a real IssueManager with the repository lookup patched out (no ValueError side effect on a mocked add_comment), and assert the empty body is rejected before create_comment is called. If tests/.../test_comments_mixin.py already covers this rejection, reference that test instead and drop the tautological mock-based one.", "In pr_info/steps/step_3.md:29, add an explicit `if not body` check immediately after `_resolve_body` (before `_issue_manager(reference_name)` is called) that raises the clear 'neither body nor body_file' error, so that error always comes before any reference_name or token error."], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 2 — 2026-10-28
+**Findings**:
+Checking `_check_not_gitignored` and the sub-issue tests before finalizing the findings.pr_info/steps/step_6.md:42 — low — `(project_dir / entry).is_file()` runs on raw allowlist text without a containment check. An entry like `../secret.py` is probed outside the project and reported as `not scanned` rather than `missing`. Check that the resolved path is inside `project_dir`, or treat any entry containing `..` as `missing`, and add that case to test 4.
+pr_info/steps/step_2.md:50 — low — The issue's acceptance criterion says `github_issue_edit(body_file=...)` lists `body` in its change report. Test 4 covers only the partial-failure report. Add an assertion to test 1 that the success output names `body` as changed, via the `_edit_change_lines` path.
+**Decisions**:
+Verdict(decision='tasks', tasks=['In pr_info/steps/step_6.md:42, add a containment check before `(project_dir / entry).is_file()`: resolve the path, and if it is not inside `project_dir` (e.g. `../secret.py`), report the entry as `missing` without probing the filesystem. Extend test 4 with a `..` traversal entry and assert it is reported as `missing`.', "In pr_info/steps/step_2.md:50, extend test 1 to assert that the success output of `github_issue_edit(body_file=...)` names `body` as changed, via the `_edit_change_lines` path, so the issue's acceptance criterion is covered."], escalate_reason=None)
+**Changes**:
+applied
