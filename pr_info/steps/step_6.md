@@ -39,12 +39,15 @@ for entry in allowlist:
     if entry in sizes:
         text = f"{sizes[entry]} lines" + ("  (under limit - can be removed)" if sizes[entry] <= max_lines else "")
         rows.append((0, -sizes[entry], entry, text))
+    elif not (project_dir / entry).resolve().is_relative_to(project_dir.resolve()):
+        rows.append((2, 0, entry, "missing   (can be removed)"))   # outside project: never probed
     elif (project_dir / entry).is_file(): rows.append((1, 0, entry, "not scanned (gitignored/binary)"))
     else: rows.append((2, 0, entry, "missing   (can be removed)"))
 lines = [f"Allowlisted files ({len(allowlist)}), limit {max_lines}:"] + [f"  {path}: {text}" for *_, path, text in sorted(rows)]
 ```
 
 Under-limit means `line_count <= max_lines` (the default check's pass rule). A directory entry falls into `missing`.
+An entry that resolves outside `project_dir` (e.g. `../secret.py`) is reported `missing` without an `is_file()` probe.
 
 ## DATA
 Example output:
@@ -65,7 +68,8 @@ Empty allowlist → only `Allowlisted files (0), limit 600:`.
 1. Order: sized desc, tie on line count broken by path, then not-scanned, then missing — exact output string.
 2. Under-limit (including exactly `max_lines`) marked `(under limit - can be removed)`.
 3. Gitignored entry (`.gitignore` with `build/`) and non-UTF-8 entry → `not scanned (gitignored/binary)`.
-4. Missing file and a directory entry → `missing   (can be removed)`.
+4. Missing file, a directory entry, and a `..` traversal entry (`../secret.py`, with that file created in
+   `tmp_path.parent` so it exists) → each `missing   (can be removed)`.
 5. Empty allowlist → header with `(0)` only.
 6. 60 entries over the limit → all 60 listed, no `... showing` line.
 7. Output never contains `"failed"` or `"passed"`, even with non-allowlisted violations present.

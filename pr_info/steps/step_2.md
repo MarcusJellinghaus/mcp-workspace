@@ -47,7 +47,10 @@ Output strings unchanged.
 
 Patch `_issue_manager` with a `MagicMock`: `get_available_labels → []`, `edit_issue` returns an `IssueData`.
 
-1. CRLF file → `edit_issue.call_args.kwargs["body"]` equals the file text exactly.
+1. CRLF file → `edit_issue.call_args.kwargs["body"]` equals the file text exactly, and the output starts with
+   `"Updated issue #"` with no `"Error"`/`"Warning"` line. Note: on success `github_issue_edit` does not call
+   `_edit_change_lines` (it runs only on partial failure, `server.py` ≈1526–1534), so the success output has no
+   `Applied:` line; the "lists `body` in its change report" criterion is covered by test 4.
 2. `body=""` + `body_file` → conflict error; `_issue_manager` not called.
 3. File with malformed `### Base Branch` → Base Branch error; `edit_issue` not called.
 4. Partial failure: `edit_issue` raises `GithubException(500, {"message": "boom"}, None)` after appending
