@@ -309,6 +309,18 @@ def test_comment_neither_body_nor_body_file(
     mock_comment_manager.assert_not_called()
 
 
+def test_comment_empty_body_file(
+    project_dir: Path, mock_comment_manager: MagicMock
+) -> None:
+    """An empty body_file names the file instead of the generic error."""
+    (project_dir / "empty.md").write_bytes(b"")
+
+    result = github_issue_comment(number=42, body_file="empty.md")
+
+    assert result == "Error: body_file 'empty.md' is empty"
+    mock_comment_manager.assert_not_called()
+
+
 @pytest.fixture
 def mock_pr_manager() -> Generator[MagicMock, None, None]:
     """Patch PullRequestManager and the current-branch lookup."""

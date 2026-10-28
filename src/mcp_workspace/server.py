@@ -1835,6 +1835,8 @@ def github_issue_comment(
     try:
         body = cast(str, _resolve_body(body, body_file, conflict=bool(body)))
         if not body:
+            if body_file is not None:
+                return f"Error: body_file '{body_file}' is empty"
             return "Error: pass body or body_file"
         manager = _issue_manager(reference_name)
         comment = manager.add_comment(number, body)
