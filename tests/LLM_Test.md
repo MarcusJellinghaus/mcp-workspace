@@ -98,6 +98,7 @@ If you find any issues — wrong results, confusing errors, broken output format
 6. `read_file("_slice.txt", start_line=2, end_line=4)` — expect lines 2-4 with line-number prefixes using the Unicode arrow `→` (U+2192), not `:` or `|` (e.g. `"2→line two\n3→line three\n4→line four\n"`)
 7. `delete_this_file("_slice.txt")`
 8. `check_file_size(max_lines=10000)` — expect output starting with `"File size check passed"` and mentioning the total file count. May also surface a `"Stale allowlist entries"` section — both are normal.
+9. `check_file_size(show_allowlisted=True)` — expect a first line `"Allowlisted files (N), limit M:"` followed by one line per allowlist entry, and no pass/fail line
 
 ### Test 1.12: Reference-project tools
 
@@ -177,6 +178,15 @@ closed rather than removed.
 8. `github_issue_edit(number=<N>, add_labels=["definitely-not-a-real-label"])` — expect an error naming the unknown label
 9. `github_issue_edit(number=<N>, state="closed")` — expect `(state: closed)`
 
+### Test 4.1b: Issue body from a file (`body_file`)
+
+1. `` save_file(".scratch/llm_body.md", "Line 1\nLine `2` ✓") ``
+2. `github_issue_create(title="LLM test - safe to close", body_file=".scratch/llm_body.md")` — expect `Created issue #N — <url>`
+3. `github_issue_view(number=<N>)` — expect the body to show the file text exactly, including the backticks and `✓`
+4. `github_issue_create(title="x", body="y", body_file=".scratch/llm_body.md")` — expect an error saying to pass either `body` or `body_file`, not both; no issue is created
+5. `github_issue_edit(number=<N>, state="closed")` — expect `(state: closed)`
+6. `delete_directory(".scratch", recursive=True)`
+
 ### Test 4.2: Cross-repo issue create → comment → edit → close
 
 **Writes to a sibling repository.** Skip the whole test if `get_reference_projects()` returns
@@ -206,7 +216,7 @@ Only the rejection paths are scripted — creating a real PR needs a real branch
 1. `github_issue_create(title="LLM test parent - safe to close", body="Created by tests/LLM_Test.md Section 4.")` — expect `Created issue #P — <url>`
 2. `github_issue_create(title="LLM test child - safe to close", body="Created by tests/LLM_Test.md Section 4.")` — expect `Created issue #C — <url>`
 3. `github_subissue_list(parent_number=<P>)` — expect `No sub-issues.`
-4. `github_subissue_add(parent_number=<P>, child_number=<C>)` — expect `Linked #C as a sub-issue of #P — <url> (1 sub-issues)`
+4. `github_subissue_add(parent_number=<P>, child_number=<C>)` — expect `Linked #C as a sub-issue of #P — <url> (~1 sub-issues, may lag)`
 5. `github_subissue_list(parent_number=<P>)` — expect one line `#C  open  LLM test child - safe to close`
 6. `github_subissue_add(parent_number=<P>, child_number=<C>)` again — expect an error naming duplicate sub-issues / one parent, not a success
 7. `github_subissue_add(parent_number=<P>, child_number=<P>)` — expect `Error: an issue cannot be its own sub-issue`
