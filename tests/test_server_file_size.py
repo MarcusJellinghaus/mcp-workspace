@@ -73,6 +73,50 @@ class TestCheckFileSizeLimit:
         assert mock_render.call_args.args[1] == 600
 
 
+class TestCheckFileSizeShowAllowlisted:
+    """Test routing of check_file_size's show_allowlisted flag."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_globals(self) -> Generator[None, None, None]:
+        """Reset the module-level file size limit after each test."""
+        yield
+        server_module._file_size_limit = None
+
+    def test_show_allowlisted_routes_to_render_allowlisted(
+        self, tmp_path: Path
+    ) -> None:
+        """The flag lists the allowlist and skips the default check."""
+        set_project_dir(tmp_path)
+        set_file_size_limit(750)
+
+        with patch("mcp_workspace.server.check_file_sizes") as mock_check:
+            with patch("mcp_workspace.server.render_output") as mock_render:
+                with patch(
+                    "mcp_workspace.server.render_allowlisted", return_value="listing"
+                ) as mock_listed:
+                    result = check_file_size(show_allowlisted=True)
+
+        assert result == "listing"
+        assert mock_listed.call_args.args[0] == server_module._project_dir
+        assert mock_listed.call_args.args[1] == 750
+        mock_check.assert_not_called()
+        mock_render.assert_not_called()
+
+    def test_default_call_does_not_list_allowlist(self, tmp_path: Path) -> None:
+        """Without the flag, the default check and report run."""
+        set_project_dir(tmp_path)
+        set_file_size_limit(None)
+
+        with patch("mcp_workspace.server.check_file_sizes") as mock_check:
+            with patch("mcp_workspace.server.render_output") as mock_render:
+                with patch("mcp_workspace.server.render_allowlisted") as mock_listed:
+                    check_file_size()
+
+        mock_check.assert_called_once()
+        mock_render.assert_called_once()
+        mock_listed.assert_not_called()
+
+
 class TestRunServerFileSizeLimit:
     """Test that run_server threads file_size_limit to set_file_size_limit."""
 

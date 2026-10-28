@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 from unittest.mock import Mock, PropertyMock
 
 import pytest
@@ -332,21 +332,23 @@ class TestErrors:
 
         assert not _path().exists()
 
+    # Builders, not strings: _snapshot() embeds utc_now(), and a timestamp in a
+    # parameter value makes each xdist worker collect different test IDs.
     @pytest.mark.parametrize(
-        "content",
+        "make_content",
         [
-            "not json",
-            json.dumps({"version": 99, "snapshot": _snapshot()}),
-            json.dumps({"snapshot": _snapshot()}),
-            json.dumps({"version": PRS_CACHE_VERSION, "snapshot": []}),
-            json.dumps({"version": PRS_CACHE_VERSION, "snapshot": {"prs": {}}}),
-            json.dumps(
+            lambda: "not json",
+            lambda: json.dumps({"version": 99, "snapshot": _snapshot()}),
+            lambda: json.dumps({"snapshot": _snapshot()}),
+            lambda: json.dumps({"version": PRS_CACHE_VERSION, "snapshot": []}),
+            lambda: json.dumps({"version": PRS_CACHE_VERSION, "snapshot": {"prs": {}}}),
+            lambda: json.dumps(
                 {
                     "version": PRS_CACHE_VERSION,
                     "snapshot": _snapshot(fetched_at="garbage"),
                 }
             ),
-            json.dumps(
+            lambda: json.dumps(
                 {
                     "version": PRS_CACHE_VERSION,
                     "snapshot": _snapshot(timedelta(seconds=120)),
@@ -354,9 +356,20 @@ class TestErrors:
                 }
             ),
         ],
+        ids=[
+            "not-json",
+            "wrong-version",
+            "no-version",
+            "snapshot-list",
+            "no-fetched-at",
+            "garbage-fetched-at",
+            "results-list",
+        ],
     )
-    def test_corrupt_or_mismatched_file_rebuilds(self, content: str) -> None:
-        _write_raw(content)
+    def test_corrupt_or_mismatched_file_rebuilds(
+        self, make_content: Callable[[], str]
+    ) -> None:
+        _write_raw(make_content())
         repo = _repo([_mock_pr(5, "5-x")])
         cache = PullRequestCache.load(_manager(repo))
         assert cache.find_pr("5-x") is not None

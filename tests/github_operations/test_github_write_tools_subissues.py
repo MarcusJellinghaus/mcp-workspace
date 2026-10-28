@@ -96,7 +96,9 @@ class TestSubissueAdd:
 
         result = github_subissue_add(parent_number=3, child_number=7)
 
-        assert result == f"Linked #7 as a sub-issue of #3 — {_URL} (2 sub-issues)"
+        assert result == (
+            f"Linked #7 as a sub-issue of #3 — {_URL} (~2 sub-issues, may lag)"
+        )
         mock_cls.return_value.add_sub_issue.assert_called_once_with(3, 7)
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
@@ -107,7 +109,7 @@ class TestSubissueAdd:
         result = github_subissue_add(parent_number=3, child_number=7)
 
         assert result == f"Linked #7 as a sub-issue of #3 — {_URL}"
-        assert "(0 sub-issues)" not in result
+        assert "sub-issues" not in result
 
     @pytest.mark.parametrize(
         ("parent", "child", "bad"), [(0, 7, 0), (3, -1, -1)], ids=["parent", "child"]
@@ -240,7 +242,7 @@ class TestSubissueRemove:
 
         result = github_subissue_remove(parent_number=3, child_number=7)
 
-        assert result == f"Unlinked #7 from #3 — {_URL} (1 sub-issues)"
+        assert result == f"Unlinked #7 from #3 — {_URL} (~1 sub-issues, may lag)"
         mock_cls.return_value.remove_sub_issue.assert_called_once_with(3, 7)
         mock_cls.return_value.add_sub_issue.assert_not_called()
 

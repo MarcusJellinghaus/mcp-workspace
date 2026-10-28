@@ -14,6 +14,7 @@ from mcp_coder_utils.log_utils import log_function_call
 from mcp_workspace.checks.file_sizes import (
     check_file_sizes,
     load_allowlist,
+    render_allowlisted,
     render_output,
 )
 from mcp_workspace.file_tools import append_file as append_file_util
@@ -317,6 +318,44 @@ def _check_not_gitignored(file_path: str) -> None:
             f"File '{file_path}' is excluded by .gitignore and cannot be accessed. "
             "Use list_directory() to see available files."
         )
+
+
+def _resolve_body(
+    body: Optional[str], body_file: Optional[str], conflict: bool
+) -> Optional[str]:
+    """Return the body to send: body unchanged, or body_file's text verbatim.
+
+    The file is read under read_file's rules (gitignore boundary, project
+    containment). A leading UTF-8 BOM is dropped; line endings are kept.
+
+    Args:
+        body: Inline body passed by the caller
+        body_file: Project-relative path to read the body from, or None
+        conflict: Whether body counts as passed alongside body_file
+
+    Returns:
+        body when body_file is None, otherwise the file's text.
+
+    Raises:
+        ValueError: conflict is True, the project directory is unset, the path is
+            gitignored / outside the project / not a file, or the file is not UTF-8.
+    """
+    if body_file is None:
+        return body
+    if conflict:
+        raise ValueError("pass either body or body_file, not both")
+    if _project_dir is None:
+        raise ValueError("Project directory has not been set")
+    _check_not_gitignored(body_file)
+    abs_path, _ = normalize_path(body_file, _project_dir)
+    if not abs_path.is_file():
+        raise ValueError(f"body_file '{body_file}' not found or not a file")
+    try:
+        # newline="" keeps CRLF; utf-8-sig drops a leading BOM
+        with open(abs_path, encoding="utf-8-sig", newline="") as f:
+            return f.read()
+    except UnicodeDecodeError as e:
+        raise ValueError(f"body_file '{body_file}' is not valid UTF-8") from e
 
 
 @log_function_call
@@ -1327,6 +1366,7 @@ def github_issue_create(
     labels: Optional[List[str]] = None,
     assignees: Optional[List[str]] = None,
     reference_name: Optional[str] = None,
+    body_file: Optional[str] = None,
 ) -> str:
     """Create a real GitHub issue. This writes to GitHub.
 
@@ -1348,12 +1388,18 @@ def github_issue_create(
         reference_name: Optional reference project name. When set, the issue is
             created in that project's GitHub repository instead of the workspace
             repository.
+        body_file: Optional project-relative path whose content is sent as the
+            body, byte for byte (a leading UTF-8 BOM is dropped). Same path
+            rules as read_file, so gitignored paths are refused. Mutually
+            exclusive with a non-empty body. The title is never read from the
+            file; the Base Branch check applies to the file text.
 
     Returns:
         "Created issue #<number> — <url>" followed by the resulting labels and
         assignees, or error message string.
     """
     try:
+        body = cast(str, _resolve_body(body, body_file, conflict=bool(body)))
         body_error = _check_base_branch(body)
         if body_error:
             return body_error
@@ -1396,6 +1442,7 @@ def github_issue_edit(
     add_assignees: Optional[List[str]] = None,
     state: Optional[str] = None,
     reference_name: Optional[str] = None,
+    body_file: Optional[str] = None,
 ) -> str:
     """Modify a real GitHub issue. This writes to GitHub.
 
@@ -1404,9 +1451,10 @@ def github_issue_edit(
     changes are additive and subtractive, never a replacement of the whole set.
     Workflow status labels (status-*) are rejected on the add and the remove
     side — those are applied with `mcp-coder gh-tool set-status <label>` from
-    the target repository's own checkout. When `body` is passed, a malformed
-    `### Base Branch` section (more than one line) is rejected before any
-    write, unless the server was started with `--no-enforce-base-branch-format`.
+    the target repository's own checkout. When `body` or `body_file` is
+    passed, a malformed `### Base Branch` section (more than one line) is
+    rejected before any write, unless the server was started with
+    `--no-enforce-base-branch-format`.
 
     The edit is not a transaction: if a later part fails, the earlier part
     stays applied. The result then opens with a warning naming which requested
@@ -1425,6 +1473,10 @@ def github_issue_edit(
         reference_name: Optional reference project name. When set, the issue is
             edited in that project's GitHub repository instead of the workspace
             repository.
+        body_file: Optional project-relative path whose content becomes the new
+            body, byte for byte (a leading UTF-8 BOM is dropped). Same path
+            rules as read_file, so gitignored paths are refused. Mutually
+            exclusive with body — any body value, including "", conflicts.
 
     Returns:
         "Updated issue #<number> — <url> (state: <state>)" followed by the
@@ -1444,6 +1496,7 @@ def github_issue_edit(
         # Pre-write validation. Nothing has been written yet, so a plain error
         # is honest — and it keeps the inner except below meaning exactly one
         # thing: the write sequence started and something after it failed.
+        body = _resolve_body(body, body_file, conflict=body is not None)
         if number <= 0:
             return f"Error: invalid issue number: {number}"
         if title is not None and not title.strip():
@@ -1619,7 +1672,9 @@ def _subissue_write(
         link = call(parent_number, child_number)
         if link is None:
             return _repo_access_error(manager)
-        count = "" if link.total is None else f" ({link.total} sub-issues)"
+        # GitHub's sub_issues_summary lags after a write, even on the refetch;
+        # counting via the list endpoint was rejected for its API cost.
+        count = "" if link.total is None else f" (~{link.total} sub-issues, may lag)"
         verb = "Unlinked" if unlink else "Linked"
         relation = "from" if unlink else "as a sub-issue of"
         return (
@@ -1652,9 +1707,10 @@ def github_subissue_add(
             repository.
 
     Returns:
-        "Linked #<child> as a sub-issue of #<parent> — <url> (<N> sub-issues)",
-        where the count is omitted when it could not be read, or error message
-        string.
+        "Linked #<child> as a sub-issue of #<parent> — <url> (~<N> sub-issues,
+        may lag)", or error message string. The count is approximate and
+        omitted when it could not be read. Call github_subissue_list for the
+        exact set.
     """
     return _subissue_write(parent_number, child_number, False, reference_name)
 
@@ -1740,8 +1796,9 @@ def github_subissue_remove(
             repository.
 
     Returns:
-        "Unlinked #<child> from #<parent> — <url> (<N> sub-issues)", where the
-        count is omitted when it could not be read, or error message string.
+        "Unlinked #<child> from #<parent> — <url> (~<N> sub-issues, may lag)",
+        or error message string. The count is approximate and omitted when it
+        could not be read. Call github_subissue_list for the exact set.
     """
     return _subissue_write(parent_number, child_number, True, reference_name)
 
@@ -1750,25 +1807,37 @@ def github_subissue_remove(
 @log_function_call
 def github_issue_comment(
     number: int,
-    body: str,
+    body: str = "",
     reference_name: Optional[str] = None,
+    body_file: Optional[str] = None,
 ) -> str:
     """Post a real comment on a GitHub issue. This writes to GitHub.
 
-    The comment text is passed inline — no temporary file is needed, and
-    multi-line Markdown is sent through unchanged.
+    Pass the comment text as `body` or `body_file` — exactly one. Multi-line
+    Markdown is sent through unchanged, except that leading and trailing
+    whitespace is stripped.
 
     Args:
         number: Issue number to comment on (must be positive)
-        body: Comment text in Markdown (required, cannot be empty)
+        body: Comment text in Markdown (cannot be empty when body_file is not
+            given)
         reference_name: Optional reference project name. When set, the comment is
             posted to that project's GitHub repository instead of the workspace
             repository.
+        body_file: Optional project-relative path whose content becomes the
+            comment text (a leading UTF-8 BOM is dropped). Same path rules as
+            read_file, so gitignored paths are refused. Mutually exclusive with
+            a non-empty body.
 
     Returns:
         "Added comment to issue #<number> — <url>", or error message string.
     """
     try:
+        body = cast(str, _resolve_body(body, body_file, conflict=bool(body)))
+        if not body:
+            if body_file is not None:
+                return f"Error: body_file '{body_file}' is empty"
+            return "Error: pass body or body_file"
         manager = _issue_manager(reference_name)
         comment = manager.add_comment(number, body)
         # Empty CommentData carries id == 0, not number == 0 as issues do
@@ -1909,6 +1978,7 @@ def github_pr_create(
     body: str = "",
     head: Optional[str] = None,
     base: Optional[str] = None,
+    body_file: Optional[str] = None,
 ) -> str:
     """Open a real pull request on this repository. This writes to GitHub.
 
@@ -1919,10 +1989,16 @@ def github_pr_create(
         base: Target branch (default: resolved for head — the issue's Base
             Branch, an open PR's base, the merge-base parent, or the default
             branch — and verified on origin)
+        body_file: Optional project-relative path whose content becomes the
+            description (a leading UTF-8 BOM is dropped). Same path rules as
+            read_file, so gitignored paths are refused. Mutually exclusive with
+            a non-empty body.
 
     Returns:
-        "Created PR #<number> — <url>", or an error message string. When base
-        is omitted, these errors are returned without creating anything:
+        "Created PR #<number> — <url>", or an error message string. Passing
+        both body and body_file, or a body_file that cannot be read or is
+        refused, is returned as an error without creating anything. When base
+        is omitted, these errors are also returned without creating anything:
         "Error: issue #N: <sentence>" (malformed Base Branch section),
         "Error: could not determine base branch for <head>",
         "Error: base branch '<base>' not found on origin",
@@ -1936,6 +2012,7 @@ def github_pr_create(
     from mcp_workspace.github_operations.pr_manager import PullRequestManager
 
     try:
+        body = cast(str, _resolve_body(body, body_file, conflict=bool(body)))
         if not title.strip():
             return "Error: PR title cannot be empty"
         # Raises ValueError when _project_dir is unset, caught below
@@ -2076,7 +2153,9 @@ def get_base_branch() -> str:
 
 @mcp.tool()
 @log_function_call
-def check_file_size(max_lines: Optional[int] = None) -> str:
+def check_file_size(
+    max_lines: Optional[int] = None, show_allowlisted: bool = False
+) -> str:
     """Check file line counts against threshold.
 
     Counts lines in every UTF-8 file under the project directory — all file
@@ -2087,9 +2166,15 @@ def check_file_size(max_lines: Optional[int] = None) -> str:
         max_lines: Maximum allowed lines per file. When omitted, the default
             comes from the server's --file-size-limit flag, falling back to
             600 if that flag was not given.
+        show_allowlisted: List only the `.large-files-allowlist` entries,
+            each with its line count, `not scanned` or `missing`, largest
+            first and uncapped; entries that can be removed are marked.
+            This is a listing, never a failure — the gate is the call
+            without this flag.
 
     Returns:
-        Formatted report of files exceeding the threshold.
+        Formatted report of files exceeding the threshold, or the
+        allowlist listing when show_allowlisted is True.
 
     Raises:
         ValueError: If the project directory has not been set.
@@ -2101,6 +2186,8 @@ def check_file_size(max_lines: Optional[int] = None) -> str:
         effective = 600
     allowlist_path = _project_dir / ".large-files-allowlist"
     allowlist = load_allowlist(allowlist_path)
+    if show_allowlisted:
+        return render_allowlisted(_project_dir, effective, allowlist)
     result = check_file_sizes(_project_dir, max_lines=effective, allowlist=allowlist)
     return render_output(result, effective)
 

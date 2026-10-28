@@ -355,16 +355,16 @@ The server exposes the following MCP tools:
 | `github_pr_view` | Shows a GitHub pull request with its reviews and comments | "Show me pull request 42" |
 | `github_search` | Searches issues and pull requests in one repository | "Find issues mentioning the reference cache" |
 | `github_label_list` | Lists the labels defined in a repository | "What labels does this repo use?" |
-| `github_issue_create` | Creates a GitHub issue | "Open an issue for the failing import check" |
-| `github_issue_edit` | Edits a GitHub issue's title, body or labels | "Retitle issue 12" |
-| `github_subissue_add` | Links an issue as a sub-issue of another | "Make issue 43 a sub-issue of 42" |
+| `github_issue_create` | Creates a GitHub issue; the body can come from a project file (`body_file`) | "Open an issue for the failing import check" |
+| `github_issue_edit` | Edits a GitHub issue's title, body or labels; the body can come from a project file (`body_file`) | "Retitle issue 12" |
+| `github_subissue_add` | Links an issue as a sub-issue of another; the reported count is approximate (use `github_subissue_list` for the exact set) | "Make issue 43 a sub-issue of 42" |
 | `github_subissue_list` | Lists an issue's sub-issues | "What are the sub-issues of issue 42?" |
-| `github_subissue_remove` | Unlinks a sub-issue from its parent | "Detach issue 43 from its parent" |
-| `github_issue_comment` | Adds a comment to a GitHub issue | "Comment on issue 12 with the repro steps" |
-| `github_pr_create` | Creates a GitHub pull request | "Open a PR for this branch" |
+| `github_subissue_remove` | Unlinks a sub-issue from its parent; the reported count is approximate (use `github_subissue_list` for the exact set) | "Detach issue 43 from its parent" |
+| `github_issue_comment` | Adds a comment to a GitHub issue; the body can come from a project file (`body_file`) | "Comment on issue 12 with the repro steps" |
+| `github_pr_create` | Creates a GitHub pull request; the body can come from a project file (`body_file`) | "Open a PR for this branch" |
 | `search_reference_files` | Searches file contents or finds files in a reference project | "Find where the docs project configures logging" |
 | `git` | Runs a read-only git command (log, diff, status, show, branch, ...) | "Show the last five commits" |
-| `check_file_size` | Reports files whose line count exceeds a threshold | "Which files in this project are too long?" |
+| `check_file_size` | Reports files whose line count exceeds a threshold; `show_allowlisted=True` lists allowlisted files with their sizes | "Which files in this project are too long?" |
 
 ### Tool Details
 

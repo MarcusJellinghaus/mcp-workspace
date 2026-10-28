@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Set
 
 import pytest
 
@@ -16,6 +16,7 @@ from mcp_workspace.checks.file_sizes import (
     get_file_metrics,
     load_allowlist,
     render_allowlist,
+    render_allowlisted,
     render_output,
 )
 
@@ -280,3 +281,91 @@ class TestRenderAllowlist:
         output = render_allowlist(violations)
         assert "src/a.py" in output
         assert "src/b.py" in output
+
+
+class TestRenderAllowlisted:
+    """Tests for render_allowlisted."""
+
+    def test_order_sized_then_not_scanned_then_missing(self, project_dir: Path) -> None:
+        project_dir.joinpath(".gitignore").write_text("build/\n", encoding="utf-8")
+        _write_file(project_dir, "tests/a.py", 1390)
+        _write_file(project_dir, "src/foo.py", 540)
+        _write_file(project_dir, "src/b.py", 700)
+        _write_file(project_dir, "src/a.py", 700)
+        _write_file(project_dir, "build/gen.py", 900)
+        allowlist = {
+            "tests/a.py",
+            "src/foo.py",
+            "src/b.py",
+            "src/a.py",
+            "build/gen.py",
+            "src/gone.py",
+        }
+        output = render_allowlisted(project_dir, 600, allowlist)
+        assert output == "\n".join(
+            [
+                "Allowlisted files (6), limit 600:",
+                "  tests/a.py: 1390 lines",
+                "  src/a.py: 700 lines",
+                "  src/b.py: 700 lines",
+                "  src/foo.py: 540 lines  (under limit - can be removed)",
+                "  build/gen.py: not scanned (gitignored/binary)",
+                "  src/gone.py: missing   (can be removed)",
+            ]
+        )
+
+    def test_under_limit_marked_including_exact(self, project_dir: Path) -> None:
+        _write_file(project_dir, "exact.py", 600)
+        _write_file(project_dir, "small.py", 10)
+        _write_file(project_dir, "over.py", 601)
+        output = render_allowlisted(
+            project_dir, 600, {"exact.py", "small.py", "over.py"}
+        )
+        lines = output.splitlines()
+        assert "  over.py: 601 lines" in lines
+        assert "  exact.py: 600 lines  (under limit - can be removed)" in lines
+        assert "  small.py: 10 lines  (under limit - can be removed)" in lines
+
+    def test_gitignored_and_binary_not_scanned(self, project_dir: Path) -> None:
+        project_dir.joinpath(".gitignore").write_text("build/\n", encoding="utf-8")
+        _write_file(project_dir, "build/gen.py", 900)
+        (project_dir / "data.bin").write_bytes(bytes(range(256)))
+        output = render_allowlisted(project_dir, 600, {"build/gen.py", "data.bin"})
+        lines = output.splitlines()
+        assert "  build/gen.py: not scanned (gitignored/binary)" in lines
+        assert "  data.bin: not scanned (gitignored/binary)" in lines
+
+    def test_missing_directory_and_traversal(self, project_dir: Path) -> None:
+        (project_dir / "somedir").mkdir()
+        (project_dir.parent / "secret.py").write_text("x\n", encoding="utf-8")
+        output = render_allowlisted(
+            project_dir, 600, {"gone.py", "somedir", "../secret.py"}
+        )
+        lines = output.splitlines()
+        assert "  gone.py: missing   (can be removed)" in lines
+        assert "  somedir: missing   (can be removed)" in lines
+        assert "  ../secret.py: missing   (can be removed)" in lines
+
+    def test_empty_allowlist(self, project_dir: Path) -> None:
+        assert (
+            render_allowlisted(project_dir, 600, set())
+            == "Allowlisted files (0), limit 600:"
+        )
+
+    def test_uncapped(self, project_dir: Path) -> None:
+        allowlist: Set[str] = set()
+        for i in range(60):
+            _write_file(project_dir, f"src/f{i:02d}.py", 700 + i)
+            allowlist.add(f"src/f{i:02d}.py")
+        output = render_allowlisted(project_dir, 600, allowlist)
+        item_lines = [line for line in output.splitlines() if line.startswith("  ")]
+        assert len(item_lines) == 60
+        assert "showing" not in output
+
+    def test_never_reports_pass_or_fail(self, project_dir: Path) -> None:
+        _write_file(project_dir, "violator.py", 900)
+        _write_file(project_dir, "big.py", 800)
+        output = render_allowlisted(project_dir, 600, {"big.py"})
+        assert "failed" not in output
+        assert "passed" not in output
+        assert "violator.py" not in output
