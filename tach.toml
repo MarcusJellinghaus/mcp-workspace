@@ -38,6 +38,7 @@ depends_on = [
     { path = "mcp_workspace.server" },
     { path = "mcp_workspace.reference_projects" },
     { path = "mcp_workspace._ssl" },
+    { path = "mcp_workspace.traffic_log" },
     { path = "mcp_coder_utils.log_utils" },
 ]
 # Note: main eagerly activates _ssl (truststore) at startup, before run_server —

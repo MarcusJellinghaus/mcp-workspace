@@ -13,6 +13,7 @@ from mcp_coder_utils.log_utils import setup_logging
 from mcp_workspace import __version__
 from mcp_workspace._ssl import ensure_truststore
 from mcp_workspace.reference_projects import ReferenceProject, detect_and_verify_url
+from mcp_workspace.traffic_log import set_traffic_log_context
 
 # Create loggers
 stdlogger = logging.getLogger(__name__)
@@ -342,6 +343,8 @@ def _main() -> None:
         # exits the process directly (SystemExit) — nothing below ever runs.
         parse_args(argv)
         return
+
+    set_traffic_log_context(command="mcp-workspace server")
 
     pre = _pre_parse(argv)
     project_dir = _resolve_project_dir(pre.project_dir)

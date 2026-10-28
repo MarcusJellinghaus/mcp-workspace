@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from mcp_workspace import traffic_log
 from mcp_workspace.main import main, parse_args
 from mcp_workspace.reference_projects import ReferenceProject
 
@@ -462,3 +463,27 @@ class TestMain:
                 assert (
                     mock_run_server.call_args[1]["enforce_base_branch_format"] is True
                 )
+
+    @patch("mcp_workspace.server.run_server")
+    @patch("mcp_workspace.main.Path.exists")
+    @patch("mcp_workspace.main.Path.is_dir")
+    def test_main_sets_traffic_log_command(
+        self,
+        mock_is_dir: MagicMock,
+        mock_exists: MagicMock,
+        mock_run_server: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test main() registers the traffic-log command name."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+        monkeypatch.setattr(traffic_log, "_command", "")
+
+        test_args = ["script.py", "--project-dir", "/test/project"]
+
+        with patch("sys.argv", test_args):
+            with patch("mcp_workspace.main.setup_logging"):
+                main()
+
+        mock_run_server.assert_called_once()
+        assert traffic_log._command == "mcp-workspace server"
