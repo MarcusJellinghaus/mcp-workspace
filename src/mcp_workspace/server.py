@@ -319,6 +319,44 @@ def _check_not_gitignored(file_path: str) -> None:
         )
 
 
+def _resolve_body(
+    body: Optional[str], body_file: Optional[str], conflict: bool
+) -> Optional[str]:
+    """Return the body to send: body unchanged, or body_file's text verbatim.
+
+    The file is read under read_file's rules (gitignore boundary, project
+    containment). A leading UTF-8 BOM is dropped; line endings are kept.
+
+    Args:
+        body: Inline body passed by the caller
+        body_file: Project-relative path to read the body from, or None
+        conflict: Whether body counts as passed alongside body_file
+
+    Returns:
+        body when body_file is None, otherwise the file's text.
+
+    Raises:
+        ValueError: conflict is True, the project directory is unset, the path is
+            gitignored / outside the project / not a file, or the file is not UTF-8.
+    """
+    if body_file is None:
+        return body
+    if conflict:
+        raise ValueError("pass either body or body_file, not both")
+    if _project_dir is None:
+        raise ValueError("Project directory has not been set")
+    _check_not_gitignored(body_file)
+    abs_path, _ = normalize_path(body_file, _project_dir)
+    if not abs_path.is_file():
+        raise ValueError(f"body_file '{body_file}' not found or not a file")
+    try:
+        # newline="" keeps CRLF; utf-8-sig drops a leading BOM
+        with open(abs_path, encoding="utf-8-sig", newline="") as f:
+            return f.read()
+    except UnicodeDecodeError as e:
+        raise ValueError(f"body_file '{body_file}' is not valid UTF-8") from e
+
+
 @log_function_call
 def set_project_dir(directory: Path) -> None:
     """Set the project directory for file operations.
@@ -1327,6 +1365,7 @@ def github_issue_create(
     labels: Optional[List[str]] = None,
     assignees: Optional[List[str]] = None,
     reference_name: Optional[str] = None,
+    body_file: Optional[str] = None,
 ) -> str:
     """Create a real GitHub issue. This writes to GitHub.
 
@@ -1348,12 +1387,18 @@ def github_issue_create(
         reference_name: Optional reference project name. When set, the issue is
             created in that project's GitHub repository instead of the workspace
             repository.
+        body_file: Optional project-relative path whose content is sent as the
+            body, byte for byte (a leading UTF-8 BOM is dropped). Same path
+            rules as read_file, so gitignored paths are refused. Mutually
+            exclusive with a non-empty body. The title is never read from the
+            file; the Base Branch check applies to the file text.
 
     Returns:
         "Created issue #<number> — <url>" followed by the resulting labels and
         assignees, or error message string.
     """
     try:
+        body = cast(str, _resolve_body(body, body_file, conflict=bool(body)))
         body_error = _check_base_branch(body)
         if body_error:
             return body_error

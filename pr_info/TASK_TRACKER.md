@@ -23,9 +23,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: `_resolve_body` helper + `github_issue_create(body_file=...)` — [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: tests in new `test_github_write_tools_body_file.py`, then `_resolve_body` and `body_file` on `github_issue_create`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests in new `test_github_write_tools_body_file.py`, then `_resolve_body` and `body_file` on `github_issue_create`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `github_issue_edit(body_file=...)` — [step_2.md](./steps/step_2.md)
 
