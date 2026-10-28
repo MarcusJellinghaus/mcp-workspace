@@ -35,9 +35,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 3: `github_issue_comment(body_file=...)` — [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: append comment tests, then optional `body`, `body_file`, and the "pass body or body_file" guard on `github_issue_comment`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: append comment tests, then optional `body`, `body_file`, and the "pass body or body_file" guard on `github_issue_comment`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: `github_pr_create(body_file=...)` — [step_4.md](./steps/step_4.md)
 

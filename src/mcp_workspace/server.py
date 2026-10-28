@@ -1802,25 +1802,35 @@ def github_subissue_remove(
 @log_function_call
 def github_issue_comment(
     number: int,
-    body: str,
+    body: str = "",
     reference_name: Optional[str] = None,
+    body_file: Optional[str] = None,
 ) -> str:
     """Post a real comment on a GitHub issue. This writes to GitHub.
 
-    The comment text is passed inline — no temporary file is needed, and
-    multi-line Markdown is sent through unchanged.
+    Pass the comment text as `body` or `body_file` — exactly one. Multi-line
+    Markdown is sent through unchanged, except that leading and trailing
+    whitespace is stripped.
 
     Args:
         number: Issue number to comment on (must be positive)
-        body: Comment text in Markdown (required, cannot be empty)
+        body: Comment text in Markdown (cannot be empty when body_file is not
+            given)
         reference_name: Optional reference project name. When set, the comment is
             posted to that project's GitHub repository instead of the workspace
             repository.
+        body_file: Optional project-relative path whose content becomes the
+            comment text (a leading UTF-8 BOM is dropped). Same path rules as
+            read_file, so gitignored paths are refused. Mutually exclusive with
+            a non-empty body.
 
     Returns:
         "Added comment to issue #<number> — <url>", or error message string.
     """
     try:
+        body = cast(str, _resolve_body(body, body_file, conflict=bool(body)))
+        if not body:
+            raise ValueError("pass body or body_file")
         manager = _issue_manager(reference_name)
         comment = manager.add_comment(number, body)
         # Empty CommentData carries id == 0, not number == 0 as issues do

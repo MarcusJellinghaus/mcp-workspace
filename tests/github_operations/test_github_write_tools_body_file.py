@@ -7,8 +7,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from mcp_workspace.github_operations import GithubException
-from mcp_workspace.github_operations.issues.types import IssueData
-from mcp_workspace.server import github_issue_create, github_issue_edit, set_project_dir
+from mcp_workspace.github_operations.issues.types import CommentData, IssueData
+from mcp_workspace.server import (
+    github_issue_comment,
+    github_issue_create,
+    github_issue_edit,
+    set_project_dir,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -245,3 +250,56 @@ def test_edit_empty_inline_body_unchanged(mock_edit_manager: MagicMock) -> None:
 
     assert result.startswith("Updated issue #")
     assert _edited_body(mock_edit_manager) == ""
+
+
+@pytest.fixture
+def mock_comment_manager(
+    mock_issue_manager: MagicMock,
+) -> Generator[MagicMock, None, None]:
+    """Extend the mocked IssueManager so add_comment succeeds."""
+    mock_issue_manager.return_value.add_comment.return_value = CommentData(
+        id=1,
+        body="",
+        user="alice",
+        created_at="2024-01-01T00:00:00",
+        updated_at="2024-01-01T00:00:00",
+        url="https://github.com/test/repo/issues/42#issuecomment-1",
+        author_association="OWNER",
+    )
+    yield mock_issue_manager
+
+
+def test_comment_body_file_sent_verbatim(
+    project_dir: Path, mock_comment_manager: MagicMock
+) -> None:
+    """A non-ASCII CRLF file reaches add_comment as its text."""
+    text = "äöü → ✓\r\nzweite Zeile\r\n"
+    (project_dir / "body.md").write_bytes(text.encode("utf-8"))
+
+    result = github_issue_comment(number=42, body_file="body.md")
+
+    assert result.startswith("Added comment to issue #42")
+    mock_comment_manager.return_value.add_comment.assert_called_once_with(42, text)
+
+
+def test_comment_body_and_body_file_conflict(
+    project_dir: Path, mock_comment_manager: MagicMock
+) -> None:
+    """Passing both body and body_file is an error before any manager call."""
+    (project_dir / "body.md").write_bytes(b"Hello")
+
+    result = github_issue_comment(number=42, body="x", body_file="body.md")
+
+    assert result.startswith("Error:")
+    assert "body" in result and "body_file" in result
+    mock_comment_manager.assert_not_called()
+
+
+def test_comment_neither_body_nor_body_file(
+    mock_comment_manager: MagicMock,
+) -> None:
+    """With no body source, the error wins over an invalid reference_name."""
+    result = github_issue_comment(number=42, reference_name="no-such-ref")
+
+    assert result == "Error: pass body or body_file"
+    mock_comment_manager.assert_not_called()
