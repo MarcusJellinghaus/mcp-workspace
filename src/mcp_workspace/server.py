@@ -14,6 +14,7 @@ from mcp_coder_utils.log_utils import log_function_call
 from mcp_workspace.checks.file_sizes import (
     check_file_sizes,
     load_allowlist,
+    render_allowlisted,
     render_output,
 )
 from mcp_workspace.file_tools import append_file as append_file_util
@@ -2150,7 +2151,9 @@ def get_base_branch() -> str:
 
 @mcp.tool()
 @log_function_call
-def check_file_size(max_lines: Optional[int] = None) -> str:
+def check_file_size(
+    max_lines: Optional[int] = None, show_allowlisted: bool = False
+) -> str:
     """Check file line counts against threshold.
 
     Counts lines in every UTF-8 file under the project directory — all file
@@ -2161,9 +2164,15 @@ def check_file_size(max_lines: Optional[int] = None) -> str:
         max_lines: Maximum allowed lines per file. When omitted, the default
             comes from the server's --file-size-limit flag, falling back to
             600 if that flag was not given.
+        show_allowlisted: List only the `.large-files-allowlist` entries,
+            each with its line count, `not scanned` or `missing`, largest
+            first and uncapped; entries that can be removed are marked.
+            This is a listing, never a failure — the gate is the call
+            without this flag.
 
     Returns:
-        Formatted report of files exceeding the threshold.
+        Formatted report of files exceeding the threshold, or the
+        allowlist listing when show_allowlisted is True.
 
     Raises:
         ValueError: If the project directory has not been set.
@@ -2175,6 +2184,8 @@ def check_file_size(max_lines: Optional[int] = None) -> str:
         effective = 600
     allowlist_path = _project_dir / ".large-files-allowlist"
     allowlist = load_allowlist(allowlist_path)
+    if show_allowlisted:
+        return render_allowlisted(_project_dir, effective, allowlist)
     result = check_file_sizes(_project_dir, max_lines=effective, allowlist=allowlist)
     return render_output(result, effective)
 

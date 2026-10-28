@@ -53,9 +53,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 6: `check_file_size(show_allowlisted=True)` — [step_6.md](./steps/step_6.md)
 
-- [ ] Implementation: tests for `render_allowlisted` and flag routing, then `render_allowlisted`, `check_file_size` flag, cap comments
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests for `render_allowlisted` and flag routing, then `render_allowlisted`, `check_file_size` flag, cap comments
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 7: README and `tests/LLM_Test.md` — [step_7.md](./steps/step_7.md)
 

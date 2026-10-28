@@ -3,20 +3,21 @@
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Set
+from typing import List, Set, Tuple
 
 from mcp_workspace.file_tools.directory_utils import list_files
 
 logger = logging.getLogger(__name__)
 
-# The 50-violation cap is deliberate: check_file_size has no lift parameter and
-# is not getting one. Callers narrow instead - the allowlist takes exact paths
-# only, so .gitignore is what excludes a vendored tree from the scan.
+# The 50-violation cap is deliberate and applies to the default report;
+# show_allowlisted=True lists allowlist entries uncapped. Callers narrow
+# instead - the allowlist takes exact paths only, so .gitignore is what
+# excludes a vendored tree from the scan.
 _MAX_REPORT_VIOLATIONS = 50
 
-# The 50-entry cap is deliberate: check_file_size has no lift parameter and is
-# not getting one. There is no narrowing alternative here - the entries come
-# from the allowlist file, so shortening that file is the only remedy.
+# The 50-entry cap is deliberate and applies to the default report;
+# show_allowlisted=True lists every allowlist entry uncapped, marking the
+# removable ones.
 _MAX_STALE_ENTRIES = 50
 
 
@@ -196,6 +197,41 @@ def render_output(result: CheckResult, max_lines: int) -> str:
                 f"  ... showing {_MAX_STALE_ENTRIES} of {stale_count} stale entries"
             )
 
+    return "\n".join(lines)
+
+
+def render_allowlisted(project_dir: Path, max_lines: int, allowlist: Set[str]) -> str:
+    """List every allowlist entry with its size, largest first.
+
+    Sized entries come first (line count descending, ties by path), then
+    entries that exist but were not scanned, then missing entries. Entries
+    at or under ``max_lines`` and missing entries are marked removable.
+    The listing is uncapped and never reports a pass or failure.
+
+    Returns:
+        Multi-line listing headed by the entry count and limit.
+    """
+    metrics = get_file_metrics(list_files(".", project_dir), project_dir)
+    sizes = {m.path: m.line_count for m in metrics}
+    root = project_dir.resolve()
+
+    rows: List[Tuple[int, int, str, str]] = []
+    for entry in allowlist:
+        if entry in sizes:
+            text = f"{sizes[entry]} lines"
+            if sizes[entry] <= max_lines:
+                text += "  (under limit - can be removed)"
+            rows.append((0, -sizes[entry], entry, text))
+        elif not (project_dir / entry).resolve().is_relative_to(root):
+            # Outside the project: never probed
+            rows.append((2, 0, entry, "missing   (can be removed)"))
+        elif (project_dir / entry).is_file():
+            rows.append((1, 0, entry, "not scanned (gitignored/binary)"))
+        else:
+            rows.append((2, 0, entry, "missing   (can be removed)"))
+
+    lines = [f"Allowlisted files ({len(allowlist)}), limit {max_lines}:"]
+    lines.extend(f"  {path}: {text}" for *_, path, text in sorted(rows))
     return "\n".join(lines)
 
 
