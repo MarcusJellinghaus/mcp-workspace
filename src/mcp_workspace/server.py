@@ -1671,7 +1671,9 @@ def _subissue_write(
         link = call(parent_number, child_number)
         if link is None:
             return _repo_access_error(manager)
-        count = "" if link.total is None else f" ({link.total} sub-issues)"
+        # GitHub's sub_issues_summary lags after a write, even on the refetch;
+        # counting via the list endpoint was rejected for its API cost.
+        count = "" if link.total is None else f" (~{link.total} sub-issues, may lag)"
         verb = "Unlinked" if unlink else "Linked"
         relation = "from" if unlink else "as a sub-issue of"
         return (
@@ -1704,9 +1706,10 @@ def github_subissue_add(
             repository.
 
     Returns:
-        "Linked #<child> as a sub-issue of #<parent> — <url> (<N> sub-issues)",
-        where the count is omitted when it could not be read, or error message
-        string.
+        "Linked #<child> as a sub-issue of #<parent> — <url> (~<N> sub-issues,
+        may lag)", or error message string. The count is approximate and
+        omitted when it could not be read. Call github_subissue_list for the
+        exact set.
     """
     return _subissue_write(parent_number, child_number, False, reference_name)
 
@@ -1792,8 +1795,9 @@ def github_subissue_remove(
             repository.
 
     Returns:
-        "Unlinked #<child> from #<parent> — <url> (<N> sub-issues)", where the
-        count is omitted when it could not be read, or error message string.
+        "Unlinked #<child> from #<parent> — <url> (~<N> sub-issues, may lag)",
+        or error message string. The count is approximate and omitted when it
+        could not be read. Call github_subissue_list for the exact set.
     """
     return _subissue_write(parent_number, child_number, True, reference_name)
 
@@ -1830,7 +1834,7 @@ def github_issue_comment(
     try:
         body = cast(str, _resolve_body(body, body_file, conflict=bool(body)))
         if not body:
-            raise ValueError("pass body or body_file")
+            return "Error: pass body or body_file"
         manager = _issue_manager(reference_name)
         comment = manager.add_comment(number, body)
         # Empty CommentData carries id == 0, not number == 0 as issues do

@@ -47,9 +47,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 5: Approximate sub-issue count — [step_5.md](./steps/step_5.md)
 
-- [ ] Implementation: update sub-issue test assertions, then `(~N sub-issues, may lag)` in `_subissue_write` and docstrings
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: update sub-issue test assertions, then `(~N sub-issues, may lag)` in `_subissue_write` and docstrings
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 6: `check_file_size(show_allowlisted=True)` — [step_6.md](./steps/step_6.md)
 
