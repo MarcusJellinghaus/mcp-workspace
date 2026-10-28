@@ -18,7 +18,7 @@ timestamp | pid | command | METHOD path | status | resource remaining | duration
 
 1. **New stdlib-only utility module `mcp_workspace/traffic_log.py`** (utilities layer, depends
    only on `mcp_workspace.config`). It owns the command context, the call-chain walk, the line
-   format and the locked append. It must not import PyGithub or `requests`: `main.py` imports
+   format and the plain append. It must not import PyGithub or `requests`: `main.py` imports
    it, and `main.py` must not load PyGithub (`tests/test_startup_performance.py`, layering).
    mcp_coder imports it directly: `from mcp_workspace.traffic_log import set_traffic_log_context`.
 2. **Config switch read once per process.** `config.get_traffic_log_dir() -> Path | None`,
@@ -46,7 +46,7 @@ timestamp | pid | command | METHOD path | status | resource remaining | duration
 | Off path | `log_request` returns at once when off; the wrapper is installed only when on. |
 | Own frames | The chain walk skips the modules `mcp_workspace.traffic_log` and `mcp_workspace.github_operations._client`. |
 | Signed URLs | Drop the query string only on hops to a host other than the API host (the 302 to a signed blob URL carries a SAS signature): in the wrapper when PyGithub passes a custom `cnx`, in retry lines when `_pool.host != api_host`. API-host lines keep their query. The raw download logs the original API URL. |
-| Write | Thread lock + non-blocking file lock (`msvcrt.locking` / `fcntl.flock`), a few short retries, one `os.write` per line, file opened per line. Any failure skips the line silently. |
+| Write | Plain append (`open("a")`, one `write` per line, file opened per line), no locking: a rare mixed line under concurrent writers is accepted. Any failure skips the line silently. |
 | Rotation | The daily file name does it; no rotating handlers. |
 | Concurrency check | A scratch probe in step 2 (deleted afterwards), not a permanent test. |
 | No exit summary, no env var, independent of `--log-level`. | As in the issue. |
@@ -54,7 +54,7 @@ timestamp | pid | command | METHOD path | status | resource remaining | duration
 ## Files created / modified
 
 ### Created
-- `src/mcp_workspace/traffic_log.py` — context, chain, format, locked append
+- `src/mcp_workspace/traffic_log.py` — context, chain, format, plain append
 - `tests/github_operations/test_traffic_log.py` — unit tests for the module
 - `tests/github_operations/test_client_traffic_log.py` — hook tests (wrapper, retry, line counts)
 

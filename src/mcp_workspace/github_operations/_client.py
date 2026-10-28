@@ -48,7 +48,11 @@ class _LoggingGithubRetry(GithubRetry):
         super().__init__(**kwargs)
 
     def new(self, **kw: Any) -> Self:
-        """Carry ``api_host`` into the copy urllib3 makes on every ``increment``."""
+        """Carry ``api_host`` into the copy urllib3 makes on every ``increment``.
+
+        Returns:
+            The new retry object, with ``api_host`` preserved.
+        """
         kw["api_host"] = self.api_host
         return super().new(**kw)
 
@@ -65,6 +69,9 @@ class _LoggingGithubRetry(GithubRetry):
 
         If ``super().increment`` raises, nothing is written: the exception
         leaves ``__requestRaw`` and the traffic-log wrapper writes ``ERR``.
+
+        Returns:
+            The retry object from ``super().increment``.
         """
         new_retry = super().increment(
             method, url, response, error, _pool, _stacktrace  # type: ignore[arg-type]
