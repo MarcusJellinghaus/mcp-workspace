@@ -92,11 +92,15 @@ GitHub settings are read from `~/.mcp_coder/config.toml` (the user app-data dire
 - `token`: GitHub token. The `GITHUB_TOKEN` environment variable takes precedence.
 - `test_repo_url`: repository used by integration tests. The `GITHUB_TEST_REPO_URL` environment variable takes precedence.
 - `trusted_commenters`: list of GitHub logins trusted as authors (their comments are shown to the agent) and as issue body editors (their `### Base Branch` is honoured). There is no environment-variable override.
+- `traffic_log`: `true` writes one line per GitHub HTTP request to a daily file (see [GitHub traffic log](#github-traffic-log)). Off by default. Read once per process; no environment-variable override; independent of `--log-level`.
+- `traffic_log_dir`: folder for the traffic log files. Default `logs/github_traffic/` in the same app-data directory (`~/.mcp_coder/logs/github_traffic/`).
 
 ```toml
 [github]
 token = "ghp_..."
 trusted_commenters = ["dependabot[bot]"]
+traffic_log = true
+# traffic_log_dir = "C:/logs/github_traffic"
 ```
 
 ### Commenter trust
@@ -109,6 +113,38 @@ An author is trusted if their GitHub association is `OWNER`, `MEMBER` or `COLLAB
 - Base branch: an issue's `### Base Branch` section is ignored unless the issue author is trusted, or the last editor of the body is the token user or in `trusted_commenters`. Tools then fall back to the PR base, merge-base or default branch.
 - Roles are relative to the repository being read, including with `reference_name`.
 - The allowlist lives outside the repository on purpose, so a PR cannot add itself.
+
+### GitHub traffic log
+
+With `traffic_log = true`, every GitHub HTTP attempt is appended as one line to `github_requests_YYYY-MM-DD.log` (local date) in `traffic_log_dir`. Several processes and machines may append to the same folder; there is no locking, so concurrent writers can occasionally mix or lose a line.
+
+```
+timestamp | pid | command | METHOD path | status | resource remaining | duration | call chain
+2026-10-27T09:14:03.412+01:00 | 18244 | vscodeclaude launch | GET /repos/o/r/actions/runs/123/jobs?page=2 | 200 | core 4211 | 182ms | commands_vscodeclaude.execute_coordinator_vscodeclaude > checks.check_pr_health > ci_results_manager.CIResultsManager.get_latest_ci_status
+```
+
+Fields:
+
+- `timestamp`: local ISO time with milliseconds and UTC offset.
+- `pid`: process id.
+- `command`: set by the calling application; `mcp-workspace server` for this server; blank when unset.
+- `METHOD path`: HTTP method and path, with query string.
+- `status`: see below.
+- `resource remaining`: `X-RateLimit-Resource` and `X-RateLimit-Remaining`; `-` when missing.
+- `duration`: e.g. `182ms`; `-` on retry lines.
+- `call chain`: `mcp_coder` / `mcp_workspace` frames as `module.function`, outermost first.
+
+Status values:
+
+- HTTP status, e.g. `200`.
+- `retry <status>` or `retry <ExceptionType>`: this attempt failed and another attempt follows (duration `-`).
+- `ERR <ExceptionType> [status]`: the request failed. Hitting the rate-limit wait cap shows as `ERR RateLimitExceededExceedsMaxWait`.
+
+Redirects (301/302) and 202 responses: each hop gets its own line. The line of the request that led to a hop repeats the final hop's status and headers, and its duration is cumulative (for 202 it includes PyGithub's 2 s wait).
+
+Never written: the token, auth headers, request/response bodies, GraphQL query text, and query strings of requests to hosts other than the API host (e.g. the signed blob URL a 302 redirects to). API request lines keep their query.
+
+A failed write skips the line and never affects the request.
 
 ## GitHub caches
 

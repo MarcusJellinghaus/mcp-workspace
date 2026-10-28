@@ -66,9 +66,9 @@ See [step_6.md](./steps/step_6.md)
 ### Step 7: README docs
 See [step_7.md](./steps/step_7.md)
 
-- [ ] Implementation (README `traffic_log` / `traffic_log_dir` docs, line format, hop semantics)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (README `traffic_log` / `traffic_log_dir` docs, line format, hop semantics)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 
