@@ -32,8 +32,9 @@ Each tool calls it as the **first statement in its `try`**, so every error goes 
 Everything after it (`_check_base_branch`, `_edit_change_lines`, manager calls) sees only the resolved `body`
 and is unchanged.
 
-`github_issue_comment`: `body: str` becomes `body: str = ""`. "Neither body nor body_file" needs no own check:
-`add_comment` already raises `ValueError("Comment body cannot be empty")` before `create_comment`.
+`github_issue_comment`: `body: str` becomes `body: str = ""`. Right after `_resolve_body`, before the manager is
+built, `if not body: raise ValueError("pass body or body_file")`, so this error precedes any `reference_name` or
+token error.
 `add_comment` keeps stripping the body (comments are exempt from byte-for-byte).
 
 ## 2. Approximate sub-issue count

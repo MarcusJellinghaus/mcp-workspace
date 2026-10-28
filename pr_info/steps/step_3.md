@@ -26,8 +26,10 @@ def github_issue_comment(
 ## HOW
 - First line inside `try`: `body = cast(str, _resolve_body(body, body_file, conflict=bool(body)))`
   (or equivalent satisfying mypy).
-- No own "neither given" check: `add_comment` raises `ValueError("Comment body cannot be empty")` before
-  `create_comment`, which `_tool_error` renders as `Error: Comment body cannot be empty`.
+- Second line inside `try`, before `_issue_manager(reference_name)`:
+  `if not body: raise ValueError("pass body or body_file")`. This makes the "neither given" error come before
+  any `reference_name` or token error; `_tool_error` renders it as `Error: pass body or body_file`.
+  `add_comment`'s own empty/whitespace check stays as the library-level guard.
 - Docstring: drop "no temporary file is needed"; keep "multi-line Markdown is sent through unchanged" but note
   leading/trailing whitespace is stripped; `body` is now optional — pass `body` or `body_file`, exactly one.
 
@@ -43,7 +45,7 @@ Patch `_issue_manager` with a `MagicMock` whose `add_comment` returns a `Comment
 
 1. CRLF + non-ASCII file → `add_comment` called with `(number, file_text)`.
 2. `body="x"` + `body_file` → conflict error; `_issue_manager` not called.
-3. Neither `body` nor `body_file` → `add_comment` is called with `""`; with a `MagicMock` whose `add_comment` has
-   `side_effect=ValueError("Comment body cannot be empty")`, the result is `"Error: Comment body cannot be empty"`.
-   That the real `add_comment` rejects an empty body before `create_comment` is covered in
-   `tests/github_operations/issues/test_comments_mixin.py`; add a test there only if none exists.
+3. Neither `body` nor `body_file` → result is `"Error: pass body or body_file"` and `_issue_manager` is not
+   called (so the error wins even with an invalid `reference_name`, e.g. `reference_name="no-such-ref"`).
+   No mock `side_effect` test for `add_comment`: its own empty-body rejection is already covered by
+   `test_add_comment_empty_body` in `tests/github_operations/issues/test_comments_mixin.py`.
