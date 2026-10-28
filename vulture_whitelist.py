@@ -230,3 +230,12 @@ _._git_mocks  # name="git_mocks"
 _._default_rules_empty
 # Autouse fixture clearing the per-process repository cache (issue #360, pytest collection only)
 _._reset_repository_cache
+# Autouse fixture turning the traffic log off for tests (issue #359, pytest collection only)
+_._traffic_log_off
+# Autouse fixture in TestGetTrafficLogDir (issue #359, pytest collection only)
+_._clear_cache
+# BaseHTTPRequestHandler overrides in the local test HTTP server (issue #359, called by http.server)
+_.do_GET
+_.log_message
+# Parameter kept only to match PyGithub's Requester signature in the fake stand-ins (issue #359)
+_.stream
