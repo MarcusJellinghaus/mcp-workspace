@@ -21,6 +21,49 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: `_resolve_body` helper + `github_issue_create(body_file=...)` — [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: tests in new `test_github_write_tools_body_file.py`, then `_resolve_body` and `body_file` on `github_issue_create`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: `github_issue_edit(body_file=...)` — [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: append edit tests, then `body_file` on `github_issue_edit` (conflict on any `body`, including `""`)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: `github_issue_comment(body_file=...)` — [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation: append comment tests, then optional `body`, `body_file`, and the "pass body or body_file" guard on `github_issue_comment`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 4: `github_pr_create(body_file=...)` — [step_4.md](./steps/step_4.md)
+
+- [ ] Implementation: append PR create tests, then `body_file` on `github_pr_create`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 5: Approximate sub-issue count — [step_5.md](./steps/step_5.md)
+
+- [ ] Implementation: update sub-issue test assertions, then `(~N sub-issues, may lag)` in `_subissue_write` and docstrings
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 6: `check_file_size(show_allowlisted=True)` — [step_6.md](./steps/step_6.md)
+
+- [ ] Implementation: tests for `render_allowlisted` and flag routing, then `render_allowlisted`, `check_file_size` flag, cap comments
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 7: README and `tests/LLM_Test.md` — [step_7.md](./steps/step_7.md)
+
+- [ ] Implementation: README tool table and `tests/LLM_Test.md` updates (docs only)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: review full branch diff against `main`, address findings
+- [ ] PR summary prepared
