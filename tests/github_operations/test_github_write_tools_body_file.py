@@ -12,8 +12,12 @@ from mcp_workspace.server import (
     github_issue_comment,
     github_issue_create,
     github_issue_edit,
+    github_pr_create,
     set_project_dir,
 )
+
+PR_MANAGER = "mcp_workspace.github_operations.pr_manager.PullRequestManager"
+CURRENT_BRANCH = "mcp_workspace.git_operations.get_current_branch_name"
 
 
 @pytest.fixture(autouse=True)
@@ -303,3 +307,58 @@ def test_comment_neither_body_nor_body_file(
 
     assert result == "Error: pass body or body_file"
     mock_comment_manager.assert_not_called()
+
+
+@pytest.fixture
+def mock_pr_manager() -> Generator[MagicMock, None, None]:
+    """Patch PullRequestManager and the current-branch lookup."""
+    with patch(PR_MANAGER) as mock_cls, patch(CURRENT_BRANCH, return_value="feature/x"):
+        manager: MagicMock = mock_cls.return_value
+        # pylint: disable-next=protected-access
+        manager._validate_branch_name.return_value = True
+        manager.create_pull_request.return_value = {
+            "number": 7,
+            "url": "https://github.com/test/repo/pull/7",
+        }
+        yield mock_cls
+
+
+def test_pr_create_body_file_sent_verbatim(
+    project_dir: Path, mock_pr_manager: MagicMock
+) -> None:
+    """A CRLF file reaches create_pull_request as its exact text."""
+    text = "Summary\r\n\r\n- äöü → ✓\r\n"
+    (project_dir / "body.md").write_bytes(text.encode("utf-8"))
+
+    result = github_pr_create(
+        title="T", head="feature/x", base="main", body_file="body.md"
+    )
+
+    assert result.startswith("Created PR #7")
+    create = mock_pr_manager.return_value.create_pull_request
+    assert create.call_args.kwargs["body"] == text
+
+
+def test_pr_create_body_and_body_file_conflict(
+    project_dir: Path, mock_pr_manager: MagicMock
+) -> None:
+    """Passing both body and body_file is an error before any manager call."""
+    (project_dir / "body.md").write_bytes(b"Hello")
+
+    result = github_pr_create(
+        title="T", body="x", head="feature/x", base="main", body_file="body.md"
+    )
+
+    assert result.startswith("Error:")
+    assert "body" in result and "body_file" in result
+    mock_pr_manager.assert_not_called()
+
+
+def test_pr_create_body_file_missing(mock_pr_manager: MagicMock) -> None:
+    """A missing body_file is an error before any manager call."""
+    result = github_pr_create(
+        title="T", head="feature/x", base="main", body_file="missing.md"
+    )
+
+    assert result.startswith("Error:")
+    mock_pr_manager.assert_not_called()

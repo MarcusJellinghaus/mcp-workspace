@@ -1971,6 +1971,7 @@ def github_pr_create(
     body: str = "",
     head: Optional[str] = None,
     base: Optional[str] = None,
+    body_file: Optional[str] = None,
 ) -> str:
     """Open a real pull request on this repository. This writes to GitHub.
 
@@ -1981,10 +1982,16 @@ def github_pr_create(
         base: Target branch (default: resolved for head — the issue's Base
             Branch, an open PR's base, the merge-base parent, or the default
             branch — and verified on origin)
+        body_file: Optional project-relative path whose content becomes the
+            description (a leading UTF-8 BOM is dropped). Same path rules as
+            read_file, so gitignored paths are refused. Mutually exclusive with
+            a non-empty body.
 
     Returns:
-        "Created PR #<number> — <url>", or an error message string. When base
-        is omitted, these errors are returned without creating anything:
+        "Created PR #<number> — <url>", or an error message string. Passing
+        both body and body_file, or a body_file that cannot be read or is
+        refused, is returned as an error without creating anything. When base
+        is omitted, these errors are also returned without creating anything:
         "Error: issue #N: <sentence>" (malformed Base Branch section),
         "Error: could not determine base branch for <head>",
         "Error: base branch '<base>' not found on origin",
@@ -1998,6 +2005,7 @@ def github_pr_create(
     from mcp_workspace.github_operations.pr_manager import PullRequestManager
 
     try:
+        body = cast(str, _resolve_body(body, body_file, conflict=bool(body)))
         if not title.strip():
             return "Error: PR title cannot be empty"
         # Raises ValueError when _project_dir is unset, caught below

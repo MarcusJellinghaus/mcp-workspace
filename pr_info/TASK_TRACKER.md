@@ -41,9 +41,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 4: `github_pr_create(body_file=...)` — [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: append PR create tests, then `body_file` on `github_pr_create`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: append PR create tests, then `body_file` on `github_pr_create`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 5: Approximate sub-issue count — [step_5.md](./steps/step_5.md)
 
