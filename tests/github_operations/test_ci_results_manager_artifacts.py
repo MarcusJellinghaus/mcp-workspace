@@ -302,6 +302,7 @@ class TestDownloadAndExtractZipTimeout:
         mock_response = Mock()
         mock_response.content = zip_buffer.getvalue()
         mock_response.raise_for_status = Mock()
+        mock_response.history = []
         mock_get.return_value = mock_response
 
         url = "https://api.github.com/repos/test/repo/artifacts/456/zip"
