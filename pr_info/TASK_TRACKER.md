@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: `github_issue_edit(body_file=...)` — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: append edit tests, then `body_file` on `github_issue_edit` (conflict on any `body`, including `""`)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: append edit tests, then `body_file` on `github_issue_edit` (conflict on any `body`, including `""`)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: `github_issue_comment(body_file=...)` — [step_3.md](./steps/step_3.md)
 

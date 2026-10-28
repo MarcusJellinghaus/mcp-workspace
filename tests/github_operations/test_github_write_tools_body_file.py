@@ -6,8 +6,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from mcp_workspace.github_operations import GithubException
 from mcp_workspace.github_operations.issues.types import IssueData
-from mcp_workspace.server import github_issue_create, set_project_dir
+from mcp_workspace.server import github_issue_create, github_issue_edit, set_project_dir
 
 
 @pytest.fixture(autouse=True)
@@ -158,3 +159,89 @@ def test_create_inline_body_unchanged(mock_issue_manager: MagicMock) -> None:
 
     assert result.startswith("Created issue #42")
     assert _sent_body(mock_issue_manager) == "Inline\r\nbody "
+
+
+@pytest.fixture
+def mock_edit_manager(
+    mock_issue_manager: MagicMock,
+) -> Generator[MagicMock, None, None]:
+    """Extend the mocked IssueManager so edit_issue succeeds."""
+    mock_issue_manager.return_value.edit_issue.return_value = _make_issue()
+    yield mock_issue_manager
+
+
+def _edited_body(mock_factory: MagicMock) -> str:
+    """Return the body passed to edit_issue."""
+    body: str = mock_factory.return_value.edit_issue.call_args.kwargs["body"]
+    return body
+
+
+def test_edit_body_file_sent_verbatim(
+    project_dir: Path, mock_edit_manager: MagicMock
+) -> None:
+    """A CRLF file is sent byte for byte and the edit reports success."""
+    (project_dir / "body.md").write_bytes(b"Line one\r\nLine two\r\n")
+
+    result = github_issue_edit(number=42, body_file="body.md")
+
+    assert result.startswith("Updated issue #")
+    assert "Error" not in result and "Warning" not in result
+    assert _edited_body(mock_edit_manager) == "Line one\r\nLine two\r\n"
+
+
+def test_edit_empty_body_and_body_file_conflict(
+    project_dir: Path, mock_edit_manager: MagicMock
+) -> None:
+    """Even body="" conflicts with body_file on edit."""
+    (project_dir / "body.md").write_bytes(b"Hello")
+
+    result = github_issue_edit(number=42, body="", body_file="body.md")
+
+    assert result.startswith("Error:")
+    assert "body" in result and "body_file" in result
+    mock_edit_manager.assert_not_called()
+
+
+def test_edit_body_file_malformed_base_branch(
+    project_dir: Path, mock_edit_manager: MagicMock
+) -> None:
+    """The Base Branch check applies to the file text."""
+    (project_dir / "body.md").write_bytes(b"### Base Branch\n\nline1\nline2\n")
+
+    result = github_issue_edit(number=42, body_file="body.md")
+
+    assert result.startswith("Error:")
+    assert "line1" in result
+    mock_edit_manager.return_value.edit_issue.assert_not_called()
+
+
+def test_edit_body_file_partial_failure_reports_body(
+    project_dir: Path, mock_edit_manager: MagicMock
+) -> None:
+    """On partial failure, the file body is reported as applied."""
+    text = "Line one\r\nLine two\r\n"
+    (project_dir / "body.md").write_bytes(text.encode("utf-8"))
+
+    def fail_after_body(*_args: object, **kwargs: object) -> IssueData:
+        attempted = kwargs["attempted_writes"]
+        assert isinstance(attempted, list)
+        attempted.append("body")
+        raise GithubException(500, {"message": "boom"}, None)
+
+    mgr = mock_edit_manager.return_value
+    mgr.edit_issue.side_effect = fail_after_body
+    refetched = _make_issue()
+    refetched["body"] = text
+    mgr.get_issue.return_value = refetched
+
+    result = github_issue_edit(number=42, body_file="body.md")
+
+    assert "Applied: body" in result
+
+
+def test_edit_empty_inline_body_unchanged(mock_edit_manager: MagicMock) -> None:
+    """Without body_file, body="" still reaches edit_issue as ""."""
+    result = github_issue_edit(number=42, body="")
+
+    assert result.startswith("Updated issue #")
+    assert _edited_body(mock_edit_manager) == ""

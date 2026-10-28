@@ -1441,6 +1441,7 @@ def github_issue_edit(
     add_assignees: Optional[List[str]] = None,
     state: Optional[str] = None,
     reference_name: Optional[str] = None,
+    body_file: Optional[str] = None,
 ) -> str:
     """Modify a real GitHub issue. This writes to GitHub.
 
@@ -1449,9 +1450,10 @@ def github_issue_edit(
     changes are additive and subtractive, never a replacement of the whole set.
     Workflow status labels (status-*) are rejected on the add and the remove
     side — those are applied with `mcp-coder gh-tool set-status <label>` from
-    the target repository's own checkout. When `body` is passed, a malformed
-    `### Base Branch` section (more than one line) is rejected before any
-    write, unless the server was started with `--no-enforce-base-branch-format`.
+    the target repository's own checkout. When `body` or `body_file` is
+    passed, a malformed `### Base Branch` section (more than one line) is
+    rejected before any write, unless the server was started with
+    `--no-enforce-base-branch-format`.
 
     The edit is not a transaction: if a later part fails, the earlier part
     stays applied. The result then opens with a warning naming which requested
@@ -1470,6 +1472,10 @@ def github_issue_edit(
         reference_name: Optional reference project name. When set, the issue is
             edited in that project's GitHub repository instead of the workspace
             repository.
+        body_file: Optional project-relative path whose content becomes the new
+            body, byte for byte (a leading UTF-8 BOM is dropped). Same path
+            rules as read_file, so gitignored paths are refused. Mutually
+            exclusive with body — any body value, including "", conflicts.
 
     Returns:
         "Updated issue #<number> — <url> (state: <state>)" followed by the
@@ -1489,6 +1495,7 @@ def github_issue_edit(
         # Pre-write validation. Nothing has been written yet, so a plain error
         # is honest — and it keeps the inner except below meaning exactly one
         # thing: the write sequence started and something after it failed.
+        body = _resolve_body(body, body_file, conflict=body is not None)
         if number <= 0:
             return f"Error: invalid issue number: {number}"
         if title is not None and not title.strip():
