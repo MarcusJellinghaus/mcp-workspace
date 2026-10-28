@@ -6,6 +6,7 @@ GitHub CI pipeline results through the PyGithub library.
 
 import io
 import logging
+import time
 import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, TypedDict, cast
@@ -15,6 +16,7 @@ from mcp_coder_utils.log_utils import log_function_call
 from typing_extensions import NotRequired
 
 from mcp_workspace.git_operations.branch_queries import validate_branch_name
+from mcp_workspace.traffic_log import error_status, log_request
 
 from .base_manager import (
     BaseGitHubManager,
@@ -345,12 +347,23 @@ class CIResultsManager(BaseGitHubManager):
                 "Accept": "application/vnd.github.v3+json",
             }
 
-            response = requests.get(
-                url,
-                headers=headers,
-                allow_redirects=True,
-                timeout=(self.DEFAULT_CONNECT_TIMEOUT, self.DEFAULT_REQUEST_TIMEOUT),
-            )
+            start = time.monotonic()
+            try:
+                response = requests.get(
+                    url,
+                    headers=headers,
+                    allow_redirects=True,
+                    timeout=(
+                        self.DEFAULT_CONNECT_TIMEOUT,
+                        self.DEFAULT_REQUEST_TIMEOUT,
+                    ),
+                )
+            except Exception as exc:
+                log_request("GET", url, error_status(exc), None, start)
+                raise
+            # Rate-limit headers come from the API response, i.e. the first redirect hop
+            first = response.history[0] if response.history else response
+            log_request("GET", url, str(response.status_code), first.headers, start)
             response.raise_for_status()
 
             # Extract ZIP contents
