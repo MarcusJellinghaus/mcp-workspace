@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import timedelta
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 from unittest.mock import Mock, patch
 
 import pytest
@@ -256,18 +256,31 @@ class TestLookup:
 
         assert not _path().exists()
 
+    # Builders, not strings: _entry() embeds utc_now(), and a timestamp in a
+    # parameter value makes each xdist worker collect different test IDs.
     @pytest.mark.parametrize(
-        "content",
+        "make_content",
         [
-            "not json",
-            json.dumps({"version": 99, "entries": {"5": _entry()}}),
-            json.dumps({"entries": {"5": _entry()}}),
-            json.dumps({"version": BRANCHES_CACHE_VERSION, "entries": []}),
-            json.dumps({"version": BRANCHES_CACHE_VERSION, "entries": {"5": "x"}}),
+            lambda: "not json",
+            lambda: json.dumps({"version": 99, "entries": {"5": _entry()}}),
+            lambda: json.dumps({"entries": {"5": _entry()}}),
+            lambda: json.dumps({"version": BRANCHES_CACHE_VERSION, "entries": []}),
+            lambda: json.dumps(
+                {"version": BRANCHES_CACHE_VERSION, "entries": {"5": "x"}}
+            ),
+        ],
+        ids=[
+            "not-json",
+            "wrong-version",
+            "no-version",
+            "entries-list",
+            "entry-not-dict",
         ],
     )
-    def test_corrupt_or_mismatched_file_is_empty(self, content: str) -> None:
-        _write_raw(content)
+    def test_corrupt_or_mismatched_file_is_empty(
+        self, make_content: Callable[[], str]
+    ) -> None:
+        _write_raw(make_content())
         manager = _manager()
         cache = BranchLookupCache.load(manager)
         assert cache.lookup(_issue(5)) == BranchLookup("found", "5-x")
