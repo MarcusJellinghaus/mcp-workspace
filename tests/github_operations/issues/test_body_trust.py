@@ -6,7 +6,11 @@ from typing import Any, Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
-from github.GithubException import GithubException, RateLimitExceededException
+from github.GithubException import (
+    GithubException,
+    RateLimitExceededException,
+    UnknownObjectException,
+)
 from requests.exceptions import RetryError
 from urllib3.exceptions import MaxRetryError
 
@@ -471,6 +475,136 @@ class TestResponseBodies:
         assert manager.check_body_trust(_issue()) == BodyTrustResult(
             BodyTrust.LOOKUP_FAILED, "issue not found"
         )
+
+
+_RATE_LIMIT_SHAPES = [
+    GithubException(403, {}, {"X-RateLimit-Remaining": "0"}),
+    make_retry_error(403),
+    make_retry_error(429),
+    RetryError(MaxRetryError(None, "u")),  # type: ignore[arg-type]
+]
+_RATE_LIMIT_IDS = ["header", "retry-403", "retry-429", "retry-?"]
+
+
+def _failed(reason: str) -> BodyTrustResult:
+    """Build a LOOKUP_FAILED result with reason."""
+    return BodyTrustResult(BodyTrust.LOOKUP_FAILED, reason)
+
+
+class TestEditorExceptions:
+    """Exceptions raised by the editor GraphQL query."""
+
+    @pytest.mark.parametrize(
+        ("exc", "reason"),
+        [
+            (
+                UnknownObjectException(404, {"message": "Not Found"}, {}),
+                "UnknownObjectException",
+            ),
+            (
+                GithubException(
+                    400, {"errors": [{"type": "FORBIDDEN"}, {"type": "X"}]}, {}
+                ),
+                "GithubException",
+            ),
+            (
+                GithubException(
+                    400, {"errors": [{"type": "NOT_FOUND"}, {"type": "X"}]}, {}
+                ),
+                "GithubException",
+            ),
+            (GithubException(400, {"errors": []}, {}), "GithubException"),
+            (
+                GithubException(401, {"message": "Bad credentials"}, {}),
+                "GithubException",
+            ),
+            (GithubException(403, {"message": "Forbidden"}, {}), "GithubException"),
+            (GithubException(500, {"message": "Server Error"}, {}), "GithubException"),
+            (TypeError("bad"), "TypeError"),
+            (ConnectionError("secret-host down"), "ConnectionError"),
+            (make_retry_error(503), "RetryError"),
+        ],
+        ids=[
+            "unknown-object",
+            "400-several",
+            "400-not-found-plus",
+            "400-empty",
+            "401",
+            "403",
+            "500",
+            "type-error",
+            "connection",
+            "retry-503",
+        ],
+    )
+    def test_lookup_failed(
+        self,
+        manager: IssueManager,
+        client: MagicMock,
+        exc: BaseException,
+        reason: str,
+    ) -> None:
+        """Non-rate-limit failures report the exception type name only."""
+        _graphql(client).side_effect = exc
+        result = manager.check_body_trust(_issue())
+        assert result == _failed(reason)
+        assert "secret" not in result.reason
+        client.get_user.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            GithubException(400, {"errors": [{"type": "RATE_LIMITED"}]}, {}),
+            GithubException(502, {"errors": [{"type": "RATE_LIMITED"}]}, {}),
+            RateLimitExceededException(403, {}, {}),
+            GithubException(429, {}, {}),
+            *_RATE_LIMIT_SHAPES,
+        ],
+        ids=["400-rate-limited", "502-rate-limited", "rate-limit-exc", "429"]
+        + _RATE_LIMIT_IDS,
+    )
+    def test_rate_limit_raises(
+        self, manager: IssueManager, client: MagicMock, exc: BaseException
+    ) -> None:
+        """Rate-limit shapes raise GitHubRateLimitError."""
+        _graphql(client).side_effect = exc
+        with pytest.raises(GitHubRateLimitError):
+            manager.check_body_trust(_issue())
+        client.get_user.assert_not_called()
+
+
+class TestTokenUserExceptions:
+    """Exceptions raised by the token-user lookup."""
+
+    @pytest.mark.parametrize(
+        ("exc", "reason"),
+        [
+            (GithubException(500, {"message": "Server Error"}, {}), "GithubException"),
+            (make_retry_error(503), "RetryError"),
+        ],
+        ids=["500", "retry-503"],
+    )
+    def test_lookup_failed(
+        self,
+        manager: IssueManager,
+        client: MagicMock,
+        exc: BaseException,
+        reason: str,
+    ) -> None:
+        """Non-rate-limit failures report the exception type name only."""
+        _set_body(client, _body(_user("stranger")))
+        client.get_user.side_effect = exc
+        assert manager.check_body_trust(_issue()) == _failed(reason)
+
+    @pytest.mark.parametrize("exc", _RATE_LIMIT_SHAPES, ids=_RATE_LIMIT_IDS)
+    def test_rate_limit_raises(
+        self, manager: IssueManager, client: MagicMock, exc: BaseException
+    ) -> None:
+        """Rate-limit shapes raise GitHubRateLimitError."""
+        _set_body(client, _body(_user("stranger")))
+        client.get_user.side_effect = exc
+        with pytest.raises(GitHubRateLimitError):
+            manager.check_body_trust(_issue())
 
 
 class TestQuery:

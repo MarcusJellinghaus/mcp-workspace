@@ -38,9 +38,9 @@ See [step_2.md](./steps/step_2.md)
 ### Step 3: Exception mapping on the editor and token-user paths
 See [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: tests + `_call`, route GraphQL query and token-user lookup through it
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests + `_call`, route GraphQL query and token-user lookup through it
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: Docs — README "Commenter trust" and release notes
 See [step_4.md](./steps/step_4.md)

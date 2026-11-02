@@ -9,15 +9,21 @@ Nothing here is cached.
 
 import logging
 from enum import Enum
-from typing import Any, NamedTuple, Optional
+from typing import Any, Callable, NamedTuple, Optional, TypeVar
 
 from ..base_manager import BaseGitHubManager, _cached_login
-from ..caching.errors import graphql_rate_limit_error, rate_limit_guard
+from ..caching.errors import (
+    graphql_rate_limit_error,
+    rate_limit_guard,
+    to_rate_limit_error,
+)
 from ..trust import is_trusted_author, normalize_author_association
 from .base_branch_trust import _BODY_EDITOR_QUERY
 from .types import IssueData
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 __all__ = ["BodyTrust", "BodyTrustResult", "check_body_trust"]
 
@@ -54,6 +60,28 @@ class _LookupFailed(Exception):
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
         self.reason = reason
+
+
+def _call(fn: Callable[[], T]) -> T:
+    """Run a GitHub lookup, mapping its exceptions.
+
+    Args:
+        fn: Zero-argument callable performing the lookup.
+
+    Returns:
+        Whatever ``fn`` returns.
+
+    Raises:
+        GitHubRateLimitError: If ``fn`` raised a rate-limit exception.
+        _LookupFailed: If ``fn`` raised any other exception; the reason is the
+            exception type name, never its text.
+    """
+    try:
+        return fn()
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        if (rl := to_rate_limit_error(exc)) is not None:
+            raise rl from exc
+        raise _LookupFailed(type(exc).__name__) from exc
 
 
 def _editor_login(result: Any) -> Optional[str]:
@@ -127,20 +155,23 @@ def check_body_trust(
         return BodyTrustResult(BodyTrust.LOOKUP_FAILED, _ISSUE_NUMBER_MISSING)
 
     variables = {"owner": repo.owner.login, "repo": repo.name, "number": number}
+    # pylint: disable=protected-access
+    client = manager._github_client
     try:
-        _, result = manager._github_client._Github__requester.graphql_query(  # type: ignore[attr-defined]  # pylint: disable=protected-access  # no public GraphQL API in PyGithub
-            query=_BODY_EDITOR_QUERY, variables=variables
+        _, result = _call(
+            lambda: client._Github__requester.graphql_query(  # type: ignore[attr-defined]  # no public GraphQL API in PyGithub
+                query=_BODY_EDITOR_QUERY, variables=variables
+            )
         )
         editor = _editor_login(result)
         if editor is None:
             return BodyTrustResult(BodyTrust.UNTRUSTED, _UNTRUSTED)
         if editor.lower() in allowlist:
             return BodyTrustResult(BodyTrust.TRUSTED, _LAST_EDITOR_TRUSTED)
-        # pylint: disable=protected-access
-        token_user = _cached_login(
-            manager.github_token,
-            manager.repo_identifier.api_base_url,
-            manager._github_client,
+        token_user = _call(
+            lambda: _cached_login(
+                manager.github_token, manager.repo_identifier.api_base_url, client
+            )
         )
     except _LookupFailed as failed:
         logger.debug(
