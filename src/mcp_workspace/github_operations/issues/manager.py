@@ -18,6 +18,7 @@ from mcp_workspace import config
 
 from ..base_manager import BaseGitHubManager, _handle_github_errors
 from ..trust import normalize_author_association
+from . import body_trust
 from .base import (
     MalformedBaseBranchError,
     format_malformed_base_branch,
@@ -25,6 +26,7 @@ from .base import (
     validate_issue_number,
 )
 from .base_branch_trust import is_body_trusted
+from .body_trust import BodyTrustResult
 from .comments_mixin import CommentsMixin
 from .events_mixin import EventsMixin
 from .labels_mixin import LabelsMixin
@@ -222,6 +224,28 @@ class IssueManager(
             self, repo, github_issue, allowlist
         )
         return data
+
+    @log_function_call
+    def check_body_trust(self, issue: IssueData) -> BodyTrustResult:
+        """Decide whether an issue body is trusted.
+
+        Trusted when the author is trusted (OWNER / MEMBER / COLLABORATOR or
+        allowlisted), or the last body editor is the token user or
+        allowlisted. Not wrapped in ``_handle_github_errors``, which would
+        turn a failure into a default value.
+
+        Args:
+            issue: Issue whose body is checked, e.g. from the issue cache.
+
+        Returns:
+            ``TRUSTED``, ``UNTRUSTED`` or ``LOOKUP_FAILED`` with a short fixed
+            reason. Never ``TRUSTED`` after a failed lookup.
+
+        Raises:
+            GitHubRateLimitError: If a GitHub lookup hits a rate limit.
+        """  # noqa: DOC502  # raised inside body_trust.check_body_trust
+        # Looked up via the module so one test patch on mcp_workspace.config applies.
+        return body_trust.check_body_trust(self, issue, config.get_trusted_commenters())
 
     def _list_issues_no_error_handling(
         self,

@@ -20,6 +20,9 @@ from ._cache_io import (
 # Base utilities
 from .base import MalformedBaseBranchError, parse_base_branch
 
+# Body trust
+from .body_trust import BodyTrust, BodyTrustResult
+
 # Branch manager and utilities
 from .branch_manager import BranchLookup, BranchLookupError, IssueBranchManager
 from .branch_naming import BranchCreationResult, generate_branch_name_from_issue
@@ -51,6 +54,9 @@ __all__ = [
     "create_empty_issue_data",
     # Main manager
     "IssueManager",
+    # Body trust
+    "BodyTrust",
+    "BodyTrustResult",
     # Branch manager
     "IssueBranchManager",
     "BranchLookup",
