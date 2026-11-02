@@ -72,8 +72,16 @@ Any `_LookupFailed(reason)` → `BodyTrustResult(BodyTrust.LOOKUP_FAILED, reason
 
 ## Steps
 
-1. [step_1.md](./step_1.md): `body_trust.py`, the manager method, the re-exports and tests (one commit).
-2. [step_2.md](./step_2.md): README and release notes (one commit).
+Each step is one commit and leaves pylint, pytest and mypy green.
+
+1. [step_1.md](./step_1.md): enum, result type, manager method, re-exports, author
+   short-circuit, and decision steps 2–4 (repository identity, repository lookup, number),
+   with their tests.
+2. [step_2.md](./step_2.md): `_LookupFailed`, `_editor_login` response-body parsing, and
+   decision steps 5–7 (editor, allowlist, token user), with their tests.
+3. [step_3.md](./step_3.md): `_call` exception mapping on the editor and token-user paths,
+   with their tests.
+4. [step_4.md](./step_4.md): README and release notes.
 
 ## Out of scope / gates
 
