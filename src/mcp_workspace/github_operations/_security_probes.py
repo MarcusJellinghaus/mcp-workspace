@@ -3,8 +3,8 @@
 Companion to ``_permission_probes.py``, reusing the tri-state ``CheckResult``
 convention from mcp-workspace#301: ``ok=True|False|None``, where ``None``
 means "cannot verify", never "off". Unlike ``_permission_probes.py``, these
-four checks have an unambiguous three-way split handed to us directly by the
-two GitHub API shapes involved, so this module carries no host-aware
+five checks have a three-way split handed to us directly by the
+three GitHub API shapes involved, so this module carries no host-aware
 URL/hint machinery.
 """
 
@@ -13,8 +13,10 @@ from pathlib import Path
 from typing import Any
 
 from github import Consts
+from github.GithubException import GithubException
 from github.Repository import Repository
 
+from mcp_workspace.github_operations._diagnostics import format_rate_limit_error
 from mcp_workspace.github_operations._types import CheckResult
 from mcp_workspace.github_operations.base_manager import BaseGitHubManager
 
@@ -25,6 +27,7 @@ _SECURITY_KEYS: tuple[str, ...] = (
     "dependabot_security_updates",
     "secret_scanning",
     "secret_scanning_push_protection",
+    "code_scanning_alerts",
 )
 
 
@@ -39,6 +42,34 @@ def _classify_vulnerability_alerts(status: int) -> CheckResult:
         return CheckResult(ok=True, value="enabled", severity="warning")
     if status == 404:
         return CheckResult(ok=False, value="disabled", severity="warning")
+    return CheckResult(
+        ok=None,
+        value="not accessible",
+        severity="warning",
+        error=f"HTTP {status}",
+    )
+
+
+def _classify_code_scanning_alerts(status: int) -> CheckResult:
+    """Classify the HTTP status of the code-scanning alerts endpoint.
+
+    Returns:
+        CheckResult with ok=True for 200 (scope present), ok=False for 403 or
+        404 (scope missing, or the feature is off), or ok=None for any other
+        status.
+    """
+    if status == 200:
+        return CheckResult(ok=True, value="scope present", severity="warning")
+    if status == 403:
+        return CheckResult(
+            ok=False,
+            value="scope missing or Advanced Security not enabled",
+            severity="warning",
+        )
+    if status == 404:
+        return CheckResult(
+            ok=False, value="scope missing or not configured", severity="warning"
+        )
     return CheckResult(
         ok=None,
         value="not accessible",
@@ -94,14 +125,14 @@ def _probe_dependabot_alerts(repo: Repository) -> CheckResult:
 
 
 def verify_github_security(project_dir: Path) -> dict[str, CheckResult]:
-    """Probe the four read-only GitHub repository security settings.
+    """Probe the five read-only GitHub repository security settings.
 
     Resolves its own repository independently of ``verify_github()`` (a
-    second auth round-trip), then classifies each of the four security
+    second auth round-trip), then classifies each of the five security
     settings using the Step 1/2 helpers.
 
     Returns:
-        dict[str, CheckResult] with exactly the 4 keys in _SECURITY_KEYS
+        dict[str, CheckResult] with exactly the 5 keys in _SECURITY_KEYS
         order. If the repository cannot be resolved, each entry is
         ok=None, value="not checked", error="repository not accessible".
     """
@@ -124,6 +155,36 @@ def verify_github_security(project_dir: Path) -> dict[str, CheckResult]:
         }
 
     security_and_analysis = repo.security_and_analysis
+
+    code_scanning: CheckResult
+    try:
+        repo.requester.requestJsonAndCheck(
+            "GET",
+            f"{repo.url}/code-scanning/alerts",
+            parameters={"per_page": 1},
+        )
+        code_scanning = _classify_code_scanning_alerts(200)
+    except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # Rate limits are 403s too; check them first so they don't read as
+        # "scope missing".
+        rate_limit_msg = format_rate_limit_error(exc)
+        if rate_limit_msg is not None:
+            code_scanning = CheckResult(
+                ok=None,
+                value="not accessible",
+                severity="warning",
+                error=rate_limit_msg,
+            )
+        elif isinstance(exc, GithubException):
+            code_scanning = _classify_code_scanning_alerts(exc.status)
+        else:
+            code_scanning = CheckResult(
+                ok=None,
+                value="not accessible",
+                severity="warning",
+                error=f"network error: {exc}",
+            )
+
     return {
         "dependabot_alerts": _probe_dependabot_alerts(repo),
         "dependabot_security_updates": _classify_security_feature(
@@ -150,4 +211,5 @@ def verify_github_security(project_dir: Path) -> dict[str, CheckResult]:
             ),
             "Secret scanning push protection",
         ),
+        "code_scanning_alerts": code_scanning,
     }

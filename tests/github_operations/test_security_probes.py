@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from github import Consts
+from github.GithubException import GithubException
 
 from mcp_workspace.github_operations._security_probes import (
     _SECURITY_KEYS,
@@ -14,6 +15,7 @@ from mcp_workspace.github_operations._security_probes import (
     _probe_dependabot_alerts,
     verify_github_security,
 )
+from tests.github_operations.conftest import make_retry_error
 
 MODULE = "mcp_workspace.github_operations._security_probes"
 
@@ -68,6 +70,7 @@ def test_security_keys_order() -> None:
         "dependabot_security_updates",
         "secret_scanning",
         "secret_scanning_push_protection",
+        "code_scanning_alerts",
     )
 
 
@@ -127,6 +130,7 @@ class TestVerifyGithubSecurity:
         repo.url = "https://api.github.com/repos/owner/repo"
         repo.security_and_analysis = security_and_analysis
         repo.requester.requestJson.return_value = (dependabot_status, {}, "")
+        repo.requester.requestJsonAndCheck.return_value = ({}, [])
         return repo
 
     def test_repo_not_accessible(self, tmp_path: Path) -> None:
@@ -210,3 +214,89 @@ class TestVerifyGithubSecurity:
         assert result["dependabot_security_updates"]["ok"] is False
         assert result["secret_scanning"]["ok"] is True
         assert result["secret_scanning_push_protection"]["ok"] is True
+
+    @pytest.mark.parametrize(
+        ("side_effect", "ok", "value", "error_part"),
+        [
+            pytest.param(None, True, "scope present", None, id="200"),
+            pytest.param(
+                GithubException(403, {"message": "Forbidden"}, {}),
+                False,
+                "scope missing or Advanced Security not enabled",
+                None,
+                id="403_scope",
+            ),
+            pytest.param(
+                GithubException(403, {"message": "x"}, {"X-RateLimit-Remaining": "0"}),
+                None,
+                "not accessible",
+                "rate limit",
+                id="403_rate_limit",
+            ),
+            pytest.param(
+                make_retry_error(403),
+                None,
+                "not accessible",
+                "rate limit",
+                id="retry_error",
+            ),
+            pytest.param(
+                GithubException(404, {"message": "Not Found"}, {}),
+                False,
+                "scope missing or not configured",
+                None,
+                id="404",
+            ),
+            pytest.param(
+                GithubException(500, {"message": "x"}, {}),
+                None,
+                "not accessible",
+                "HTTP 500",
+                id="other_status",
+            ),
+            pytest.param(
+                ConnectionError("boom"),
+                None,
+                "not accessible",
+                "network error: boom",
+                id="network",
+            ),
+        ],
+    )
+    def test_code_scanning_alerts_probe(
+        self,
+        tmp_path: Path,
+        side_effect: BaseException | None,
+        ok: bool | None,
+        value: str,
+        error_part: str | None,
+    ) -> None:
+        repo = self._make_repo(security_and_analysis=None, dependabot_status=204)
+        if side_effect is not None:
+            repo.requester.requestJsonAndCheck.side_effect = side_effect
+        with patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls:
+            mock_manager = Mock()
+            mock_manager._get_repository.return_value = repo
+            mock_mgr_cls.return_value = mock_manager
+            result = verify_github_security(tmp_path)
+
+        check = result["code_scanning_alerts"]
+        assert check["ok"] is ok
+        assert check["value"] == value
+        if error_part is None:
+            assert "error" not in check
+        else:
+            assert error_part in check["error"]
+
+    def test_code_scanning_alerts_request_shape(self, tmp_path: Path) -> None:
+        repo = self._make_repo(security_and_analysis=None, dependabot_status=204)
+        with patch(f"{MODULE}.BaseGitHubManager") as mock_mgr_cls:
+            mock_manager = Mock()
+            mock_manager._get_repository.return_value = repo
+            mock_mgr_cls.return_value = mock_manager
+            verify_github_security(tmp_path)
+
+        args, kwargs = repo.requester.requestJsonAndCheck.call_args
+        assert args[0] == "GET"
+        assert args[1].endswith("/code-scanning/alerts")
+        assert kwargs["parameters"] == {"per_page": 1}
