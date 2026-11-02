@@ -24,9 +24,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ### Step 1: Types, manager method, re-exports, author short-circuit, repository/number order
 See [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: tests in `test_body_trust.py` + `body_trust.py` (decision steps 1–4), `IssueManager.check_body_trust`, re-exports
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests in `test_body_trust.py` + `body_trust.py` (decision steps 1–4), `IssueManager.check_body_trust`, re-exports
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: Editor response parsing and editor / allowlist / token decisions
 See [step_2.md](./steps/step_2.md)
