@@ -21,6 +21,14 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Add the `code_scanning_alerts` probe to `verify_github_security`
+See [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: tests in `test_security_probes.py` (key order, `_make_repo` default, parametrized probe test, request-shape test) + `_classify_code_scanning_alerts` and inline probe in `_security_probes.py`, docstring counts four → five
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: review all changes against the summary and step plan
+- [ ] PR summary prepared
