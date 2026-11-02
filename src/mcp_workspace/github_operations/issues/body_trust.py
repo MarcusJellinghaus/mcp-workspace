@@ -75,7 +75,7 @@ def _call(fn: Callable[[], T]) -> T:
         GitHubRateLimitError: If ``fn`` raised a rate-limit exception.
         _LookupFailed: If ``fn`` raised any other exception; the reason is the
             exception type name, never its text.
-    """
+    """  # noqa: DOC502  # GitHubRateLimitError built by to_rate_limit_error()
     try:
         return fn()
     except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -97,7 +97,7 @@ def _editor_login(result: Any) -> Optional[str]:
     Raises:
         GitHubRateLimitError: If the body reports a GraphQL rate limit.
         _LookupFailed: If the body has errors or lacks the issue or editor login.
-    """
+    """  # noqa: DOC502  # GitHubRateLimitError built by graphql_rate_limit_error()
     if isinstance(result, dict) and "errors" in result:
         raise graphql_rate_limit_error(result) or _LookupFailed(_GRAPHQL_ERROR)
     node: Any = result
