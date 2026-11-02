@@ -20,6 +20,9 @@ stays live.
 - `IssueBranchManager.resolve_branch_for_issue(issue_number, repo_owner, repo_name) -> BranchLookup` — raises on every error (`ValueError`, `BranchLookupError`, `GitHubRateLimitError`, `GithubException`) instead of returning `None`. `BranchLookupError` is exported from `github_operations.issues`.
 - `issues.BranchLookup` — `NamedTuple`: `status: "found" | "not_found" | "ambiguous"`, `branch: str | None`.
 - `issues.get_issue_cache_last_checked(repo_identifier) -> datetime | None`.
+- `IssueManager.check_body_trust(issue) -> BodyTrustResult` — no caching; one editor GraphQL request per call with an untrusted author; raises `GitHubRateLimitError` on a rate limit.
+- `issues.BodyTrust` — enum `TRUSTED` / `UNTRUSTED` / `LOOKUP_FAILED`, values `trusted` / `untrusted` / `lookup_failed`.
+- `issues.BodyTrustResult` — `NamedTuple`: `status: BodyTrust`, `reason: str`.
 
 ### Behaviour changes
 

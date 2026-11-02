@@ -45,9 +45,9 @@ See [step_3.md](./steps/step_3.md)
 ### Step 4: Docs — README "Commenter trust" and release notes
 See [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: update README `trusted_commenters` bullet, add "Body trust" bullet, add release-notes `### New API` bullets
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: update README `trusted_commenters` bullet, add "Body trust" bullet, add release-notes `### New API` bullets
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 
