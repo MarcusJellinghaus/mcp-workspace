@@ -21,6 +21,35 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Types, manager method, re-exports, author short-circuit, repository/number order
+See [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: tests in `test_body_trust.py` + `body_trust.py` (decision steps 1–4), `IssueManager.check_body_trust`, re-exports
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Editor response parsing and editor / allowlist / token decisions
+See [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: tests + `_LookupFailed`, `_editor_login`, decision steps 5–7 (replace Step 1 placeholder)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: Exception mapping on the editor and token-user paths
+See [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation: tests + `_call`, route GraphQL query and token-user lookup through it
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 4: Docs — README "Commenter trust" and release notes
+See [step_4.md](./steps/step_4.md)
+
+- [ ] Implementation: update README `trusted_commenters` bullet, add "Body trust" bullet, add release-notes `### New API` bullets
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: review full branch diff against `main`
+- [ ] PR summary prepared
