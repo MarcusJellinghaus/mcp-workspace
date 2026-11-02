@@ -11,3 +11,11 @@ Checking how `manager.py` gets the allowlist and the `IssueData` shape. Then I'l
 Verdict(decision='tasks', tasks=["In pr_info/steps/step_1.md near line 173, add a test table row for acceptance case 7: an untrusted author where the repository lookup returns None without raising. It must expect LOOKUP_FAILED with reason 'repository unavailable' and assert that graphql is not called. Also add the 'graphql not called' assertion to every other 'repository unavailable' row (lines 173 and 187-188).", 'In pr_info/steps/step_1.md line 157, make the trusted-author-via-allowlist row assert that no lookups are made: get_repo, graphql and get_user are not called, as issue #369 requires.', 'In pr_info/steps/step_1.md line 136, fix the fixture reference. The autouse fixture _reset_repository_cache in tests/conftest.py clears the repository cache. tests/github_operations/conftest.py only clears the login cache. State that no new fixture is needed.', 'In pr_info/steps/step_1.md line 148, drop the custom RetryError builder and reuse make_retry_error(status) from tests/github_operations/conftest.py. Build a RetryError without a reason only for the unknown-status case.', 'Split step_1.md into three steps, each a separate commit that leaves pylint, pytest and mypy green. (a) Enum, result type, manager method, re-exports, author short-circuit, and the order of the repository-identity check, repository lookup and number check, with their tests. (b) _editor_login response-body parsing and the editor, allowlist and token decisions, with their tests. (c) Exception mapping via _call on the editor and token-user paths, with their tests. Move each test-table row into the step that implements its behaviour.'], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 2 — 2026-11-02
+**Findings**:
+Checking `_get_repository` and how `issue["user"]` is shaped, so I can verify the repository-path rows.NO FINDINGS
+**Decisions**:
+Verdict(decision='dismiss', tasks=[], escalate_reason=None)
+**Changes**:
+dismiss
