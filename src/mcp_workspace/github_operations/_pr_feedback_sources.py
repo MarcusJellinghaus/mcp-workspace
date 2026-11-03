@@ -1,8 +1,9 @@
 """Private helpers for PR feedback sources (review threads, comments, alerts).
 
 Extracted from `pr_manager.py` to keep that module under the file-size threshold.
-These functions are implementation details of `PullRequestManager.get_pr_feedback()`
-and should not be called from outside the `github_operations` package.
+These functions are used by `PullRequestManager.get_pr_feedback()` and by the PR
+cache (`caching/pull_requests.py`); they should not be called from outside the
+`github_operations` package.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Optional, Tuple
 from github.GithubException import GithubException, UnknownObjectException
 from github.Requester import Requester
 
+from ._diagnostics import format_rate_limit_error
 from .trust import normalize_author_association
 
 if TYPE_CHECKING:
@@ -441,3 +443,16 @@ def fetch_code_scanning_alerts(
             }
         )
     return alerts
+
+
+def alert_skip_status(exc: BaseException) -> int | None:
+    """Return 403/404 when a code-scanning alerts error means "not checked", else None.
+
+    A skip is status 403/404 that is not a rate limit (token lacks
+    security_events:read, code scanning disabled, or no analysis exists).
+    Pure: callers decide whether to route or raise.
+    """
+    status: int | None = getattr(exc, "status", None)
+    if status in (403, 404) and format_rate_limit_error(exc) is None:
+        return status
+    return None

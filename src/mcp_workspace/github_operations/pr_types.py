@@ -53,6 +53,14 @@ class AlertData(TypedDict):
     line: Optional[int]
 
 
+class AlertsResult(TypedDict):
+    """Code-scanning alerts of a PR head, as returned by ``PullRequestCache.alerts()``."""
+
+    alerts: list[AlertData]
+    skipped: Optional[int]  # HTTP status (403/404) when alerts could not be checked
+    final: bool  # every CI run on head_sha completed; always True on a stored hit
+
+
 class ConversationCommentData(TypedDict):
     """TypedDict for a PR top-level conversation comment."""
 

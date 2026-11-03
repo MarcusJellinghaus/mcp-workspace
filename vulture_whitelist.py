@@ -226,6 +226,8 @@ _._editor  # name="editor"
 _._token_login  # name="token_login"
 # Fixture for issue #352 base-branch source tests, reached through its name= alias
 _._git_mocks  # name="git_mocks"
+# Fixture for issue #374 PullRequestCache alerts-slot tests, reached through its name= alias
+_._fetch  # name="fetch"
 # Autouse fixture defaulting fetch_rules to no rulesets (issue #350, pytest collection only)
 _._default_rules_empty
 # Autouse fixture clearing the per-process repository cache (issue #360, pytest collection only)
