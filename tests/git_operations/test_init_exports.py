@@ -10,10 +10,10 @@ def test_all_expected_symbols_exported() -> None:
 
 
 def test_expected_symbol_count() -> None:
-    """Verify __all__ has the expected 69 symbols."""
+    """Verify __all__ has the expected 70 symbols."""
     from mcp_workspace.git_operations import __all__
 
-    assert len(__all__) == 69
+    assert len(__all__) == 70
 
 
 def test_verify_git_and_check_result_exported() -> None:
@@ -28,6 +28,17 @@ def test_renormalize_paths_exported() -> None:
 
     assert "renormalize_paths" in git_operations.__all__
     assert git_operations.renormalize_paths is staging.renormalize_paths
+
+
+def test_is_staged_diff_cr_only_exported() -> None:
+    """Verify is_staged_diff_cr_only is exported from the repository_status module."""
+    from mcp_workspace.git_operations import repository_status
+
+    assert "is_staged_diff_cr_only" in git_operations.__all__
+    assert (
+        git_operations.is_staged_diff_cr_only
+        is repository_status.is_staged_diff_cr_only
+    )
 
 
 def test_all_remains_alphabetised() -> None:

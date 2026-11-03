@@ -84,6 +84,7 @@ from mcp_workspace.git_operations.repository_status import (
     get_working_tree_status,
     has_staged_changes,
     is_git_repository,
+    is_staged_diff_cr_only,
     is_working_directory_clean,
 )
 from mcp_workspace.git_operations.staging import (
@@ -144,6 +145,7 @@ __all__ = [
     "is_file_tracked",
     "is_git_repository",
     "is_rebase_in_progress",
+    "is_staged_diff_cr_only",
     "is_working_directory_clean",
     "list_remote_branches",
     "list_tree",

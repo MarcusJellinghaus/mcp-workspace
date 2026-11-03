@@ -7,6 +7,7 @@ Adds helpers to `mcp_workspace.git_operations` for clearing a working tree whose
 ### New functions
 
 - `renormalize_paths(paths: list[Path], project_dir) -> GitResult` — `git add --renormalize`; deleted or missing path → `success=False` (exit 128).
+- `is_staged_diff_cr_only(paths: list[Path], project_dir) -> bool` — staged diff of `paths` is CR-at-EOL only; any error → `False`.
 
 ## Next minor release — github_operations: fingerprint-based PR and branch-lookup caches (#361)
 

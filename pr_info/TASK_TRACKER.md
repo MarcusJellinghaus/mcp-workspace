@@ -38,9 +38,9 @@ See [step_2.md](./steps/step_2.md)
 ### Step 3: Add `is_staged_diff_cr_only`
 See [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: tests, `is_staged_diff_cr_only` in `repository_status.py`, export + export tests, release notes
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests, `is_staged_diff_cr_only` in `repository_status.py`, export + export tests, release notes
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 
