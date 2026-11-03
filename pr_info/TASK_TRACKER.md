@@ -31,9 +31,9 @@ See [step_1.md](./steps/step_1.md)
 ### Step 2: Move PR-cache test helpers into `_pr_cache_test_helpers.py` (pure refactor)
 See [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: create `tests/github_operations/caching/_pr_cache_test_helpers.py`, import helpers in `test_pull_requests_results.py` (same test count)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: create `tests/github_operations/caching/_pr_cache_test_helpers.py`, import helpers in `test_pull_requests_results.py` (same test count)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: `AlertsResult`, `PullRequestCache.alerts()` slot, tests and docs
 See [step_3.md](./steps/step_3.md)
