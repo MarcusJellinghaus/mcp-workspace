@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from git import Repo
 
+from mcp_workspace.git_operations.core import _chunk_paths
 from mcp_workspace.git_operations.staging import (
-    _chunk_paths,
     stage_all_changes,
     stage_specific_files,
 )

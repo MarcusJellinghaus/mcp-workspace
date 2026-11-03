@@ -24,9 +24,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ### Step 1: Move `_chunk_paths` to `core.py`
 See [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: update test import, move `_chunk_paths` from `staging.py` to `core.py`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: update test import, move `_chunk_paths` from `staging.py` to `core.py`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: Add `renormalize_paths`
 See [step_2.md](./steps/step_2.md)
