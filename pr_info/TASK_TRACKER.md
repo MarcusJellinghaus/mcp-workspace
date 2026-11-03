@@ -21,6 +21,28 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: `alert_skip_status` classifier; `_collect_pr_feedback` uses it
+See [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: `test_alert_skip_status` tests + `alert_skip_status` in `_pr_feedback_sources.py`, `pr_feedback_mixin.py` routes on it, module docstring updated
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Move PR-cache test helpers into `_pr_cache_test_helpers.py` (pure refactor)
+See [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: create `tests/github_operations/caching/_pr_cache_test_helpers.py`, import helpers in `test_pull_requests_results.py` (same test count)
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: `AlertsResult`, `PullRequestCache.alerts()` slot, tests and docs
+See [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation: `test_pull_requests_alerts.py` tests + `AlertsResult` in `pr_types.py`, `alerts()` / `_alerts` in `caching/pull_requests.py`, README and release notes updated
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: review full branch diff against `main`, address findings
+- [ ] PR summary prepared
