@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, List
 from mcp_coder_utils.log_utils import log_function_call
 
 from . import _pr_feedback_sources
-from ._diagnostics import format_rate_limit_error
 from .base_manager import _handle_github_errors
 from .pr_types import AlertData, PRFeedback
 
@@ -188,10 +187,7 @@ class PRFeedbackMixin:
             ) as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
                 # 403/404 without a rate limit: token lacks security_events:read,
                 # code scanning is disabled, or no analysis exists — not a failure.
-                if (
-                    getattr(e, "status", None) in (403, 404)
-                    and format_rate_limit_error(e) is None
-                ):
+                if _pr_feedback_sources.alert_skip_status(e) is not None:
                     logger.debug(
                         f"Code-scanning alerts not checked for PR #{pr_number}: {e}"
                     )

@@ -10,6 +10,7 @@ import git
 import pytest
 from github.GithubException import GithubException, UnknownObjectException
 from github.Requester import Requester
+from requests.exceptions import RetryError
 
 from mcp_workspace.checks.pr_feedback import collect_pr_feedback
 from mcp_workspace.github_operations import IssueIdentityMismatchError
@@ -20,6 +21,7 @@ from mcp_workspace.github_operations._pr_feedback_sources import (
     _parse_submitted_at,
     _parse_thread_nodes,
     _request_review_page,
+    alert_skip_status,
     fetch_code_scanning_alerts,
     fetch_conversation_comments,
 )
@@ -29,6 +31,7 @@ from mcp_workspace.github_operations.exception_renderer import (
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
 
 from ._issue_test_helpers import make_mock_issue
+from .conftest import make_retry_error
 
 # An empty-but-valid GraphQL body used as the default POST response. It must
 # resolve data.repository.pullRequest to a dict: a null pullRequest is exactly
@@ -1823,6 +1826,50 @@ class TestGetPRFeedback:
         assert result["alerts"] == []
         assert result["unavailable"] == {}
         assert result["skipped"] == {}
+
+
+class TestAlertSkipStatus:
+    """Direct unit tests for `alert_skip_status`."""
+
+    @pytest.mark.parametrize(
+        ("exc", "expected"),
+        [
+            (GithubException(403, {"message": "forbidden"}, None), 403),
+            (GithubException(404, {"message": "no analysis found"}, None), 404),
+            (UnknownObjectException(404, {"message": "Not Found"}, None), 404),
+            (
+                GithubException(
+                    403,
+                    {"message": "API rate limit exceeded"},
+                    {
+                        "x-ratelimit-remaining": "0",
+                        "x-ratelimit-resource": "core",
+                        "x-ratelimit-reset": str(int(time.time()) + 600),
+                    },
+                ),
+                None,
+            ),
+            (make_retry_error(403), None),
+            (make_retry_error(500), None),
+            (RetryError(), None),
+            (GithubException(500, {"message": "server error"}, None), None),
+            (ValueError("x"), None),
+        ],
+        ids=[
+            "403",
+            "404",
+            "unknown-object-404",
+            "403-rate-limit",
+            "retry-403",
+            "retry-500",
+            "retry-unknown",
+            "500",
+            "value-error",
+        ],
+    )
+    def test_alert_skip_status(self, exc: BaseException, expected: int | None) -> None:
+        """Only a non-rate-limit 403/404 is a skip; it returns that status."""
+        assert alert_skip_status(exc) == expected
 
 
 @pytest.mark.git_integration

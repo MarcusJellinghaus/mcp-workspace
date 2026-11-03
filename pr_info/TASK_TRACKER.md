@@ -24,9 +24,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ### Step 1: `alert_skip_status` classifier; `_collect_pr_feedback` uses it
 See [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: `test_alert_skip_status` tests + `alert_skip_status` in `_pr_feedback_sources.py`, `pr_feedback_mixin.py` routes on it, module docstring updated
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `test_alert_skip_status` tests + `alert_skip_status` in `_pr_feedback_sources.py`, `pr_feedback_mixin.py` routes on it, module docstring updated
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: Move PR-cache test helpers into `_pr_cache_test_helpers.py` (pure refactor)
 See [step_2.md](./steps/step_2.md)
