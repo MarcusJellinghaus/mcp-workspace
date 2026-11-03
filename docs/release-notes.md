@@ -14,7 +14,8 @@ stays live.
 ### New API
 
 - `GitHubRateLimitError` — exported from `mcp_workspace.github_operations`; attributes `message: str`, `reset_at: datetime | None`. Raised by all caches on a rate limit; nothing is saved for that run.
-- `caching.pull_requests.PullRequestCache` — `load(pr_manager)`, `find_pr(branch)`, `base_tip(base_branch)`, `mergeable_state(pr, issue)`, `ci_status(pr, issue)`, `feedback(pr, issue)`, `label_events(pr, issue)`, `save()`.
+- `caching.pull_requests.PullRequestCache` — `load(pr_manager)`, `find_pr(branch)`, `base_tip(base_branch)`, `mergeable_state(pr, issue)`, `ci_status(pr, issue)`, `alerts(pr, issue) -> AlertsResult`, `feedback(pr, issue)`, `label_events(pr, issue)`, `save()`.
+- `pr_types.AlertsResult` — `TypedDict`: `alerts: list[AlertData]`, `skipped: int | None`, `final: bool`; act only on `final: True`.
 - `caching.branches.BranchLookupCache` — `load(manager)`, `lookup(issue) -> BranchLookup`, `save()`.
 - `caching.branches.invalidate_branch_entry(repo_identifier, issue_number)` — called by `create_remote_branch_for_issue` on success.
 - `IssueBranchManager.resolve_branch_for_issue(issue_number, repo_owner, repo_name) -> BranchLookup` — raises on every error (`ValueError`, `BranchLookupError`, `GitHubRateLimitError`, `GithubException`) instead of returning `None`. `BranchLookupError` is exported from `github_operations.issues`.

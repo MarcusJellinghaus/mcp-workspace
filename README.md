@@ -165,7 +165,7 @@ All three are safe to delete; they are rebuilt on the next run. A corrupt or ver
 
 - An entry is valid while its **fingerprint** (the data it depends on) is unchanged.
 - A 6 h maximum age per entry is only a safety net; expiry is spread out so entries are rechecked a few at a time.
-- Not-final results are returned but never stored. Errors are never stored.
+- Not-final results are returned but never stored. Errors are never stored, except a 403/404 on code-scanning alerts (alerts could not be checked), which is stored as a skip.
 - On a rate limit, `GitHubRateLimitError` is raised (`message`, `reset_at`) and nothing is saved for that run.
 
 ### What is cached
@@ -175,6 +175,7 @@ All three are safe to delete; they are rebuilt on the next run. A corrupt or ver
 | Open-PR snapshot + base-branch tip SHAs | — (re-fetched after 60 s duplicate protection) | — |
 | `mergeable_state` | issue `updated_at`, PR `head_sha`, base tip SHA | `unknown` / `None` |
 | CI status | issue `updated_at`, PR `head_sha` | any run not `completed`, no runs |
+| Code-scanning alerts | issue `updated_at`, PR `head_sha` | any CI run not `completed`, no runs (no alerts request is made) |
 | PR feedback | issue `updated_at`, PR `updated_at` | any section `unavailable` |
 | Label events | issue `updated_at` | — |
 | Branch lookup (found / not found / ambiguous) | issue `updated_at` | — |

@@ -6,11 +6,12 @@ list plus base-branch tip SHAs; within ``DUPLICATE_PROTECTION_SECONDS`` of
 its ``fetched_at`` neither is re-fetched. On save the newer snapshot wins
 whole, and results for PRs not in it are pruned.
 
-Layer 2 keeps four result slots per PR (``mergeable_state``, ``ci``,
-``feedback``, ``label_events``). Each entry stores a fingerprint ``fp`` that
-starts with the issue's ``updated_at``; a hit needs a matching ``fp`` and an
-unexpired entry. Not-final results are returned but never stored, and fetch
-errors propagate without storing anything.
+Layer 2 keeps five result slots per PR (``mergeable_state``, ``ci``,
+``alerts``, ``feedback``, ``label_events``). Each entry stores a fingerprint
+``fp`` that starts with the issue's ``updated_at``; a hit needs a matching
+``fp`` and an unexpired entry. Not-final results are returned but never
+stored. Fetch errors propagate without storing anything, except a 403/404 on
+code-scanning alerts, which is stored as a skip.
 """
 
 from __future__ import annotations
@@ -29,10 +30,11 @@ from mcp_workspace.utils.timezone_utils import (
     utc_now,
 )
 
+from .. import _pr_feedback_sources
 from ..ci_results_manager import CIStatusData, RunData, aggregate_conclusion
 from ..issues.events_mixin import EventsMixin
 from ..issues.types import EventData, IssueData, IssueEventType
-from ..pr_types import PRFeedback
+from ..pr_types import AlertsResult, PRFeedback
 from ..trust import normalize_author_association
 from ._store import (
     _save_cache_file,
@@ -239,6 +241,21 @@ class PullRequestCache:
         """  # noqa: DOC502  # other fetch errors propagate unchanged
         return self._guarded(self._ci_status, pr, issue)
 
+    def alerts(self, pr: OpenPullRequest, issue: IssueData) -> AlertsResult:
+        """Return the PR head's open code-scanning alerts; stored once CI on the head is final.
+
+        Act only on ``final: True``. While any CI run on ``head_sha`` is not completed
+        (or there are no runs, or a run is stuck in ``waiting`` / ``action_required``)
+        no alerts request is made and ``{"alerts": [], "skipped": None, "final": False}``
+        is returned — ``final`` never becomes True for such a head. A 403/404 that is
+        not a rate limit is stored as ``skipped``.
+
+        Raises:
+            GitHubRateLimitError: If fetching hit a rate limit; ``save()``
+                then becomes a no-op.
+        """  # noqa: DOC502  # other fetch errors propagate unchanged
+        return self._guarded(self._alerts, pr, issue)
+
     def feedback(self, pr: OpenPullRequest, issue: IssueData) -> PRFeedback:
         """Return PR feedback without alerts; stored unless a section is unavailable.
 
@@ -411,6 +428,37 @@ class PullRequestCache:
         if final:
             self._store(pr, "ci", fp, status)
         return status
+
+    def _alerts(self, pr: OpenPullRequest, issue: IssueData) -> AlertsResult:
+        fp = [issue["updated_at"], pr["head_sha"]]
+        hit, value = self._cached(pr, "alerts", fp)
+        if hit:
+            cached: AlertsResult = value
+            return cached
+        # The ci slot is stored only once every run on head_sha completed;
+        # until then GitHub still reports the previous commit's alerts.
+        self._ci_status(pr, issue)
+        if not self._cached(pr, "ci", fp)[0]:
+            return AlertsResult(alerts=[], skipped=None, final=False)
+        # The fetcher returns [] for an unavailable repository; raise first
+        # so that is never stored as "no alerts".
+        self._repository()
+        try:
+            result = AlertsResult(
+                alerts=_pr_feedback_sources.fetch_code_scanning_alerts(
+                    self._pr_manager, pr["number"]
+                ),
+                skipped=None,
+                final=True,
+            )
+        # pylint: disable-next=broad-exception-caught  # classified, then re-raised
+        except Exception as e:
+            status = _pr_feedback_sources.alert_skip_status(e)
+            if status is None:
+                raise
+            result = AlertsResult(alerts=[], skipped=status, final=True)
+        self._store(pr, "alerts", fp, result)
+        return result
 
     def _feedback(self, pr: OpenPullRequest, issue: IssueData) -> PRFeedback:
         fp = [issue["updated_at"], pr["updated_at"]]

@@ -38,9 +38,9 @@ See [step_2.md](./steps/step_2.md)
 ### Step 3: `AlertsResult`, `PullRequestCache.alerts()` slot, tests and docs
 See [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: `test_pull_requests_alerts.py` tests + `AlertsResult` in `pr_types.py`, `alerts()` / `_alerts` in `caching/pull_requests.py`, README and release notes updated
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `test_pull_requests_alerts.py` tests + `AlertsResult` in `pr_types.py`, `alerts()` / `_alerts` in `caching/pull_requests.py`, README and release notes updated
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 
