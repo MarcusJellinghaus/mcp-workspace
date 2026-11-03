@@ -21,6 +21,28 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Move `_chunk_paths` to `core.py`
+See [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: update test import, move `_chunk_paths` from `staging.py` to `core.py`
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Add `renormalize_paths`
+See [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: `crlf_repo` fixture, tests, `renormalize_paths` in `staging.py`, export + export tests, release notes
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: Add `is_staged_diff_cr_only`
+See [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation: tests, `is_staged_diff_cr_only` in `repository_status.py`, export + export tests, release notes
+- [ ] Quality checks: pylint, pytest, mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: review full branch diff against `main`, address findings
+- [ ] PR summary prepared
