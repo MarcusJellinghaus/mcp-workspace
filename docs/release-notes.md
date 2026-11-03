@@ -1,5 +1,13 @@
 # Release notes
 
+## Next minor release — git_operations: line-ending-only dirt helpers (#373)
+
+Adds helpers to `mcp_workspace.git_operations` for clearing a working tree whose only changes are line endings (MarcusJellinghaus/mcp_coder#1266).
+
+### New functions
+
+- `renormalize_paths(paths: list[Path], project_dir) -> GitResult` — `git add --renormalize`; deleted or missing path → `success=False` (exit 128).
+
 ## Next minor release — github_operations: fingerprint-based PR and branch-lookup caches (#361)
 
 ### Summary

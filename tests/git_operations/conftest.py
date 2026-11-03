@@ -65,6 +65,23 @@ def make_conflict_repo(
 
 
 @pytest.fixture
+def crlf_repo(git_repo: tuple[Repo, Path]) -> tuple[Repo, Path]:
+    """Repo whose only change is line endings in ``doc.md``.
+
+    ``doc.md`` is committed with CRLF before ``.gitattributes`` exists, then an
+    untracked ``.gitattributes`` with ``*.md text`` is written and ``doc.md`` is
+    rewritten with the same bytes so the stat cache cannot hide the change.
+    """
+    repo, project_dir = git_repo
+    repo.git.config("core.autocrlf", "false")
+    content = b"line one\r\n    indented\r\n"
+    commit_files(repo, {"doc.md": content}, "crlf")
+    (project_dir / ".gitattributes").write_bytes(b"*.md text\n")
+    (project_dir / "doc.md").write_bytes(content)
+    return repo, project_dir
+
+
+@pytest.fixture
 def git_repo(tmp_path: Path) -> tuple[Repo, Path]:
     """Create clean, empty git repository for testing.
 

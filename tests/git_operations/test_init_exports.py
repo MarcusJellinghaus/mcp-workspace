@@ -10,16 +10,24 @@ def test_all_expected_symbols_exported() -> None:
 
 
 def test_expected_symbol_count() -> None:
-    """Verify __all__ has the expected 68 symbols."""
+    """Verify __all__ has the expected 69 symbols."""
     from mcp_workspace.git_operations import __all__
 
-    assert len(__all__) == 68
+    assert len(__all__) == 69
 
 
 def test_verify_git_and_check_result_exported() -> None:
     """Verify verify_git and CheckResult are exported."""
     assert "verify_git" in git_operations.__all__
     assert "CheckResult" in git_operations.__all__
+
+
+def test_renormalize_paths_exported() -> None:
+    """Verify renormalize_paths is exported from the staging module."""
+    from mcp_workspace.git_operations import staging
+
+    assert "renormalize_paths" in git_operations.__all__
+    assert git_operations.renormalize_paths is staging.renormalize_paths
 
 
 def test_all_remains_alphabetised() -> None:

@@ -165,6 +165,81 @@ def unstage_paths(paths: list[Path], project_dir: Path) -> GitResult:
     return {"success": True, "error": None, "returncode": returncode, "stderr": stderr}
 
 
+def renormalize_paths(paths: list[Path], project_dir: Path) -> GitResult:
+    """Re-stage ``paths`` through ``git add --renormalize``.
+
+    Applies the current ``.gitattributes`` line-ending rules to the index, so
+    a file whose only change is line endings stops showing as modified.
+    ``--renormalize`` implies ``-u``: files with real edits are staged too,
+    which is what lets a caller detect them. Undo with ``unstage_paths``.
+    Paths are matched literally and long lists are split into several git
+    calls to stay under the Windows command-line limit.
+
+    There is no existence pre-check. A deleted tracked path or a path that
+    never existed makes git exit 128, and nothing in that chunk is staged.
+    An untracked path or stat-only dirt is a success that stages nothing.
+
+    Args:
+        paths: Absolute paths, or paths relative to ``project_dir``
+        project_dir: Path to the project directory containing the git repository
+
+    Returns:
+        GitResult; ``success`` is True when every chunk succeeds. An empty
+        ``paths`` is a success without running git. A non-repository or a path
+        outside ``project_dir`` is an error result with ``returncode`` and
+        ``stderr`` None. A failing chunk leaves earlier chunks staged.
+    """
+    logger.debug("Renormalizing paths %s in %s", paths, project_dir)
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            if not paths:
+                return {
+                    "success": True,
+                    "error": None,
+                    "returncode": None,
+                    "stderr": None,
+                }
+            try:
+                rel_paths = to_git_paths(paths, project_dir)
+            except ValueError as e:
+                logger.debug("renormalize_paths failed: %s", e)
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "returncode": None,
+                    "stderr": None,
+                }
+
+            returncode, stderr = 0, ""
+            for chunk in _chunk_paths(rel_paths):
+                returncode, _, stderr = run_git_raw(
+                    repo, "add", "--renormalize", "--", *chunk, literal_paths=True
+                )
+                if returncode != 0:
+                    logger.debug(
+                        "git add --renormalize failed (exit %s): %s",
+                        returncode,
+                        stderr,
+                    )
+                    return {
+                        "success": False,
+                        "error": f"git add --renormalize failed (exit {returncode})",
+                        "returncode": returncode,
+                        "stderr": stderr,
+                    }
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        logger.debug("Not a git repository: %s", project_dir)
+        return {
+            "success": False,
+            "error": f"Not a git repository: {project_dir}",
+            "returncode": None,
+            "stderr": None,
+        }
+
+    return {"success": True, "error": None, "returncode": returncode, "stderr": stderr}
+
+
 def stage_all_changes(project_dir: Path) -> bool:
     """Stage all unstaged changes (both modified and untracked files) for commit.
 
