@@ -27,6 +27,10 @@ def is_staged_diff_cr_only(paths: list[Path], project_dir: Path) -> bool: ...
   `from .core import (...)` list. Do not import from `staging` (that would be circular).
 - `__init__.py`: add `is_staged_diff_cr_only` to the `repository_status` import and to `__all__`
   in alphabetical order (after `"is_rebase_in_progress"`).
+- `test_init_exports.py`: besides the count, add `test_is_staged_diff_cr_only_exported`, modelled
+  on `test_verify_git_and_check_result_exported`. It asserts `"is_staged_diff_cr_only" in
+  git_operations.__all__` and that `git_operations.is_staged_diff_cr_only` is the
+  `repository_status` function.
 
 ## ALGORITHM
 

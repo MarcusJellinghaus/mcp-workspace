@@ -38,7 +38,11 @@ def renormalize_paths(paths: list[Path], project_dir: Path) -> GitResult: ...
   `safe_repo_context` and `GitResult` are imported already).
 - `__init__.py`: change the import to
   `from mcp_workspace.git_operations.staging import (renormalize_paths, stage_all_changes, unstage_paths)`
-  and add `"renormalize_paths"` to `__all__` in alphabetical order (after `"reset_hard"`).
+  and add `"renormalize_paths"` to `__all__` in alphabetical order (between `"rebase_start"`
+  and `"reset_hard"`).
+- `test_init_exports.py`: besides the count, add `test_renormalize_paths_exported`, modelled on
+  `test_verify_git_and_check_result_exported`. It asserts `"renormalize_paths" in
+  git_operations.__all__` and that `git_operations.renormalize_paths` is the `staging` function.
 
 ## ALGORITHM
 
