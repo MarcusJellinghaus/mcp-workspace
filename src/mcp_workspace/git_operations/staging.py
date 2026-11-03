@@ -1,9 +1,7 @@
 """Git staging operations for managing staged changes."""
 
 from pathlib import Path
-from typing import Callable
 
-from git import Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
 from .core import (
@@ -96,24 +94,21 @@ def stage_specific_files(files: list[Path], project_dir: Path) -> bool:
         return False
 
 
-_ChunkArgs = Callable[[list[str]], tuple[str, tuple[str, ...]]]
-
-
 def _run_chunked(
     paths: list[Path],
     project_dir: Path,
     func_name: str,
-    make_chunk_args: Callable[[Repo], _ChunkArgs],
+    label: str,
+    git_args: tuple[str, ...],
 ) -> GitResult:
-    """Run one literal-pathspec git command per chunk of ``paths``.
+    """Run ``git <git_args> <chunk>`` with literal pathspecs per chunk of ``paths``.
 
     Args:
         paths: Absolute paths, or paths relative to ``project_dir``
         project_dir: Path to the project directory containing the git repository
         func_name: Public function name, used in log messages
-        make_chunk_args: Called once with the open repo (after path validation);
-            returns a builder mapping a chunk to ``(label, git_args)``, where
-            ``label`` names the command in the ``git <label> failed`` error.
+        label: Command name used in the ``git <label> failed`` error
+        git_args: Git argv up to and including ``--``; each chunk is appended
 
     Returns:
         GitResult as documented on the public callers.
@@ -138,11 +133,11 @@ def _run_chunked(
                     "stderr": None,
                 }
 
-            chunk_args = make_chunk_args(repo)
             returncode, stderr = 0, ""
             for chunk in _chunk_paths(rel_paths):
-                label, args = chunk_args(chunk)
-                returncode, _, stderr = run_git_raw(repo, *args, literal_paths=True)
+                returncode, _, stderr = run_git_raw(
+                    repo, *git_args, *chunk, literal_paths=True
+                )
                 if returncode != 0:
                     logger.debug(
                         "git %s failed (exit %s): %s", label, returncode, stderr
@@ -185,18 +180,24 @@ def unstage_paths(paths: list[Path], project_dir: Path) -> GitResult:
     """
     logger.debug("Unstaging paths %s in %s", paths, project_dir)
 
-    def make_chunk_args(repo: Repo) -> _ChunkArgs:
-        head_rc, _, _ = run_git_raw(repo, "rev_parse", "--verify", "-q", "HEAD")
+    if paths and not _has_head(project_dir):
+        rm_args = ("rm", "--cached", "-r", "-q", "--ignore-unmatch", "--")
+        return _run_chunked(paths, project_dir, "unstage_paths", "rm", rm_args)
+    reset_args = ("reset", "-q", "HEAD", "--")
+    return _run_chunked(paths, project_dir, "unstage_paths", "reset", reset_args)
 
-        def chunk_args(chunk: list[str]) -> tuple[str, tuple[str, ...]]:
-            if head_rc == 0:
-                return "reset", ("reset", "-q", "HEAD", "--", *chunk)
-            rm_args = ("rm", "--cached", "-r", "-q", "--ignore-unmatch", "--")
-            return "rm", (*rm_args, *chunk)
 
-        return chunk_args
+def _has_head(project_dir: Path) -> bool:
+    """Return True if HEAD resolves; False on an unborn HEAD or a non-repo.
 
-    return _run_chunked(paths, project_dir, "unstage_paths", make_chunk_args)
+    A non-repo is reported by ``_run_chunked``, so False is safe there.
+    """
+    try:
+        with safe_repo_context(project_dir) as repo:
+            head_rc, _, _ = run_git_raw(repo, "rev_parse", "--verify", "-q", "HEAD")
+            return head_rc == 0
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        return False
 
 
 def renormalize_paths(paths: list[Path], project_dir: Path) -> GitResult:
@@ -225,10 +226,13 @@ def renormalize_paths(paths: list[Path], project_dir: Path) -> GitResult:
     """
     logger.debug("Renormalizing paths %s in %s", paths, project_dir)
 
-    def chunk_args(chunk: list[str]) -> tuple[str, tuple[str, ...]]:
-        return "add --renormalize", ("add", "--renormalize", "--", *chunk)
-
-    return _run_chunked(paths, project_dir, "renormalize_paths", lambda _: chunk_args)
+    return _run_chunked(
+        paths,
+        project_dir,
+        "renormalize_paths",
+        "add --renormalize",
+        ("add", "--renormalize", "--"),
+    )
 
 
 def stage_all_changes(project_dir: Path) -> bool:

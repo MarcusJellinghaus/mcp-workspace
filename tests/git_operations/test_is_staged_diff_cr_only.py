@@ -1,6 +1,7 @@
 """Tests for is_staged_diff_cr_only."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from git import Repo
@@ -62,3 +63,22 @@ class TestIsStagedDiffCrOnly:
         outside.write_text("x", encoding="utf-8")
 
         assert is_staged_diff_cr_only([outside], project_dir) is False
+
+    def test_second_chunk_not_cr_only(self, crlf_repo: tuple[Repo, Path]) -> None:
+        """A real change in the second chunk is False after a CR-only first chunk."""
+        repo, project_dir = crlf_repo
+        (project_dir / "other.md").write_bytes(b"new file\n")
+        repo.git.add("--", "other.md")
+        assert renormalize_paths([Path("doc.md")], project_dir)["success"] is True
+
+        with patch(
+            "mcp_workspace.git_operations.repository_status._chunk_paths",
+            side_effect=lambda paths: [[p] for p in paths],
+        ) as mock_chunk:
+            result = is_staged_diff_cr_only(
+                [Path("doc.md"), Path("other.md")], project_dir
+            )
+
+        mock_chunk.assert_called_once_with(["doc.md", "other.md"])
+        assert result is False
+        assert is_staged_diff_cr_only([Path("doc.md")], project_dir) is True

@@ -1,6 +1,7 @@
 """Tests for renormalize_paths."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from git import Repo
@@ -85,3 +86,20 @@ class TestRenormalizePaths:
         assert result["success"] is False
         assert result["error"] is not None
         assert result["returncode"] is None
+
+    def test_second_chunk_failure(self, crlf_repo: tuple[Repo, Path]) -> None:
+        """A failing second chunk is an error result; the first stays staged."""
+        _, project_dir = crlf_repo
+
+        with patch(
+            "mcp_workspace.git_operations.staging._chunk_paths",
+            side_effect=lambda paths: [[p] for p in paths],
+        ) as mock_chunk:
+            result = renormalize_paths([Path("doc.md"), Path("gone.md")], project_dir)
+
+        mock_chunk.assert_called_once_with(["doc.md", "gone.md"])
+        assert result["success"] is False
+        assert result["error"] == "git add --renormalize failed (exit 128)"
+        assert result["returncode"] == 128
+        assert result["stderr"]
+        assert "doc.md" in get_working_tree_status(project_dir)["staged"]
