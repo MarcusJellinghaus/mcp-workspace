@@ -84,9 +84,14 @@ from mcp_workspace.git_operations.repository_status import (
     get_working_tree_status,
     has_staged_changes,
     is_git_repository,
+    is_staged_diff_cr_only,
     is_working_directory_clean,
 )
-from mcp_workspace.git_operations.staging import stage_all_changes, unstage_paths
+from mcp_workspace.git_operations.staging import (
+    renormalize_paths,
+    stage_all_changes,
+    unstage_paths,
+)
 from mcp_workspace.git_operations.verification import CheckResult, verify_git
 from mcp_workspace.git_operations.workflows import (
     commit_all_changes,
@@ -140,6 +145,7 @@ __all__ = [
     "is_file_tracked",
     "is_git_repository",
     "is_rebase_in_progress",
+    "is_staged_diff_cr_only",
     "is_working_directory_clean",
     "list_remote_branches",
     "list_tree",
@@ -155,6 +161,7 @@ __all__ = [
     "rebase_onto_branch",
     "rebase_skip",
     "rebase_start",
+    "renormalize_paths",
     "reset_hard",
     "resolve_take_theirs_or_remove",
     "safe_repo_context",

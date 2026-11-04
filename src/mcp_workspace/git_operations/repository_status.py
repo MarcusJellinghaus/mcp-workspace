@@ -6,10 +6,12 @@ from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
 from .core import (
     StatusResult,
+    _chunk_paths,
     logger,
     open_repo_for_query,
     run_git_raw,
     safe_repo_context,
+    to_git_paths,
 )
 from .porcelain_parsers import parse_status_z
 
@@ -118,6 +120,57 @@ def has_staged_changes(project_dir: Path) -> bool:
     if returncode == 1:
         return True
     raise GitCommandError(["git", "diff", "--cached", "--quiet"], returncode, stderr)
+
+
+def is_staged_diff_cr_only(paths: list[Path], project_dir: Path) -> bool:
+    """Check whether the staged diff of ``paths`` differs only in CR at EOL.
+
+    Runs ``git diff --cached --ignore-cr-at-eol --quiet`` on ``paths``. Only
+    ``paths`` are inspected; other staged entries are not checked, and
+    nothing staged is True. Use ``has_staged_changes`` to decide whether to
+    commit. Paths are matched literally and long lists are split into
+    several git calls to stay under the Windows command-line limit.
+
+    Paths are not validated: a deleted or never-existed path has an empty
+    staged diff and gives True, so callers rely on ``renormalize_paths``
+    failing first.
+
+    Args:
+        paths: Absolute paths, or paths relative to ``project_dir``
+        project_dir: Path to the project directory containing the git repository
+
+    Returns:
+        True if every staged change in ``paths`` is CR-at-EOL only. An empty
+        ``paths`` is True without running git (after the repo is opened).
+        Any failure (git exit 1 or another code, non-repository, path
+        outside ``project_dir``, an exception) is False.
+    """
+    logger.debug("Checking staged diff of %s in %s is CR-only", paths, project_dir)
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            if not paths:
+                return True
+            for chunk in _chunk_paths(to_git_paths(paths, project_dir)):
+                returncode, _, stderr = run_git_raw(
+                    repo,
+                    "diff",
+                    "--cached",
+                    "--ignore-cr-at-eol",
+                    "--quiet",
+                    "--",
+                    *chunk,
+                    literal_paths=True,
+                )
+                if returncode != 0:
+                    logger.debug(
+                        "Staged diff is not CR-only (exit %s): %s", returncode, stderr
+                    )
+                    return False
+            return True
+    except Exception as e:  # pylint: disable=broad-exception-caught  # fail closed
+        logger.debug("is_staged_diff_cr_only failed: %s", e)
+        return False
 
 
 def is_working_directory_clean(

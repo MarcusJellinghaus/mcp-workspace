@@ -309,6 +309,37 @@ def to_git_paths(paths: Sequence[Path], project_dir: Path) -> list[str]:
     return result
 
 
+def _chunk_paths(paths: list[str], max_chars: int = 24000) -> list[list[str]]:
+    """Split paths into chunks whose joined length stays under max_chars.
+
+    Order-preserving: concatenating the returned chunks reproduces the input list
+    exactly. A single path longer than max_chars becomes the sole entry of its own
+    chunk rather than being dropped.
+
+    Args:
+        paths: Git-relative paths to chunk.
+        max_chars: Maximum total character length (space-joined) per chunk.
+
+    Returns:
+        List of path chunks. Empty input returns an empty list.
+    """
+    chunks: list[list[str]] = []
+    current: list[str] = []
+    current_len = 0
+    for path in paths:
+        added_len = len(path) + (1 if current else 0)
+        if current and current_len + added_len > max_chars:
+            chunks.append(current)
+            current = []
+            current_len = 0
+            added_len = len(path)
+        current.append(path)
+        current_len += added_len
+    if current:
+        chunks.append(current)
+    return chunks
+
+
 @contextmanager
 def open_repo_for_query(project_dir: Path) -> Iterator[Repo]:
     """Open a repository for a plain-value query.

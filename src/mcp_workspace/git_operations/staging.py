@@ -6,6 +6,7 @@ from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
 from .core import (
     GitResult,
+    _chunk_paths,
     _normalize_git_path,
     logger,
     run_git_raw,
@@ -13,37 +14,6 @@ from .core import (
     to_git_paths,
 )
 from .repository_status import is_git_repository
-
-
-def _chunk_paths(paths: list[str], max_chars: int = 24000) -> list[list[str]]:
-    """Split paths into chunks whose joined length stays under max_chars.
-
-    Order-preserving: concatenating the returned chunks reproduces the input list
-    exactly. A single path longer than max_chars becomes the sole entry of its own
-    chunk rather than being dropped.
-
-    Args:
-        paths: Git-relative paths to chunk.
-        max_chars: Maximum total character length (space-joined) per chunk.
-
-    Returns:
-        List of path chunks. Empty input returns an empty list.
-    """
-    chunks: list[list[str]] = []
-    current: list[str] = []
-    current_len = 0
-    for path in paths:
-        added_len = len(path) + (1 if current else 0)
-        if current and current_len + added_len > max_chars:
-            chunks.append(current)
-            current = []
-            current_len = 0
-            added_len = len(path)
-        current.append(path)
-        current_len += added_len
-    if current:
-        chunks.append(current)
-    return chunks
 
 
 def stage_specific_files(files: list[Path], project_dir: Path) -> bool:
@@ -124,6 +94,72 @@ def stage_specific_files(files: list[Path], project_dir: Path) -> bool:
         return False
 
 
+def _run_chunked(
+    paths: list[Path],
+    project_dir: Path,
+    func_name: str,
+    label: str,
+    git_args: tuple[str, ...],
+) -> GitResult:
+    """Run ``git <git_args> <chunk>`` with literal pathspecs per chunk of ``paths``.
+
+    Args:
+        paths: Absolute paths, or paths relative to ``project_dir``
+        project_dir: Path to the project directory containing the git repository
+        func_name: Public function name, used in log messages
+        label: Command name used in the ``git <label> failed`` error
+        git_args: Git argv up to and including ``--``; each chunk is appended
+
+    Returns:
+        GitResult as documented on the public callers.
+    """
+    try:
+        with safe_repo_context(project_dir) as repo:
+            if not paths:
+                return {
+                    "success": True,
+                    "error": None,
+                    "returncode": None,
+                    "stderr": None,
+                }
+            try:
+                rel_paths = to_git_paths(paths, project_dir)
+            except ValueError as e:
+                logger.debug("%s failed: %s", func_name, e)
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "returncode": None,
+                    "stderr": None,
+                }
+
+            returncode, stderr = 0, ""
+            for chunk in _chunk_paths(rel_paths):
+                returncode, _, stderr = run_git_raw(
+                    repo, *git_args, *chunk, literal_paths=True
+                )
+                if returncode != 0:
+                    logger.debug(
+                        "git %s failed (exit %s): %s", label, returncode, stderr
+                    )
+                    return {
+                        "success": False,
+                        "error": f"git {label} failed (exit {returncode})",
+                        "returncode": returncode,
+                        "stderr": stderr,
+                    }
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        logger.debug("Not a git repository: %s", project_dir)
+        return {
+            "success": False,
+            "error": f"Not a git repository: {project_dir}",
+            "returncode": None,
+            "stderr": None,
+        }
+
+    return {"success": True, "error": None, "returncode": returncode, "stderr": stderr}
+
+
 def unstage_paths(paths: list[Path], project_dir: Path) -> GitResult:
     """Remove ``paths`` from the index, keeping their working-tree content.
 
@@ -144,55 +180,59 @@ def unstage_paths(paths: list[Path], project_dir: Path) -> GitResult:
     """
     logger.debug("Unstaging paths %s in %s", paths, project_dir)
 
+    if paths and not _has_head(project_dir):
+        rm_args = ("rm", "--cached", "-r", "-q", "--ignore-unmatch", "--")
+        return _run_chunked(paths, project_dir, "unstage_paths", "rm", rm_args)
+    reset_args = ("reset", "-q", "HEAD", "--")
+    return _run_chunked(paths, project_dir, "unstage_paths", "reset", reset_args)
+
+
+def _has_head(project_dir: Path) -> bool:
+    """Return True if HEAD resolves; False on an unborn HEAD or a non-repo.
+
+    A non-repo is reported by ``_run_chunked``, so False is safe there.
+    """
     try:
         with safe_repo_context(project_dir) as repo:
-            if not paths:
-                return {
-                    "success": True,
-                    "error": None,
-                    "returncode": None,
-                    "stderr": None,
-                }
-            try:
-                rel_paths = to_git_paths(paths, project_dir)
-            except ValueError as e:
-                logger.debug("unstage_paths failed: %s", e)
-                return {
-                    "success": False,
-                    "error": str(e),
-                    "returncode": None,
-                    "stderr": None,
-                }
-
             head_rc, _, _ = run_git_raw(repo, "rev_parse", "--verify", "-q", "HEAD")
-            returncode, stderr = 0, ""
-            for chunk in _chunk_paths(rel_paths):
-                if head_rc == 0:
-                    args: tuple[str, ...] = ("reset", "-q", "HEAD", "--", *chunk)
-                else:
-                    args = ("rm", "--cached", "-r", "-q", "--ignore-unmatch", "--")
-                    args += tuple(chunk)
-                returncode, _, stderr = run_git_raw(repo, *args, literal_paths=True)
-                if returncode != 0:
-                    logger.debug(
-                        "git %s failed (exit %s): %s", args[0], returncode, stderr
-                    )
-                    return {
-                        "success": False,
-                        "error": f"git {args[0]} failed (exit {returncode})",
-                        "returncode": returncode,
-                        "stderr": stderr,
-                    }
+            return head_rc == 0
     except (InvalidGitRepositoryError, NoSuchPathError):
-        logger.debug("Not a git repository: %s", project_dir)
-        return {
-            "success": False,
-            "error": f"Not a git repository: {project_dir}",
-            "returncode": None,
-            "stderr": None,
-        }
+        return False
 
-    return {"success": True, "error": None, "returncode": returncode, "stderr": stderr}
+
+def renormalize_paths(paths: list[Path], project_dir: Path) -> GitResult:
+    """Re-stage ``paths`` through ``git add --renormalize``.
+
+    Applies the current ``.gitattributes`` line-ending rules to the index, so
+    a file whose only change is line endings stops showing as modified.
+    ``--renormalize`` implies ``-u``: files with real edits are staged too,
+    which is what lets a caller detect them. Undo with ``unstage_paths``.
+    Paths are matched literally and long lists are split into several git
+    calls to stay under the Windows command-line limit.
+
+    There is no existence pre-check. A deleted tracked path or a path that
+    never existed makes git exit 128, and nothing in that chunk is staged.
+    An untracked path or stat-only dirt is a success that stages nothing.
+
+    Args:
+        paths: Absolute paths, or paths relative to ``project_dir``
+        project_dir: Path to the project directory containing the git repository
+
+    Returns:
+        GitResult; ``success`` is True when every chunk succeeds. An empty
+        ``paths`` is a success without running git. A non-repository or a path
+        outside ``project_dir`` is an error result with ``returncode`` and
+        ``stderr`` None. A failing chunk leaves earlier chunks staged.
+    """
+    logger.debug("Renormalizing paths %s in %s", paths, project_dir)
+
+    return _run_chunked(
+        paths,
+        project_dir,
+        "renormalize_paths",
+        "add --renormalize",
+        ("add", "--renormalize", "--"),
+    )
 
 
 def stage_all_changes(project_dir: Path) -> bool:
