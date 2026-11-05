@@ -120,6 +120,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
 
       - uses: actions/setup-python@v7
         with:
@@ -194,6 +196,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
 
       - uses: actions/setup-python@v7
         with:
@@ -235,6 +239,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
 
       - name: Check file sizes
         # mcp-coder is installed in an isolated venv. We install mcp-coder
@@ -271,6 +277,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
 
       - uses: actions/setup-python@v7
         with:
