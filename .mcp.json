@@ -8,8 +8,6 @@
         "${MCP_CODER_PROJECT_DIR}",
         "--python-executable",
         "${MCP_CODER_VENV_PATH}\\python.exe",
-        "--venv-path",
-        "${MCP_CODER_VENV_PATH}\\..",
         "--test-folder",
         "tests",
         "--log-level",

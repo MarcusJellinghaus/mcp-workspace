@@ -20,7 +20,7 @@ Per section: verify still needed, verify against the source, apply, commit, push
 
 - [x] **C1. Remove pycycle.** Already gone from mcp_coder. `R0401` stays enabled here.
 - [x] **C2. Disable the setup-uv cache.** `ci.yml` (4 steps) and `upstream-mypy-check.yml` (1 step). mcp_coder hasn't applied this yet, so this is a deliberate lead over it.
-- [ ] **C3. Remove `--venv-path` from `.mcp.json`.** mcp_coder still has it; the chore is independent of that.
+- [x] **C3. Remove `--venv-path` from `.mcp.json`.** mcp_coder still has it; the chore is independent of that.
 - [ ] **C4. Re-sync GitHub labels.** Now unblocked: the 51-char label was renamed to `status-17f-ci-unknown:code-review-ci-unknown`. Dry run first.
 - Skipped: **remove the sleep from `issue_analyse`.** Still blocked, mcp_coder's own copy still has it.
 
