@@ -138,7 +138,7 @@ appear, so CI cannot catch a regression. The guard is
 
 ## Architecture Enforcement Tools
 
-We use four tools to enforce architectural boundaries:
+We use three tools to enforce architectural boundaries:
 
 ### 1. import-linter
 
@@ -180,26 +180,7 @@ tools\tach_check.bat
 ./tools/tach_check.sh
 ```
 
-### 3. pycycle
-
-**Purpose:** Circular dependency detection
-
-**Configuration:** None needed
-
-**What it checks:**
-- Import cycles between modules
-- Circular dependencies at any level
-
-**Run:**
-```bash
-# Windows
-tools\pycycle_check.bat
-
-# Linux/Mac
-./tools/pycycle_check.sh
-```
-
-### 4. vulture
+### 3. vulture
 
 **Purpose:** Dead code detection
 
@@ -240,7 +221,6 @@ This runs:
 4. Tests (pytest)
 5. Import contracts (import-linter)
 6. Architecture boundaries (tach)
-7. Circular dependencies (pycycle)
 
 ## CI/CD Integration
 
@@ -258,7 +238,6 @@ Runs on every push:
 Runs only on pull requests:
 - import-linter
 - tach
-- pycycle
 - vulture
 
 **Why PR-only?** Architecture checks are more expensive and are most valuable when reviewing code changes.
@@ -340,5 +319,4 @@ When adding new functionality:
 
 - [Import Linter Documentation](https://import-linter.readthedocs.io/)
 - [Tach Documentation](https://docs.gauge.so/tach/)
-- [Pycycle on PyPI](https://pypi.org/project/pycycle/)
 - [Vulture Documentation](https://github.com/jendrikseipp/vulture)

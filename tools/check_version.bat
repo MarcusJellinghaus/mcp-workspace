@@ -26,7 +26,6 @@ echo --- Testing ---
 pytest --version
 echo.
 echo --- Architecture and Dependencies ---
-pycycle --version
 tach --version
 lint-imports --version
 echo.

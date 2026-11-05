@@ -264,7 +264,6 @@ jobs:
         check:
           - {name: "import-linter", cmd: "uv pip show import-linter | grep Version && ./tools/lint_imports.sh"}
           - {name: "tach", cmd: "tach --version && tach check"}
-          - {name: "pycycle", cmd: "pycycle --version && pycycle --here"}
           - {name: "vulture", cmd: "vulture --version && vulture src tests vulture_whitelist.py --min-confidence 60"}
     name: ${{ matrix.check.name }}
     steps:

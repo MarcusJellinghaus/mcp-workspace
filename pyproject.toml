@@ -50,7 +50,6 @@ typecheck = ["mypy>=1.13.0", "types-requests>=2.31.0", "pytest>=8.3.5", "pytest-
 architecture = [
     "import-linter>=2.0",
     "tach>=0.6.0",
-    "pycycle>=0.0.8",
     "vulture>=2.14",
 ]
 

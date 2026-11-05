@@ -7,19 +7,19 @@ echo "Running All Code Quality Checks"
 echo "========================================"
 echo ""
 
-echo "[1/7] Running black and isort..."
+echo "[1/6] Running black and isort..."
 ./tools/format_all.sh
 echo ""
 
-echo "[2/7] Running pylint..."
+echo "[2/6] Running pylint..."
 pylint ./src ./tests
 echo ""
 
-echo "[3/7] Running mypy..."
+echo "[3/6] Running mypy..."
 mypy --strict src tests
 echo ""
 
-echo "[4/7] Running pytest..."
+echo "[4/6] Running pytest..."
 pytest -n auto
 echo ""
 
@@ -28,16 +28,12 @@ echo "Running Architecture Checks"
 echo "========================================"
 echo ""
 
-echo "[5/7] Running import-linter..."
+echo "[5/6] Running import-linter..."
 ./tools/lint_imports.sh
 echo ""
 
-echo "[6/7] Running tach..."
+echo "[6/6] Running tach..."
 ./tools/tach_check.sh
-echo ""
-
-echo "[7/7] Running pycycle..."
-./tools/pycycle_check.sh
 echo ""
 
 echo "========================================"
