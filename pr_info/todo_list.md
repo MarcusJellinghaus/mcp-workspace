@@ -3,9 +3,8 @@
 Propagation of epic [mcp_coder#1163](https://github.com/MarcusJellinghaus/mcp_coder/issues/1163).
 Target config: `mcp_coder/pyproject.toml` and `.github/workflows/ci.yml`.
 
-Counts measured on `main` @ `5359a44` (2026-11-05) over `src tests tools`, using the
-current `preview = true` without the gate, so preview rules may be included. Re-measure
-after task 1.
+Counts measured on `main` @ `5359a44` (2026-11-05) over `src tests tools`, with the
+preview gate from task 1 applied. The gate removed `UP052` (11) and `S404` (8).
 
 ## Decisions
 
@@ -21,23 +20,23 @@ Per section: verify still needed, verify against the source, apply, commit, push
 - [x] **C1. Remove pycycle.** Already gone from mcp_coder. `R0401` stays enabled here.
 - [x] **C2. Disable the setup-uv cache.** `ci.yml` (4 steps) and `upstream-mypy-check.yml` (1 step). mcp_coder hasn't applied this yet, so this is a deliberate lead over it.
 - [x] **C3. Remove `--venv-path` from `.mcp.json`.** mcp_coder still has it; the chore is independent of that.
-- [ ] **C4. Re-sync GitHub labels.** Now unblocked: the 51-char label was renamed to `status-17f-ci-unknown:code-review-ci-unknown`. Dry run first.
+- [x] **C4. Re-sync GitHub labels.** Done on GitHub, no repo change: 17 created, 21 updated, 0 deleted.
 - Skipped: **remove the sleep from `issue_analyse`.** Still blocked, mcp_coder's own copy still has it.
 
 ## Tasks, in order
 
 ### Ruff rules
 
-- [ ] **1. Gate preview rules (#1164).** `explicit-preview-rules = true`; replace `DOC` with `DOC201, DOC202, DOC402, DOC403, DOC501, DOC502`. Compare per-rule counts before and after (`--ignore-noqa`, ignores cleared), then delete one `DOC502` per-file-ignore to prove the rule still fires. Blocks every other ruff task.
-- [ ] **2. Pin ruff.** `ruff>=0.9.0` becomes `ruff~=0.17.2` in the `dev` extra (#1296).
+- [x] **1. Gate preview rules (#1164).** Per-rule counts identical before and after (1349 across 16 rules, `--ignore-noqa`, per-file-ignores cleared). Clearing the `DOC502` per-file-ignores makes 18 findings fire, so `DOC` is still enforced.
+- [x] **2. Pin ruff.** `ruff>=0.9.0` becomes `ruff~=0.17.2` in the `dev` extra (#1296).
 - [ ] **3. Add `tools` to the ruff scope; align `D`/`DOC`.** Rename CI row `ruff-docstrings` to `ruff`, running `ruff check src tests tools`. Drop the `D104` ignore (3 hits in `src`). Fix `D` in `tools` (10). Add `"tools/**" = ["DOC201"]` (10 hits); fix `DOC402` (1).
 - [ ] **4. `C4` + `B` (#1165): 8 findings.** Set `zip(strict=)` per call site, not as a blanket value.
 - [ ] **5. `E`, ignore `E501` (#1167): 47 findings.** All `E712`, all in tests. `E501` (217 hits) stays off permanently.
 - [ ] **6. `SIM`, with `SIM117` ignored in tests (#1168): 16 findings to fix.** The 78 `SIM117` hits are all in tests, so the carve-out covers them.
 - [ ] **7. `F` (#1169): 139 findings, all in tests/tools.** `F401` 120, `F811` 11, `F841` 8. Keep imports that are the test's actual content, and assert on them. Must land before task 10.
 - [ ] **8. `ANN`, ignore `ANN401` (#1171): 0 findings to fix.** All 136 hits are `ANN401`. Config change only.
-- [ ] **9. `S` with filters (#1170): 38 findings after filtering (6282 raw).** Test-only ignores: `S101`, `S105`, `S106`, `S108`. Do **not** copy mcp_coder's global `S404`/`S603` ignores: they have 0 hits in `src` here, only in tests/tools, so scope any ignore to those paths. Review `S101` (10), `S105` (1), `S110` (2) and `S311` (1) in `src`.
-- [ ] **10. `UP` (#1166): 1192 findings, own PR on a quiet queue.** `run_ruff_fix(select=["UP", "F401"])`, then `UP042` separately with `--unsafe-fixes` (5 sites in `src`). `StrEnum` changes `str()` and f-string output, so check each use.
+- [ ] **9. `S` with filters (#1170): 30 findings after filtering (6274 raw).** Test-only ignores: `S101`, `S105`, `S106`, `S108`. Do **not** copy mcp_coder's global `S404`/`S603` ignores, as the epic says: `S404` has 0 hits once gated and `S603` has 0 in `src`, so scope any `S603` ignore to tests/tools. Review `S101` (10), `S105` (1), `S110` (2) and `S311` (1) in `src`.
+- [ ] **10. `UP` (#1166): 1181 findings, own commit.** `run_ruff_fix(select=["UP", "F401"])`, then `UP042` separately with `--unsafe-fixes` (5 sites in `src`). `StrEnum` changes `str()` and f-string output, so check each use.
 - [ ] **11. `PLW1510` (3 findings) and `PLE2502` (0 findings) (#1177).** Cherry-pick the exact codes, not the `PL` group.
 
 ### Formatter
