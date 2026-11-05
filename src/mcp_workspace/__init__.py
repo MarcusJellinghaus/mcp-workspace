@@ -1,4 +1,4 @@
-# This file makes the mcp_workspace directory a Python package
+"""MCP server providing workspace file operations."""
 
 from importlib.metadata import PackageNotFoundError, version
 

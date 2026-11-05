@@ -29,7 +29,7 @@ Per section: verify still needed, verify against the source, apply, commit, push
 
 - [x] **1. Gate preview rules (#1164).** Per-rule counts identical before and after (1349 across 16 rules, `--ignore-noqa`, per-file-ignores cleared). Clearing the `DOC502` per-file-ignores makes 18 findings fire, so `DOC` is still enforced.
 - [x] **2. Pin ruff.** `ruff>=0.9.0` becomes `ruff~=0.17.2` in the `dev` extra (#1296).
-- [ ] **3. Add `tools` to the ruff scope; align `D`/`DOC`.** Rename CI row `ruff-docstrings` to `ruff`, running `ruff check src tests tools`. Drop the `D104` ignore (3 hits in `src`). Fix `D` in `tools` (10). Add `"tools/**" = ["DOC201"]` (10 hits); fix `DOC402` (1).
+- [x] **3. Add `tools` to the ruff scope; align `D`/`DOC`.** Rename CI row `ruff-docstrings` to `ruff`, running `ruff check src tests tools`. Drop the `D104` ignore (3 hits in `src`). Fix `D` in `tools` (10). Add `"tools/**" = ["DOC201"]` (10 hits); fix `DOC402` (1).
 - [ ] **4. `C4` + `B` (#1165): 8 findings.** Set `zip(strict=)` per call site, not as a blanket value.
 - [ ] **5. `E`, ignore `E501` (#1167): 47 findings.** All `E712`, all in tests. `E501` (217 hits) stays off permanently.
 - [ ] **6. `SIM`, with `SIM117` ignored in tests (#1168): 16 findings to fix.** The 78 `SIM117` hits are all in tests, so the carve-out covers them.

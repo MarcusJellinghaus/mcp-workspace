@@ -13,7 +13,9 @@ from pathlib import Path
 
 def run_command(cmd: list[str]) -> str:
     """Run a command and return stdout."""
-    result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent
+    )
     return result.stdout
 
 
@@ -37,7 +39,7 @@ def get_dependency_report(module_path: str) -> str:
 
 def generate_graph_html(mermaid_content: str) -> str:
     """Generate the dependency graph HTML."""
-    return f'''<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -172,12 +174,12 @@ def generate_graph_html(mermaid_content: str) -> str:
     </script>
 </body>
 </html>
-'''
+"""
 
 
 def generate_report_html(reports: dict[str, str]) -> str:
     """Generate the detailed report HTML."""
-    return f'''<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -247,7 +249,7 @@ def generate_report_html(reports: dict[str, str]) -> str:
     {''.join(f'<div class="module-report" id="{m.replace(".", "-")}"><h2>{m}</h2><pre>{r.replace("<", "&lt;").replace(">", "&gt;")}</pre></div>' for m, r in reports.items())}
 </body>
 </html>
-'''
+"""
 
 
 def main() -> int:

@@ -112,7 +112,6 @@ select = [
     "DOC201", "DOC202", "DOC402", "DOC403", "DOC501", "DOC502",
 ]
 ignore = [
-    "D104",  # missing docstring in __init__.py (low value)
     "D107",  # missing docstring in __init__ method (redundant with class docstring)
 ]
 
@@ -126,6 +125,9 @@ ignore = [
 "src/mcp_workspace/server_reference_tools.py" = ["DOC502"]
 "src/mcp_workspace/main.py" = ["DOC502"]
 "src/mcp_workspace/workflows/task_tracker.py" = ["DOC502"]
+# tools/: low-priority helper scripts that may move to an MCP server or be deleted;
+# Returns sections are not required there.
+"tools/**" = ["DOC201"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
