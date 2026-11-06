@@ -107,8 +107,6 @@ jobs:
         check:
           - {name: "ruff-format", cmd: "ruff version && ruff format --check src tests tools"}
           - {name: "pylint", cmd: "pylint --version && pylint ./src ./tests"}
-          - {name: "unit-tests", cmd: "pytest --version && pytest -n auto -m 'not git_integration and not github_integration'"}
-          - {name: "git-integration-tests", cmd: "pytest --version && pytest -n auto -m 'git_integration'"}
           - {name: "mypy", cmd: "mypy --version && mypy --strict src tests"}
           - {name: "ruff", cmd: "ruff version && ruff check src tests tools"}
           - {name: "no-url-deps", cmd: "python tools/check_no_url_deps.py"}
@@ -147,6 +145,94 @@ jobs:
 
       - name: Run ${{ matrix.check.name }}
         run: ${{ matrix.check.cmd }}
+
+  # Runs on push and PR: coverage needs it in the PR run.
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        # See note in the `test` job: mcp-coder-utils is git-only and must be
+        # pre-installed so the editable project install can resolve it.
+        run: |
+          uv pip install --system \
+            "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
+            -e ".[dev]"
+
+      - name: Environment info
+        run: |
+          uname -a
+          python --version
+          uv --version
+          git --version
+
+      - name: Run unit-tests
+        env:
+          COVERAGE_FILE: .coverage.unit
+        run: |
+          pytest --version && pytest -n auto -m 'not git_integration and not github_integration' --cov=src/mcp_workspace --cov-report=
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-data-unit
+          path: .coverage.unit
+          include-hidden-files: true
+          retention-days: 1
+
+  # Runs on push and PR: coverage needs it in the PR run.
+  git-integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        # See note in the `test` job: mcp-coder-utils is git-only and must be
+        # pre-installed so the editable project install can resolve it.
+        run: |
+          uv pip install --system \
+            "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
+            -e ".[dev]"
+
+      - name: Environment info
+        run: |
+          uname -a
+          python --version
+          uv --version
+          git --version
+
+      - name: Run git-integration-tests
+        env:
+          COVERAGE_FILE: .coverage.git
+        run: |
+          pytest --version && pytest -n auto -m 'git_integration' --cov=src/mcp_workspace --cov-report=
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-data-git
+          path: .coverage.git
+          include-hidden-files: true
+          retention-days: 1
 
   check-github-secrets:
     runs-on: ubuntu-latest
@@ -228,7 +314,69 @@ jobs:
           echo "  Test repo: $GITHUB_TEST_REPO_URL"
 
       - name: Run github-integration-tests
-        run: pytest --version && pytest -n auto -m 'github_integration'
+        env:
+          COVERAGE_FILE: .coverage.github
+        run: |
+          pytest --version && pytest -n auto -m 'github_integration' --cov=src/mcp_workspace --cov-report=
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-data-github
+          path: .coverage.github
+          include-hidden-files: true
+          retention-days: 1
+
+  # Reporting only, never a gate: no threshold anywhere, and diff-cover cannot fail the job.
+  coverage:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, git-integration-tests, github-integration-tests]
+    # github-integration-tests is skipped without secrets. A skipped dependency
+    # skips this job too unless !cancelled() replaces the implicit success().
+    if: >-
+      !cancelled()
+      && needs.unit-tests.result == 'success'
+      && needs.git-integration-tests.result == 'success'
+      && (needs.github-integration-tests.result == 'success' || needs.github-integration-tests.result == 'skipped')
+      && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install coverage tools
+        run: pip install coverage diff-cover
+
+      - name: Download coverage data
+        uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-data-*
+          path: coverage-data
+          merge-multiple: true
+
+      - name: Combine coverage data
+        run: |
+          coverage combine coverage-data
+          coverage xml -o coverage.xml
+
+      - name: Run diff-cover
+        if: github.event_name == 'pull_request'
+        run: |
+          diff-cover coverage.xml \
+            --compare-branch=origin/${{ github.event.pull_request.base.ref }} \
+            --format markdown:diff-coverage.md || true
+
+      - name: Write coverage step summary
+        run: |
+          if [ -f diff-coverage.md ]; then
+            python tools/ci_coverage_summary.py --coverage-xml coverage.xml --diff-report diff-coverage.md --output "$GITHUB_STEP_SUMMARY"
+          else
+            python tools/ci_coverage_summary.py --coverage-xml coverage.xml --output "$GITHUB_STEP_SUMMARY"
+          fi
 
   file-size:
     runs-on: ubuntu-latest
