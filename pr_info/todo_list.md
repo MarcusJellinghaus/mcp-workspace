@@ -51,7 +51,7 @@ Per section: verify still needed, verify against the source, apply, commit, push
 
 ### Security
 
-- [ ] **16. Gate `/approve` on commenter trust (#1310).** Real hole: `approve-command.yml:10` has no `author_association` check, so any GitHub user can promote an issue. Top priority in this section. Regenerate with mcp-coder's generator, which also adds top-level `permissions: {}` to both generated workflows. Don't hand-edit.
+- [x] **16. Gate `/approve` on commenter trust (#1310).** Real hole: `approve-command.yml:10` has no `author_association` check, so any GitHub user can promote an issue. Top priority in this section. Regenerate with mcp-coder's generator, which also adds top-level `permissions: {}` to both generated workflows. Don't hand-edit. Regenerated with `write_github_actions()` (no label sync), byte-identical to the generator. The generator also SHA-pins `github-script`, so task 18 only has the other workflows left.
 - [ ] **17. Add `SECURITY.md` (#1310).** Missing here. Adapt mcp_coder's scope and threat model.
 - [ ] **18. SHA-pin all GitHub Actions (#1310).** With a `# vX.Y.Z` comment, so Dependabot keeps them updated. Includes `pypa/gh-action-pypi-publish@release/v1` in `publish.yml`.
 - [ ] **19. Signed release assets (#1310).** Add the `attach-signed-artifacts` job to `publish.yml`.
