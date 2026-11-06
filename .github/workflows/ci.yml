@@ -443,10 +443,11 @@ jobs:
 
       # `secrets` isn't available in a step-level `if:`, so this step exposes
       # only whether publishing can work. Runs on main pushes only, so PRs and
-      # forks skip it, and the skipped output skips the badge step too.
+      # forks skip it, and the skipped output skips the badge step too. A skipped
+      # github-integration-tests would lower the total, so keep the last good value.
       - name: Check coverage badge configuration
         id: badge_config
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.github-integration-tests.result == 'success'
         env:
           TOKEN: ${{ secrets.BADGE_GIST_TOKEN }}
           GIST_ID: ${{ vars.BADGE_GIST_ID }}
