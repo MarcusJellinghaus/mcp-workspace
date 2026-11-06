@@ -1,9 +1,10 @@
 """Core utilities and shared infrastructure for git operations."""
 
 import logging
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, Literal, Optional, Sequence, TypedDict
+from typing import Literal, TypedDict
 
 from git import Repo
 from git.exc import InvalidGitRepositoryError, NoSuchPathError
@@ -33,21 +34,22 @@ class GitResult(TypedDict):
     """
 
     success: bool
-    error: Optional[str]
-    returncode: Optional[int]
-    stderr: Optional[str]
+    error: str | None
+    returncode: int | None
+    stderr: str | None
 
 
 # Type alias for commit result structure
 class CommitResult(GitResult):
     """Result of a git commit operation."""
 
-    commit_hash: Optional[str]
-    error_category: Optional[
+    commit_hash: str | None
+    error_category: (
         Literal[
             "signing_failed", "commit_failed", "validation_failed", "nothing_to_commit"
         ]
-    ]
+        | None
+    )
 
 
 class StatusResult(GitResult):
@@ -95,7 +97,7 @@ class BranchProbe(GitResult):
     ``exists`` is True or False.
     """
 
-    exists: Optional[bool]
+    exists: bool | None
 
 
 class RemoteBranchesResult(GitResult):
@@ -133,7 +135,7 @@ class ConflictStageResult(GitResult):
     is_binary=True``.
     """
 
-    content: Optional[str]
+    content: str | None
     is_binary: bool
 
 
@@ -160,7 +162,7 @@ class PushResult(TypedDict):
     """Result of a git push operation."""
 
     success: bool
-    error: Optional[str]
+    error: str | None
 
 
 def _close_repo_safely(repo: Repo) -> None:
@@ -236,7 +238,7 @@ def run_git_raw(
     repo: Repo,
     command: str,
     *args: str,
-    env: Optional[dict[str, str]] = None,
+    env: dict[str, str] | None = None,
     literal_paths: bool = False,
     strip_newline: bool = True,
 ) -> tuple[int, bytes, str]:

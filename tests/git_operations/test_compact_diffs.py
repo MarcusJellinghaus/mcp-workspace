@@ -1,7 +1,5 @@
 """Unit tests for compact_diffs.py — all synthetic string inputs, no git repos."""
 
-import pytest
-
 from mcp_workspace.git_operations.compact_diffs import (
     MIN_BLOCK_LINES,
     MIN_CONTENT_LENGTH,

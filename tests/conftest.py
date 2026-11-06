@@ -1,11 +1,12 @@
 """Test configuration and shared fixtures."""
 
+import contextlib
 import os
 import shutil
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Type, TypeVar, cast
+from typing import TypedDict, TypeVar
 
 import git
 import pytest
@@ -106,12 +107,6 @@ def _traffic_log_off(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     original.cache_clear()
 
 
-try:
-    from typing import TypedDict
-except ImportError:
-    from typing_extensions import TypedDict
-
-
 class GitHubTestSetup(TypedDict):
     """Configuration data for GitHub integration tests."""
 
@@ -134,7 +129,7 @@ def github_test_setup(tmp_path: Path) -> Generator[GitHubTestSetup, None, None]:
 
     if not test_repo_url:
         pytest.skip(
-            "Test repo URL not configured " "(set GITHUB_TEST_REPO_URL or config file)"
+            "Test repo URL not configured (set GITHUB_TEST_REPO_URL or config file)"
         )
 
     # Clone the actual test repository
@@ -145,10 +140,8 @@ def github_test_setup(tmp_path: Path) -> Generator[GitHubTestSetup, None, None]:
         try:
             repo.git.checkout("main")
         except Exception:  # pylint: disable=broad-exception-caught
-            try:
+            with contextlib.suppress(Exception):
                 repo.git.checkout("master")
-            except Exception:  # pylint: disable=broad-exception-caught
-                pass
     except Exception as e:  # pylint: disable=broad-exception-caught
         pytest.skip(f"Could not clone test repository {test_repo_url}: {e}")
 
@@ -163,6 +156,6 @@ def github_test_setup(tmp_path: Path) -> Generator[GitHubTestSetup, None, None]:
 T = TypeVar("T")
 
 
-def create_github_manager(manager_class: Type[T], github_setup: GitHubTestSetup) -> T:
+def create_github_manager(manager_class: type[T], github_setup: GitHubTestSetup) -> T:
     """Create a GitHub manager instance using real configuration."""
     return manager_class(github_setup["project_dir"])  # type: ignore[call-arg]

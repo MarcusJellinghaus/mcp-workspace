@@ -11,14 +11,13 @@ Generic JSON load/save and paths live in ``caching._store``.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, NotRequired, Optional, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 from mcp_workspace.utils.timezone_utils import parse_iso_timestamp
 
-from ..caching._store import _save_cache_file
+from ..caching._store import _save_cache_file, load_json
 from ..caching._store import cache_file_path as _store_cache_file_path
-from ..caching._store import load_json
 from .types import IssueData
 
 __all__ = [
@@ -50,12 +49,12 @@ class CacheData(TypedDict):
         issues: Dictionary mapping issue number (as string) to IssueData
     """
 
-    last_checked: Optional[str]
-    last_full_refresh: NotRequired[Optional[str]]
-    updates_covered_through: NotRequired[Optional[str]]
-    cached_at: NotRequired[Dict[str, str]]
-    version: NotRequired[Optional[int]]
-    issues: Dict[str, IssueData]
+    last_checked: str | None
+    last_full_refresh: NotRequired[str | None]
+    updates_covered_through: NotRequired[str | None]
+    cached_at: NotRequired[dict[str, str]]
+    version: NotRequired[int | None]
+    issues: dict[str, IssueData]
 
 
 def _load_cache_file(cache_file_path: Path) -> CacheData:

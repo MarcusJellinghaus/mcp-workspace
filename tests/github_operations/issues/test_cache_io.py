@@ -7,19 +7,16 @@ import json
 import logging
 import os
 import tempfile
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from unittest.mock import Mock, patch
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
-from mcp_workspace.constants import SINCE_OVERLAP_MINUTES
 from mcp_workspace.github_operations.issues import (
     CacheData,
     IssueData,
-    update_issue_labels_in_cache,
 )
 from mcp_workspace.github_operations.issues._cache_io import (
     _get_cache_file_path,
@@ -28,9 +25,7 @@ from mcp_workspace.github_operations.issues._cache_io import (
     _save_cache_file,
 )
 from mcp_workspace.github_operations.issues.cache import (
-    CACHE_SCHEMA_VERSION,
     _log_stale_cache_entries,
-    get_all_cached_issues,
 )
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 
@@ -224,7 +219,7 @@ class TestSaveCacheFileAtomicity:
     ) -> None:
         """Two saves use different temp files next to the target."""
         cache_path = tmp_path / "x.issues.json"
-        sources: List[str] = []
+        sources: list[str] = []
         real_replace = os.replace
 
         def recording_replace(src: str, dst: Any) -> None:
@@ -321,7 +316,7 @@ class TestStalenessLogging:
             logging.INFO, logger="mcp_workspace.github_operations.issues.cache"
         )
 
-        cached_issues: Dict[str, IssueData] = {
+        cached_issues: dict[str, IssueData] = {
             "123": {
                 "number": 123,
                 "state": "open",
@@ -337,7 +332,7 @@ class TestStalenessLogging:
                 "updated_at": "2025-12-31T08:00:00Z",
             }
         }
-        fresh_issues: Dict[str, IssueData] = {
+        fresh_issues: dict[str, IssueData] = {
             "123": {
                 "number": 123,
                 "state": "closed",
@@ -366,7 +361,7 @@ class TestStalenessLogging:
             logging.INFO, logger="mcp_workspace.github_operations.issues.cache"
         )
 
-        cached_issues: Dict[str, IssueData] = {
+        cached_issues: dict[str, IssueData] = {
             "123": {
                 "number": 123,
                 "state": "open",
@@ -382,7 +377,7 @@ class TestStalenessLogging:
                 "updated_at": "2025-12-31T08:00:00Z",
             }
         }
-        fresh_issues: Dict[str, IssueData] = {
+        fresh_issues: dict[str, IssueData] = {
             "123": {
                 "number": 123,
                 "state": "open",
@@ -413,7 +408,7 @@ class TestStalenessLogging:
             logging.INFO, logger="mcp_workspace.github_operations.issues.cache"
         )
 
-        cached_issues: Dict[str, IssueData] = {
+        cached_issues: dict[str, IssueData] = {
             "123": {
                 "number": 123,
                 "state": "open",
@@ -429,7 +424,7 @@ class TestStalenessLogging:
                 "updated_at": "2025-12-31T08:00:00Z",
             }
         }
-        fresh_issues: Dict[str, IssueData] = {}
+        fresh_issues: dict[str, IssueData] = {}
 
         _log_stale_cache_entries(cached_issues, fresh_issues)
 
@@ -439,7 +434,7 @@ class TestStalenessLogging:
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Test no logging when no changes detected."""
-        cached_issues: Dict[str, IssueData] = {
+        cached_issues: dict[str, IssueData] = {
             "123": {
                 "number": 123,
                 "state": "open",
@@ -455,7 +450,7 @@ class TestStalenessLogging:
                 "updated_at": "2025-12-31T08:00:00Z",
             }
         }
-        fresh_issues: Dict[str, IssueData] = {
+        fresh_issues: dict[str, IssueData] = {
             "123": {
                 "number": 123,
                 "state": "open",

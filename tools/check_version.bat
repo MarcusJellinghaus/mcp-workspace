@@ -14,8 +14,7 @@ python -c "import sys, os; print('Environment:', os.path.dirname(sys.executable)
 pip --version
 echo.
 echo --- Formatting ---
-black --version
-isort --version-number
+ruff version
 echo.
 echo --- Linting and Quality ---
 pylint --version
@@ -26,9 +25,9 @@ echo --- Testing ---
 pytest --version
 echo.
 echo --- Architecture and Dependencies ---
-pycycle --version
 tach --version
 lint-imports --version
+deptry --version
 echo.
 echo --- Optional Tools ---
 mlflow --version

@@ -62,7 +62,7 @@ class PRReviewMixin:
     @log_function_call
     @_handle_github_errors(default_return=_empty_comment_data)
     def reply_to_review_comment(
-        self: "PullRequestManager", pr_number: int, comment_id: int, body: str
+        self: PullRequestManager, pr_number: int, comment_id: int, body: str
     ) -> CommentData:
         """Reply to an inline PR review comment.
 
@@ -109,7 +109,7 @@ class PRReviewMixin:
     @log_function_call
     @_handle_github_errors(default_return=False)
     def resolve_review_thread(
-        self: "PullRequestManager", pr_number: int, thread_id: str
+        self: PullRequestManager, pr_number: int, thread_id: str
     ) -> bool:
         """Resolve a PR review thread via the resolveReviewThread GraphQL mutation.
 

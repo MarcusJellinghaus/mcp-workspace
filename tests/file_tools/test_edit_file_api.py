@@ -1,8 +1,8 @@
 """Tests for the edit_file MCP server tool (async + locking)."""
 
 import asyncio
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
 import pytest
 

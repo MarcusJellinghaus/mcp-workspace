@@ -2,12 +2,11 @@
 
 import logging
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 from unittest.mock import Mock, patch
 
 import pytest
-from github import Auth
 from github.GithubException import GithubException
 from github.Repository import Repository
 from requests.exceptions import RetryError
@@ -2131,7 +2130,7 @@ class TestRepositoryCache:
         ):
             managers = [
                 BaseGitHubManager(repo_url=url, github_token=token)
-                for url, token in zip(repo_urls, tokens)
+                for url, token in zip(repo_urls, tokens, strict=True)
             ]
             for manager in managers:
                 manager._get_repository()

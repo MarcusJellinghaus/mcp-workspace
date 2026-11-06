@@ -1,5 +1,12 @@
 name: CI
 
+# Which job runs on which event:
+#   Every push, PR and dispatch → push-checks, file-size and the test jobs.
+#   Pull request only           → check-forbidden-folders and pr-checks.
+#   PR and main push            → coverage.
+# github-integration-tests also needs the credentials check-github-secrets looks for.
+# Job and matrix row names are required-check names: don't rename them, and never skip a check with a step-level `if`.
+
 on:
   push:
     branches: ["**"]
@@ -11,11 +18,12 @@ permissions:
   contents: read
 
 jobs:
+  # PR only: pr_info/ is allowed on branches, not in a merge.
   check-forbidden-folders:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Check for forbidden folders in PR
       run: |
@@ -73,19 +81,9 @@ jobs:
         # Check for forbidden folders
         ERROR=0
 
-        check_forbidden_folder "pr_info/steps" "Temporary development steps folder" || ERROR=1
-        check_forbidden_folder "pr_info/.conversations" "Temporary conversation history folder" || ERROR=1
+        check_forbidden_folder "pr_info" "Temporary development folder (planning, tracking, review logs)" || ERROR=1
         check_forbidden_folder ".scratch" "Agent scratch probes (throwaway tests) - delete after the experiment" || ERROR=1
         check_empty_folder "docs/tests/performance_data/prof" "Profiler output folder should be empty in PRs" || ERROR=1
-
-        # Check for forbidden commit message file
-        if [ -f "pr_info/.commit_message.txt" ]; then
-            echo "❌ ERROR: Found forbidden file pr_info/.commit_message.txt"
-            echo "Description: Transient commit message file should not be committed"
-            ERROR=1
-        else
-            echo "✅ No forbidden commit message file found"
-        fi
 
         if [ $ERROR -eq 1 ]; then
           echo ""
@@ -99,29 +97,31 @@ jobs:
           echo "✅ All checks passed! No forbidden folders found."
         fi
 
-  test:
+  # Matrix approach: Each check runs as independent job with individual pass/fail status
+  # fail-fast: false ensures all checks complete even if one fails
+  # First-line checks: run on every push, PR and dispatch.
+  push-checks:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         check:
-          - {name: "black", cmd: "black --version && black --check src tests"}
-          - {name: "isort", cmd: "isort --version && isort --check --profile=black --float-to-top src tests"}
-          - {name: "pylint", cmd: "pylint --version && pylint ./src ./tests"}
-          - {name: "unit-tests", cmd: "pytest --version && pytest -n auto -m 'not git_integration and not github_integration'"}
-          - {name: "git-integration-tests", cmd: "pytest --version && pytest -n auto -m 'git_integration'"}
+          - {name: "ruff-format", cmd: "ruff version && ruff format --check src tests tools"}
+          - {name: "ruff", cmd: "ruff version && ruff check src tests tools"}
           - {name: "mypy", cmd: "mypy --version && mypy --strict src tests"}
-          - {name: "ruff-docstrings", cmd: "ruff --version && ruff check src tests"}
           - {name: "no-url-deps", cmd: "python tools/check_no_url_deps.py"}
-
+          - {name: "pylint", cmd: "pylint --version && pylint ./src ./tests"}
     name: ${{ matrix.check.name }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: false
 
-      - uses: actions/setup-python@v7
+      - name: Set up Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
@@ -133,9 +133,8 @@ jobs:
         # install aborts, leaving runtime deps like `mcp` uninstalled and
         # breaking every downstream check (mypy/pylint/pytest).
         run: |
-          uv pip install --system \
-            "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
-            -e ".[dev]"
+          mapfile -t SPECS < <(python tools/read_github_deps.py --specs)
+          uv pip install --system "${SPECS[@]}" -e ".[dev]"
 
       - name: Environment info
         run: |
@@ -146,6 +145,169 @@ jobs:
 
       - name: Run ${{ matrix.check.name }}
         run: ${{ matrix.check.cmd }}
+
+  # Own job, not a push-checks row: mcp-coder isn't a dependency here, so this
+  # needs its isolated venv rather than the shared install step.
+  file-size:
+    runs-on: ubuntu-latest
+    name: file-size
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: false
+
+      - name: Check file sizes
+        # mcp-coder is installed in an isolated venv. We install mcp-coder
+        # from its git URL first (which would pull mcp-workspace from git as
+        # a transitive dep), then force-reinstall mcp-workspace from THIS
+        # branch (.) so the file-size check exercises this branch's code.
+        # Note: the previous `uvx --with .` pattern is no longer viable
+        # because uv now reports "conflicting URLs for package mcp-workspace"
+        # when mcp-coder declares mcp-workspace as a git URL dependency.
+        # Workaround: mcp-coder HEAD imports unreleased mcp-tools-py code
+        # (resolve_steps), but its plain dependency resolves to the PyPI
+        # release. Install mcp-tools-py from git until upstream is fixed.
+        run: |
+          uv venv --python 3.11
+          source .venv/bin/activate
+          uv pip install "git+https://github.com/MarcusJellinghaus/mcp_coder.git"
+          uv pip install "git+https://github.com/MarcusJellinghaus/mcp-tools-py.git"
+          uv pip install --force-reinstall --no-deps .
+          mcp-coder check file-size --max-lines 750 --allowlist-file .large-files-allowlist
+
+  # Backup checks: slower architecture checks, PR only.
+  pr-checks:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        check:
+          - {name: "import-linter", cmd: "uv pip show import-linter | grep Version && ./tools/lint_imports.sh"}
+          - {name: "tach", cmd: "tach --version && tach check"}
+          - {name: "vulture", cmd: "vulture --version && vulture src tests vulture_whitelist.py --min-confidence 60"}
+          - {name: "deptry", cmd: "deptry --version && ./tools/deptry_check.sh"}
+    name: ${{ matrix.check.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        # See note in the `push-checks` job: mcp-coder-utils is git-only and must be
+        # pre-installed so the editable project install can resolve it.
+        run: |
+          mapfile -t SPECS < <(python tools/read_github_deps.py --specs)
+          uv pip install --system "${SPECS[@]}" -e ".[dev]"
+
+      - name: Environment info
+        run: |
+          uname -a
+          python --version
+          uv --version
+          git --version
+
+      - name: Run ${{ matrix.check.name }}
+        run: ${{ matrix.check.cmd }}
+
+  # Runs on push and PR: coverage needs it in the PR run.
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        # See note in the `push-checks` job: mcp-coder-utils is git-only and must be
+        # pre-installed so the editable project install can resolve it.
+        run: |
+          mapfile -t SPECS < <(python tools/read_github_deps.py --specs)
+          uv pip install --system "${SPECS[@]}" -e ".[dev]"
+
+      - name: Environment info
+        run: |
+          uname -a
+          python --version
+          uv --version
+          git --version
+
+      - name: Run unit-tests
+        env:
+          COVERAGE_FILE: .coverage.unit
+        run: |
+          pytest --version && pytest -n auto -m 'not git_integration and not github_integration' --cov=src/mcp_workspace --cov-report=
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-data-unit
+          path: .coverage.unit
+          include-hidden-files: true
+          retention-days: 1
+
+  # Runs on push and PR: coverage needs it in the PR run.
+  git-integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        # See note in the `push-checks` job: mcp-coder-utils is git-only and must be
+        # pre-installed so the editable project install can resolve it.
+        run: |
+          mapfile -t SPECS < <(python tools/read_github_deps.py --specs)
+          uv pip install --system "${SPECS[@]}" -e ".[dev]"
+
+      - name: Environment info
+        run: |
+          uname -a
+          python --version
+          uv --version
+          git --version
+
+      - name: Run git-integration-tests
+        env:
+          COVERAGE_FILE: .coverage.git
+        run: |
+          pytest --version && pytest -n auto -m 'git_integration' --cov=src/mcp_workspace --cov-report=
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-data-git
+          path: .coverage.git
+          include-hidden-files: true
+          retention-days: 1
 
   check-github-secrets:
     runs-on: ubuntu-latest
@@ -190,12 +352,15 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GH_INTEGRATION_TOKEN }}
       GITHUB_TEST_REPO_URL: ${{ vars.GH_TEST_REPO_URL }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: false
 
-      - uses: actions/setup-python@v7
+      - name: Set up Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
@@ -207,9 +372,8 @@ jobs:
         # install aborts, leaving runtime deps like `mcp` uninstalled and
         # breaking every downstream check (mypy/pylint/pytest).
         run: |
-          uv pip install --system \
-            "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
-            -e ".[dev]"
+          mapfile -t SPECS < <(python tools/read_github_deps.py --specs)
+          uv pip install --system "${SPECS[@]}" -e ".[dev]"
 
       - name: Environment info
         run: |
@@ -225,72 +389,99 @@ jobs:
           echo "  Test repo: $GITHUB_TEST_REPO_URL"
 
       - name: Run github-integration-tests
-        run: pytest --version && pytest -n auto -m 'github_integration'
-
-  file-size:
-    runs-on: ubuntu-latest
-    name: file-size
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Check file sizes
-        # mcp-coder is installed in an isolated venv. We install mcp-coder
-        # from its git URL first (which would pull mcp-workspace from git as
-        # a transitive dep), then force-reinstall mcp-workspace from THIS
-        # branch (.) so the file-size check exercises this branch's code.
-        # Note: the previous `uvx --with .` pattern is no longer viable
-        # because uv now reports "conflicting URLs for package mcp-workspace"
-        # when mcp-coder declares mcp-workspace as a git URL dependency.
-        # Workaround: mcp-coder HEAD imports unreleased mcp-tools-py code
-        # (resolve_steps), but its plain dependency resolves to the PyPI
-        # release. Install mcp-tools-py from git until upstream is fixed.
+        env:
+          COVERAGE_FILE: .coverage.github
         run: |
-          uv venv --python 3.11
-          source .venv/bin/activate
-          uv pip install "git+https://github.com/MarcusJellinghaus/mcp_coder.git"
-          uv pip install "git+https://github.com/MarcusJellinghaus/mcp-tools-py.git"
-          uv pip install --force-reinstall --no-deps .
-          mcp-coder check file-size --max-lines 750 --allowlist-file .large-files-allowlist
+          pytest --version && pytest -n auto -m 'github_integration' --cov=src/mcp_workspace --cov-report=
 
-  architecture:
+      - name: Upload coverage data
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-data-github
+          path: .coverage.github
+          include-hidden-files: true
+          retention-days: 1
+
+  # Reporting only, never a gate: no threshold anywhere, and diff-cover cannot fail the job.
+  coverage:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    strategy:
-      fail-fast: false
-      matrix:
-        check:
-          - {name: "import-linter", cmd: "uv pip show import-linter | grep Version && ./tools/lint_imports.sh"}
-          - {name: "tach", cmd: "tach --version && tach check"}
-          - {name: "pycycle", cmd: "pycycle --version && pycycle --here"}
-          - {name: "vulture", cmd: "vulture --version && vulture src tests vulture_whitelist.py --min-confidence 60"}
-    name: ${{ matrix.check.name }}
+    needs: [unit-tests, git-integration-tests, github-integration-tests]
+    # github-integration-tests is skipped without secrets. A skipped dependency
+    # skips this job too unless !cancelled() replaces the implicit success().
+    if: >-
+      !cancelled()
+      && needs.unit-tests.result == 'success'
+      && needs.git-integration-tests.result == 'success'
+      && (needs.github-integration-tests.result == 'success' || needs.github-integration-tests.result == 'skipped')
+      && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - uses: actions/setup-python@v7
+      - name: Set up Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        # See note in the `test` job: mcp-coder-utils is git-only and must be
-        # pre-installed so the editable project install can resolve it.
-        run: |
-          uv pip install --system \
-            "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
-            -e ".[dev,architecture]"
+      - name: Install coverage tools
+        run: pip install coverage diff-cover
 
-      - name: Environment info
-        run: |
-          uname -a
-          python --version
-          uv --version
-          git --version
+      - name: Download coverage data
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: coverage-data-*
+          path: coverage-data
+          merge-multiple: true
 
-      - name: Run ${{ matrix.check.name }}
-        run: ${{ matrix.check.cmd }}
+      - name: Combine coverage data
+        id: coverage_combine
+        run: |
+          coverage combine coverage-data
+          coverage xml -o coverage.xml
+          echo "total=$(coverage report --format=total)" >> "$GITHUB_OUTPUT"
+
+      # `secrets` isn't available in a step-level `if:`, so this step exposes
+      # only whether publishing can work. Runs on main pushes only, so PRs and
+      # forks skip it, and the skipped output skips the badge step too. A skipped
+      # github-integration-tests would lower the total, so keep the last good value.
+      - name: Check coverage badge configuration
+        id: badge_config
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.github-integration-tests.result == 'success'
+        env:
+          TOKEN: ${{ secrets.BADGE_GIST_TOKEN }}
+          GIST_ID: ${{ vars.BADGE_GIST_ID }}
+          TOTAL: ${{ steps.coverage_combine.outputs.total }}
+        run: |
+          if [[ -n "$TOKEN" && -n "$GIST_ID" && -n "$TOTAL" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Coverage badge skipped: BADGE_GIST_TOKEN, BADGE_GIST_ID or the total is missing"
+          fi
+
+      - name: Update coverage badge
+        if: steps.badge_config.outputs.publish == 'true'
+        continue-on-error: true
+        uses: schneegans/dynamic-badges-action@28b0fa8bdeb46170ac397105ece0c1fe58f68910 # v1.9.0
+        with:
+          auth: ${{ secrets.BADGE_GIST_TOKEN }}
+          gistID: ${{ vars.BADGE_GIST_ID }}
+          filename: mcp-workspace-coverage.json
+          label: coverage
+          message: ${{ steps.coverage_combine.outputs.total }}%
+          color: blue
+
+      - name: Run diff-cover
+        if: github.event_name == 'pull_request'
+        run: |
+          diff-cover coverage.xml \
+            --compare-branch=origin/${{ github.event.pull_request.base.ref }} \
+            --format markdown:diff-coverage.md || true
+
+      - name: Write coverage step summary
+        run: |
+          if [ -f diff-coverage.md ]; then
+            python tools/ci_coverage_summary.py --coverage-xml coverage.xml --diff-report diff-coverage.md --output "$GITHUB_STEP_SUMMARY"
+          else
+            python tools/ci_coverage_summary.py --coverage-xml coverage.xml --output "$GITHUB_STEP_SUMMARY"
+          fi

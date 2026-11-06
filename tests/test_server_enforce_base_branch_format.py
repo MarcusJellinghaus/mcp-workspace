@@ -4,8 +4,8 @@ Covers the ``set_enforce_base_branch_format`` setter and ``run_server``
 threading the ``enforce_base_branch_format`` default through to it.
 """
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 from unittest.mock import patch
 
 import pytest

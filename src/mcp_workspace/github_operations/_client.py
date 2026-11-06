@@ -7,10 +7,11 @@ individual call sites.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlsplit
 
 from github import Auth, Github, GithubRetry
@@ -74,7 +75,12 @@ class _LoggingGithubRetry(GithubRetry):
             The retry object from ``super().increment``.
         """
         new_retry = super().increment(
-            method, url, response, error, _pool, _stacktrace  # type: ignore[arg-type]
+            method,
+            url,
+            response,  # type: ignore[arg-type]
+            error,
+            _pool,
+            _stacktrace,
         )
         if response is not None:
             status, headers = f"retry {response.status}", response.headers
@@ -120,7 +126,7 @@ class _LoggingGithubRetry(GithubRetry):
                 )
                 reset = headers.get("X-RateLimit-Reset", "")
                 if reset.isdigit():
-                    reset_at = datetime.fromtimestamp(int(reset), timezone.utc)
+                    reset_at = datetime.fromtimestamp(int(reset), UTC)
                     msg += f" (resets {reset_at.strftime('%H:%M:%S')} UTC)"
             else:
                 msg = (
@@ -176,7 +182,8 @@ def _install_traffic_log(client: Github) -> None:
     ``self.__requestRaw(...)`` calls for 202/301/302 hops pass it again.
     """
     global _warned_missing  # pylint: disable=global-statement
-    requester = client.requester
+    # Any: this function patches a private, name-mangled PyGithub attribute.
+    requester: Any = client.requester
     original = getattr(requester, "_Requester__requestRaw", None)
     if original is None:
         if not _warned_missing:
@@ -203,12 +210,11 @@ def _install_traffic_log(client: Github) -> None:
                     getattr(exc, "headers", None),
                     start,
                 )
-                try:
-                    setattr(exc, "_traffic_logged", True)
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
+                with contextlib.suppress(Exception):
+                    # Any: the marker is ad hoc, on an arbitrary exception type.
+                    cast(Any, exc)._traffic_logged = True
             raise
         log_request(verb, logged_url, str(status), headers, start)
         return status, headers, output
 
-    setattr(requester, "_Requester__requestRaw", wrapper)
+    requester._Requester__requestRaw = wrapper

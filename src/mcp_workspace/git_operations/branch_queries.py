@@ -2,7 +2,6 @@
 
 import re
 from pathlib import Path
-from typing import Optional
 
 from git import Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError
@@ -11,7 +10,7 @@ from .core import logger, safe_repo_context
 from .repository_status import is_git_repository
 
 
-def extract_issue_number_from_branch(branch_name: str) -> Optional[int]:
+def extract_issue_number_from_branch(branch_name: str) -> int | None:
     """Extract issue number from branch name pattern '{issue_number}-title'.
 
     Args:
@@ -84,14 +83,12 @@ def remote_branch_exists(project_dir: Path, branch_name: str) -> bool:
     except (InvalidGitRepositoryError, GitCommandError) as e:
         logger.debug("Git error checking remote branch existence: %s", e)
         return False
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.warning("Unexpected error checking remote branch existence: %s", e)
         return False
 
 
-def get_remote_branch_commit_sha(project_dir: Path, branch_name: str) -> Optional[str]:
+def get_remote_branch_commit_sha(project_dir: Path, branch_name: str) -> str | None:
     """Get the commit sha that origin/<branch_name> currently points to.
 
     Args:
@@ -131,9 +128,7 @@ def get_remote_branch_commit_sha(project_dir: Path, branch_name: str) -> Optiona
     except (InvalidGitRepositoryError, GitCommandError) as e:
         logger.debug("Git error getting remote branch commit sha: %s", e)
         return None
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.warning("Unexpected error getting remote branch commit sha: %s", e)
         return None
 
@@ -175,14 +170,12 @@ def branch_exists(project_dir: Path, branch_name: str) -> bool:
     except (InvalidGitRepositoryError, GitCommandError) as e:
         logger.debug("Git error checking branch existence: %s", e)
         return False
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.warning("Unexpected error checking branch existence: %s", e)
         return False
 
 
-def _check_local_default_branches(repo: Repo) -> Optional[str]:
+def _check_local_default_branches(repo: Repo) -> str | None:
     """Check for common default branch names in local repository.
 
     Args:
@@ -213,7 +206,7 @@ def _check_local_default_branches(repo: Repo) -> Optional[str]:
         return None
 
 
-def get_default_branch_name(project_dir: Path) -> Optional[str]:
+def get_default_branch_name(project_dir: Path) -> str | None:
     """Get the name of the default branch from git remote HEAD reference.
 
     This checks what git considers the default branch by looking at
@@ -277,14 +270,12 @@ def get_default_branch_name(project_dir: Path) -> Optional[str]:
     except (InvalidGitRepositoryError, GitCommandError) as e:
         logger.debug("Git error getting default branch name: %s", e)
         return None
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.warning("Unexpected error getting default branch name: %s", e)
         return None
 
 
-def get_current_branch_name(project_dir: Path) -> Optional[str]:
+def get_current_branch_name(project_dir: Path) -> str | None:
     """Get the name of the current active branch.
 
     Args:
@@ -324,9 +315,7 @@ def get_current_branch_name(project_dir: Path) -> Optional[str]:
     except (InvalidGitRepositoryError, GitCommandError) as e:
         logger.debug("Git error getting current branch name: %s", e)
         return None
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.warning("Unexpected error getting current branch name: %s", e)
         return None
 
@@ -360,9 +349,7 @@ def has_remote_tracking_branch(project_dir: Path) -> bool:
     except (InvalidGitRepositoryError, GitCommandError) as e:
         logger.debug("Git error checking remote tracking branch: %s", e)
         return False
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.warning("Unexpected error checking remote tracking branch: %s", e)
         return False
 
@@ -386,7 +373,4 @@ def validate_branch_name(branch_name: str) -> bool:
 
     # Basic branch name validation (GitHub-compatible)
     invalid_chars = ["~", "^", ":", "?", "*", "["]
-    if any(char in branch_name for char in invalid_chars):
-        return False
-
-    return True
+    return not any(char in branch_name for char in invalid_chars)

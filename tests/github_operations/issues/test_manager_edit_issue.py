@@ -1,7 +1,6 @@
 """Unit tests for IssueManager.edit_issue with mocked dependencies."""
 
 from datetime import datetime
-from typing import List, Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -21,8 +20,8 @@ def _make_named(name: str) -> MagicMock:
 
 def _make_editable_issue(
     number: int = 1,
-    labels: Optional[List[str]] = None,
-    assignees: Optional[List[str]] = None,
+    labels: list[str] | None = None,
+    assignees: list[str] | None = None,
 ) -> MagicMock:
     """Create a mock issue carrying every attribute issue_to_data reads."""
     issue = make_mock_issue(number)
@@ -177,7 +176,7 @@ class TestIssueManagerEditIssue:
         """Every write call is recorded, in order, for the caller to inspect."""
         issue = _make_editable_issue(labels=["bug"])
         mock_issue_manager._repository.get_issue.return_value = issue
-        attempted: List[str] = []
+        attempted: list[str] = []
 
         mock_issue_manager.edit_issue(
             1,
@@ -197,7 +196,7 @@ class TestIssueManagerEditIssue:
         mock_issue_manager._repository.get_issue.side_effect = GithubException(
             422, {"message": "Unprocessable Entity"}, None
         )
-        attempted: List[str] = []
+        attempted: list[str] = []
 
         mock_issue_manager.edit_issue(1, title="New title", attempted_writes=attempted)
 
@@ -209,7 +208,7 @@ class TestIssueManagerEditIssue:
         """A removal filtered out entirely issues no call, so it logs nothing."""
         issue = _make_editable_issue(labels=["bug"])
         mock_issue_manager._repository.get_issue.return_value = issue
-        attempted: List[str] = []
+        attempted: list[str] = []
 
         mock_issue_manager.edit_issue(
             1, remove_labels=["absent"], attempted_writes=attempted

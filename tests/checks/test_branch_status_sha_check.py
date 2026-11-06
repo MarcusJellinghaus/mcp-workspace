@@ -1,7 +1,6 @@
 """Tests for branch_status_ci._is_stale_ci_run."""
 
 from pathlib import Path
-from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -62,6 +61,6 @@ class TestIsStaleCIRun:
 
     @pytest.mark.parametrize("run_commit_sha", [None, ""])
     def test_skipped_when_run_commit_sha_missing(
-        self, run_commit_sha: Optional[str]
+        self, run_commit_sha: str | None
     ) -> None:
         assert _is_stale_ci_run(_PROJECT_DIR, _BRANCH_NAME, run_commit_sha) is False

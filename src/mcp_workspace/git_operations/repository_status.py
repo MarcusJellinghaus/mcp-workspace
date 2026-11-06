@@ -246,9 +246,7 @@ def get_full_status(project_dir: Path) -> dict[str, list[str]]:
 
     try:
         status = get_working_tree_status(project_dir)
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.warning("Unexpected error getting full git status: %s", e)
         return {"staged": [], "modified": [], "untracked": []}
 
@@ -290,8 +288,6 @@ def is_git_repository(project_dir: Path) -> bool:
     except InvalidGitRepositoryError:
         logger.debug("Not a git repository: %s", project_dir)
         return False
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.warning("Error checking if directory is git repository: %s", e)
         return False

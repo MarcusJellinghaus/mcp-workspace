@@ -1,6 +1,6 @@
 """Tests for the Base Branch trust decision in base_branch_trust.py."""
 
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,14 +14,14 @@ from mcp_workspace.github_operations.issues.base_branch_trust import (
 _LOGIN_PATH = "mcp_workspace.github_operations.issues.base_branch_trust._cached_login"
 
 
-def _editor_response(editor: Optional[dict[str, str]]) -> dict[str, Any]:
+def _editor_response(editor: dict[str, str] | None) -> dict[str, Any]:
     """Build a GraphQL response carrying the given issue editor."""
     return {"data": {"repository": {"issue": {"editor": editor}}}}
 
 
 def _make_manager(
-    response: Optional[dict[str, Any]] = None,
-    side_effect: Optional[BaseException] = None,
+    response: dict[str, Any] | None = None,
+    side_effect: BaseException | None = None,
 ) -> MagicMock:
     """Return a manager mock whose graphql_query returns response or raises."""
     manager = MagicMock()
@@ -120,7 +120,7 @@ class TestIsBodyTrusted:
         manager = _make_manager(_editor_response({"__typename": "User", "login": "Me"}))
         with patch(_LOGIN_PATH, return_value="me"):
             assert is_body_trusted(
-                manager, _make_repo(), 7, "mallory", "NONE", lambda: frozenset()
+                manager, _make_repo(), 7, "mallory", "NONE", frozenset
             )
 
     def test_allowlisted_editor_skips_login_lookup(self) -> None:
@@ -156,7 +156,7 @@ class TestIsBodyTrusted:
         )
         with patch(_LOGIN_PATH, return_value="me"):
             assert not is_body_trusted(
-                manager, _make_repo(), 7, "mallory", "NONE", lambda: frozenset()
+                manager, _make_repo(), 7, "mallory", "NONE", frozenset
             )
 
     def test_no_editor(self) -> None:
@@ -164,7 +164,7 @@ class TestIsBodyTrusted:
         manager = _make_manager(_editor_response(None))
         with patch(_LOGIN_PATH, return_value="me"):
             assert not is_body_trusted(
-                manager, _make_repo(), 7, "mallory", "NONE", lambda: frozenset()
+                manager, _make_repo(), 7, "mallory", "NONE", frozenset
             )
 
     def test_editor_lookup_fails(self) -> None:
@@ -174,7 +174,7 @@ class TestIsBodyTrusted:
         )
         with patch(_LOGIN_PATH, return_value="me"):
             assert not is_body_trusted(
-                manager, _make_repo(), 7, "mallory", "NONE", lambda: frozenset()
+                manager, _make_repo(), 7, "mallory", "NONE", frozenset
             )
 
     def test_cached_login_raises(self) -> None:
@@ -184,13 +184,11 @@ class TestIsBodyTrusted:
             _LOGIN_PATH, side_effect=GithubException(401, {"message": "bad"}, None)
         ):
             assert not is_body_trusted(
-                manager, _make_repo(), 7, "mallory", "NONE", lambda: frozenset()
+                manager, _make_repo(), 7, "mallory", "NONE", frozenset
             )
 
     def test_ghost_author_no_editor(self) -> None:
         """A ghost author with no editor is untrusted and does not crash."""
         manager = _make_manager(_editor_response(None))
         with patch(_LOGIN_PATH, return_value="me"):
-            assert not is_body_trusted(
-                manager, _make_repo(), 7, None, None, lambda: frozenset()
-            )
+            assert not is_body_trusted(manager, _make_repo(), 7, None, None, frozenset)

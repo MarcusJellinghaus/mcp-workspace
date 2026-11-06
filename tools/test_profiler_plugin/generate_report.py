@@ -1,5 +1,4 @@
-"""
-Generate human-readable text reports from profiling data.
+"""Generate human-readable text reports from profiling data.
 
 This script:
 1. Reads durations.json to find slow tests (>threshold)
@@ -12,7 +11,6 @@ import json
 import pstats
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 # Configuration
 PROF_OUTPUT_DIR = Path("docs/tests/performance_data/prof")
@@ -22,8 +20,8 @@ TOP_N_FUNCTIONS = 50  # Number of functions to show in detailed reports
 
 
 def sanitize_test_name(nodeid: str) -> str:
-    """
-    Convert pytest node ID to a safe filename.
+    """Convert pytest node ID to a safe filename.
+
     Must match the sanitization in test_profiler_plugin.py
     """
     safe_name = nodeid.replace("::", "__").replace("/", "_").replace("\\", "_")
@@ -31,14 +29,14 @@ def sanitize_test_name(nodeid: str) -> str:
     return safe_name
 
 
-def generate_profile_report(prof_file: Path, output_file: Path, nodeid: str, duration: float) -> None:
-    """
-    Generate a detailed, LLM-friendly text report from a .prof file.
-    """
+def generate_profile_report(
+    prof_file: Path, output_file: Path, nodeid: str, duration: float
+) -> None:
+    """Generate a detailed, LLM-friendly text report from a .prof file."""
     stats = pstats.Stats(str(prof_file))
     stats.strip_dirs()
 
-    with open(output_file, 'w', encoding='utf-8') as f:
+    with open(output_file, "w", encoding="utf-8") as f:
         f.write("=" * 80 + "\n")
         f.write("PYTEST PROFILE REPORT\n")
         f.write("=" * 80 + "\n\n")
@@ -56,7 +54,9 @@ def generate_profile_report(prof_file: Path, output_file: Path, nodeid: str, dur
 
         f.write("TOP FUNCTIONS BY CUMULATIVE TIME\n")
         f.write("-" * 80 + "\n")
-        f.write("This shows functions sorted by total time spent, including time in called functions.\n\n")
+        f.write(
+            "This shows functions sorted by total time spent, including time in called functions.\n\n"
+        )
         stream = io.StringIO()
         stats.stream = stream
         stats.sort_stats(pstats.SortKey.CUMULATIVE)
@@ -65,7 +65,9 @@ def generate_profile_report(prof_file: Path, output_file: Path, nodeid: str, dur
 
         f.write("TOP FUNCTIONS BY INTERNAL TIME (TIME)\n")
         f.write("-" * 80 + "\n")
-        f.write("This shows functions sorted by time spent in the function itself (excluding subcalls).\n\n")
+        f.write(
+            "This shows functions sorted by time spent in the function itself (excluding subcalls).\n\n"
+        )
         stream = io.StringIO()
         stats.stream = stream
         stats.sort_stats(pstats.SortKey.TIME)
@@ -82,9 +84,11 @@ def generate_profile_report(prof_file: Path, output_file: Path, nodeid: str, dur
         f.write(stream.getvalue())
 
 
-def create_summary_report(durations_data: Dict[str, object], slow_tests: List[Tuple[str, float]]) -> None:
+def create_summary_report(
+    durations_data: dict[str, object], slow_tests: list[tuple[str, float]]
+) -> None:
     """Create a summary report of all profiling results."""
-    with open(SUMMARY_FILE, 'w', encoding='utf-8') as f:
+    with open(SUMMARY_FILE, "w", encoding="utf-8") as f:
         f.write("=" * 80 + "\n")
         f.write("PYTEST PROFILING SUMMARY\n")
         f.write("=" * 80 + "\n\n")
@@ -136,14 +140,17 @@ def main() -> int:
         print("Make sure pytest ran successfully with the profiling plugin.")
         return 1
 
-    with open(DURATIONS_FILE, 'r') as f:
-        durations_data: Dict[str, object] = json.load(f)
+    with open(DURATIONS_FILE) as f:
+        durations_data: dict[str, object] = json.load(f)
 
     threshold = durations_data.get("threshold_seconds", 1.0)
-    durations: Dict[str, float] = durations_data.get("durations", {})  # type: ignore[assignment]
+    durations: dict[str, float] = durations_data.get("durations", {})  # type: ignore[assignment]
 
-    slow_tests = [(nodeid, duration) for nodeid, duration in durations.items()
-                  if duration >= threshold]  # type: ignore[operator]
+    slow_tests = [
+        (nodeid, duration)
+        for nodeid, duration in durations.items()
+        if duration >= threshold  # type: ignore[operator]
+    ]
 
     print(f"Found {len(slow_tests)} slow tests (>{threshold}s)")
 
@@ -160,7 +167,7 @@ def main() -> int:
         prof_file = PROF_OUTPUT_DIR / f"{safe_name}.prof"
         report_file = PROF_OUTPUT_DIR / f"{safe_name}_report.txt"
 
-        print(f"[{idx}/{len(slow_tests)}] {nodeid} ({duration:.2f}s) ... ", end='')
+        print(f"[{idx}/{len(slow_tests)}] {nodeid} ({duration:.2f}s) ... ", end="")
 
         if not prof_file.exists():
             print(f"ERROR: {prof_file} not found!")

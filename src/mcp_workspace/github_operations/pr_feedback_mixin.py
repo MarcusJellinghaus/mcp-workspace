@@ -7,7 +7,7 @@ and get_closing_issue_numbers operations for GitHub pull requests.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from mcp_coder_utils.log_utils import log_function_call
 
@@ -46,8 +46,8 @@ class PRFeedbackMixin:
     @log_function_call
     @_handle_github_errors(default_return=[])
     def get_closing_issue_numbers(
-        self: "PullRequestManager", pr_number: int
-    ) -> List[int]:
+        self: PullRequestManager, pr_number: int
+    ) -> list[int]:
         """Query closing issue references for a PR via GraphQL.
 
         Args:
@@ -105,7 +105,7 @@ class PRFeedbackMixin:
     @log_function_call
     @_handle_github_errors(default_return=_empty_pr_feedback)
     def get_pr_feedback(
-        self: "PullRequestManager", pr_number: int, include_alerts: bool = True
+        self: PullRequestManager, pr_number: int, include_alerts: bool = True
     ) -> PRFeedback:
         """Fetch aggregated PR feedback (review threads, comments, alerts).
 
@@ -126,7 +126,7 @@ class PRFeedbackMixin:
         return self._collect_pr_feedback(pr_number, include_alerts=include_alerts)
 
     def _collect_pr_feedback(  # type: ignore[misc]  # mixin self-type; decorated siblings hide the same check
-        self: "PullRequestManager", pr_number: int, include_alerts: bool = True
+        self: PullRequestManager, pr_number: int, include_alerts: bool = True
     ) -> PRFeedback:
         """Undecorated body of ``get_pr_feedback``.
 
@@ -158,18 +158,14 @@ class PRFeedbackMixin:
                     f"Failed to fetch review data for PR #{pr_number}: {review_error}"
                 )
                 unavailable["threads"] = review_error
-        except (
-            Exception
-        ) as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
+        except Exception as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
             logger.warning(f"Failed to fetch review data for PR #{pr_number}: {e}")
             threads, resolved_count, changes_requested = ([], 0, [])
             unavailable["threads"] = e
 
         try:
             comments = _pr_feedback_sources.fetch_conversation_comments(self, pr_number)
-        except (
-            Exception
-        ) as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
+        except Exception as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
             logger.warning(
                 f"Failed to fetch conversation comments for PR #{pr_number}: {e}"
             )
@@ -182,9 +178,7 @@ class PRFeedbackMixin:
                 alerts = _pr_feedback_sources.fetch_code_scanning_alerts(
                     self, pr_number
                 )
-            except (
-                Exception
-            ) as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
+            except Exception as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
                 # 403/404 without a rate limit: token lacks security_events:read,
                 # code scanning is disabled, or no analysis exists — not a failure.
                 if _pr_feedback_sources.alert_skip_status(e) is not None:

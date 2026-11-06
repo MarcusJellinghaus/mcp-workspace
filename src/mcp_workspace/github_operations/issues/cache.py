@@ -10,7 +10,7 @@ Cache file I/O (CacheData, load, save, path, metrics) lives in ``_cache_io``.
 
 import logging
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from mcp_workspace.constants import DUPLICATE_PROTECTION_SECONDS, SINCE_OVERLAP_MINUTES
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
@@ -110,7 +110,7 @@ def update_issue_labels_in_cache(
 
 
 def _log_stale_cache_entries(
-    cached_issues: Dict[str, IssueData], fresh_issues: Dict[str, IssueData]
+    cached_issues: dict[str, IssueData], fresh_issues: dict[str, IssueData]
 ) -> None:
     """Log detailed staleness information when cached data differs from fresh data.
 
@@ -218,9 +218,7 @@ def _fetch_additional_issues(  # pylint: disable=too-many-arguments,too-many-pos
 
         try:
             issue = issue_manager.get_issue(issue_num)
-        except (
-            Exception
-        ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+        except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
             if (rl := to_rate_limit_error(e)) is not None:
                 raise rl from e
             if issue_key in cache_data["issues"]:
@@ -312,9 +310,7 @@ def _put_back_session_issues(  # pylint: disable=too-many-arguments,too-many-pos
             except IssueIdentityMismatchError as e:
                 logger.info(f"Issue #{issue_num} dropped from cache: {e}")
                 continue
-            except (
-                Exception
-            ) as e:  # pylint: disable=broad-exception-caught  # keep cached copy on any other failure
+            except Exception as e:  # pylint: disable=broad-exception-caught  # keep cached copy on any other failure
                 if (rl := to_rate_limit_error(e)) is not None:
                     raise rl from e
                 logger.warning(
@@ -334,9 +330,9 @@ def _put_back_session_issues(  # pylint: disable=too-many-arguments,too-many-pos
 
 def _is_full_refresh_due(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     force_refresh: bool,
-    last_checked: Optional[datetime],
-    last_full_refresh: Optional[datetime],
-    updates_covered_through: Optional[datetime],
+    last_checked: datetime | None,
+    last_full_refresh: datetime | None,
+    updates_covered_through: datetime | None,
     now: datetime,
     cache_refresh_minutes: int,
 ) -> bool:
@@ -370,12 +366,12 @@ def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-posi
     cache_data: CacheData,
     repo_name: str,
     force_refresh: bool,
-    last_checked: Optional[datetime],
+    last_checked: datetime | None,
     now: datetime,
     cache_refresh_minutes: int,
-    last_full_refresh: Optional[datetime] = None,
-    updates_covered_through: Optional[datetime] = None,
-) -> Tuple[List[IssueData], bool, Optional[datetime]]:
+    last_full_refresh: datetime | None = None,
+    updates_covered_through: datetime | None = None,
+) -> tuple[list[IssueData], bool, datetime | None]:
     """Fetch fresh issues and merge into cache.
 
     Splits the wall-clock poll time (``last_checked``) from the data cursor
@@ -413,8 +409,9 @@ def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-posi
         cache_refresh_minutes,
     )
 
-    # Fetch issues using appropriate method
-    if is_full_refresh:
+    # Fetch issues using appropriate method. _is_full_refresh_due is already True
+    # when either timestamp is missing; the explicit checks narrow them below.
+    if is_full_refresh or last_checked is None or updates_covered_through is None:
         refresh_type = "force" if force_refresh else "full"
         logger.debug(f"Full refresh for {repo_name} (type={refresh_type})")
         fresh_issues = issue_manager._list_issues_no_error_handling(
@@ -439,12 +436,8 @@ def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-posi
         cache_data["cached_at"] = {}
 
         # A full, unfiltered enumeration is a complete observation.
-        new_cursor: Optional[datetime] = now
+        new_cursor: datetime | None = now
     else:
-        # last_checked / updates_covered_through are guaranteed non-None here
-        assert last_checked is not None
-        assert updates_covered_through is not None
-
         # Re-scan a short trailing window to absorb GitHub's since-index lag.
         since = updates_covered_through - timedelta(minutes=SINCE_OVERLAP_MINUTES)
         cache_age_minutes = int((now - last_checked).total_seconds() / 60)
@@ -491,7 +484,7 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
     force_refresh: bool = False,
     cache_refresh_minutes: int = 1440,
     additional_issues: list[int] | None = None,
-) -> List[IssueData]:
+) -> list[IssueData]:
     """Get all cached issues using cache for performance and duplicate protection.
 
     This function handles:
@@ -616,8 +609,7 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
             )
 
     # Step 3: Check duplicate protection (50 second window)
-    if duplicate_protected:
-        assert last_checked is not None
+    if duplicate_protected and last_checked is not None:
         age_seconds = int((now - last_checked).total_seconds())
         _log_cache_metrics(
             "hit",

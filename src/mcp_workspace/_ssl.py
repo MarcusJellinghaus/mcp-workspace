@@ -25,7 +25,7 @@ def ensure_truststore() -> None:
     and swallowed so a corporate-proxy misconfiguration does not crash the
     server -- PyGithub falls back to certifi.
     """
-    global _activated
+    global _activated  # pylint: disable=global-statement  # once-only activation flag
     if _activated:
         return
     try:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -121,7 +121,7 @@ class TestExtractDiagnosticHeaders:
 
 def _hhmm(reset: int) -> str:
     """Format a reset epoch as the HH:MM UTC string the helper emits."""
-    return datetime.fromtimestamp(reset, tz=timezone.utc).strftime("%H:%M")
+    return datetime.fromtimestamp(reset, tz=UTC).strftime("%H:%M")
 
 
 class TestFormatRateLimitError:

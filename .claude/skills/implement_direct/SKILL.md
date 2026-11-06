@@ -49,7 +49,7 @@ If no issue number is provided:
    - `mcp__mcp-tools-py__run_ruff_check` — fix all issues
 
 6. **Format code**
-   Use `mcp__mcp-tools-py__run_format_code` to format all code (black + isort).
+   Use `mcp__mcp-tools-py__run_format_code` to format all code with the project's configured formatter.
 
 7. **Update issue status**
    ```bash

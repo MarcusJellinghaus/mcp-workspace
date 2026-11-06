@@ -1,11 +1,12 @@
 """Main entry point for the MCP server."""
 
 import argparse
+import contextlib
 import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, NoReturn, Optional, Tuple
+from typing import NoReturn
 
 # Import logging utilities
 from mcp_coder_utils.log_utils import setup_logging
@@ -72,8 +73,8 @@ def _shared_options_parser() -> argparse.ArgumentParser:
 
 
 def parse_args(
-    argv: Optional[List[str]] = None,
-) -> Tuple[argparse.Namespace, List[str]]:
+    argv: list[str] | None = None,
+) -> tuple[argparse.Namespace, list[str]]:
     """Parse command line arguments.
 
     Returns:
@@ -119,7 +120,7 @@ def parse_args(
     return parser.parse_known_args(argv if argv is not None else sys.argv[1:])
 
 
-def _pre_parse(argv: List[str]) -> argparse.Namespace:
+def _pre_parse(argv: list[str]) -> argparse.Namespace:
     """Tolerantly extract the four options logging needs, ignoring the rest.
 
     Returns:
@@ -148,7 +149,7 @@ def _validate_log_level(log_level: str) -> str:
     return normalized
 
 
-def _resolve_project_dir(project_dir_arg: Optional[str]) -> Optional[Path]:
+def _resolve_project_dir(project_dir_arg: str | None) -> Path | None:
     """Resolve the project directory, or None if missing/invalid.
 
     Returns:
@@ -163,8 +164,8 @@ def _resolve_project_dir(project_dir_arg: Optional[str]) -> Optional[Path]:
 
 
 def _resolve_log_file(
-    pre_args: argparse.Namespace, project_dir: Optional[Path]
-) -> Optional[str]:
+    pre_args: argparse.Namespace, project_dir: Path | None
+) -> str | None:
     """Resolve the log file path to pass to `setup_logging`, or None.
 
     Returns:
@@ -173,7 +174,7 @@ def _resolve_log_file(
     console_only: bool = pre_args.console_only
     if console_only:
         return None
-    log_file_arg: Optional[str] = pre_args.log_file
+    log_file_arg: str | None = pre_args.log_file
     if log_file_arg:
         return log_file_arg
     if project_dir is not None:
@@ -198,17 +199,15 @@ def _has_real_file_handler() -> bool:
 def _handle_startup_failure(exc: Exception) -> None:
     """Log a startup failure, bootstrapping a fallback log file if needed."""
     if not _has_real_file_handler():
-        try:
+        with contextlib.suppress(OSError):
             setup_logging("INFO", _FALLBACK_LOG_FILE)
-        except OSError:
-            pass
     stdlogger.error("Startup failed", exc_info=exc)
     print(f"Error: {exc}", file=sys.stderr)
 
 
 def validate_reference_projects(
-    reference_args: List[str], project_dir: Path
-) -> Dict[str, ReferenceProject]:
+    reference_args: list[str], project_dir: Path
+) -> dict[str, ReferenceProject]:
     """Parse and validate reference project arguments.
 
     Parses comma-separated KV pairs: name=proj,path=/dir,url=https://...
@@ -226,7 +225,7 @@ def validate_reference_projects(
         return {}
 
     resolved_project_dir = project_dir.resolve()
-    validated_projects: Dict[str, ReferenceProject] = {}
+    validated_projects: dict[str, ReferenceProject] = {}
 
     for arg in reference_args:
         # Parse comma-separated key=value pairs
@@ -401,7 +400,7 @@ def _main() -> None:
     ensure_truststore()
 
     # Parse reference projects
-    reference_projects: Dict[str, ReferenceProject] = {}
+    reference_projects: dict[str, ReferenceProject] = {}
     if args.reference_project:
         reference_projects = validate_reference_projects(
             args.reference_project, project_dir

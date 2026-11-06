@@ -1,8 +1,7 @@
 """Tests for issue cache rate-limit handling: raise, and save nothing."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, List, Optional
 from unittest.mock import Mock, patch
 
 import pytest
@@ -17,7 +16,7 @@ from mcp_workspace.github_operations.issues.cache import (
 )
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 
-_NOW = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC)
 _PROTECTED_LAST_CHECKED = "2025-12-31T11:59:30+00:00"  # 30s ago, inside 50s window
 _OUTSIDE_LAST_CHECKED = "2025-12-31T11:58:00+00:00"  # outside 50s window
 _LAST_FULL_REFRESH = "2025-12-31T11:00:00+00:00"
@@ -50,14 +49,14 @@ def _rate_limit() -> GithubException:
 
 
 def _write_cache(
-    cache_file: Path, last_checked: str, issues: Optional[Dict[str, IssueData]] = None
+    cache_file: Path, last_checked: str, issues: dict[str, IssueData] | None = None
 ) -> None:
     issues = issues or {}
     cache_data: CacheData = {
         "last_checked": last_checked,
         "last_full_refresh": _LAST_FULL_REFRESH,
         "updates_covered_through": _COVERED_THROUGH,
-        "cached_at": {key: _FRESH_STAMP for key in issues},
+        "cached_at": dict.fromkeys(issues, _FRESH_STAMP),
         "version": CACHE_SCHEMA_VERSION,
         "issues": issues,
     }
@@ -65,8 +64,8 @@ def _write_cache(
 
 
 def _run(
-    cache_file: Path, manager: Mock, additional_issues: Optional[List[int]] = None
-) -> List[IssueData]:
+    cache_file: Path, manager: Mock, additional_issues: list[int] | None = None
+) -> list[IssueData]:
     """Call get_all_cached_issues against cache_file at _NOW."""
     with (
         patch(

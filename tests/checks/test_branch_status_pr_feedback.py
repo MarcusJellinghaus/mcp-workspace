@@ -1,6 +1,5 @@
 """Tests for the `format_pr_feedback` pure formatter."""
 
-from typing import Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -73,7 +72,7 @@ def _comment(
 def _changes_requested(
     author: str = "carol",
     body: str = "Needs work",
-    submitted_at: Optional[str] = None,
+    submitted_at: str | None = None,
     author_association: str | None = "OWNER",
 ) -> ChangesRequestedData:
     return ChangesRequestedData(
@@ -90,7 +89,7 @@ def _alert(
     rule_description: str = "SQL injection",
     message: str = "SQL injection vulnerability",
     path: str = "src/db.py",
-    line: Optional[int] = 17,
+    line: int | None = 17,
 ) -> AlertData:
     return AlertData(
         number=number,

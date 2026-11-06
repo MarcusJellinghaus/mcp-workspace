@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from unittest.mock import Mock, PropertyMock
 
 import pytest
@@ -24,7 +25,7 @@ from mcp_workspace.utils.repo_identifier import RepoIdentifier
 from mcp_workspace.utils.timezone_utils import format_for_cache, utc_now
 
 _REPO = RepoIdentifier("o", "r")
-_UPDATED = datetime(2026, 10, 27, 10, 0, tzinfo=timezone.utc)
+_UPDATED = datetime(2026, 10, 27, 10, 0, tzinfo=UTC)
 
 
 def _mock_pr(
@@ -32,7 +33,7 @@ def _mock_pr(
     branch: str,
     owner: str = "o",
     base: str = "main",
-    sha: Optional[str] = None,
+    sha: str | None = None,
 ) -> Mock:
     pr = Mock()
     pr.number = number
@@ -61,14 +62,14 @@ def _open_pr(number: int, branch: str, owner: str = "o") -> OpenPullRequest:
     )
 
 
-def _repo(prs: Optional[list[Mock]] = None) -> Mock:
+def _repo(prs: list[Mock] | None = None) -> Mock:
     repo = Mock()
     repo.get_pulls.return_value = prs if prs is not None else []
     repo.get_branch.side_effect = lambda name: Mock(commit=Mock(sha=f"tip-{name}"))
     return repo
 
 
-def _manager(repo: Optional[Mock]) -> Mock:
+def _manager(repo: Mock | None) -> Mock:
     manager = Mock(spec=PullRequestManager)
     manager.repo_identifier = _REPO
     manager._get_repository.return_value = repo
@@ -99,9 +100,9 @@ def _write_raw(content: str) -> None:
 
 def _snapshot(
     age: timedelta = timedelta(seconds=10),
-    prs: Optional[dict[str, OpenPullRequest]] = None,
-    base_tips: Optional[dict[str, str]] = None,
-    fetched_at: Optional[str] = None,
+    prs: dict[str, OpenPullRequest] | None = None,
+    base_tips: dict[str, str] | None = None,
+    fetched_at: str | None = None,
 ) -> dict[str, Any]:
     return {
         "fetched_at": fetched_at or format_for_cache(utc_now() - age),
@@ -118,7 +119,7 @@ def _slot(expires_in: timedelta = timedelta(hours=1)) -> dict[str, Any]:
     }
 
 
-def _write(snapshot: dict[str, Any], results: Optional[dict[str, Any]] = None) -> None:
+def _write(snapshot: dict[str, Any], results: dict[str, Any] | None = None) -> None:
     _write_raw(
         json.dumps(
             {

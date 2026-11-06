@@ -29,7 +29,9 @@ class TestGetBranchWithPRFallback:
         # GraphQL should NOT be called (short-circuit)
         mock_manager._github_client._Github__requester = Mock()  # type: ignore[attr-defined]
         mock_graphql_query = Mock()
-        mock_manager._github_client._Github__requester.graphql_query = mock_graphql_query  # type: ignore[attr-defined]
+        mock_manager._github_client._Github__requester.graphql_query = (  # type: ignore[attr-defined]
+            mock_graphql_query
+        )
 
         result = mock_manager.get_branch_with_pr_fallback(
             issue_number=123, repo_owner="test-owner", repo_name="test-repo"

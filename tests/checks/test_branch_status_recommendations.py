@@ -1,6 +1,6 @@
 """Tests for branch_status recommendation and PR merge override logic."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pytest
 
@@ -582,11 +582,11 @@ _UNSTABLE_PREFIX = "CI passed but GitHub reports mergeable_state=unstable"
 def _lookup_recs(
     ci_status: CIStatus,
     state: str,
-    names: Optional[tuple[str, ...]],
-    error: Optional[str],
-) -> List[str]:
+    names: tuple[str, ...] | None,
+    error: str | None,
+) -> list[str]:
     """Recommendations for a clean report with the given lookup result."""
-    report_data: Dict[str, Any] = {
+    report_data: dict[str, Any] = {
         "ci_status": ci_status,
         "rebase_needed": False,
         "tasks_status": TaskTrackerStatus.COMPLETE,
@@ -600,7 +600,7 @@ def _lookup_recs(
     return _generate_recommendations(report_data)
 
 
-def _assert_not_ready(recs: List[str]) -> None:
+def _assert_not_ready(recs: list[str]) -> None:
     assert "Ready to merge" not in recs
     assert "Ready to merge (squash-merge safe)" not in recs
 

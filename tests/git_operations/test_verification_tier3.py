@@ -1,10 +1,9 @@
 """Tests for the Tier 3 actual_signature deep probe in verification module."""
 
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, Optional
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -19,26 +18,26 @@ def _patch_step7(
     *,
     actually_sign: bool = False,
     is_git_repo: bool = True,
-    user_name: Optional[str] = "Alice",
-    user_email: Optional[str] = "alice@example.com",
-    commit_gpgsign: Optional[str] = "true",
-    tag_gpgsign: Optional[str] = "true",
-    rebase_gpgsign: Optional[str] = "true",
-    push_gpgsign: Optional[str] = None,
-    gpg_format: Optional[str] = None,
-    user_signingkey: Optional[str] = "ABCD1234",
-    gpg_program: Optional[str] = None,
-    allowed_signers_file: Optional[str] = None,
-    which_map: Optional[dict[str, Optional[str]]] = None,
-    is_file_map: Optional[dict[str, bool]] = None,
-    run_handler: Optional[
-        Callable[[list[str]], "subprocess.CompletedProcess[str]"]
-    ] = None,
-    run_with_input_handler: Optional[
-        Callable[..., "subprocess.CompletedProcess[str]"]
-    ] = None,
+    user_name: str | None = "Alice",
+    user_email: str | None = "alice@example.com",
+    commit_gpgsign: str | None = "true",
+    tag_gpgsign: str | None = "true",
+    rebase_gpgsign: str | None = "true",
+    push_gpgsign: str | None = None,
+    gpg_format: str | None = None,
+    user_signingkey: str | None = "ABCD1234",
+    gpg_program: str | None = None,
+    allowed_signers_file: str | None = None,
+    which_map: dict[str, str | None] | None = None,
+    is_file_map: dict[str, bool] | None = None,
+    run_handler: (
+        Callable[[list[str]], "subprocess.CompletedProcess[str]"] | None
+    ) = None,
+    run_with_input_handler: (
+        Callable[..., "subprocess.CompletedProcess[str]"] | None
+    ) = None,
     head_is_valid: bool = True,
-    verify_commit_outcome: Optional[object] = "ok",
+    verify_commit_outcome: object | None = "ok",
 ) -> tuple[
     dict[str, object],
     dict[str, list[object]],
@@ -46,7 +45,7 @@ def _patch_step7(
 ]:
     """Run verify_git with mocks suitable for exercising the Tier 3 probe."""
 
-    final_which_map: dict[str, Optional[str]] = {
+    final_which_map: dict[str, str | None] = {
         "git": "/usr/bin/git",
         "gpg": "/usr/bin/gpg",
         "ssh-keygen": "/usr/bin/ssh-keygen",
@@ -60,7 +59,7 @@ def _patch_step7(
 
     calls: dict[str, list[object]] = {"which": [], "run": []}
 
-    def fake_which(name: str) -> Optional[str]:
+    def fake_which(name: str) -> str | None:
         calls["which"].append(name)
         return final_which_map.get(name)
 
@@ -103,7 +102,10 @@ def _patch_step7(
         return default_run_handler(args)
 
     def default_run_with_input(
-        args: list[str], *, input: str, timeout: float
+        args: list[str],
+        *,
+        input: str,  # pylint: disable=redefined-builtin  # _run_with_input's keyword
+        timeout: float,
     ) -> "subprocess.CompletedProcess[str]":
         del input, timeout
         return subprocess.CompletedProcess(
@@ -133,14 +135,14 @@ def _patch_step7(
     fake_repo.head.is_valid.return_value = head_is_valid
     fake_repo.git.verify_commit.return_value = verify_commit_outcome
 
-    signing_flags: dict[str, Optional[str]] = {
+    signing_flags: dict[str, str | None] = {
         "commit.gpgsign": commit_gpgsign,
         "tag.gpgsign": tag_gpgsign,
         "rebase.gpgSign": rebase_gpgsign,
         "push.gpgSign": push_gpgsign,
     }
 
-    def fake_get_config(repo: object, key: str, *extra_args: str) -> Optional[str]:
+    def fake_get_config(repo: object, key: str, *extra_args: str) -> str | None:
         del repo, extra_args
         if key == "user.name":
             return user_name
@@ -212,7 +214,10 @@ class TestActuallySignOpenPGP:
         """returncode 2 + 'No pinentry' stderr → ok=False, error captured."""
 
         def handler(
-            args: list[str], *, input: str, timeout: float
+            args: list[str],
+            *,
+            input: str,  # pylint: disable=redefined-builtin  # _run_with_input's keyword
+            timeout: float,
         ) -> "subprocess.CompletedProcess[str]":
             del input, timeout
             return subprocess.CompletedProcess(
@@ -235,7 +240,10 @@ class TestActuallySignOpenPGP:
         """returncode 2 + 'No secret key' → ok=False, error captured."""
 
         def handler(
-            args: list[str], *, input: str, timeout: float
+            args: list[str],
+            *,
+            input: str,  # pylint: disable=redefined-builtin  # _run_with_input's keyword
+            timeout: float,
         ) -> "subprocess.CompletedProcess[str]":
             del input, timeout
             return subprocess.CompletedProcess(
@@ -257,7 +265,10 @@ class TestActuallySignOpenPGP:
         """gpg --clearsign times out → ok=False, severity=error, value mentions timeout."""
 
         def handler(
-            args: list[str], *, input: str, timeout: float
+            args: list[str],
+            *,
+            input: str,  # pylint: disable=redefined-builtin  # _run_with_input's keyword
+            timeout: float,
         ) -> "subprocess.CompletedProcess[str]":
             del input
             raise subprocess.TimeoutExpired(cmd=args, timeout=timeout)

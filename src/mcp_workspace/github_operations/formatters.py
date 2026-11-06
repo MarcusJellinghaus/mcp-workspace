@@ -4,7 +4,7 @@ Pure formatting functions that take data dicts and return formatted text strings
 No API calls or manager dependencies.
 """
 
-from typing import Any, List, Optional, TypedDict
+from typing import Any, TypedDict
 
 from mcp_workspace.github_operations.issues.types import CommentData, IssueData
 from mcp_workspace.github_operations.pr_types import ConversationCommentData
@@ -14,20 +14,20 @@ from mcp_workspace.github_operations.trust import is_trusted_author
 class ReviewData(TypedDict):
     """Data for a PR review."""
 
-    user: Optional[str]
+    user: str | None
     state: str  # APPROVED, CHANGES_REQUESTED, COMMENTED
     body: str
-    author_association: Optional[str]
+    author_association: str | None
 
 
 class InlineCommentData(TypedDict):
     """Data for an inline review comment."""
 
     path: str
-    line: Optional[int]
-    user: Optional[str]
+    line: int | None
+    user: str | None
     body: str
-    author_association: Optional[str]
+    author_association: str | None
 
 
 def truncate_output(text: str, max_lines: int) -> str:
@@ -56,7 +56,7 @@ def truncate_output(text: str, max_lines: int) -> str:
     )
 
 
-def format_withheld_line(counts: list[tuple[str, int]]) -> Optional[str]:
+def format_withheld_line(counts: list[tuple[str, int]]) -> str | None:
     """Render the single count line for feedback withheld from untrusted authors.
 
     Carries no ids, logins, paths or bodies — only per-kind counts.
@@ -75,8 +75,8 @@ def format_withheld_line(counts: list[tuple[str, int]]) -> Optional[str]:
 
 
 def find_latest_marked_comment(
-    comments: List[CommentData], marker: str = "❌", window: int = 3
-) -> Optional[CommentData]:
+    comments: list[CommentData], marker: str = "❌", window: int = 3
+) -> CommentData | None:
     """Return the most recent comment marked with `marker`.
 
     Scans the last `window` comments, most-recent-first, for the first whose
@@ -101,7 +101,7 @@ def find_latest_marked_comment(
 
 
 def untrusted_prefix(
-    login: Optional[str], association: Optional[str], trusted: frozenset[str]
+    login: str | None, association: str | None, trusted: frozenset[str]
 ) -> str:
     """Return "[untrusted @login] " for an untrusted author, else "".
 
@@ -118,9 +118,7 @@ def untrusted_prefix(
     return f"[untrusted @{login or 'ghost'}] "
 
 
-def _fence(
-    text: str, login: Optional[str], association: Optional[str], fence_id: str
-) -> str:
+def _fence(text: str, login: str | None, association: str | None, fence_id: str) -> str:
     """Wrap untrusted text in a labelled fence closed by the call's fence id.
 
     Args:
@@ -237,7 +235,7 @@ def format_issue_view(
 def format_issue_list(
     issues: list[IssueData],
     max_results: int = 30,
-    repo_full_name: Optional[str] = None,
+    repo_full_name: str | None = None,
     *,
     trusted: frozenset[str],
 ) -> str:
@@ -318,9 +316,9 @@ def format_issue_list(
 
 def format_pr_view(
     pr: dict[str, Any],
-    reviews: Optional[list[ReviewData]] = None,
-    conversation_comments: Optional[list[ConversationCommentData]] = None,
-    inline_comments: Optional[list[InlineCommentData]] = None,
+    reviews: list[ReviewData] | None = None,
+    conversation_comments: list[ConversationCommentData] | None = None,
+    inline_comments: list[InlineCommentData] | None = None,
     max_lines: int = 200,
     *,
     trusted: frozenset[str],
@@ -409,7 +407,7 @@ def format_pr_view(
         parts.append(f"## Inline Review Comments ({len(inline_comments)})")
         for ic in inline_comments:
             line_num = ic["line"] if ic["line"] is not None else "?"
-            parts.append(f"{ic['path']}:{line_num} ({ic['user']}): \"{ic['body']}\"")
+            parts.append(f'{ic["path"]}:{line_num} ({ic["user"]}): "{ic["body"]}"')
 
     return truncate_output("\n\n".join(parts), max_lines)
 
@@ -417,7 +415,7 @@ def format_pr_view(
 def format_search_results(
     items: list[dict[str, Any]],
     max_results: int = 30,
-    total_count: Optional[int] = None,
+    total_count: int | None = None,
     *,
     trusted: frozenset[str],
 ) -> str:

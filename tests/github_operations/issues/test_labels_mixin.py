@@ -1,20 +1,13 @@
 """Unit tests for IssueManager label operations with mocked dependencies."""
 
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List
-from unittest.mock import MagicMock, Mock, patch
+from typing import Any
+from unittest.mock import patch
 
-import git
 import pytest
 from github.GithubException import GithubException
 
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import IssueManager
-from mcp_workspace.github_operations.issues.base import (
-    validate_comment_id,
-    validate_issue_number,
-)
 
 from .._issue_test_helpers import make_mock_issue
 
@@ -206,7 +199,7 @@ class TestIssueManagerLabels:
 class TestTransitionIssueLabel:
     """Unit tests for IssueManager.transition_issue_label primitive."""
 
-    def _build_issue_data(self, number: int, labels: List[str]) -> Dict[str, Any]:
+    def _build_issue_data(self, number: int, labels: list[str]) -> dict[str, Any]:
         """Helper to build minimal IssueData-shaped dict for get_issue mock."""
         return {
             "number": number,

@@ -150,7 +150,8 @@ def _protection_result(
     else:
         classic = None
         _, c_reason, c_note = _classify_protection_failure(
-            outcome.stage, outcome.exception  # type: ignore[arg-type]
+            outcome.stage,
+            outcome.exception,  # type: ignore[arg-type]
         )
 
     rules: ProtectionFacts | None
@@ -330,9 +331,7 @@ def verify_github(project_dir: Path) -> dict[str, object]:
                 severity="error",
                 error=str(e),
             )
-        except (
-            Exception
-        ) as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             maybe_log_network_diagnostics(exc, api_base_url)
             logger.debug(
                 "verify_github auth probe Exception base_url=%s exc=%s",
@@ -416,9 +415,7 @@ def verify_github(project_dir: Path) -> dict[str, object]:
                     severity="error",
                     error="Repository returned None from GitHub API",
                 )
-        except (
-            Exception
-        ) as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             logger.debug("Repository access check failed: %s", exc)
             result["repo_accessible"] = CheckResult(
                 ok=False,

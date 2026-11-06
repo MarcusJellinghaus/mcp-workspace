@@ -3,7 +3,6 @@
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
 from git import Repo
 from git.exc import GitCommandError
 

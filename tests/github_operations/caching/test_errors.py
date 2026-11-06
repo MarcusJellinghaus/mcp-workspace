@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from github.GithubException import GithubException, RateLimitExceededException
@@ -40,7 +40,7 @@ class TestToRateLimitError:
     def test_converted_with_reset_at(self, exc: GithubException) -> None:
         err = to_rate_limit_error(exc)
         assert isinstance(err, GitHubRateLimitError)
-        assert err.reset_at == datetime.fromtimestamp(_RESET, tz=timezone.utc)
+        assert err.reset_at == datetime.fromtimestamp(_RESET, tz=UTC)
 
     @pytest.mark.parametrize(
         "exc",

@@ -10,10 +10,11 @@ use.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
-from typing import TYPE_CHECKING, Dict, List, Optional, Sequence
+from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from mcp_workspace.github_operations.ci_log_parser import truncate_ci_details
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
@@ -21,7 +22,7 @@ from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 if TYPE_CHECKING:
     from mcp_workspace.checks.branch_status import BranchStatusReport
 
-GITHUB_TOKEN_HINT = "no GitHub token; set GITHUB_TOKEN or add to config.toml"
+GITHUB_TOKEN_HINT = "no GitHub token; set GITHUB_TOKEN or add to config.toml"  # noqa: S105 -- user-facing hint text, not a credential
 
 MAX_CHECK_NAMES = 10
 
@@ -40,7 +41,7 @@ def format_check_names(names: Sequence[str]) -> str:
     return f"{shown}, … and {extra} more" if extra > 0 else shown
 
 
-class CIStatus(str, Enum):
+class CIStatus(StrEnum):
     """CI pipeline status."""
 
     PASSED = "PASSED"
@@ -51,7 +52,7 @@ class CIStatus(str, Enum):
     UNKNOWN = "UNKNOWN"  # status undeterminable (collection failed); not token-specific
 
 
-class LinkedBranchStatus(str, Enum):
+class LinkedBranchStatus(StrEnum):
     """Whether the issue's linked branch matches the current branch."""
 
     OK = "OK"  # exactly one linked branch, equals current
@@ -84,15 +85,15 @@ def linked_branch_blocks(status: LinkedBranchStatus) -> bool:
 class WaitContext:
     """Describes how long the orchestrator waited on CI/PR polling."""
 
-    pr_elapsed: Optional[float] = None
+    pr_elapsed: float | None = None
     pr_timeout: int = 0
-    ci_elapsed: Optional[float] = None
+    ci_elapsed: float | None = None
     ci_timeout: int = 0
 
 
 def format_report_for_human(
-    report: "BranchStatusReport",
-    wait_context: Optional[WaitContext] = None,
+    report: BranchStatusReport,
+    wait_context: WaitContext | None = None,
     fail_on_reviews: bool = False,
 ) -> str:
     """Format report for human consumption.
@@ -108,7 +109,7 @@ def format_report_for_human(
         Formatted string with status icons and recommendations.
     """
     # Determine status icons
-    ci_icon_map: Dict[CIStatus, str] = {
+    ci_icon_map: dict[CIStatus, str] = {
         CIStatus.UNAVAILABLE: "\U0001f512",
         CIStatus.UNKNOWN: "❓",
         CIStatus.PASSED: "✅",
@@ -137,7 +138,7 @@ def format_report_for_human(
     tasks_status_text = report.tasks_status.value
 
     # Build the report sections - Branch info first
-    lines: List[str] = [
+    lines: list[str] = [
         f"Branch: {report.branch_name}",
         f"Base Branch: {report.base_branch}",
     ]
@@ -226,9 +227,9 @@ def format_report_for_human(
 
 
 def format_report_for_llm(
-    report: "BranchStatusReport",
+    report: BranchStatusReport,
     max_lines: int = 300,
-    wait_context: Optional[WaitContext] = None,
+    wait_context: WaitContext | None = None,
     fail_on_reviews: bool = False,
 ) -> str:
     """Format report for LLM consumption with truncation.
@@ -271,7 +272,7 @@ def format_report_for_llm(
     recommendations_text = ", ".join(report.recommendations)
 
     # Branch info on first line
-    lines: List[str] = [
+    lines: list[str] = [
         f"Branch: {report.branch_name} | Base: {report.base_branch}",
         status_summary,
     ]
@@ -313,9 +314,9 @@ def format_report_for_llm(
 
 
 def _review_gate_header(
-    report: "BranchStatusReport",
+    report: BranchStatusReport,
     fail_on_reviews: bool,
-) -> Optional[str]:
+) -> str | None:
     """Build the three-state ``Review Gate: ...`` header line.
 
     Pure function of ``report.ci_status``,
@@ -357,7 +358,7 @@ def _review_gate_header(
     return "Review Gate: clean"
 
 
-def _format_linked_branch_line(report: "BranchStatusReport") -> Optional[str]:
+def _format_linked_branch_line(report: BranchStatusReport) -> str | None:
     """Build the ``Linked Branch: ...`` line, or None when nothing to render.
 
     The wording never claims the linked branch lives in this repository: the
@@ -387,9 +388,11 @@ def _format_linked_branch_line(report: "BranchStatusReport") -> Optional[str]:
     )
     if status == LinkedBranchStatus.OK:
         text = f"OK ('{current}')"
-    elif status == LinkedBranchStatus.LINKED_VIA_PR:
+    elif (
+        status == LinkedBranchStatus.LINKED_VIA_PR
+        and report.closing_pr_candidate is not None
+    ):
         pr = report.closing_pr_candidate
-        assert pr is not None
         text = (
             f"OK via PR #{pr.number} — PR branch matches current branch '{current}' "
             f"(closes {issue}; no branch linked in the Development panel)"
@@ -435,7 +438,7 @@ def _format_linked_branch_line(report: "BranchStatusReport") -> Optional[str]:
     return f"Linked Branch: {text}"
 
 
-def _format_non_green_checks_line(report: "BranchStatusReport") -> Optional[str]:
+def _format_non_green_checks_line(report: BranchStatusReport) -> str | None:
     """Build the ``Non-green checks: ...`` line, or None when nothing to render.
 
     Returns:
@@ -449,7 +452,7 @@ def _format_non_green_checks_line(report: "BranchStatusReport") -> Optional[str]
     return None
 
 
-def _format_utc(dt: Optional[datetime], fallback: str) -> str:
+def _format_utc(dt: datetime | None, fallback: str) -> str:
     """Format a UTC datetime for display.
 
     Returns:
@@ -458,7 +461,7 @@ def _format_utc(dt: Optional[datetime], fallback: str) -> str:
     return dt.strftime("%Y-%m-%d %H:%M:%S UTC") if dt else fallback
 
 
-def _format_last_marked_comment_lines(report: "BranchStatusReport") -> List[str]:
+def _format_last_marked_comment_lines(report: BranchStatusReport) -> list[str]:
     """Build the header + full body block, or [] when there is no comment.
 
     Returns:
@@ -485,9 +488,9 @@ def _format_last_marked_comment_lines(report: "BranchStatusReport") -> List[str]
 
 
 def _format_wait_line(
-    report: "BranchStatusReport",
-    wait_context: Optional[WaitContext],
-) -> Optional[str]:
+    report: BranchStatusReport,
+    wait_context: WaitContext | None,
+) -> str | None:
     """Build the ``Wait: ...`` line for the report.
 
     Returns:
@@ -495,7 +498,7 @@ def _format_wait_line(
     """
     if wait_context is None:
         return None
-    parts: List[str] = []
+    parts: list[str] = []
     if wait_context.ci_timeout > 0 and wait_context.ci_elapsed is not None:
         if report.ci_status == CIStatus.PASSED:
             ci_state = "ok"

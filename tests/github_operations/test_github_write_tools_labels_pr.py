@@ -3,8 +3,9 @@
 Covers ``github_label_list`` and ``github_pr_create``.
 """
 
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import Any, Callable, Generator, Optional
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -201,7 +202,7 @@ def _pr_data(number: int = 7) -> dict[str, Any]:
 
 def _wire_manager(
     mock_manager_cls: MagicMock,
-    pr: Optional[dict[str, Any]] = None,
+    pr: dict[str, Any] | None = None,
 ) -> MagicMock:
     """Wire a mocked PullRequestManager with the library's real branch rules.
 

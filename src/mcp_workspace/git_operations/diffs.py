@@ -1,7 +1,6 @@
 """Git diff operations for generating change summaries."""
 
 from pathlib import Path
-from typing import Optional
 
 from git import Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError
@@ -11,7 +10,7 @@ from .core import PLACEHOLDER_HASH, logger, safe_repo_context
 from .repository_status import is_git_repository
 
 
-def get_git_diff_for_commit(project_dir: Path) -> Optional[str]:
+def get_git_diff_for_commit(project_dir: Path) -> str | None:
     """Generate comprehensive git diff without modifying repository state.
 
     Shows staged, unstaged, and untracked files in unified diff format
@@ -81,17 +80,15 @@ def get_git_diff_for_commit(project_dir: Path) -> Optional[str]:
     except (InvalidGitRepositoryError, GitCommandError) as e:
         logger.error("Git error generating diff: %s", e)
         return None
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.error("Unexpected error generating diff: %s", e)
         return None
 
 
 def get_branch_diff(
     project_dir: Path,
-    base_branch: Optional[str] = None,
-    exclude_paths: Optional[list[str]] = None,
+    base_branch: str | None = None,
+    exclude_paths: list[str] | None = None,
     ansi: bool = False,
 ) -> str:
     """Generate git diff between current branch and base branch.
@@ -222,9 +219,7 @@ def get_branch_diff(
     except GitCommandError as e:
         logger.error("Git command error generating diff: %s", e)
         return ""
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.error("Unexpected error generating diff: %s", e)
         return ""
 
@@ -275,9 +270,7 @@ def _generate_untracked_diff(repo: Repo, project_dir: Path) -> str:
                             "Binary files /dev/null and " + file_path + " differ",
                         ]
                         untracked_diffs.append("\n".join(diff_lines))
-            except (
-                Exception
-            ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+            except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
                 # Skip individual files that can't be processed
                 logger.debug(
                     "Skipping untracked file that couldn't be processed: %s - %s",
@@ -288,9 +281,7 @@ def _generate_untracked_diff(repo: Repo, project_dir: Path) -> str:
 
         return "\n".join(untracked_diffs)
 
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.warning("Error generating untracked file diff: %s", e)
         return ""
 

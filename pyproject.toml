@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "setuptools-scm>=8.0", "wheel"]
+requires = ["setuptools>=77", "setuptools-scm>=8.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -11,12 +11,12 @@ authors = [
 description = "A simple Model Context Protocol (MCP) server with file operation tools"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 keywords = ["mcp", "server", "filesystem", "claude", "ai", "assistant", "file-operations"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
-    "License :: OSI Approved :: MIT License",
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -30,6 +30,7 @@ dependencies = [
     "PyGithub>=2.10.0",
     "markdown-it-py>=3.0.0",
     "truststore",
+    "requests>=2.28.0",
 ]
 
 [project.optional-dependencies]
@@ -37,22 +38,21 @@ dev = [
     "pytest>=8.3.5",
     "pytest-asyncio>=0.25.3",
     "pytest-xdist>=3.6.1",
+    "pytest-cov",
+    "diff-cover",
     "pylint>=3.3.3",
-    "black>=26.5.1",
-    "isort>=9.0.1",
     "mypy>=1.13.0",
-    "ruff>=0.9.0",
+    "ruff~=0.17.2",
+    "deptry>=0.25.1",
     "types-requests>=2.31.0",
+    "import-linter>=2.0",
+    "pydeps>=3.0.0",
+    "tach>=0.6.0",
+    "vulture>=2.14",
     # "mcp-tools-py",  # TODO: uncomment once mcp-tools-py is published on PyPI
     # "mcp-coder",  # TODO: uncomment once mcp-coder is published on PyPI
 ]
 typecheck = ["mypy>=1.13.0", "types-requests>=2.31.0", "pytest>=8.3.5", "pytest-asyncio>=0.25.3"]
-architecture = [
-    "import-linter>=2.0",
-    "tach>=0.6.0",
-    "pycycle>=0.0.8",
-    "vulture>=2.14",
-]
 
 [project.scripts]
 mcp-workspace = "mcp_workspace.main:main"
@@ -85,34 +85,52 @@ markers = [
 ]
 
 [tool.mcp-tools-py]
-# Formatter for run_format_code and mcp-coder workflows: isort + black
-formatter = "black"
-
-[tool.black]
-line-length = 88
-target-version = ["py311"]
-
-[tool.isort]
-profile = "black"
-line_length = 88
-float_to_top = true
+# Formatter for run_format_code and mcp-coder workflows: ruff (import sorting + ruff format)
+formatter = "ruff"
 
 [tool.ruff]
 target-version = "py311"
 line-length = 88
 
+[tool.ruff.format]
+
 [tool.ruff.lint]
-# Only enable docstring rules for now
+# Rule selection — see the per-group comments below
 # preview needed for DOC rules (pydoclint)
 preview = true
-select = ["D", "DOC"]
+explicit-preview-rules = true   # preview rules fire only when selected by exact code
+select = [
+    "D",
+    "ANN",
+    # DOC rules are preview-only; with explicit-preview-rules they must be
+    # listed by exact code — a bare "DOC" prefix silently enforces nothing.
+    "DOC201", "DOC202", "DOC402", "DOC403", "DOC501", "DOC502",
+    "SIM",
+    # SIM905 is preview-only; see explicit-preview-rules note above.
+    "SIM905",
+    "E",
+    "F",
+    "C4", "B",
+    "S",
+    # PLW1510 only: the PL prefix would re-enable pylint's disabled R category (PLR09xx).
+    "PLW1510",
+    # PLE2502 bidirectional-unicode: covers bandit B613 (trojansource), which has no S port.
+    "PLE2502",
+    "UP",
+    "I",
+]
 ignore = [
-    "D104",  # missing docstring in __init__.py (low value)
     "D107",  # missing docstring in __init__ method (redundant with class docstring)
+    "ANN401",  # Any is correct at library/CLI boundaries; mypy strict covers the rest
+    "E501",  # line length is owned by the formatter (ruff format); not re-checked here
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["D", "DOC"]
+# tests: assert is the pytest idiom (S101); S105/S106/S108 fire on fake
+# credentials and "/tmp/..." literals used as test data, never opened.
+# S603: tests start sys.executable with a fixed argv. Scoped here and to tools/
+# on purpose: mcp_coder's global S603 ignore is not copied, src stays checked.
+"tests/**/*.py" = ["D", "DOC", "SIM117", "S101", "S105", "S106", "S108", "S603"]
 # DOC502: these modules document exceptions propagated from OS/git/GitHub
 # calls or delegated utils (PermissionError, GitCommandError, ValueError,
 # ...) — useful docs, keep them.
@@ -121,9 +139,21 @@ ignore = [
 "src/mcp_workspace/server_reference_tools.py" = ["DOC502"]
 "src/mcp_workspace/main.py" = ["DOC502"]
 "src/mcp_workspace/workflows/task_tracker.py" = ["DOC502"]
+# tools/: low-priority helper scripts that may move to an MCP server or be deleted;
+# Returns sections are not required there. S603: the argv is built in the script.
+"tools/**" = ["DOC201", "S603"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+# Dependency-declaration hygiene. Run as `deptry src`.
+# src only: running it over tests/ yields DEP004 noise and no signal.
+[tool.deptry]
+known_first_party = ["mcp_workspace"]
+# Extras holding dev-only packages: deptry exempts them from DEP002 and reports
+# DEP004 if src/ imports them. Keep in sync with [project.optional-dependencies]:
+# a renamed or removed extra only produces a deptry warning, not a failure.
+optional_dependencies_dev_groups = ["dev", "typecheck"]
 
 [tool.mcp-coder.install-from-github]
 # Installed WITH deps (picks up external deps like jedi)
@@ -137,13 +167,21 @@ packages-no-deps = [
 ]
 
 [tool.pylint.messages_control]
-# W, C, R categories disabled - only errors (E) and fatals (F) are checked
-# Previously disabled individually (now covered by W category above):
-# W1203: Disable lazy % formatting - project prefers f-strings for readability
-# W0621: Disable redefined-outer-name - pytest fixtures standard pattern
-# R0401: Enable cyclic-import detection (not enabled by default as it's in refactor category)
-disable = ["W", "C", "R"]
-enable = ["R0401"]
+disable = [
+    "C",       # conventions — not enabled in this project
+    "R",       # refactor suggestions — not enabled in this project
+    "W1203",   # logging-fstring-interpolation — project uses f-strings for readability
+    "W0621",   # redefined-outer-name — standard pytest fixture pattern
+    "W0511",   # fixme/TODO — informational only, not a quality gate
+    "W0212",   # protected-access — legitimate in tests and controlled src usage
+    "W0613",   # unused-argument — pytest fixtures injected by name
+    "W0611",   # unused-import — owned by ruff F401 (pylint flags the X-as-X re-export convention)
+    "W0404",   # reimported — reimports across test functions
+    "W0718",   # broad-exception-caught — intentional catch-all in CLI/workflow error handling
+    "W0706",   # try-except-raise — explicit re-raise for clarity in error chains
+    "W4903",   # deprecated-argument — tracked for future cleanup
+]
+enable = ["R0401"]  # cyclic-import detection, off by default as it is in the refactor category
 
 [tool.mypy]
 mypy_path = "src"

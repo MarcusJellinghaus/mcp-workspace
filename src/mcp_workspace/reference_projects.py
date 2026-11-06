@@ -5,12 +5,11 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-_project_locks: Dict[str, asyncio.Lock] = {}
-_clone_failure_cache: Dict[str, str] = {}  # project_name -> error message
+_project_locks: dict[str, asyncio.Lock] = {}
+_clone_failure_cache: dict[str, str] = {}  # project_name -> error message
 
 
 @dataclass
@@ -19,7 +18,7 @@ class ReferenceProject:
 
     name: str
     path: Path
-    url: Optional[str] = None
+    url: str | None = None
 
 
 def normalize_git_url(url: str) -> str:
@@ -74,8 +73,8 @@ def verify_url_match(explicit_url: str, detected_url: str, project_name: str) ->
 
 
 def detect_and_verify_url(
-    path: Path, explicit_url: Optional[str], project_name: str
-) -> Optional[str]:
+    path: Path, explicit_url: str | None, project_name: str
+) -> str | None:
     """Detect URL from git repo and/or verify against explicit URL.
 
     Raises ValueError if explicit URL doesn't match detected URL.

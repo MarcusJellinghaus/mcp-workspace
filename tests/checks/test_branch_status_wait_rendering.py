@@ -1,7 +1,5 @@
 """Unit tests for ``WaitContext`` rendering on report formatters."""
 
-from typing import Optional
-
 from mcp_workspace.checks.branch_status import BranchStatusReport
 from mcp_workspace.checks.branch_status_rendering import CIStatus, WaitContext
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
@@ -14,7 +12,7 @@ class TestWaitLineRendering:
     def _make_report(
         *,
         ci_status: CIStatus = CIStatus.PASSED,
-        pr_found: Optional[bool] = None,
+        pr_found: bool | None = None,
     ) -> BranchStatusReport:
         return BranchStatusReport(
             branch_name="feature/x",

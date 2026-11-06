@@ -8,8 +8,9 @@ Nothing here is cached.
 """
 
 import logging
-from enum import Enum
-from typing import Any, Callable, NamedTuple, Optional, TypeVar
+from collections.abc import Callable
+from enum import StrEnum
+from typing import Any, NamedTuple, TypeVar
 
 from ..base_manager import BaseGitHubManager, _cached_login
 from ..caching.errors import (
@@ -39,7 +40,7 @@ _GRAPHQL_ERROR = "GraphQL error"
 _ISSUE_NOT_FOUND = "issue not found"
 
 
-class BodyTrust(str, Enum):
+class BodyTrust(StrEnum):
     """Outcome of an issue body trust check."""
 
     TRUSTED = "trusted"
@@ -84,7 +85,7 @@ def _call(fn: Callable[[], T]) -> T:
         raise _LookupFailed(type(exc).__name__) from exc
 
 
-def _editor_login(result: Any) -> Optional[str]:
+def _editor_login(result: Any) -> str | None:
     """Return the last body editor's login from a GraphQL response body.
 
     Args:

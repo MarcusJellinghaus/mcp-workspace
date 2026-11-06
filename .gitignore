@@ -39,7 +39,6 @@ dist/
 checks_output.txt
 bash.exe.stackdump
 /.mcp-coder-tmp/
-*.isorted
 
 # Log folder for LLM sessions etc
 /.mcp-coder/*
@@ -54,3 +53,9 @@ temp_integration_test.py
 .vscodeclaude_analysis.json
 .vscodeclaude_start.bat
 .vscodeclaude_start.sh
+
+# Coverage artifacts
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/

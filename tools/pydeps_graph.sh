@@ -14,7 +14,6 @@
 #   -x tests.*         : Exclude test modules
 #
 # Note: For SVG output, install GraphViz from https://graphviz.org/download/
-#       Alternatively, view pydeps_graph.html which renders DOT in browser.
 
 set -e
 
@@ -46,7 +45,4 @@ else
     echo ""
     echo "SVG generation failed - GraphViz not installed."
     echo "Install from: https://graphviz.org/download/"
-    echo ""
-    echo "Alternative: View the HTML version which renders DOT in browser:"
-    echo "  open docs/architecture/pydeps_graph.html"
 fi

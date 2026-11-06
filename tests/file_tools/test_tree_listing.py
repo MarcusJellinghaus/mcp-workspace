@@ -1,10 +1,7 @@
 """Tests for tree_listing module."""
 
-from typing import List
-
 from mcp_workspace.file_tools.tree_listing import (
     _build_tree,
-    _collapse,
     _count_lines,
     _find_collapsible,
     _recursive_file_count,
@@ -166,13 +163,13 @@ class TestDirsOnlyMode:
         assert result == ["src/core/", "src/utils/"]
 
 
-def _make_paths(dirs: List[str], files_per_dir: int, depth: int = 1) -> List[str]:
+def _make_paths(dirs: list[str], files_per_dir: int, depth: int = 1) -> list[str]:
     """Generate file paths for testing large trees.
 
     Creates `files_per_dir` files in each directory at each nesting level
     up to `depth`.
     """
-    paths: List[str] = []
+    paths: list[str] = []
     for d in dirs:
         for level in range(depth):
             if level == 0:

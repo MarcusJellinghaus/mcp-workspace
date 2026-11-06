@@ -3,12 +3,10 @@
 Imports only ``typing`` so it stays cheap to import.
 """
 
-from typing import Optional
-
 TRUSTED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 
 
-def normalize_author_association(value: object) -> Optional[str]:
+def normalize_author_association(value: object) -> str | None:
     """Return ``value`` if it is a string, else None.
 
     Args:
@@ -21,7 +19,7 @@ def normalize_author_association(value: object) -> Optional[str]:
 
 
 def is_trusted_author(
-    login: Optional[str], association: Optional[str], trusted: frozenset[str]
+    login: str | None, association: str | None, trusted: frozenset[str]
 ) -> bool:
     """Decide whether an author's text may be shown to the agent.
 

@@ -686,7 +686,5 @@ class TestFindLatestMarkedComment:
             _make_comment(body="no marker here either"),
             _make_comment(body="⚠️ warning in window"),
         ]
-        assert (
-            find_latest_marked_comment(comments, marker="⚠️", window=1) is comments[2]
-        )
+        assert find_latest_marked_comment(comments, marker="⚠️", window=1) is comments[2]
         assert find_latest_marked_comment(comments[:-1], marker="⚠️", window=2) is None

@@ -21,7 +21,6 @@ class TestReadConfigValue:
     """Tests for _read_config_value()."""
 
     def test_returns_none_when_file_missing(self, tmp_path: Path) -> None:
-        missing = tmp_path / "config.toml"
         with patch(
             "mcp_workspace.config.get_user_app_data_dir",
             return_value=tmp_path,
@@ -97,7 +96,6 @@ class TestGetGithubToken:
             assert get_github_token() == "env_token"
 
     def test_returns_none_when_neither_source(self, tmp_path: Path) -> None:
-        missing = tmp_path / "config.toml"
         with (
             patch.dict("os.environ", {}, clear=True),
             patch(
@@ -140,7 +138,6 @@ class TestGetGithubTokenWithSource:
             assert get_github_token_with_source() == ("env_token", "env")
 
     def test_returns_none_when_neither_source(self, tmp_path: Path) -> None:
-        missing = tmp_path / "config.toml"
         with (
             patch.dict("os.environ", {}, clear=True),
             patch(
@@ -176,7 +173,6 @@ class TestGetTestRepoUrl:
             assert get_test_repo_url() == "https://github.com/org/testrepo"
 
     def test_returns_none_when_neither_source(self, tmp_path: Path) -> None:
-        missing = tmp_path / "config.toml"
         with (
             patch.dict("os.environ", {}, clear=True),
             patch(

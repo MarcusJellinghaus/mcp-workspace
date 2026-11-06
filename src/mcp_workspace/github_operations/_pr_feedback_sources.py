@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 from github.GithubException import GithubException, UnknownObjectException
 from github.Requester import Requester
@@ -80,7 +80,7 @@ def _has_permanent_error(result: dict[str, Any]) -> bool:
 
 def _build_graphql_exception(
     requester: Requester, headers: dict[str, Any], result: dict[str, Any]
-) -> Optional[GithubException]:
+) -> GithubException | None:
     """Return the exception PyGithub's `graphql_query` would have raised, or None.
 
     Keys on the raw `errors` list rather than on `extract_graphql_errors`
@@ -108,7 +108,7 @@ def _build_graphql_exception(
 
 def _request_review_page(
     requester: Requester, query: str, variables: dict[str, Any]
-) -> Tuple[dict[str, Any], Optional[dict[str, Any]], Optional[GithubException]]:
+) -> tuple[dict[str, Any], dict[str, Any] | None, GithubException | None]:
     """Run one GraphQL request under the existing retry/permanent-error policy.
 
     Returns:
@@ -119,7 +119,7 @@ def _request_review_page(
     # Pre-initialised so they are never possibly-unbound after the loop.
     headers: dict[str, Any] = {}
     result: dict[str, Any] = {}
-    pr_data: Optional[dict[str, Any]] = None
+    pr_data: dict[str, Any] | None = None
     for attempt in range(_REVIEW_DATA_MAX_ATTEMPTS):
         # Outside any try: a genuine HTTP failure must propagate unretried.
         headers, result = requester.requestJsonAndCheck(
@@ -150,7 +150,7 @@ def _request_review_page(
     return headers, pr_data, error
 
 
-def _parse_submitted_at(raw: Optional[str]) -> Optional[str]:
+def _parse_submitted_at(raw: str | None) -> str | None:
     """Normalize a GraphQL submittedAt value to isoformat, or None on absence/bad input.
 
     Returns:
@@ -165,13 +165,13 @@ def _parse_submitted_at(raw: Optional[str]) -> Optional[str]:
         return None
 
 
-def _parse_changes_requested(pr_data: dict[str, Any]) -> list["ChangesRequestedData"]:
+def _parse_changes_requested(pr_data: dict[str, Any]) -> list[ChangesRequestedData]:
     """Build standing CHANGES_REQUESTED entries from latestOpinionatedReviews nodes.
 
     Returns:
         One entry per CHANGES_REQUESTED node, each with author/body/submitted_at.
     """
-    result: list["ChangesRequestedData"] = []
+    result: list[ChangesRequestedData] = []
     nodes = (pr_data.get("latestOpinionatedReviews") or {}).get("nodes") or []
     for node in nodes:
         if node is None or node.get("state") != "CHANGES_REQUESTED":
@@ -191,7 +191,7 @@ def _parse_changes_requested(pr_data: dict[str, Any]) -> list["ChangesRequestedD
 
 def _parse_thread_nodes(
     pr_data: dict[str, Any],
-) -> Tuple[list["ReviewThreadData"], int]:
+) -> tuple[list[ReviewThreadData], int]:
     """Parse one page's reviewThreads.nodes into (unresolved_threads, resolved_count).
 
     Each thread carries the association of its first comment (the opener).
@@ -200,7 +200,7 @@ def _parse_thread_nodes(
         Tuple of (unresolved_threads, resolved_count) for this page only —
         callers accumulate across pages.
     """
-    unresolved_threads: list["ReviewThreadData"] = []
+    unresolved_threads: list[ReviewThreadData] = []
     resolved_count = 0
     thread_nodes = (pr_data.get("reviewThreads") or {}).get("nodes") or []
     for thread in thread_nodes:
@@ -234,11 +234,13 @@ def _parse_thread_nodes(
     return unresolved_threads, resolved_count
 
 
-def fetch_review_data(manager: "PullRequestManager", pr_number: int) -> Tuple[
-    list["ReviewThreadData"],
+def fetch_review_data(
+    manager: PullRequestManager, pr_number: int
+) -> tuple[
+    list[ReviewThreadData],
     int,
-    list["ChangesRequestedData"],
-    Optional[GithubException],
+    list[ChangesRequestedData],
+    GithubException | None,
 ]:
     """Fetch paginated review threads + standing CHANGES_REQUESTED reviews via tolerant GraphQL calls.
 
@@ -371,8 +373,8 @@ def fetch_review_data(manager: "PullRequestManager", pr_number: int) -> Tuple[
 
 
 def fetch_conversation_comments(
-    manager: "PullRequestManager", pr_number: int
-) -> list["ConversationCommentData"]:
+    manager: PullRequestManager, pr_number: int
+) -> list[ConversationCommentData]:
     """Fetch top-level PR conversation comments via REST.
 
     Returns:
@@ -404,8 +406,8 @@ def fetch_conversation_comments(
 
 
 def fetch_code_scanning_alerts(
-    manager: "PullRequestManager", pr_number: int
-) -> list["AlertData"]:
+    manager: PullRequestManager, pr_number: int
+) -> list[AlertData]:
     """Fetch open code-scanning alerts for the PR via REST (first page only).
 
     Returns:
@@ -427,7 +429,7 @@ def fetch_code_scanning_alerts(
         parameters={"pr": pr_number, "state": "open", "per_page": 100},
     )
 
-    alerts: list["AlertData"] = []
+    alerts: list[AlertData] = []
     for alert in data or []:
         instance = alert.get("most_recent_instance") or {}
         location = instance.get("location") or {}

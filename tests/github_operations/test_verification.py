@@ -1,8 +1,9 @@
 """Unit tests for verify_github() connectivity and branch protection checks."""
 
 import logging
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, Literal
+from typing import Literal
 from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
@@ -110,7 +111,7 @@ def _patch_all_ok(
     default_branch: str = "main",
     protection: Mock | None = None,
     delete_branch_on_merge: bool = True,
-    token_source: Literal["env", "config"] = "env",
+    token_source: Literal["env", "config"] = "env",  # noqa: S107 -- names a source
 ) -> dict[str, object]:
     """Run verify_github with all dependencies mocked to succeed."""
     result, _ = _run_all_ok_with_branch(
@@ -136,7 +137,7 @@ def _run_all_ok_with_branch(
     protection: Mock | None = None,
     protection_error: Exception | None = None,
     delete_branch_on_merge: bool = True,
-    token_source: Literal["env", "config"] = "env",
+    token_source: Literal["env", "config"] = "env",  # noqa: S107 -- names a source
 ) -> tuple[dict[str, object], Mock]:
     """Like ``_patch_all_ok``, but also return the branch mock.
 

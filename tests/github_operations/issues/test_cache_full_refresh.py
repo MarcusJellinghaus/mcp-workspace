@@ -4,32 +4,20 @@ Split from the original test_issue_cache.py by whole test class.
 """
 
 import json
-import logging
-import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 from unittest.mock import Mock, patch
 
-import pytest
-from mcp_coder_utils.user_app_data import get_user_app_data_dir
-
-from mcp_workspace.constants import SINCE_OVERLAP_MINUTES
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues import (
     CacheData,
     IssueData,
-    update_issue_labels_in_cache,
 )
 from mcp_workspace.github_operations.issues._cache_io import (
-    _get_cache_file_path,
     _load_cache_file,
-    _log_cache_metrics,
     _save_cache_file,
 )
 from mcp_workspace.github_operations.issues.cache import (
-    CACHE_SCHEMA_VERSION,
-    _log_stale_cache_entries,
     get_all_cached_issues,
 )
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
@@ -64,7 +52,7 @@ class TestLastFullRefresh:
         mock_cache_issue_manager: Mock,
     ) -> None:
         """Test that a full refresh updates last_full_refresh in saved cache."""
-        now = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+        now = datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC)
         mock_now.return_value = now
 
         cache_file = tmp_path / "test.json"
@@ -103,7 +91,7 @@ class TestLastFullRefresh:
         mock_cache_issue_manager: Mock,
     ) -> None:
         """Test that an incremental refresh does not update last_full_refresh."""
-        now = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+        now = datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC)
         mock_now.return_value = now
 
         cache_file = tmp_path / "test.json"
@@ -161,7 +149,7 @@ class TestLastFullRefresh:
         mock_cache_issue_manager: Mock,
     ) -> None:
         """Test that full refresh triggers when last_full_refresh is older than threshold."""
-        now = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+        now = datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC)
         mock_now.return_value = now
 
         cache_file = tmp_path / "test.json"
@@ -224,10 +212,10 @@ class TestLastFullRefresh:
         self,
         cache_file: Path,
         manager: Mock,
-        issues: Dict[str, IssueData],
-        cached_at: Dict[str, str],
-        additional_issues: List[int],
-    ) -> List[IssueData]:
+        issues: dict[str, IssueData],
+        cached_at: dict[str, str],
+        additional_issues: list[int],
+    ) -> list[IssueData]:
         """Run get_all_cached_issues on a cache whose last full refresh is 25 h old."""
         cache_data: CacheData = {
             "last_checked": "2025-12-31T11:58:00+00:00",
@@ -244,7 +232,7 @@ class TestLastFullRefresh:
             ),
             patch(
                 "mcp_workspace.github_operations.issues.cache.now_utc",
-                return_value=datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc),
+                return_value=datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC),
             ),
         ):
             return get_all_cached_issues(
@@ -394,7 +382,7 @@ class TestLastFullRefresh:
         mock_cache_issue_manager: Mock,
     ) -> None:
         """Session issue in the open list → saved entry is the listed version, stamped now."""
-        mock_now.return_value = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+        mock_now.return_value = datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC)
         cache_file = tmp_path / "test.json"
         mock_cache_path.return_value = cache_file
 

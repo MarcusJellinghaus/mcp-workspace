@@ -7,7 +7,6 @@ for GitHub issues.
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
 
 from github.GithubException import GithubException
 from mcp_coder_utils.log_utils import log_function_call
@@ -29,10 +28,10 @@ class EventsMixin:
 
     @log_function_call
     def get_issue_events(
-        self: "BaseGitHubManager",
+        self: BaseGitHubManager,
         issue_number: int,
-        event_type: Optional[IssueEventType] = None,
-    ) -> List[EventData]:
+        event_type: IssueEventType | None = None,
+    ) -> list[EventData]:
         """Get timeline events for an issue.
 
         Args:
@@ -85,7 +84,7 @@ class EventsMixin:
             raise
 
         # Convert to EventData list
-        events: List[EventData] = []
+        events: list[EventData] = []
         for event in github_events:
             # Skip if event_type is provided and doesn't match
             if event_type is not None and event.event != event_type.value:

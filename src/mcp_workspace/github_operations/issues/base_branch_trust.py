@@ -6,7 +6,7 @@ raises: any lookup failure means "untrusted".
 """
 
 import logging
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from github.Repository import Repository
 
@@ -34,7 +34,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
 
 def fetch_body_editor(
     manager: BaseGitHubManager, repo: Repository, issue_number: int
-) -> Optional[str]:
+) -> str | None:
     """Return the login of the issue body's last editor.
 
     Args:
@@ -69,8 +69,8 @@ def is_body_trusted(  # pylint: disable=too-many-arguments,too-many-positional-a
     manager: BaseGitHubManager,
     repo: Repository,
     issue_number: int,
-    author_login: Optional[str],
-    author_association: Optional[str],
+    author_login: str | None,
+    author_association: str | None,
     allowlist: Callable[[], frozenset[str]],
 ) -> bool:
     """Decide whether an issue body may choose the base branch.

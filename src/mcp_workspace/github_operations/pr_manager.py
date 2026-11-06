@@ -6,7 +6,7 @@ through the PyGithub library.
 
 import logging
 from pathlib import Path
-from typing import Any, List, Optional, cast
+from typing import Any, cast
 
 from github.GithubException import GithubException
 from github.PullRequest import PullRequest
@@ -72,9 +72,9 @@ class PullRequestManager(
 
     def __init__(
         self,
-        project_dir: Optional[Path] = None,
-        repo_url: Optional[str] = None,
-        github_token: Optional[str] = None,
+        project_dir: Path | None = None,
+        repo_url: str | None = None,
+        github_token: str | None = None,
     ) -> None:
         """Initialize the PullRequestManager.
 
@@ -97,9 +97,6 @@ class PullRequestManager(
         if project_dir is not None:
             # _repo_identifier is a lazy property from BaseGitHubManager.
             # Eagerly resolve it here to fail fast if no GitHub remote.
-            assert (
-                self.project_dir is not None
-            ), "project_dir must be set after initialization"
             try:
                 _ = self._repo_identifier  # triggers resolution
             except ValueError as e:
@@ -160,7 +157,7 @@ class PullRequestManager(
         self,
         title: str,
         head_branch: str,
-        base_branch: Optional[str] = None,
+        base_branch: str | None = None,
         body: str = "",
     ) -> PullRequestData:
         """Create a new pull request.
@@ -255,9 +252,9 @@ class PullRequestManager(
     def list_pull_requests(
         self,
         state: str = "open",
-        base_branch: Optional[str] = None,
-        max_results: Optional[int] = None,
-    ) -> List[PullRequestData]:
+        base_branch: str | None = None,
+        max_results: int | None = None,
+    ) -> list[PullRequestData]:
         """List pull requests in the repository.
 
         Args:
@@ -303,7 +300,7 @@ class PullRequestManager(
 
     @log_function_call
     @_handle_github_errors([])
-    def find_pull_request_by_head(self, head_branch: str) -> List[PullRequestData]:
+    def find_pull_request_by_head(self, head_branch: str) -> list[PullRequestData]:
         """Find open pull requests by head branch name.
 
         Args:
@@ -360,8 +357,8 @@ class PullRequestManager(
     def update_pull_request(
         self,
         pr_number: int,
-        title: Optional[str] = None,
-        body: Optional[str] = None,
+        title: str | None = None,
+        body: str | None = None,
     ) -> PullRequestData:
         """Update the title and/or body of an existing pull request.
 
@@ -463,13 +460,13 @@ class PullRequestManager(
         Returns:
             Default branch name (typically "main" or "master") or empty string on failure
         """
+        if self.project_dir is None:
+            # repo_url mode (reference projects) has no local checkout to read
+            logger.debug("No project_dir: default branch not available locally")
+            return ""
         try:
-            # project_dir is guaranteed to be non-None for PullRequestManager
-            assert self.project_dir is not None, "project_dir must be set"
             default_branch = get_default_branch_name(self.project_dir)
             return default_branch or ""
-        except (
-            Exception
-        ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+        except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
             logger.debug(f"Error getting default branch: {e}")
             return ""

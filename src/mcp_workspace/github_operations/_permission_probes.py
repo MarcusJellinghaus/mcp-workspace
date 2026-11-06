@@ -14,7 +14,7 @@ conditional on a one-off check with a deliberately read-only token; until that
 check is run and recorded, the probe stays out.
 """
 
-from typing import Callable
+from collections.abc import Callable
 
 from github.GithubException import GithubException
 from github.Repository import Repository

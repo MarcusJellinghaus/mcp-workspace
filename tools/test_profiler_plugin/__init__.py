@@ -1,5 +1,4 @@
-"""
-Pytest plugin for profiling individual tests.
+"""Pytest plugin for profiling individual tests.
 
 This plugin hooks into pytest's test execution to profile each test individually
 using Python's cProfile. It saves .prof files for all tests and tracks their durations.
@@ -9,7 +8,7 @@ import cProfile
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -22,13 +21,12 @@ class TestProfiler:
     """Manages profiling of individual tests."""
 
     def __init__(self) -> None:
-        self.durations: Dict[str, float] = {}
+        self.durations: dict[str, float] = {}
         self.test_count = 0
         self.total_tests = 0
 
     def sanitize_test_name(self, nodeid: str) -> str:
-        """
-        Convert pytest node ID to a safe filename.
+        """Convert pytest node ID to a safe filename.
 
         Example: tests/test_file.py::TestClass::test_method
         Becomes: tests_test_file__TestClass__test_method
@@ -60,9 +58,12 @@ def pytest_collection_modifyitems(session: Any, config: Any, items: Any) -> None
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)  # type: ignore[misc]
 def pytest_runtest_protocol(item: Any, nextitem: Any) -> Any:
-    """
-    Hook that wraps the entire test execution (setup, call, teardown).
+    """Hook that wraps the entire test execution (setup, call, teardown).
+
     We profile the entire test execution here.
+
+    Yields:
+        Control to pytest, which runs the wrapped test protocol.
     """
     _profiler.test_count += 1
     nodeid = item.nodeid
@@ -73,7 +74,7 @@ def pytest_runtest_protocol(item: Any, nextitem: Any) -> Any:
     start_time = time.time()
     profiler.enable()
 
-    outcome = yield
+    yield
 
     profiler.disable()
     duration = time.time() - start_time
@@ -91,21 +92,23 @@ def pytest_sessionfinish(session: Any, exitstatus: Any) -> None:
     """Called after whole test run finished, right before returning exit status."""
     durations_path = PROF_OUTPUT_DIR / "durations.json"
 
-    sorted_durations = dict(sorted(
-        _profiler.durations.items(),
-        key=lambda x: x[1],
-        reverse=True
-    ))
+    sorted_durations = dict(
+        sorted(_profiler.durations.items(), key=lambda x: x[1], reverse=True)
+    )
 
     durations_data = {
         "total_tests": _profiler.total_tests,
         "threshold_seconds": DURATION_THRESHOLD_SECONDS,
-        "slow_tests_count": sum(1 for d in _profiler.durations.values() if d >= DURATION_THRESHOLD_SECONDS),
-        "durations": sorted_durations
+        "slow_tests_count": sum(
+            1 for d in _profiler.durations.values() if d >= DURATION_THRESHOLD_SECONDS
+        ),
+        "durations": sorted_durations,
     }
 
-    with open(durations_path, 'w') as f:
+    with open(durations_path, "w") as f:
         json.dump(durations_data, f, indent=2)
 
     print(f"\n[OK] Saved {len(_profiler.durations)} test durations to {durations_path}")
-    print(f"[OK] Found {durations_data['slow_tests_count']} slow tests (>{DURATION_THRESHOLD_SECONDS}s)")
+    print(
+        f"[OK] Found {durations_data['slow_tests_count']} slow tests (>{DURATION_THRESHOLD_SECONDS}s)"
+    )

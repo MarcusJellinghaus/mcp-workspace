@@ -167,7 +167,7 @@ class TestCompactDiffBinaryAndEmpty:
         # Create a binary file (PNG header bytes)
         binary_file = project_dir / "image.png"
         binary_file.write_bytes(
-            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR" b"\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
         )
         repo.index.add(["image.png"])
         repo.index.commit("Add binary image")

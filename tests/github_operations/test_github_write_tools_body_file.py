@@ -1,7 +1,7 @@
 """Tests for the ``body_file`` parameter of the GitHub write MCP tools."""
 
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import Callable, Generator
 from unittest.mock import MagicMock, patch
 
 import pytest

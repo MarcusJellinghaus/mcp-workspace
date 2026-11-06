@@ -4,7 +4,7 @@ No git calls and no repositories: every function takes raw stdout bytes.
 Paths are decoded as UTF-8 (invalid bytes replaced).
 """
 
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 from .core import TreeEntry
 
@@ -16,7 +16,7 @@ class StatusEntry(NamedTuple):
     index_status: str  # X
     worktree_status: str  # Y
     path: str
-    orig_path: Optional[str]  # rename/copy source
+    orig_path: str | None  # rename/copy source
 
 
 class UnmergedEntry(NamedTuple):
@@ -66,7 +66,7 @@ def parse_status_z(output: bytes) -> list[StatusEntry]:
     return entries
 
 
-def parse_merge_tree_z(output: bytes) -> tuple[Optional[str], list[str]]:
+def parse_merge_tree_z(output: bytes) -> tuple[str | None, list[str]]:
     r"""Parse ``git merge-tree --write-tree --name-only --no-messages -z`` output.
 
     Args:

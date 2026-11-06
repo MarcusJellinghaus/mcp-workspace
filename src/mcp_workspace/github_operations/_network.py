@@ -43,7 +43,7 @@ def _tcp_probe(host: str) -> str:
         return "ok"
     except socket.gaierror:
         return "dns_error"
-    except (socket.timeout, TimeoutError):
+    except TimeoutError:
         return "timeout"
     except ConnectionRefusedError:
         return "refused"

@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 from mcp_coder_utils.log_utils import log_function_call
@@ -14,11 +14,11 @@ from mcp_workspace.reference_projects import ReferenceProject, ensure_available
 
 logger = logging.getLogger(__name__)
 
-_reference_projects: Dict[str, ReferenceProject] = {}
+_reference_projects: dict[str, ReferenceProject] = {}
 
 
 @log_function_call
-def set_reference_projects(reference_projects: Dict[str, ReferenceProject]) -> None:
+def set_reference_projects(reference_projects: dict[str, ReferenceProject]) -> None:
     """Set the reference projects for file operations.
 
     Args:
@@ -35,7 +35,7 @@ def set_reference_projects(reference_projects: Dict[str, ReferenceProject]) -> N
 
 
 @log_function_call
-def get_reference_projects() -> Dict[str, Any]:
+def get_reference_projects() -> dict[str, Any]:
     """Get the available reference projects as {"name", "url"} entries.
 
     Returns:
@@ -125,9 +125,9 @@ def get_reference_repo_url(name: str) -> str:
 async def read_reference_file(
     reference_name: str,
     file_path: str,
-    start_line: Optional[int] = None,
-    end_line: Optional[int] = None,
-    with_line_numbers: Optional[bool] = None,
+    start_line: int | None = None,
+    end_line: int | None = None,
+    with_line_numbers: bool | None = None,
 ) -> str:
     """Read a reference-project file, or a line slice via start_line/end_line.
 
@@ -156,7 +156,7 @@ async def read_reference_file(
 
 
 @log_function_call
-async def list_reference_directory(reference_name: str) -> List[str]:
+async def list_reference_directory(reference_name: str) -> list[str]:
     """List files and directories in a reference project directory.
 
     Args:
@@ -177,12 +177,12 @@ async def list_reference_directory(reference_name: str) -> List[str]:
 @log_function_call
 async def search_reference_files(
     reference_name: str,
-    glob: Optional[str] = None,
-    pattern: Optional[str] = None,
+    glob: str | None = None,
+    pattern: str | None = None,
     context_lines: int = 0,
     max_results: int = 50,
     max_result_lines: int = 200,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Search file contents by regex and/or find files by glob pattern in a reference project.
 
     Modes:

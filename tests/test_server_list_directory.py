@@ -1,7 +1,7 @@
 """Tests for the list_directory MCP server tool."""
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, List
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -50,7 +50,8 @@ def test_list_directory(
 
 @patch("mcp_workspace.server.list_files_util")
 def test_list_directory_directory_not_found(
-    mock_list_files: MagicMock, project_dir: Path  # pylint: disable=unused-argument
+    mock_list_files: MagicMock,
+    project_dir: Path,  # pylint: disable=unused-argument
 ) -> None:
     """Test the list_directory tool with a non-existent directory."""
     # Mock list_files to raise FileNotFoundError
@@ -92,10 +93,10 @@ def test_list_directory_error_handling(
     mock_list_files: MagicMock, project_dir: Path
 ) -> None:
     """Test error handling in the list_directory tool."""
-    # Mock list_files to raise an exception
-    mock_list_files.side_effect = Exception("Test error")
+    # Mock list_files to raise an exception it documents
+    mock_list_files.side_effect = NotADirectoryError("Test error")
 
-    with pytest.raises(Exception):
+    with pytest.raises(NotADirectoryError, match="Test error"):
         list_directory()
 
 
@@ -257,7 +258,7 @@ def _make_tree(project_dir: Path) -> None:
     ],
 )
 def test_list_directory_entries_are_valid_paths_integration(
-    project_dir: Path, scope: str, expected: List[str]
+    project_dir: Path, scope: str, expected: list[str]
 ) -> None:
     """Integration: every returned entry is a path read_file accepts unmodified."""
     _make_tree(project_dir)

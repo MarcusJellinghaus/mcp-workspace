@@ -1,7 +1,5 @@
 """Tests for the ``Non-green checks:`` line and ``format_check_names``."""
 
-from typing import Optional
-
 import pytest
 
 from mcp_workspace.checks.branch_status import BranchStatusReport
@@ -17,8 +15,8 @@ _REASON = "token lacks permission (Checks: read / Commit statuses: read)"
 
 
 def _make_report(
-    non_green_checks: Optional[tuple[str, ...]] = None,
-    non_green_checks_error: Optional[str] = None,
+    non_green_checks: tuple[str, ...] | None = None,
+    non_green_checks_error: str | None = None,
 ) -> BranchStatusReport:
     """Build a report with an ``unstable`` PR and the given lookup result."""
     return BranchStatusReport(
@@ -65,7 +63,7 @@ class TestNonGreenChecksHuman:
 
     @pytest.mark.parametrize("names", [None, ()])
     def test_no_line_without_names_or_error(
-        self, names: Optional[tuple[str, ...]]
+        self, names: tuple[str, ...] | None
     ) -> None:
         report = _make_report(non_green_checks=names)
         assert "Non-green checks:" not in report.format_for_human()
@@ -108,7 +106,7 @@ class TestNonGreenChecksLlm:
 
     @pytest.mark.parametrize("names", [None, ()])
     def test_no_line_without_names_or_error(
-        self, names: Optional[tuple[str, ...]]
+        self, names: tuple[str, ...] | None
     ) -> None:
         report = _make_report(non_green_checks=names)
         assert "Non-green checks:" not in report.format_for_llm()

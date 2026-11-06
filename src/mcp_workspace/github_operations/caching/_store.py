@@ -3,15 +3,17 @@
 Shape-agnostic: each cache validates and merges its own data.
 """
 
+import contextlib
 import json
 import logging
 import os
 import random
 import tempfile
 import time
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any
 
 from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
@@ -35,7 +37,8 @@ def new_expiry(now: datetime) -> str:
     The jitter spreads rechecks of entries written in the same run over
     later runs.
     """
-    return format_for_cache(now + MAX_AGE * random.uniform(0.75, 1.0))  # nosec B311
+    jitter = random.uniform(0.75, 1.0)  # noqa: S311 -- not security  # nosec B311
+    return format_for_cache(now + MAX_AGE * jitter)
 
 
 def is_expired(entry: Mapping[str, Any], now: datetime) -> bool:
@@ -109,7 +112,7 @@ def _save_cache_file(cache_file_path: Path, cache_data: Mapping[str, Any]) -> bo
     Returns:
         True if successful, False otherwise
     """
-    temp_path: Optional[str] = None
+    temp_path: str | None = None
     try:
         # Ensure directory exists
         cache_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -137,7 +140,5 @@ def _save_cache_file(cache_file_path: Path, cache_data: Mapping[str, Any]) -> bo
 
     finally:
         if temp_path is not None:
-            try:
+            with contextlib.suppress(OSError):
                 Path(temp_path).unlink(missing_ok=True)
-            except OSError:
-                pass

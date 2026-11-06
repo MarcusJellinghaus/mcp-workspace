@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 import re
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from github.GithubException import GithubException, RateLimitExceededException
@@ -84,8 +84,7 @@ def format_rate_limit_error(exc: BaseException) -> str | None:
             return "GitHub rate limit: retries exhausted"
         if status is None:
             return (
-                "GitHub request failed: retries exhausted "
-                "(rate limit or server error)"
+                "GitHub request failed: retries exhausted (rate limit or server error)"
             )
         return None
     if not isinstance(exc, GithubException):
@@ -106,7 +105,7 @@ def format_rate_limit_error(exc: BaseException) -> str | None:
     reset = headers.get("x-ratelimit-reset")
     if reset and reset.isdigit():
         reset_epoch = int(reset)
-        reset_at = datetime.fromtimestamp(reset_epoch, tz=timezone.utc)
+        reset_at = datetime.fromtimestamp(reset_epoch, tz=UTC)
         minutes = max(0, math.ceil((reset_epoch - time.time()) / 60))
         msg += f"; resets at {reset_at:%H:%M} UTC (in {minutes} min)"
     return msg

@@ -1,6 +1,5 @@
 """Tests for file operations functionality."""
 
-import os
 import shutil
 from collections.abc import Callable
 from pathlib import Path
@@ -32,7 +31,7 @@ def test_save_file(project_dir: Path) -> None:
     assert abs_file_path.exists()
 
     # Verify the file content
-    with open(abs_file_path, "r", encoding="utf-8") as f:
+    with open(abs_file_path, encoding="utf-8") as f:
         content = f.read()
     assert content == TEST_CONTENT
 
@@ -48,7 +47,7 @@ def test_save_file_atomic_overwrite(project_dir: Path) -> None:
         f.write(initial_content)
 
     # Verify initial content
-    with open(abs_file_path, "r", encoding="utf-8") as f:
+    with open(abs_file_path, encoding="utf-8") as f:
         content = f.read()
     assert content == initial_content
 
@@ -61,7 +60,7 @@ def test_save_file_atomic_overwrite(project_dir: Path) -> None:
     assert abs_file_path.exists()
 
     # Verify the new content
-    with open(abs_file_path, "r", encoding="utf-8") as f:
+    with open(abs_file_path, encoding="utf-8") as f:
         content = f.read()
     assert content == new_content
 
@@ -221,7 +220,7 @@ def test_append_file(project_dir: Path) -> None:
 
     # Verify the combined content
     expected_content = initial_content + append_content
-    with open(abs_file_path, "r", encoding="utf-8") as f:
+    with open(abs_file_path, encoding="utf-8") as f:
         content = f.read()
     assert content == expected_content
 
@@ -243,7 +242,7 @@ def test_append_file_empty(project_dir: Path) -> None:
     assert abs_file_path.exists()
 
     # Verify the content
-    with open(abs_file_path, "r", encoding="utf-8") as f:
+    with open(abs_file_path, encoding="utf-8") as f:
         content = f.read()
     assert content == append_content
 
@@ -512,7 +511,7 @@ def test_append_file_large_content(project_dir: Path) -> None:
 
     # Verify the combined content
     expected_content = initial_content + large_content
-    with open(abs_file_path, "r", encoding="utf-8") as f:
+    with open(abs_file_path, encoding="utf-8") as f:
         content = f.read()
     assert content == expected_content
 

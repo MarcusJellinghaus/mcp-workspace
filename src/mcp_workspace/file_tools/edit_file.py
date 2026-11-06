@@ -3,7 +3,6 @@
 import difflib
 import logging
 from pathlib import Path
-from typing import Optional
 
 from mcp_workspace.file_tools.path_utils import normalize_line_endings, normalize_path
 
@@ -15,7 +14,7 @@ def edit_file(
     old_string: str,
     new_string: str,
     replace_all: bool = False,
-    project_dir: Optional[Path] = None,
+    project_dir: Path | None = None,
 ) -> str:
     """Make a selective edit to a file using exact string matching.
 
@@ -52,7 +51,7 @@ def edit_file(
         raise ValueError(f"Not a file: {abs_path}")
 
     # Read and normalize content
-    with open(abs_path, "r", encoding="utf-8") as f:
+    with open(abs_path, encoding="utf-8") as f:
         original_content = normalize_line_endings(f.read())
 
     old_string = normalize_line_endings(old_string)

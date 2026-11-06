@@ -6,8 +6,9 @@ values, nested paths, and each path appearing exactly once.
 """
 
 import asyncio
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any, Callable, Iterator, List, Tuple
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -23,7 +24,7 @@ _REFERENCE_NAME = "invariant_ref"
 ToolCall = Callable[[Path, str], Any]
 
 
-def _paths(value: Any, keys: Tuple[str, ...]) -> List[str]:
+def _paths(value: Any, keys: tuple[str, ...]) -> list[str]:
     """Collect the path-carrying strings from a tool return value.
 
     For list/str results, every string. For dict results, only the values under
@@ -35,7 +36,7 @@ def _paths(value: Any, keys: Tuple[str, ...]) -> List[str]:
     if isinstance(value, str):
         return [value]
     if isinstance(value, (list, tuple)):
-        collected: List[str] = []
+        collected: list[str] = []
         for item in value:
             collected.extend(_paths(item, keys))
         return collected
@@ -183,7 +184,7 @@ def _call_check_file_size(project: Path, reference_name: str) -> Any:
 # Excluded deliberately: git, github_pr_view and check_branch_status. Their
 # paths arrive from the GitHub API already forward-slashed, so nothing here can
 # regress them and including them would mean mocking the API for no added guard.
-GUARDED_TOOLS: List[Tuple[str, ToolCall, Tuple[str, ...]]] = [
+GUARDED_TOOLS: list[tuple[str, ToolCall, tuple[str, ...]]] = [
     ("list_directory", _call_list_directory, ()),
     ("search_files", _call_search_files, ("files", "skipped_files")),
     ("list_reference_directory", _call_list_reference_directory, ()),
@@ -205,7 +206,7 @@ GUARDED_TOOLS: List[Tuple[str, ToolCall, Tuple[str, ...]]] = [
 def test_emitted_paths_use_forward_slashes(
     tool_name: str,
     call: ToolCall,
-    path_keys: Tuple[str, ...],
+    path_keys: tuple[str, ...],
     invariant_project: Path,
     reference_project: str,
 ) -> None:

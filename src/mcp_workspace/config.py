@@ -99,9 +99,9 @@ def _read_config_value(section: str, key: str) -> str | None:
     return section_data.get(key)
 
 
-def get_github_token_with_source() -> (
-    tuple[str | None, Literal["env", "config"] | None]
-):
+def get_github_token_with_source() -> tuple[
+    str | None, Literal["env", "config"] | None
+]:
     """Resolve GitHub token and its source: env var, then config file.
 
     Returns:

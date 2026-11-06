@@ -11,7 +11,6 @@ from mcp_workspace.git_operations.branch_queries import (
     get_current_branch_name,
 )
 from mcp_workspace.git_operations.branches import (
-    checkout_branch,
     create_branch,
 )
 from mcp_workspace.git_operations.diffs import (

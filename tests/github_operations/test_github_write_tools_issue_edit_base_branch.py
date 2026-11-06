@@ -1,7 +1,7 @@
 """Tests for the Base Branch section guard in the ``github_issue_edit`` MCP tool."""
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest

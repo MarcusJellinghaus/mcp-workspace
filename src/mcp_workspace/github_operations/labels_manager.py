@@ -7,7 +7,7 @@ including creating, reading, updating, and deleting labels via the GitHub API.
 import logging
 import re
 from pathlib import Path
-from typing import Optional, TypedDict
+from typing import TypedDict
 
 from mcp_coder_utils.log_utils import log_function_call
 
@@ -31,7 +31,7 @@ class LabelsManager(BaseGitHubManager):
     Provides methods for creating, reading, updating, and deleting GitHub labels.
     """
 
-    def __init__(self, project_dir: Optional[Path] = None) -> None:
+    def __init__(self, project_dir: Path | None = None) -> None:
         """Initialize LabelsManager.
 
         Args:
@@ -61,10 +61,7 @@ class LabelsManager(BaseGitHubManager):
             return False
 
         # Check for leading or trailing whitespace
-        if name != name.strip():
-            return False
-
-        return True
+        return name == name.strip()
 
     def _validate_color(self, color: str) -> bool:
         """Validate hex color code.
@@ -208,9 +205,9 @@ class LabelsManager(BaseGitHubManager):
     def update_label(
         self,
         name: str,
-        color: Optional[str] = None,
-        description: Optional[str] = None,
-        new_name: Optional[str] = None,
+        color: str | None = None,
+        description: str | None = None,
+        new_name: str | None = None,
     ) -> LabelData:
         """Update an existing label.
 

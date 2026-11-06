@@ -2,7 +2,7 @@
 
 import re
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from git import Repo
 from git.exc import InvalidGitRepositoryError, NoSuchPathError
@@ -37,10 +37,10 @@ def _git_version(repo: Repo) -> tuple[int, int]:
 
 def _probe_result(
     status: Literal["conflict", "clean", "unsupported", "error"],
-    error: Optional[str],
-    returncode: Optional[int] = None,
-    stderr: Optional[str] = None,
-    files: Optional[list[str]] = None,
+    error: str | None,
+    returncode: int | None = None,
+    stderr: str | None = None,
+    files: list[str] | None = None,
 ) -> RebaseProbe:
     """Build a RebaseProbe; ``success`` is derived from ``status``.
 
@@ -133,9 +133,9 @@ def _rebase_dir_exists(repo: Repo) -> bool:
 
 def _rebase_result(
     status: Literal["completed", "stopped_on_conflict", "error"],
-    error: Optional[str],
-    returncode: Optional[int] = None,
-    stderr: Optional[str] = None,
+    error: str | None,
+    returncode: int | None = None,
+    stderr: str | None = None,
 ) -> RebaseResult:
     """Build a RebaseResult; ``success`` is derived from ``status``.
 

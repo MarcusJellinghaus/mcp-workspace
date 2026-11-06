@@ -6,9 +6,10 @@ is not None``. That includes a ``RetryError`` with unknown status, on purpose.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
-from typing import Any, Iterator
+from datetime import UTC, datetime
+from typing import Any
 
 from github.GithubException import GithubException
 
@@ -31,7 +32,7 @@ def _reset_at(exc: BaseException) -> datetime | None:
     headers = {k.lower(): v for k, v in (exc.headers or {}).items()}
     reset = headers.get("x-ratelimit-reset")
     if reset and reset.isdigit():
-        return datetime.fromtimestamp(int(reset), tz=timezone.utc)
+        return datetime.fromtimestamp(int(reset), tz=UTC)
     return None
 
 

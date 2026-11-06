@@ -3,14 +3,12 @@
 import io
 import zipfile
 from pathlib import Path
-from typing import Dict
 from unittest.mock import Mock, patch
 
 import pytest
 import requests
-from github import GithubException
 
-from mcp_workspace.github_operations import CIResultsManager, CIStatusData
+from mcp_workspace.github_operations import CIResultsManager
 
 
 class TestDownloadAndExtractZip:
@@ -172,8 +170,8 @@ class TestDownloadTrafficLog:
         assert result == {"result.txt": "ok"}
         lines = self._lines(log_dir)
         assert len(lines) == 1
-        assert "GET /repos/test/repo/actions/runs/123/logs | 200 | core 4100" in (
-            lines[0]
+        assert (
+            "GET /repos/test/repo/actions/runs/123/logs | 200 | core 4100" in (lines[0])
         )
         assert "CIResultsManager._download_and_extract_zip" in lines[0]
 

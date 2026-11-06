@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
 class TaskTrackerError(Exception):
@@ -24,7 +24,7 @@ class TaskTrackerSectionNotFoundError(TaskTrackerError):
     """Raised when the Tasks section is not found in the tracker."""
 
 
-class TaskTrackerStatus(str, Enum):
+class TaskTrackerStatus(StrEnum):
     """Status of the task tracker: COMPLETE, INCOMPLETE, N_A, ERROR."""
 
     COMPLETE = "COMPLETE"

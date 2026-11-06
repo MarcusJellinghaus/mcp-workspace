@@ -6,8 +6,8 @@ resolving the ``Optional[bool]`` tri-state (per-call override vs. the
 configured server default) into a plain bool passed downstream.
 """
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 from unittest.mock import AsyncMock, patch
 
 import pytest

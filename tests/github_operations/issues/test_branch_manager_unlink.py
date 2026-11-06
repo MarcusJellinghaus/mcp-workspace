@@ -136,7 +136,8 @@ class TestDeleteLinkedBranch:
         # Verify mutation was NOT called (branch not found)
         assert (
             not hasattr(
-                mock_manager._github_client._Github__requester, "graphql_named_mutation"  # type: ignore[attr-defined]
+                mock_manager._github_client._Github__requester,  # type: ignore[attr-defined]
+                "graphql_named_mutation",
             )
             or not mock_manager._github_client._Github__requester.graphql_named_mutation.called  # type: ignore[attr-defined]
         )

@@ -3,10 +3,11 @@
 import asyncio
 import logging
 import secrets
+from collections.abc import Iterable
 from datetime import datetime
 from itertools import islice
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from mcp.server.fastmcp import FastMCP
 from mcp_coder_utils.log_utils import log_function_call
@@ -21,10 +22,9 @@ from mcp_workspace.file_tools import append_file as append_file_util
 from mcp_workspace.file_tools import delete_directory as delete_directory_util
 from mcp_workspace.file_tools import delete_file as delete_file_util
 from mcp_workspace.file_tools import edit_file as edit_file_util
-from mcp_workspace.file_tools import list_directory_tree
+from mcp_workspace.file_tools import list_directory_tree, normalize_path
 from mcp_workspace.file_tools import list_files as list_files_util
 from mcp_workspace.file_tools import move_file as move_file_util
-from mcp_workspace.file_tools import normalize_path
 from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools import save_file as save_file_util
 from mcp_workspace.file_tools import search_files as search_files_util
@@ -33,9 +33,9 @@ from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server_reference_tools import (
     get_reference_project_path,
     get_reference_repo_url,
+    set_reference_projects,
 )
 from mcp_workspace.server_reference_tools import register as register_reference_tools
-from mcp_workspace.server_reference_tools import set_reference_projects
 
 if TYPE_CHECKING:
     # Type-only: does not execute, so PyGithub stays off the startup import path
@@ -62,10 +62,10 @@ mcp = FastMCP(
 register_reference_tools(mcp)
 
 # Store the project directory as a module-level variable
-_project_dir: Optional[Path] = None
+_project_dir: Path | None = None
 
 # Per-project default line limit for check_file_size (set via --file-size-limit)
-_file_size_limit: Optional[int] = None
+_file_size_limit: int | None = None
 
 # Per-server default for check_branch_status' review gate (set via --fail-on-reviews)
 _fail_on_reviews: bool = False
@@ -81,7 +81,7 @@ _file_locks: dict[str, asyncio.Lock] = {}
 _STATUS_LABEL_PREFIX = "status-"
 
 
-def _ref_suffix(reference_name: Optional[str]) -> str:
+def _ref_suffix(reference_name: str | None) -> str:
     """Return the clause naming a reference project, or "" for the workspace.
 
     Args:
@@ -96,10 +96,10 @@ def _ref_suffix(reference_name: Optional[str]) -> str:
 
 def _check_labels(
     manager: Any,
-    add: List[str],
-    remove: List[str],
-    reference_name: Optional[str] = None,
-) -> Optional[str]:
+    add: list[str],
+    remove: list[str],
+    reference_name: str | None = None,
+) -> str | None:
     """Reject status-* labels on both sides, then unknown add-side names.
 
     Both checks are case-insensitive, because GitHub label names are: adding
@@ -156,7 +156,7 @@ def _check_labels(
     return None
 
 
-def _check_base_branch(body: Optional[str]) -> Optional[str]:
+def _check_base_branch(body: str | None) -> str | None:
     """Reject a multi-line or invalid ref name ### Base Branch before any write.
 
     Args:
@@ -184,7 +184,7 @@ def _check_base_branch(body: Optional[str]) -> Optional[str]:
     return None
 
 
-def _resolve_assignees(manager: Any, logins: List[str]) -> List[str]:
+def _resolve_assignees(manager: Any, logins: list[str]) -> list[str]:
     """Resolve '@me' to the authenticated login, cached per GitHub host and token.
 
     Args:
@@ -212,7 +212,7 @@ def _resolve_assignees(manager: Any, logins: List[str]) -> List[str]:
     return [login if name == "@me" else name for name in logins]
 
 
-def _normalize_newlines(text: Optional[str]) -> str:
+def _normalize_newlines(text: str | None) -> str:
     r"""Return text with CRLF and CR line endings folded to LF.
 
     Args:
@@ -226,13 +226,13 @@ def _normalize_newlines(text: Optional[str]) -> str:
 
 def _edit_change_lines(
     issue: Any,
-    title: Optional[str],
-    body: Optional[str],
-    state: Optional[str],
-    add_labels: Optional[List[str]],
-    remove_labels: Optional[List[str]],
-    assignees: List[str],
-) -> List[str]:
+    title: str | None,
+    body: str | None,
+    state: str | None,
+    add_labels: list[str] | None,
+    remove_labels: list[str] | None,
+    assignees: list[str],
+) -> list[str]:
     """Describe which requested changes are visible in the refetched issue.
 
     Only arguments the caller actually passed are reported: an argument left at
@@ -321,8 +321,8 @@ def _check_not_gitignored(file_path: str) -> None:
 
 
 def _resolve_body(
-    body: Optional[str], body_file: Optional[str], conflict: bool
-) -> Optional[str]:
+    body: str | None, body_file: str | None, conflict: bool
+) -> str | None:
     """Return the body to send: body unchanged, or body_file's text verbatim.
 
     The file is read under read_file's rules (gitignore boundary, project
@@ -371,7 +371,7 @@ def set_project_dir(directory: Path) -> None:
 
 
 @log_function_call
-def set_file_size_limit(limit: Optional[int]) -> None:
+def set_file_size_limit(limit: int | None) -> None:
     """Set the per-project default line limit used by check_file_size.
 
     Args:
@@ -410,12 +410,12 @@ def set_enforce_base_branch_format(value: bool) -> None:
 @mcp.tool()
 @log_function_call
 def search_files(
-    glob: Optional[str] = None,
-    pattern: Optional[str] = None,
+    glob: str | None = None,
+    pattern: str | None = None,
     context_lines: int = 0,
     max_results: int = 50,
     max_result_lines: int = 200,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Search file contents by regex and/or find files by glob pattern.
 
     Modes:
@@ -471,7 +471,7 @@ def search_files(
 
 @mcp.tool()
 @log_function_call
-def list_directory(path: str = ".", dirs_only: bool = False) -> List[str]:
+def list_directory(path: str = ".", dirs_only: bool = False) -> list[str]:
     """List files and directories in the project directory.
 
     Args:
@@ -522,9 +522,9 @@ def list_directory(path: str = ".", dirs_only: bool = False) -> List[str]:
 @log_function_call
 def read_file(
     file_path: str,
-    start_line: Optional[int] = None,
-    end_line: Optional[int] = None,
-    with_line_numbers: Optional[bool] = None,
+    start_line: int | None = None,
+    end_line: int | None = None,
+    with_line_numbers: bool | None = None,
 ) -> str:
     """Read a file, or a line slice via start_line/end_line.
 
@@ -843,13 +843,13 @@ async def edit_file(
 @log_function_call
 async def git(
     command: str,
-    args: Optional[List[str]] = None,
-    pathspec: Optional[List[str]] = None,
-    search: Optional[str] = None,
+    args: list[str] | None = None,
+    pathspec: list[str] | None = None,
+    search: str | None = None,
     context: int = 3,
-    max_lines: Optional[int] = None,
+    max_lines: int | None = None,
     compact: bool = True,
-    reference_name: Optional[str] = None,
+    reference_name: str | None = None,
 ) -> str:
     """Run a read-only git command on the workspace or a reference project.
 
@@ -894,7 +894,7 @@ async def git(
     )
 
 
-def _issue_manager(reference_name: Optional[str]) -> "IssueManager":
+def _issue_manager(reference_name: str | None) -> "IssueManager":
     """Build an IssueManager for the workspace repo or a reference project.
 
     Args:
@@ -918,7 +918,7 @@ def _issue_manager(reference_name: Optional[str]) -> "IssueManager":
     return IssueManager(repo_url=get_reference_repo_url(reference_name))
 
 
-def _pr_manager(reference_name: Optional[str]) -> "PullRequestManager":
+def _pr_manager(reference_name: str | None) -> "PullRequestManager":
     """Build a PullRequestManager for the workspace repo or a reference project.
 
     Args:
@@ -943,7 +943,7 @@ def _pr_manager(reference_name: Optional[str]) -> "PullRequestManager":
     return PullRequestManager(repo_url=get_reference_repo_url(reference_name))
 
 
-def _linked_branches(number: int, reference_name: Optional[str]) -> Optional[list[str]]:
+def _linked_branches(number: int, reference_name: str | None) -> list[str] | None:
     """Look up an issue's linked branches; None when the lookup fails for any reason.
 
     Args:
@@ -984,7 +984,7 @@ def _repo_access_error(manager: "IssueManager") -> str:
     return f"Error: Could not access repository (tried {identifier.api_base_url})"
 
 
-def _repo_full_name(manager: "IssueManager") -> Optional[str]:
+def _repo_full_name(manager: "IssueManager") -> str | None:
     """Resolve the repository a manager reads from, for diagnostics.
 
     Args:
@@ -997,7 +997,7 @@ def _repo_full_name(manager: "IssueManager") -> Optional[str]:
     return str(repo.full_name) if repo else None
 
 
-def _allowlist_for(associations: Iterable[Optional[str]]) -> frozenset[str]:
+def _allowlist_for(associations: Iterable[str | None]) -> frozenset[str]:
     """Read the allowlist only when some author's role is not trusted.
 
     Args:
@@ -1023,7 +1023,7 @@ def github_issue_view(
     number: int,
     include_comments: bool = True,
     max_lines: int = 200,
-    reference_name: Optional[str] = None,
+    reference_name: str | None = None,
     include_linked_branches: bool = False,
 ) -> str:
     """View a GitHub issue with full detail.
@@ -1083,11 +1083,11 @@ def github_issue_view(
 @log_function_call
 def github_issue_list(
     state: str = "open",
-    labels: Optional[List[str]] = None,
-    assignee: Optional[str] = None,
-    since: Optional[str] = None,
+    labels: list[str] | None = None,
+    assignee: str | None = None,
+    since: str | None = None,
     max_results: int = 30,
-    reference_name: Optional[str] = None,
+    reference_name: str | None = None,
 ) -> str:
     """List GitHub issues with optional filters.
 
@@ -1126,7 +1126,7 @@ def github_issue_list(
             since=since_dt,
             max_results=capped + 1,
         )
-        repo_full_name: Optional[str] = None
+        repo_full_name: str | None = None
         if not issues:
             repo_full_name = _repo_full_name(manager)
             if repo_full_name is None:
@@ -1143,7 +1143,7 @@ def github_pr_view(
     number: int,
     include_comments: bool = False,
     max_lines: int = 200,
-    reference_name: Optional[str] = None,
+    reference_name: str | None = None,
 ) -> str:
     """View a GitHub pull request with full detail.
 
@@ -1187,9 +1187,9 @@ def github_pr_view(
             "user": pr.user.login if pr.user else None,
             "author_association": normalize_author_association(pr.author_association),
         }
-        reviews: Optional[List[ReviewData]] = None
-        conversation_comments: Optional[List[ConversationCommentData]] = None
-        inline_comments: Optional[List[InlineCommentData]] = None
+        reviews: list[ReviewData] | None = None
+        conversation_comments: list[ConversationCommentData] | None = None
+        inline_comments: list[InlineCommentData] | None = None
         if include_comments:
             reviews = [
                 ReviewData(
@@ -1242,13 +1242,13 @@ def github_pr_view(
 @log_function_call
 def github_search(
     query: str,
-    state: Optional[str] = None,
-    labels: Optional[List[str]] = None,
-    assignee: Optional[str] = None,
-    sort: Optional[str] = None,
-    order: Optional[str] = None,
+    state: str | None = None,
+    labels: list[str] | None = None,
+    assignee: str | None = None,
+    sort: str | None = None,
+    order: str | None = None,
     max_results: int = 30,
-    reference_name: Optional[str] = None,
+    reference_name: str | None = None,
 ) -> str:
     """Search one repository's GitHub issues; PRs need is:pull-request or is:pr.
 
@@ -1305,14 +1305,14 @@ def github_search(
         repo = manager._get_repository()  # pylint: disable=protected-access
         if not repo:
             return _repo_access_error(manager)
-        kwargs: Dict[str, str] = {"query": spec.to_query(repo.full_name)}
+        kwargs: dict[str, str] = {"query": spec.to_query(repo.full_name)}
         if sort:
             kwargs["sort"] = sort
         if order:
             kwargs["order"] = order
         # pylint: disable=protected-access
         results = manager._github_client.search_issues(**kwargs)
-        items: List[Dict[str, Any]] = []
+        items: list[dict[str, Any]] = []
         # max(0, ...) because islice rejects a negative stop, where the old
         # enumerate guard simply collected nothing.
         capped = max(0, max_results)
@@ -1363,10 +1363,10 @@ def github_search(
 def github_issue_create(
     title: str,
     body: str = "",
-    labels: Optional[List[str]] = None,
-    assignees: Optional[List[str]] = None,
-    reference_name: Optional[str] = None,
-    body_file: Optional[str] = None,
+    labels: list[str] | None = None,
+    assignees: list[str] | None = None,
+    reference_name: str | None = None,
+    body_file: str | None = None,
 ) -> str:
     """Create a real GitHub issue. This writes to GitHub.
 
@@ -1435,14 +1435,14 @@ def github_issue_create(
 @log_function_call
 def github_issue_edit(
     number: int,
-    title: Optional[str] = None,
-    body: Optional[str] = None,
-    add_labels: Optional[List[str]] = None,
-    remove_labels: Optional[List[str]] = None,
-    add_assignees: Optional[List[str]] = None,
-    state: Optional[str] = None,
-    reference_name: Optional[str] = None,
-    body_file: Optional[str] = None,
+    title: str | None = None,
+    body: str | None = None,
+    add_labels: list[str] | None = None,
+    remove_labels: list[str] | None = None,
+    add_assignees: list[str] | None = None,
+    state: str | None = None,
+    reference_name: str | None = None,
+    body_file: str | None = None,
 ) -> str:
     """Modify a real GitHub issue. This writes to GitHub.
 
@@ -1521,7 +1521,7 @@ def github_issue_edit(
         # failure came before the first one, or the request had no write to
         # make. Either way nothing can have been written, which is the only
         # case in which claiming "no changes were made" is honest.
-        attempted: List[str] = []
+        attempted: list[str] = []
         try:
             issue = manager.edit_issue(
                 number,
@@ -1570,7 +1570,7 @@ def github_issue_edit(
         # nothing was applied — which makes both "partially failed" and
         # "Updated" untrue.
         failed_before_write = bool(reason) and not attempted
-        lines: List[str] = []
+        lines: list[str] = []
         if failed_before_write:
             lines.append(
                 f"Error: edit of issue #{number} failed ({reason}) "
@@ -1597,7 +1597,7 @@ def github_issue_edit(
         return _tool_error(e)
 
 
-def _api_error(exc: Exception, reference_name: Optional[str]) -> str:
+def _api_error(exc: Exception, reference_name: str | None) -> str:
     """Render a GitHub or validation error as a caller-facing error string.
 
     Args:
@@ -1640,7 +1640,7 @@ def _subissue_write(
     parent_number: int,
     child_number: int,
     unlink: bool,
-    reference_name: Optional[str],
+    reference_name: str | None,
 ) -> str:
     """Link or unlink a sub-issue and render the outcome.
 
@@ -1677,10 +1677,7 @@ def _subissue_write(
         count = "" if link.total is None else f" (~{link.total} sub-issues, may lag)"
         verb = "Unlinked" if unlink else "Linked"
         relation = "from" if unlink else "as a sub-issue of"
-        return (
-            f"{verb} #{child_number} {relation} #{parent_number} "
-            f"— {link.url}{count}"
-        )
+        return f"{verb} #{child_number} {relation} #{parent_number} — {link.url}{count}"
     except (GithubException, RetryError, ValueError) as exc:
         return _api_error(exc, reference_name)
 
@@ -1688,7 +1685,7 @@ def _subissue_write(
 @mcp.tool()
 @log_function_call
 def github_subissue_add(
-    parent_number: int, child_number: int, reference_name: Optional[str] = None
+    parent_number: int, child_number: int, reference_name: str | None = None
 ) -> str:
     """Link an existing issue as a sub-issue of another. This writes to GitHub.
 
@@ -1718,7 +1715,7 @@ def github_subissue_add(
 @mcp.tool()
 @log_function_call
 def github_subissue_list(
-    parent_number: int, max_results: int = 30, reference_name: Optional[str] = None
+    parent_number: int, max_results: int = 30, reference_name: str | None = None
 ) -> str:
     """List an issue's sub-issues. This only reads from GitHub.
 
@@ -1744,8 +1741,7 @@ def github_subissue_list(
 
     if parent_number <= 0:
         return (
-            f"Error: invalid issue number: {parent_number}"
-            f"{_ref_suffix(reference_name)}"
+            f"Error: invalid issue number: {parent_number}{_ref_suffix(reference_name)}"
         )
     try:
         manager = _issue_manager(reference_name)
@@ -1769,7 +1765,7 @@ def github_subissue_list(
         return "\n".join(
             f"#{c.number}  {c.state}  {untrusted_prefix(login, assoc, trusted)}"
             f"{c.title}"
-            for c, (login, assoc) in zip(children, authors)
+            for c, (login, assoc) in zip(children, authors, strict=True)
         )
     except (GithubException, RetryError, ValueError) as exc:
         return _api_error(exc, reference_name)
@@ -1778,7 +1774,7 @@ def github_subissue_list(
 @mcp.tool()
 @log_function_call
 def github_subissue_remove(
-    parent_number: int, child_number: int, reference_name: Optional[str] = None
+    parent_number: int, child_number: int, reference_name: str | None = None
 ) -> str:
     """Unlink a sub-issue from its parent. This writes to GitHub.
 
@@ -1808,8 +1804,8 @@ def github_subissue_remove(
 def github_issue_comment(
     number: int,
     body: str = "",
-    reference_name: Optional[str] = None,
-    body_file: Optional[str] = None,
+    reference_name: str | None = None,
+    body_file: str | None = None,
 ) -> str:
     """Post a real comment on a GitHub issue. This writes to GitHub.
 
@@ -1857,7 +1853,7 @@ def github_review_comment_reply(
     pr_number: int,
     comment_id: int,
     body: str,
-    reference_name: Optional[str] = None,
+    reference_name: str | None = None,
 ) -> str:
     """Reply to an inline PR review comment. This writes to GitHub.
 
@@ -1895,7 +1891,7 @@ def github_review_comment_reply(
 def github_review_thread_resolve(
     pr_number: int,
     thread_id: str,
-    reference_name: Optional[str] = None,
+    reference_name: str | None = None,
 ) -> str:
     """Resolve an inline PR review thread. This writes to GitHub.
 
@@ -1929,8 +1925,8 @@ def github_review_thread_resolve(
 @mcp.tool()
 @log_function_call
 def github_label_list(
-    search: Optional[str] = None,
-    reference_name: Optional[str] = None,
+    search: str | None = None,
+    reference_name: str | None = None,
 ) -> str:
     """List the labels defined in the workspace repository or a reference project.
 
@@ -1976,9 +1972,9 @@ def github_label_list(
 def github_pr_create(
     title: str,
     body: str = "",
-    head: Optional[str] = None,
-    base: Optional[str] = None,
-    body_file: Optional[str] = None,
+    head: str | None = None,
+    base: str | None = None,
+    body_file: str | None = None,
 ) -> str:
     """Open a real pull request on this repository. This writes to GitHub.
 
@@ -2062,7 +2058,7 @@ def github_pr_create(
 
 def _resolve_base_branch(
     project_dir: Path, branch: str, pr_manager: Any
-) -> tuple[Optional[str], Optional[str]]:
+) -> tuple[str | None, str | None]:
     """Resolve the base branch for ``branch`` from its issue, PR, merge-base or default.
 
     Args:
@@ -2129,7 +2125,7 @@ def get_base_branch() -> str:
     if _project_dir is None:
         raise ValueError("Project directory has not been set")
 
-    pr_manager: Optional[PullRequestManager] = None
+    pr_manager: PullRequestManager | None = None
 
     try:
         pr_manager = PullRequestManager(_project_dir)
@@ -2154,7 +2150,7 @@ def get_base_branch() -> str:
 @mcp.tool()
 @log_function_call
 def check_file_size(
-    max_lines: Optional[int] = None, show_allowlisted: bool = False
+    max_lines: int | None = None, show_allowlisted: bool = False
 ) -> str:
     """Check file line counts against threshold.
 
@@ -2198,7 +2194,7 @@ async def check_branch_status(
     max_log_lines: int = 300,
     ci_timeout: int = 300,
     pr_timeout: int = 0,
-    fail_on_reviews: Optional[bool] = None,
+    fail_on_reviews: bool | None = None,
 ) -> str:
     """Check comprehensive branch status: git state, CI, PR, tasks.
 
@@ -2233,8 +2229,8 @@ async def check_branch_status(
 @log_function_call
 def run_server(
     project_dir: Path,
-    reference_projects: Optional[Dict[str, ReferenceProject]] = None,
-    file_size_limit: Optional[int] = None,
+    reference_projects: dict[str, ReferenceProject] | None = None,
+    file_size_limit: int | None = None,
     fail_on_reviews: bool = False,
     enforce_base_branch_format: bool = True,
 ) -> None:

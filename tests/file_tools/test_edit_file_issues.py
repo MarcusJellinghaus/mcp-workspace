@@ -44,7 +44,7 @@ class TestEditFileIndentationIssues(unittest.TestCase):
         # Should succeed and return a diff
         self.assertIn("---", result)
 
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
 
         # Verify the edit fixed the indentation
@@ -88,7 +88,7 @@ class TestEditFileIndentationIssues(unittest.TestCase):
         # Should succeed and produce a diff
         self.assertIn("---", result)
 
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
         self.assertIn('test = "test"', content)
         self.assertNotIn('function_name = "test"', content)
@@ -124,7 +124,7 @@ class TestEditFileIndentationIssues(unittest.TestCase):
         # Should detect as already applied (returns message, not diff)
         self.assertNotIn("---", result)
 
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
         # Must NOT have duplicated suffix
         self.assertNotIn("# type: ignore[misc]  # type: ignore[misc]", content)
@@ -142,7 +142,7 @@ class TestEditFileIndentationIssues(unittest.TestCase):
 
         self.assertIn("---", result)
 
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
         self.assertIn("foobar = 1", content)
 
@@ -159,6 +159,6 @@ class TestEditFileIndentationIssues(unittest.TestCase):
 
         self.assertIn("---", result)
 
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
         self.assertEqual(content, "short_with_much_longer_suffix")

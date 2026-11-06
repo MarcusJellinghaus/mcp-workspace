@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from unittest.mock import Mock
 
 from github.GithubException import GithubException
@@ -21,7 +21,7 @@ from mcp_workspace.utils.repo_identifier import RepoIdentifier
 from mcp_workspace.utils.timezone_utils import format_for_cache, utc_now
 
 _REPO = RepoIdentifier("o", "r")
-_CREATED = datetime(2026, 10, 27, 9, 0, tzinfo=timezone.utc)
+_CREATED = datetime(2026, 10, 27, 9, 0, tzinfo=UTC)
 _PR_UPDATED = "2026-10-27T10:00:00+00:00"
 _ISSUE_UPDATED = "2026-10-27T08:00:00+00:00"
 
@@ -59,7 +59,7 @@ def _issue(number: int = 5, updated_at: str = _ISSUE_UPDATED) -> IssueData:
     )
 
 
-def _run(status: str = "completed", conclusion: Optional[str] = "success") -> Mock:
+def _run(status: str = "completed", conclusion: str | None = "success") -> Mock:
     run = Mock()
     run.id = 100
     run.status = status
@@ -74,7 +74,7 @@ def _run(status: str = "completed", conclusion: Optional[str] = "success") -> Mo
     return run
 
 
-def _feedback(unavailable: Optional[dict[str, Exception]] = None) -> PRFeedback:
+def _feedback(unavailable: dict[str, Exception] | None = None) -> PRFeedback:
     return {
         "unresolved_threads": [],
         "resolved_thread_count": 1,
@@ -116,7 +116,7 @@ def _server_error() -> GithubException:
 class _Env:
     """A mocked repo + PullRequestManager whose call counts span several runs."""
 
-    def __init__(self, prs: Optional[list[int]] = None) -> None:
+    def __init__(self, prs: list[int] | None = None) -> None:
         numbers = prs if prs is not None else [5]
         self.repo = Mock()
         self.repo.get_pulls.return_value = [_pr_list_item(n) for n in numbers]
@@ -124,7 +124,7 @@ class _Env:
         self.repo.get_branch.side_effect = lambda _name: Mock(
             commit=Mock(sha=self.base_tip)
         )
-        self.mergeable: Optional[str] = "clean"
+        self.mergeable: str | None = "clean"
         self.repo.get_pull.side_effect = lambda _n: Mock(mergeable_state=self.mergeable)
         self.runs: list[Mock] = [_run()]
         self.repo.get_workflow_runs.side_effect = lambda **_kw: list(self.runs)
@@ -132,7 +132,7 @@ class _Env:
         self.manager = Mock(spec=PullRequestManager)
         self.manager.repo_identifier = _REPO
         self.manager._get_repository.return_value = self.repo
-        self.manager._collect_pr_feedback.side_effect = lambda *_a, **_kw: (_feedback())
+        self.manager._collect_pr_feedback.side_effect = lambda *_a, **_kw: _feedback()
         self.issue = Mock()
         self.issue.get_events.return_value = [_event()]
         self.manager._get_issue_checked.return_value = self.issue

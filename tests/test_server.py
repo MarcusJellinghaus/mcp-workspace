@@ -1,7 +1,7 @@
 """Tests for the MCP server API endpoints."""
 
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import Callable, Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -60,7 +60,7 @@ def test_save_file(project_dir: Path) -> None:
     assert result is True
     assert abs_file_path.exists()
 
-    with open(abs_file_path, "r", encoding="utf-8") as f:
+    with open(abs_file_path, encoding="utf-8") as f:
         content = f.read()
     assert content == TEST_CONTENT
 
@@ -111,7 +111,7 @@ def test_append_file(project_dir: Path) -> None:
 
     # Verify the combined content
     expected_content = initial_content + append_content
-    with open(abs_file_path, "r", encoding="utf-8") as f:
+    with open(abs_file_path, encoding="utf-8") as f:
         content = f.read()
     assert content == expected_content
 
@@ -133,7 +133,7 @@ def test_append_file_empty(project_dir: Path) -> None:
     assert abs_file_path.exists()
 
     # Verify the content
-    with open(abs_file_path, "r", encoding="utf-8") as f:
+    with open(abs_file_path, encoding="utf-8") as f:
         content = f.read()
     assert content == append_content
 
@@ -174,7 +174,7 @@ def test_move_file(project_dir: Path) -> None:
     assert result is True
     assert not abs_source.exists()
     assert abs_dest.exists()
-    with open(abs_dest, "r", encoding="utf-8") as f:
+    with open(abs_dest, encoding="utf-8") as f:
         assert f.read() == "Test content"
 
     # Clean up

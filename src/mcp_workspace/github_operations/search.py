@@ -7,7 +7,6 @@ therefore reject bad input before paying for a network round-trip.
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -28,9 +27,9 @@ class SearchSpec:
     """
 
     query: str
-    state: Optional[str]
+    state: str | None
     labels: list[str]
-    assignee: Optional[str]
+    assignee: str | None
     needs_type_default: bool
     has_inline_state: bool
 
@@ -38,9 +37,9 @@ class SearchSpec:
     def from_arguments(
         cls,
         query: str,
-        state: Optional[str] = None,
-        labels: Optional[list[str]] = None,
-        assignee: Optional[str] = None,
+        state: str | None = None,
+        labels: list[str] | None = None,
+        assignee: str | None = None,
     ) -> "SearchSpec":
         """Validate and normalize search arguments.
 

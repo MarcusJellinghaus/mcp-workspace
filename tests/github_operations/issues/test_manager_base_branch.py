@@ -3,7 +3,6 @@
 import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -187,7 +186,7 @@ def _token_login() -> Iterator[MagicMock]:
 
 def _fetch_one(
     manager: IssueManager, mock_issue: MagicMock, via: str
-) -> tuple[Optional[str], Optional[str]]:
+) -> tuple[str | None, str | None]:
     """Return (base_branch, base_branch_error) for one issue via get_issue or list_issues."""
     if via == "get_issue":
         manager._repository.get_issue.return_value = mock_issue

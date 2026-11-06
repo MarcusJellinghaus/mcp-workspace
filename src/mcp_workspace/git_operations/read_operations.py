@@ -8,7 +8,6 @@ to all 12 supported sub-commands.
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from git.exc import GitCommandError
 
@@ -52,7 +51,7 @@ def _run_simple_command(
     project_dir: Path,
     command: str,
     args: list[str],
-    pathspec: Optional[list[str]],
+    pathspec: list[str] | None,
     max_lines: int,
     no_output_message: str = "No output.",
     use_safety_flags: bool = True,
@@ -96,9 +95,9 @@ def _run_simple_command(
 
 def git_log(
     project_dir: Path,
-    args: Optional[list[str]] = None,
-    pathspec: Optional[list[str]] = None,
-    search: Optional[str] = None,
+    args: list[str] | None = None,
+    pathspec: list[str] | None = None,
+    search: str | None = None,
     max_lines: int = 50,
 ) -> str:
     """Run ``git log`` with validated arguments.
@@ -145,9 +144,9 @@ def git_log(
 
 def git_diff(
     project_dir: Path,
-    args: Optional[list[str]] = None,
-    pathspec: Optional[list[str]] = None,
-    search: Optional[str] = None,
+    args: list[str] | None = None,
+    pathspec: list[str] | None = None,
+    search: str | None = None,
     context: int = 3,
     max_lines: int = 100,
     compact: bool = True,
@@ -254,9 +253,9 @@ def git_diff(
 
 def git_status(
     project_dir: Path,
-    args: Optional[list[str]] = None,
+    args: list[str] | None = None,
     max_lines: int = 200,
-    pathspec: Optional[list[str]] = None,
+    pathspec: list[str] | None = None,
 ) -> str:
     """Run ``git status`` with validated arguments.
 
@@ -291,7 +290,7 @@ def git_status(
 
 def git_merge_base(
     project_dir: Path,
-    args: Optional[list[str]] = None,
+    args: list[str] | None = None,
 ) -> str:
     """Run ``git merge-base`` with validated arguments.
 
@@ -332,9 +331,9 @@ def git_merge_base(
 
 def git_show(
     project_dir: Path,
-    args: Optional[list[str]] = None,
-    pathspec: Optional[list[str]] = None,
-    search: Optional[str] = None,
+    args: list[str] | None = None,
+    pathspec: list[str] | None = None,
+    search: str | None = None,
     context: int = 3,
     max_lines: int = 100,
     compact: bool = True,
@@ -450,7 +449,7 @@ def git_show(
 
 def git_branch(
     project_dir: Path,
-    args: Optional[list[str]] = None,
+    args: list[str] | None = None,
     max_lines: int = 100,
 ) -> str:
     """Run ``git branch`` with validated arguments (read-only only).
@@ -484,8 +483,8 @@ def git_branch(
 
 def git_check_ignore(
     project_dir: Path,
-    args: Optional[list[str]] = None,
-    pathspec: Optional[list[str]] = None,
+    args: list[str] | None = None,
+    pathspec: list[str] | None = None,
     max_lines: int = 50,
 ) -> str:
     """Run ``git check-ignore`` with validated arguments.
@@ -553,11 +552,11 @@ _SUPPORTS_CONTEXT: frozenset[str] = frozenset({"diff", "show"})
 def git(
     command: str,
     project_dir: Path,
-    args: Optional[list[str]] = None,
-    pathspec: Optional[list[str]] = None,
-    search: Optional[str] = None,
+    args: list[str] | None = None,
+    pathspec: list[str] | None = None,
+    search: str | None = None,
     context: int = 3,
-    max_lines: Optional[int] = None,
+    max_lines: int | None = None,
     compact: bool = True,
 ) -> str:
     """Unified dispatcher for read-only git commands.

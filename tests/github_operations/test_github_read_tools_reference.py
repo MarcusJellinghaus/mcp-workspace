@@ -1,7 +1,8 @@
 """Tests for reference_name support in the GitHub read-only MCP tools."""
 
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import Any, Callable, Generator
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest

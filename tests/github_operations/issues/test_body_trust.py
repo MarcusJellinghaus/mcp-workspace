@@ -1,8 +1,9 @@
 """Tests for IssueManager.check_body_trust and the body_trust module."""
 
+from collections.abc import Generator
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest

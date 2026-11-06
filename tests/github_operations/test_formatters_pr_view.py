@@ -1,6 +1,6 @@
 """Tests for format_pr_view, including the untrusted-author gate."""
 
-from typing import Any, Dict
+from typing import Any
 
 from mcp_workspace.github_operations.formatters import (
     InlineCommentData,
@@ -23,7 +23,7 @@ def _make_pr(
     merged: bool = False,
     user: str | None = "owner",
     author_association: str | None = "OWNER",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create a test PR data dict."""
     return {
         "number": number,

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import timedelta
-from typing import Any, Callable, Optional
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -37,7 +38,7 @@ _OTHER_REPO = RepoIdentifier("o", "other")
 _UPDATED = "2026-10-27T10:00:00Z"
 
 
-def _issue(number: int, updated_at: Optional[str] = _UPDATED) -> IssueData:
+def _issue(number: int, updated_at: str | None = _UPDATED) -> IssueData:
     return IssueData(
         number=number,
         title="t",
@@ -54,9 +55,7 @@ def _issue(number: int, updated_at: Optional[str] = _UPDATED) -> IssueData:
     )
 
 
-def _manager(
-    result: Optional[BranchLookup] = None, repo: RepoIdentifier = _REPO
-) -> Mock:
+def _manager(result: BranchLookup | None = None, repo: RepoIdentifier = _REPO) -> Mock:
     manager = Mock(spec=IssueBranchManager)
     manager.repo_identifier = repo
     manager.resolve_branch_for_issue.return_value = result or BranchLookup(
@@ -90,8 +89,8 @@ def _write_raw(content: str, repo: RepoIdentifier = _REPO) -> None:
 
 def _entry(
     status: str = "found",
-    branch: Optional[str] = "5-x",
-    fp: Optional[list[Any]] = None,
+    branch: str | None = "5-x",
+    fp: list[Any] | None = None,
     expires_in: timedelta = timedelta(hours=1),
 ) -> dict[str, Any]:
     return {

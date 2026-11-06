@@ -4,7 +4,7 @@ This module contains TypedDict definitions used across the PullRequestManager
 and its mixins.
 """
 
-from typing import Literal, Optional, TypedDict
+from typing import Literal, TypedDict
 
 
 class PullRequestData(TypedDict):
@@ -15,31 +15,31 @@ class PullRequestData(TypedDict):
     body: str
     state: str
     head_branch: str
-    head_sha: Optional[str]
+    head_sha: str | None
     base_branch: str
     url: str
-    created_at: Optional[str]
-    updated_at: Optional[str]
-    user: Optional[str]
-    mergeable: Optional[bool]
-    mergeable_state: Optional[str]
+    created_at: str | None
+    updated_at: str | None
+    user: str | None
+    mergeable: bool | None
+    mergeable_state: str | None
     merged: bool
     draft: bool
     assignees: list[str]
-    author_association: Optional[str]
+    author_association: str | None
 
 
 class ReviewThreadData(TypedDict):
     """TypedDict for one unresolved review thread, described by its first comment."""
 
     path: str
-    line: Optional[int]
+    line: int | None
     author: str
     body: str
     diff_hunk: str
-    comment_id: Optional[int]
-    thread_id: Optional[str]
-    author_association: Optional[str]
+    comment_id: int | None
+    thread_id: str | None
+    author_association: str | None
 
 
 class AlertData(TypedDict):
@@ -50,14 +50,14 @@ class AlertData(TypedDict):
     rule_description: str
     message: str
     path: str
-    line: Optional[int]
+    line: int | None
 
 
 class AlertsResult(TypedDict):
     """Code-scanning alerts of a PR head, as returned by ``PullRequestCache.alerts()``."""
 
     alerts: list[AlertData]
-    skipped: Optional[int]  # HTTP status (403/404) when alerts could not be checked
+    skipped: int | None  # HTTP status (403/404) when alerts could not be checked
     final: bool  # every CI run on head_sha completed; always True on a stored hit
 
 
@@ -67,8 +67,8 @@ class ConversationCommentData(TypedDict):
     author: str
     body: str
     id: int
-    created_at: Optional[str]
-    author_association: Optional[str]
+    created_at: str | None
+    author_association: str | None
 
 
 class ChangesRequestedData(TypedDict):
@@ -76,8 +76,8 @@ class ChangesRequestedData(TypedDict):
 
     author: str
     body: str
-    submitted_at: Optional[str]
-    author_association: Optional[str]
+    submitted_at: str | None
+    author_association: str | None
 
 
 class PRFeedback(TypedDict):
@@ -97,6 +97,6 @@ class MergeResult(TypedDict):
 
     merged: bool
     outcome: Literal["merged", "refused", "error"]
-    sha: Optional[str]  # merge commit SHA when merged
+    sha: str | None  # merge commit SHA when merged
     message: str  # GitHub's message, or the local failure reason
-    status: Optional[int]  # HTTP status when GitHub answered (405, 409, 5xx...)
+    status: int | None  # HTTP status when GitHub answered (405, 409, 5xx...)

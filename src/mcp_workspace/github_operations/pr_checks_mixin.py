@@ -7,7 +7,7 @@ get_non_green_checks lookup for a pull request's head commit.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from github.GithubException import GithubException
 from mcp_coder_utils.log_utils import log_function_call
@@ -52,8 +52,8 @@ class PRChecksMixin:
 
     @log_function_call
     def get_non_green_checks(
-        self: "PullRequestManager", pr_number: int, head_sha: Optional[str] = None
-    ) -> tuple[tuple[str, ...], Optional[str]]:
+        self: PullRequestManager, pr_number: int, head_sha: str | None = None
+    ) -> tuple[tuple[str, ...], str | None]:
         """List the commit statuses and check runs on a PR head that are not green.
 
         Non-green rules:

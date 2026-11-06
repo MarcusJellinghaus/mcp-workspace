@@ -5,7 +5,6 @@
 # risk selecting wrong branches; lower values may miss valid parents that
 # have moved forward since branching.
 from pathlib import Path
-from typing import Optional
 
 from git import Commit, RemoteReference, Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError
@@ -19,7 +18,7 @@ MERGE_BASE_DISTANCE_THRESHOLD = 20
 
 def _merge_base_distance(
     repo: Repo, current_commit: Commit, candidate_commit: Commit, ref_name: str
-) -> Optional[int]:
+) -> int | None:
     """Count the commits between merge-base(HEAD, candidate) and HEAD.
 
     Args:
@@ -54,7 +53,7 @@ def detect_parent_branch_via_merge_base(
     project_dir: Path,
     current_branch: str,
     distance_threshold: int = MERGE_BASE_DISTANCE_THRESHOLD,
-) -> Optional[str]:
+) -> str | None:
     """Detect parent branch using git merge-base.
 
     For each local and remote branch (candidate), find the merge-base with
@@ -121,18 +120,14 @@ def detect_parent_branch_via_merge_base(
                     continue
                 try:
                     candidates.append((head.name, head.name, head.commit))
-                except (
-                    Exception
-                ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+                except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
                     # One unreadable ref must not cost us every other candidate.
                     logger.debug("Error reading local branch '%s': %s", head.name, e)
             remote_refs: list[RemoteReference] = []
             try:
                 if "origin" in [r.name for r in repo.remotes]:
                     remote_refs = list(repo.remotes.origin.refs)
-            except (
-                Exception
-            ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+            except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
                 logger.debug("Error listing remote branches: %s", e)
             for ref in remote_refs:
                 try:
@@ -140,9 +135,7 @@ def detect_parent_branch_via_merge_base(
                     if branch_name in (current_branch, "HEAD"):
                         continue
                     candidates.append((branch_name, ref.name, ref.commit))
-                except (
-                    Exception
-                ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+                except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
                     # One unreadable ref must not cost us every other candidate.
                     logger.debug("Error reading remote branch: %s", e)
 
@@ -154,7 +147,7 @@ def detect_parent_branch_via_merge_base(
             # of one branch normally point at the same commit, and that commit
             # only has to be walked once; they are still scored separately when
             # they actually differ, which is the case issue #265 is about.
-            distance_by_commit: dict[str, Optional[int]] = {}
+            distance_by_commit: dict[str, int | None] = {}
             for branch_name, ref_name, candidate_commit in candidates:
                 sha = candidate_commit.hexsha
                 if sha not in distance_by_commit:
@@ -208,8 +201,6 @@ def detect_parent_branch_via_merge_base(
     except InvalidGitRepositoryError:
         logger.debug("Invalid git repository: %s", project_dir)
         return None
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.debug("Failed to detect parent branch: %s", e)
         return None

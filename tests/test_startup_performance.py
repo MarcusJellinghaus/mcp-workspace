@@ -43,6 +43,7 @@ def _run(code: str) -> str:
         text=True,
         env=_fresh_env(),
         timeout=60,
+        check=False,
     )
     assert proc.returncode == 0, f"subprocess failed:\n{proc.stderr}"
     return proc.stdout.strip()
@@ -57,6 +58,7 @@ def _time_process(code: str) -> float:
         text=True,
         env=_fresh_env(),
         timeout=60,
+        check=False,
     )
     elapsed = time.perf_counter() - start
     assert proc.returncode == 0, f"subprocess failed:\n{proc.stderr}"
@@ -79,9 +81,9 @@ def test_server_import_does_not_eagerly_load_github_or_gitpython() -> None:
     assert SRC_DIR in data["file"], f"tested wrong copy: {data['file']}"
     assert data["github"] is False, "PyGithub imported eagerly at server import"
     assert data["git"] is False, "GitPython imported eagerly at server import"
-    assert (
-        data["markdown_it"] is False
-    ), "markdown-it-py imported eagerly at server import"
+    assert data["markdown_it"] is False, (
+        "markdown-it-py imported eagerly at server import"
+    )
 
 
 def test_file_tools_import_does_not_load_gitpython() -> None:

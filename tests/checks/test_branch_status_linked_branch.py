@@ -5,8 +5,8 @@ the wiring that carries both new fields onto `BranchStatusReport`, and the
 rendering / review-gate / merge-verdict consequences of a non-OK state.
 """
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -30,16 +30,16 @@ from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
 Formatter = Callable[[BranchStatusReport], str]
 
-_FORMATTERS: List[Formatter] = [format_report_for_human, format_report_for_llm]
+_FORMATTERS: list[Formatter] = [format_report_for_human, format_report_for_llm]
 
 
 def _make_report(
     linked_branch_status: LinkedBranchStatus,
-    linked_branches: Tuple[str, ...] = (),
+    linked_branches: tuple[str, ...] = (),
     branch_name: str = "255-feature",
     ci_status: CIStatus = CIStatus.PASSED,
-    linked_branch_issue_number: Optional[int] = 255,
-    closing_pr_candidate: Optional[ClosingPRRef] = None,
+    linked_branch_issue_number: int | None = 255,
+    closing_pr_candidate: ClosingPRRef | None = None,
 ) -> BranchStatusReport:
     """Build an otherwise-clean report carrying the given linked-branch state."""
     return BranchStatusReport(
@@ -61,7 +61,7 @@ def _make_report(
     )
 
 
-def _linked_lines(rendered: str) -> List[str]:
+def _linked_lines(rendered: str) -> list[str]:
     """Return every ``Linked Branch:`` line in a rendered report."""
     return [line for line in rendered.splitlines() if line.startswith("Linked Branch:")]
 
@@ -124,9 +124,9 @@ class TestCollectLinkedBranchStatus:
     def test_state_matrix(
         self,
         mock_mgr_cls: MagicMock,
-        linked_and_prs: Optional[Tuple[List[str], List[ClosingPRRef]]],
-        expected: Tuple[
-            LinkedBranchStatus, Tuple[str, ...], Optional[int], Optional[ClosingPRRef]
+        linked_and_prs: tuple[list[str], list[ClosingPRRef]] | None,
+        expected: tuple[
+            LinkedBranchStatus, tuple[str, ...], int | None, ClosingPRRef | None
         ],
     ) -> None:
         mock_mgr = MagicMock()
@@ -316,10 +316,10 @@ class TestLinkedBranchRendering:
     def test_state_renders_one_line(
         self,
         status: LinkedBranchStatus,
-        linked: Tuple[str, ...],
-        closing_pr_candidate: Optional[ClosingPRRef],
-        expected_substrings: List[str],
-        forbidden_substrings: List[str],
+        linked: tuple[str, ...],
+        closing_pr_candidate: ClosingPRRef | None,
+        expected_substrings: list[str],
+        forbidden_substrings: list[str],
         formatter: Formatter,
     ) -> None:
         rendered = formatter(
@@ -352,6 +352,16 @@ class TestLinkedBranchRendering:
         lines = _linked_lines(formatter(report))
         assert len(lines) == 1
         assert f"'{branch}'" in lines[0]
+
+    @pytest.mark.parametrize("formatter", _FORMATTERS)
+    def test_linked_via_pr_without_candidate_renders_unknown(
+        self, formatter: Formatter
+    ) -> None:
+        report = _make_report(LinkedBranchStatus.LINKED_VIA_PR)
+
+        lines = _linked_lines(formatter(report))
+        assert len(lines) == 1
+        assert lines[0].startswith("Linked Branch: UNKNOWN")
 
     @pytest.mark.parametrize("formatter", _FORMATTERS)
     def test_not_checked_renders_no_line(self, formatter: Formatter) -> None:
@@ -392,7 +402,7 @@ class TestLinkedBranchRendering:
     )
     @pytest.mark.parametrize("issue_number", [255, None])
     def test_every_blocking_state_renders_a_reason(
-        self, status: LinkedBranchStatus, issue_number: Optional[int]
+        self, status: LinkedBranchStatus, issue_number: int | None
     ) -> None:
         """A blocked review gate is never rendered without its explanation."""
         report = _make_report(
@@ -495,8 +505,8 @@ class TestLinkedBranchReviewGate:
     def test_non_blocking_states_stay_clean(
         self,
         status: LinkedBranchStatus,
-        linked: Tuple[str, ...],
-        closing_pr_candidate: Optional[ClosingPRRef],
+        linked: tuple[str, ...],
+        closing_pr_candidate: ClosingPRRef | None,
     ) -> None:
         header = _review_gate_header(
             _make_report(status, linked, closing_pr_candidate=closing_pr_candidate),
@@ -515,7 +525,7 @@ class TestLinkedBranchSuppressesMergeVerdict:
     """
 
     @staticmethod
-    def _collect(mocks: Tuple[MagicMock, ...]) -> BranchStatusReport:
+    def _collect(mocks: tuple[MagicMock, ...]) -> BranchStatusReport:
         (
             mock_branch,
             mock_issue_mgr_cls,

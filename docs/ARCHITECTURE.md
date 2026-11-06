@@ -138,7 +138,7 @@ appear, so CI cannot catch a regression. The guard is
 
 ## Architecture Enforcement Tools
 
-We use four tools to enforce architectural boundaries:
+We use three tools to enforce architectural boundaries, and deptry for dependency declarations:
 
 ### 1. import-linter
 
@@ -180,26 +180,7 @@ tools\tach_check.bat
 ./tools/tach_check.sh
 ```
 
-### 3. pycycle
-
-**Purpose:** Circular dependency detection
-
-**Configuration:** None needed
-
-**What it checks:**
-- Import cycles between modules
-- Circular dependencies at any level
-
-**Run:**
-```bash
-# Windows
-tools\pycycle_check.bat
-
-# Linux/Mac
-./tools/pycycle_check.sh
-```
-
-### 4. vulture
+### 3. vulture
 
 **Purpose:** Dead code detection
 
@@ -221,6 +202,26 @@ tools\vulture_check.bat
 ./tools/vulture_check.sh
 ```
 
+### 4. deptry
+
+**Purpose:** Dependency declaration check
+
+**Configuration:** `[tool.deptry]` in `pyproject.toml`
+
+**What it checks:**
+- Imports in `src` that are not declared, or only arrive transitively
+- Declared runtime dependencies that `src` does not import
+- Dev-only packages imported from `src`
+
+**Run:**
+```bash
+# Windows
+tools\deptry_check.bat
+
+# Linux/Mac
+./tools/deptry_check.sh
+```
+
 ## Running All Checks
 
 Run all quality and architecture checks at once:
@@ -234,34 +235,39 @@ tools\run_all_checks.bat
 ```
 
 This runs:
-1. Code formatting (black, isort)
-2. Linting (pylint)
-3. Type checking (mypy)
-4. Tests (pytest)
-5. Import contracts (import-linter)
-6. Architecture boundaries (tach)
-7. Circular dependencies (pycycle)
+1. Code formatting (ruff format, ruff `I`)
+2. Linting (ruff)
+3. Linting (pylint)
+4. Type checking (mypy)
+5. Tests (pytest)
+6. Import contracts (import-linter)
+7. Architecture boundaries (tach)
+8. Dead code (vulture)
+9. Dependency declarations (deptry)
 
 ## CI/CD Integration
 
-### Regular CI (All Branches)
+`.github/workflows/ci.yml`. These names are the check names a PR reports, so renaming one breaks required status checks.
 
-Runs on every push:
-- black
-- isort
-- pylint
-- pytest
-- mypy
+### Every Push, PR and Dispatch
 
-### Architecture CI (PRs Only)
+- `push-checks` matrix: ruff-format, ruff, mypy, no-url-deps, pylint
+- file-size
+- unit-tests
+- git-integration-tests
+- check-github-secrets
+- github-integration-tests (skipped when `check-github-secrets` finds no credentials)
 
-Runs only on pull requests:
-- import-linter
-- tach
-- pycycle
-- vulture
+### PRs Only
+
+- check-forbidden-folders
+- `pr-checks` matrix: import-linter, tach, vulture, deptry
 
 **Why PR-only?** Architecture checks are more expensive and are most valuable when reviewing code changes.
+
+### PRs and Pushes to `main`
+
+- coverage: reporting only, never a gate. Runs when unit-tests and git-integration-tests succeeded and github-integration-tests succeeded or was skipped.
 
 ## Common Violations and Fixes
 
@@ -340,5 +346,4 @@ When adding new functionality:
 
 - [Import Linter Documentation](https://import-linter.readthedocs.io/)
 - [Tach Documentation](https://docs.gauge.so/tach/)
-- [Pycycle on PyPI](https://pypi.org/project/pycycle/)
 - [Vulture Documentation](https://github.com/jendrikseipp/vulture)

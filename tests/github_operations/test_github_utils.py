@@ -14,15 +14,16 @@ Config File Alternative (~/.mcp_coder/config.toml):
 Note: Tests will be skipped if configuration is missing.
 """
 
+import contextlib
+from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Generator, List
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, Mock, patch
 
 import git
 import pytest
 
 from mcp_workspace.github_operations import LabelsManager, PullRequestManager
-from mcp_workspace.github_operations.labels_manager import LabelData
 from mcp_workspace.github_operations.pr_types import PullRequestData
 
 if TYPE_CHECKING:
@@ -302,9 +303,9 @@ class TestPullRequestManagerIntegration:
                 # Branch exists remotely - checkout or create tracking branch
                 if branch_exists_locally:
                     print(f"Checking out existing local branch: {test_branch}")
-                    assert (
-                        pr_manager.project_dir is not None
-                    ), "project_dir should not be None"
+                    assert pr_manager.project_dir is not None, (
+                        "project_dir should not be None"
+                    )
                     checkout_result = checkout_branch(
                         test_branch, pr_manager.project_dir
                     )
@@ -329,9 +330,9 @@ class TestPullRequestManagerIntegration:
             elif branch_exists_locally:
                 # Branch exists locally but not remotely - just checkout
                 print(f"Checking out existing local branch: {test_branch}")
-                assert (
-                    pr_manager.project_dir is not None
-                ), "project_dir should not be None"
+                assert pr_manager.project_dir is not None, (
+                    "project_dir should not be None"
+                )
                 checkout_result = checkout_branch(test_branch, pr_manager.project_dir)
                 print(f"Checkout result: {checkout_result}")
                 if not checkout_result:
@@ -339,9 +340,9 @@ class TestPullRequestManagerIntegration:
             else:
                 # Branch doesn't exist - create new branch and push it
                 print(f"Creating new branch: {test_branch}")
-                assert (
-                    pr_manager.project_dir is not None
-                ), "project_dir should not be None"
+                assert pr_manager.project_dir is not None, (
+                    "project_dir should not be None"
+                )
                 create_result = create_branch(
                     test_branch, pr_manager.project_dir, from_branch="main"
                 )
@@ -357,13 +358,11 @@ class TestPullRequestManagerIntegration:
                     push_info = repo.git.push("--set-upstream", "origin", test_branch)
                     print(f"Manual push info: {push_info}")
                     push_result = True
-                except (
-                    Exception
-                ) as push_error:  # pylint: disable=broad-exception-caught
+                except Exception as push_error:  # pylint: disable=broad-exception-caught
                     print(f"Manual push failed with: {push_error}")
-                    assert (
-                        pr_manager.project_dir is not None
-                    ), "project_dir should not be None"
+                    assert pr_manager.project_dir is not None, (
+                        "project_dir should not be None"
+                    )
                     push_result = push_branch(test_branch, pr_manager.project_dir)
                     print(f"Push branch result: {push_result}")
 
@@ -488,10 +487,9 @@ class TestPullRequestManagerIntegration:
         finally:
             # Cleanup: ensure PR is closed even if test fails
             if created_pr and "number" in created_pr:
-                try:
+                # Ignore cleanup failures
+                with contextlib.suppress(Exception):
                     pr_manager.close_pull_request(created_pr["number"])
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass  # Ignore cleanup failures
 
     def test_direct_instantiation(self, tmp_path: Path) -> None:
         """Test direct PullRequestManager instantiation."""
@@ -593,22 +591,22 @@ class TestPullRequestManagerIntegration:
             manager = PullRequestManager(git_dir)
 
         # Test invalid PR numbers
-        assert manager._validate_pr_number(0) == False
-        assert manager._validate_pr_number(-1) == False
-        assert manager._validate_pr_number(1) == True
+        assert manager._validate_pr_number(0) is False
+        assert manager._validate_pr_number(-1) is False
+        assert manager._validate_pr_number(1) is True
         # Note: Testing with wrong types (like strings) is skipped as it's a type error
 
         # Test invalid branch names
-        assert manager._validate_branch_name("") == False
-        assert manager._validate_branch_name("   ") == False
-        assert manager._validate_branch_name("branch~name") == False
-        assert manager._validate_branch_name("branch^name") == False
-        assert manager._validate_branch_name("branch:name") == False
-        assert manager._validate_branch_name(".branch") == False
-        assert manager._validate_branch_name("branch.") == False
-        assert manager._validate_branch_name("branch.lock") == False
-        assert manager._validate_branch_name("valid-branch") == True
-        assert manager._validate_branch_name("feature/new-feature") == True
+        assert manager._validate_branch_name("") is False
+        assert manager._validate_branch_name("   ") is False
+        assert manager._validate_branch_name("branch~name") is False
+        assert manager._validate_branch_name("branch^name") is False
+        assert manager._validate_branch_name("branch:name") is False
+        assert manager._validate_branch_name(".branch") is False
+        assert manager._validate_branch_name("branch.") is False
+        assert manager._validate_branch_name("branch.lock") is False
+        assert manager._validate_branch_name("valid-branch") is True
+        assert manager._validate_branch_name("feature/new-feature") is True
 
         # Test methods with invalid inputs return empty dict/list
         # Note: These return cast TypedDict instances, so we check for empty/falsy values
@@ -624,7 +622,7 @@ class TestPullRequestManagerIntegration:
         assert not invalid_create_result
 
         invalid_list_result = manager.list_pull_requests(base_branch="invalid~branch")
-        expected_empty_list: List[Dict[str, Any]] = []
+        expected_empty_list: list[dict[str, Any]] = []
         assert invalid_list_result == expected_empty_list
 
 
@@ -679,17 +677,17 @@ class TestLabelsManagerUnit:
             manager = LabelsManager(git_dir)
 
             # Valid names - should pass validation
-            assert manager._validate_label_name("bug") == True
-            assert manager._validate_label_name("feature-request") == True
-            assert manager._validate_label_name("high priority") == True
-            assert manager._validate_label_name("bug :bug:") == True
-            assert manager._validate_label_name("type/enhancement") == True
+            assert manager._validate_label_name("bug") is True
+            assert manager._validate_label_name("feature-request") is True
+            assert manager._validate_label_name("high priority") is True
+            assert manager._validate_label_name("bug :bug:") is True
+            assert manager._validate_label_name("type/enhancement") is True
 
             # Invalid names - should fail validation
-            assert manager._validate_label_name("") == False
-            assert manager._validate_label_name("   ") == False
-            assert manager._validate_label_name("  leading") == False
-            assert manager._validate_label_name("trailing  ") == False
+            assert manager._validate_label_name("") is False
+            assert manager._validate_label_name("   ") is False
+            assert manager._validate_label_name("  leading") is False
+            assert manager._validate_label_name("trailing  ") is False
 
     def test_color_validation_and_normalization(self, tmp_path: Path) -> None:
         """Test color validation and normalization."""
@@ -706,16 +704,16 @@ class TestLabelsManagerUnit:
             manager = LabelsManager(git_dir)
 
             # Valid colors - should pass validation
-            assert manager._validate_color("FF0000") == True
-            assert manager._validate_color("#FF0000") == True
-            assert manager._validate_color("00ff00") == True
-            assert manager._validate_color("#00FF00") == True
+            assert manager._validate_color("FF0000") is True
+            assert manager._validate_color("#FF0000") is True
+            assert manager._validate_color("00ff00") is True
+            assert manager._validate_color("#00FF00") is True
 
             # Invalid colors - should fail validation
-            assert manager._validate_color("red") == False
-            assert manager._validate_color("12345") == False
-            assert manager._validate_color("GGGGGG") == False
-            assert manager._validate_color("#12345") == False
+            assert manager._validate_color("red") is False
+            assert manager._validate_color("12345") is False
+            assert manager._validate_color("GGGGGG") is False
+            assert manager._validate_color("#12345") is False
 
             # Test normalization (removing '#' prefix)
             assert manager._normalize_color("#FF0000") == "FF0000"
@@ -752,12 +750,12 @@ class TestLabelsManagerIntegration:
             assert created_label, "Expected label creation to return data"
             assert "name" in created_label, "Expected label name in response"
             assert created_label["name"] == label_name, f"Expected name '{label_name}'"
-            assert (
-                created_label["color"] == label_color
-            ), f"Expected color '{label_color}'"
-            assert (
-                created_label["description"] == label_description
-            ), f"Expected description '{label_description}'"
+            assert created_label["color"] == label_color, (
+                f"Expected color '{label_color}'"
+            )
+            assert created_label["description"] == label_description, (
+                f"Expected description '{label_description}'"
+            )
 
             # Get specific label
             retrieved_label = labels_manager.get_label(label_name)
@@ -785,9 +783,9 @@ class TestLabelsManagerIntegration:
             assert updated_label, "Expected update operation to return data"
             assert updated_label["name"] == label_name, "Expected same label name"
             assert updated_label["color"] == updated_color, "Expected updated color"
-            assert (
-                updated_label["description"] == updated_description
-            ), "Expected updated description"
+            assert updated_label["description"] == updated_description, (
+                "Expected updated description"
+            )
 
             # Delete label
             delete_result = labels_manager.delete_label(label_name)
@@ -800,7 +798,6 @@ class TestLabelsManagerIntegration:
         finally:
             # Cleanup: ensure label is deleted even if test fails
             if created_label and "name" in created_label:
-                try:
+                # Ignore cleanup failures
+                with contextlib.suppress(Exception):
                     labels_manager.delete_label(created_label["name"])
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass  # Ignore cleanup failures

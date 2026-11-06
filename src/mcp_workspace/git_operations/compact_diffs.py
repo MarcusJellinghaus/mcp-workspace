@@ -4,7 +4,6 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from .diffs import get_branch_diff
 
@@ -59,8 +58,8 @@ def parse_diff(text: str) -> list[FileDiff]:
     if not text.strip():
         return files
 
-    current_file: Optional[FileDiff] = None
-    current_hunk: Optional[Hunk] = None
+    current_file: FileDiff | None = None
+    current_hunk: Hunk | None = None
 
     for line in text.splitlines():
         if line.startswith("diff --git"):
@@ -265,7 +264,7 @@ def collect_line_sources(
 
 def format_moved_summary(
     count: int,
-    ref_file: Optional[str] = None,
+    ref_file: str | None = None,
     is_addition: bool = True,
 ) -> str:
     """Return a moved-block summary comment.
@@ -315,8 +314,8 @@ def _find_preview_split(lines: list[str], n: int) -> int:
 def _flush_sub_block(
     sub_block: list[str],
     moved_lines: set[str],
-    removed_to_file: Optional[dict[str, str]] = None,
-    added_to_file: Optional[dict[str, str]] = None,
+    removed_to_file: dict[str, str] | None = None,
+    added_to_file: dict[str, str] | None = None,
 ) -> list[str]:
     """Emit sub_block as a moved summary if large enough, otherwise as-is.
 
@@ -347,7 +346,7 @@ def _flush_sub_block(
     ]
     if len(sub_block) >= MIN_BLOCK_LINES and significant_moved:
         is_addition = sub_block[0].startswith("+")
-        ref_file: Optional[str] = None
+        ref_file: str | None = None
         source_map = removed_to_file if is_addition else added_to_file
         if source_map is not None:
             for bl in significant_moved:
@@ -372,8 +371,8 @@ def _flush_sub_block(
 def _render_block(
     block: list[str],
     moved_lines: set[str],
-    removed_to_file: Optional[dict[str, str]] = None,
-    added_to_file: Optional[dict[str, str]] = None,
+    removed_to_file: dict[str, str] | None = None,
+    added_to_file: dict[str, str] | None = None,
 ) -> list[str]:
     """Render a consecutive same-sign block, suppressing moved sub-sections.
 
@@ -415,8 +414,8 @@ def _render_block(
 def render_hunk(
     hunk: Hunk,
     moved_lines: set[str],
-    removed_to_file: Optional[dict[str, str]] = None,
-    added_to_file: Optional[dict[str, str]] = None,
+    removed_to_file: dict[str, str] | None = None,
+    added_to_file: dict[str, str] | None = None,
 ) -> str:
     """Render a single hunk, replacing moved sub-blocks >= MIN_BLOCK_LINES.
 
@@ -467,8 +466,8 @@ def render_hunk(
 def render_file_diff(
     file_diff: FileDiff,
     moved_lines: set[str],
-    removed_to_file: Optional[dict[str, str]] = None,
-    added_to_file: Optional[dict[str, str]] = None,
+    removed_to_file: dict[str, str] | None = None,
+    added_to_file: dict[str, str] | None = None,
 ) -> str:
     """Render all hunks for one file; skip file entirely if all hunks are empty.
 
@@ -542,7 +541,7 @@ def render_compact_diff(plain_diff: str, ansi_diff: str) -> str:
 def get_compact_diff(
     project_dir: Path,
     base_branch: str,
-    exclude_paths: Optional[list[str]] = None,
+    exclude_paths: list[str] | None = None,
 ) -> str:
     """Obtain a compact diff by running get_branch_diff() twice and rendering.
 

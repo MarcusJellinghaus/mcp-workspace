@@ -10,7 +10,6 @@ import logging
 import time
 from dataclasses import replace
 from pathlib import Path
-from typing import Optional
 
 from mcp_workspace.checks.branch_status import collect_branch_status
 from mcp_workspace.checks.branch_status_ci import _is_stale_ci_run
@@ -137,8 +136,8 @@ async def async_poll_branch_status(
         else True
     )
 
-    skip_msg: Optional[str] = None
-    wait_ctx: Optional[WaitContext] = None
+    skip_msg: str | None = None
+    wait_ctx: WaitContext | None = None
     if needs_remote and not remote_present:
         skip_msg = "Push branch to remote before waiting for PR or CI"
     elif needs_remote:

@@ -14,11 +14,13 @@ Config File Alternative (~/.mcp_coder/config.toml):
 Note: Tests will be skipped if configuration is missing.
 """
 
+import contextlib
 import datetime
-from pathlib import Path
-from typing import TYPE_CHECKING, Generator
+from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 import pytest
+from github import GithubException
 
 from mcp_workspace.github_operations.issues import IssueBranchManager, IssueManager
 
@@ -141,9 +143,9 @@ class TestIssueBranchManagerIntegration:
                 issue_number=issue_number
             )
 
-            assert (
-                result["success"] is True
-            ), f"Branch creation failed: {result['error']}"
+            assert result["success"] is True, (
+                f"Branch creation failed: {result['error']}"
+            )
             assert result["branch_name"], "Branch name should not be empty"
             assert result["error"] is None, "Error should be None on success"
             created_branches.append(result["branch_name"])
@@ -157,9 +159,9 @@ class TestIssueBranchManagerIntegration:
             print("=" * 60)
 
             branches = issue_branch_manager.get_linked_branches(issue_number)
-            assert (
-                result["branch_name"] in branches
-            ), f"Expected branch '{result['branch_name']}' in linked branches"
+            assert result["branch_name"] in branches, (
+                f"Expected branch '{result['branch_name']}' in linked branches"
+            )
             print(f"✓ Verified branch appears in linked branches: {branches}")
 
             # ============================================================
@@ -173,15 +175,15 @@ class TestIssueBranchManagerIntegration:
                 issue_number=issue_number
             )
 
-            assert (
-                dup_result["success"] is False
-            ), "Should fail when creating duplicate without allow_multiple=True"
-            assert (
-                len(dup_result["existing_branches"]) > 0
-            ), "Should return list of existing branches"
-            assert (
-                result["branch_name"] in dup_result["existing_branches"]
-            ), "Existing branches should include first branch"
+            assert dup_result["success"] is False, (
+                "Should fail when creating duplicate without allow_multiple=True"
+            )
+            assert len(dup_result["existing_branches"]) > 0, (
+                "Should return list of existing branches"
+            )
+            assert result["branch_name"] in dup_result["existing_branches"], (
+                "Existing branches should include first branch"
+            )
             assert dup_result["error"] is not None, "Error message should be present"
             print("✓ Duplicate prevention works")
             print(f"  Error: {dup_result['error']}")
@@ -201,24 +203,24 @@ class TestIssueBranchManagerIntegration:
                 allow_multiple=True,
             )
 
-            assert (
-                result2["success"] is True
-            ), f"Second branch creation failed: {result2['error']}"
-            assert (
-                result2["branch_name"] == second_branch_name
-            ), "Branch name should match requested name"
+            assert result2["success"] is True, (
+                f"Second branch creation failed: {result2['error']}"
+            )
+            assert result2["branch_name"] == second_branch_name, (
+                "Branch name should match requested name"
+            )
             created_branches.append(result2["branch_name"])
             print("✓ Created second branch with allow_multiple=True")
             print(f"  Branch name: {result2['branch_name']}")
 
             # Verify both branches are linked
             branches_after = issue_branch_manager.get_linked_branches(issue_number)
-            assert (
-                result["branch_name"] in branches_after
-            ), "First branch should still be linked"
-            assert (
-                result2["branch_name"] in branches_after
-            ), "Second branch should be linked"
+            assert result["branch_name"] in branches_after, (
+                "First branch should still be linked"
+            )
+            assert result2["branch_name"] in branches_after, (
+                "Second branch should be linked"
+            )
             print(f"✓ Verified both branches are linked: {branches_after}")
 
             # ============================================================
@@ -240,12 +242,12 @@ class TestIssueBranchManagerIntegration:
             branches_after_unlink = issue_branch_manager.get_linked_branches(
                 issue_number
             )
-            assert (
-                result["branch_name"] not in branches_after_unlink
-            ), "First branch should not be in linked branches after unlinking"
-            assert (
-                result2["branch_name"] in branches_after_unlink
-            ), "Second branch should still be linked"
+            assert result["branch_name"] not in branches_after_unlink, (
+                "First branch should not be in linked branches after unlinking"
+            )
+            assert result2["branch_name"] in branches_after_unlink, (
+                "Second branch should still be linked"
+            )
             print(f"✓ Verified first branch removed: {branches_after_unlink}")
 
             # ============================================================
@@ -298,28 +300,24 @@ class TestIssueBranchManagerIntegration:
         finally:
             # Final cleanup: ensure issue is closed and branches are deleted
             if created_issue and "number" in created_issue:
-                try:
+                # Ignore cleanup failures: API errors and network errors
+                with contextlib.suppress(GithubException, OSError):
                     issue_manager.close_issue(created_issue["number"])
                     print(
                         f"\n✓ Final cleanup: Ensured issue #{created_issue['number']} is closed"
                     )
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass  # Ignore cleanup failures
 
             # Attempt to delete any remaining branches
             if created_branches:
-                try:
+                with contextlib.suppress(GithubException, OSError):
                     repo = issue_branch_manager._get_repository()
                     if repo is not None:
                         for branch_name in created_branches:
-                            try:
+                            # Branch may already be deleted
+                            with contextlib.suppress(GithubException, OSError):
                                 ref = repo.get_git_ref(f"heads/{branch_name}")
                                 ref.delete()
                                 print(f"✓ Final cleanup: Deleted branch {branch_name}")
-                            except Exception:  # pylint: disable=broad-exception-caught
-                                pass  # Branch may already be deleted
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass  # Ignore cleanup failures
 
     def test_error_handling_without_creating_issues(
         self, issue_branch_manager: IssueBranchManager

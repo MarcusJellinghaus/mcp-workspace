@@ -3,8 +3,6 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from mcp_workspace.git_operations.base_branch import (
     _detect_from_issue,
     _detect_from_merge_base,

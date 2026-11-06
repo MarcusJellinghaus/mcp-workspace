@@ -82,7 +82,7 @@ class TestParseMergeTreeZ:
 
     def test_non_ascii_path(self) -> None:
         """A non-ASCII path is decoded as UTF-8."""
-        output = TREE.encode() + b"\0" + "dätei.txt".encode("utf-8") + b"\0"
+        output = TREE.encode() + b"\0" + "dätei.txt".encode() + b"\0"
         assert parse_merge_tree_z(output) == (TREE, ["dätei.txt"])
 
     def test_tree_only(self) -> None:
@@ -109,7 +109,7 @@ class TestParseLsRemoteHeads:
 
     def test_non_ascii_branch(self) -> None:
         """A non-ASCII branch name is decoded as UTF-8."""
-        output = TREE.encode() + b"\trefs/heads/" + "zweig-ä".encode("utf-8")
+        output = TREE.encode() + b"\trefs/heads/" + "zweig-ä".encode()
         assert parse_ls_remote_heads(output) == ["zweig-ä"]
 
     def test_empty_output(self) -> None:
@@ -124,7 +124,7 @@ SHA3 = "3333333333333333333333333333333333333333"
 
 def _ls_files_u(mode: str, sha: str, stage: int, path: str) -> bytes:
     """Build one ``git ls-files -u -z`` record."""
-    return f"{mode} {sha} {stage}\t{path}\0".encode("utf-8")
+    return f"{mode} {sha} {stage}\t{path}\0".encode()
 
 
 class TestParseLsFilesUZ:
@@ -167,7 +167,7 @@ class TestParseLsFilesUZ:
 
 def _ls_tree(mode: str, kind: str, sha: str, path: str) -> bytes:
     """Build one ``git ls-tree -z`` record."""
-    return f"{mode} {kind} {sha}\t{path}\0".encode("utf-8")
+    return f"{mode} {kind} {sha}\t{path}\0".encode()
 
 
 class TestParseLsTreeZ:

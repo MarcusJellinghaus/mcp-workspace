@@ -1,5 +1,6 @@
 """Tests for reference project MCP tools and search functionality."""
 
+import logging
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -92,7 +93,6 @@ class TestReferenceProjectMCPTools:
         }
         server_module._reference_projects = test_projects
 
-        # Test logging behavior (the decorator handles logging)
         with patch("mcp_workspace.server_reference_tools.logger") as mock_logger:
             result = get_reference_projects()
 
@@ -108,9 +108,9 @@ class TestReferenceProjectMCPTools:
             }
             assert result == expected
 
-            # The @log_function_call decorator should handle logging
-            # We can verify the function was called and returned the expected result
-            assert isinstance(result, dict)
+            # Check the logged project count and names, not the message wording
+            mock_logger.info.assert_called_once()
+            assert mock_logger.info.call_args.args[1:] == (1, ["proj1"])
 
     @pytest.mark.asyncio
     async def test_list_reference_directory_success(self) -> None:
@@ -204,8 +204,10 @@ class TestReferenceProjectMCPTools:
                 assert result == ["src/main.py", "README.md"]
 
     @pytest.mark.asyncio
-    async def test_list_reference_directory_logging(self) -> None:
-        """Test DEBUG level logging for file operations."""
+    async def test_list_reference_directory_logging(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test @log_function_call emits DEBUG logging for the tool."""
         import mcp_workspace.server_reference_tools as server_module
         from mcp_workspace.server_reference_tools import list_reference_directory
 
@@ -225,16 +227,23 @@ class TestReferenceProjectMCPTools:
                 new_callable=AsyncMock,
                 return_value=None,
             ):
-                with patch(
-                    "mcp_workspace.server_reference_tools.logger"
-                ) as mock_logger:
-                    mock_list_files.return_value = ["test.py"]
+                mock_list_files.return_value = ["test.py"]
 
+                with caplog.at_level(
+                    logging.DEBUG, logger="mcp_workspace.server_reference_tools"
+                ):
                     result = await list_reference_directory("log_test_proj")
 
-                    # Should return expected result
-                    assert result == ["test.py"]
-                    assert isinstance(result, list)
+                # Should return expected result
+                assert result == ["test.py"]
+
+                # The decorator logs under the decorated function's module
+                assert any(
+                    record.name == "mcp_workspace.server_reference_tools"
+                    and record.levelno == logging.DEBUG
+                    and "list_reference_directory" in record.getMessage()
+                    for record in caplog.records
+                )
 
     @pytest.mark.asyncio
     async def test_read_reference_file_success(self) -> None:
@@ -425,8 +434,10 @@ class TestReferenceProjectMCPTools:
         assert "SECRET=1" not in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_read_reference_file_logging(self) -> None:
-        """Test DEBUG level logging for file operations."""
+    async def test_read_reference_file_logging(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test @log_function_call emits DEBUG logging for the tool."""
         import mcp_workspace.server_reference_tools as server_module
         from mcp_workspace.server_reference_tools import read_reference_file
 
@@ -446,16 +457,23 @@ class TestReferenceProjectMCPTools:
                 new_callable=AsyncMock,
                 return_value=None,
             ):
-                with patch(
-                    "mcp_workspace.server_reference_tools.logger"
-                ) as mock_logger:
-                    mock_read_file.return_value = "test content"
+                mock_read_file.return_value = "test content"
 
+                with caplog.at_level(
+                    logging.DEBUG, logger="mcp_workspace.server_reference_tools"
+                ):
                     result = await read_reference_file("log_test_proj", "test.txt")
 
-                    # Should return expected result
-                    assert result == "test content"
-                    assert isinstance(result, str)
+                # Should return expected result
+                assert result == "test content"
+
+                # The decorator logs under the decorated function's module
+                assert any(
+                    record.name == "mcp_workspace.server_reference_tools"
+                    and record.levelno == logging.DEBUG
+                    and "read_reference_file" in record.getMessage()
+                    for record in caplog.records
+                )
 
     @pytest.mark.asyncio
     async def test_read_reference_file_calls_ensure_available(self) -> None:
@@ -549,9 +567,9 @@ class TestReferenceProjectMCPTools:
             search_reference_files,
         ):
             wrapped = getattr(fn, "__wrapped__", fn)
-            assert asyncio.iscoroutinefunction(
-                wrapped
-            ), f"{fn.__name__} should wrap a coroutine function"
+            assert asyncio.iscoroutinefunction(wrapped), (
+                f"{fn.__name__} should wrap a coroutine function"
+            )
 
 
 class TestGetReferenceProjectPath:

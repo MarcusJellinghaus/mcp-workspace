@@ -32,7 +32,7 @@ class TestMarkdownIndentation(unittest.TestCase):
             )
 
         # Verify file was created
-        with open(markdown_file, "r", encoding="utf-8") as f:
+        with open(markdown_file, encoding="utf-8") as f:
             content = f.read()
 
         self.assertIn("# Documentation", content)
@@ -40,12 +40,10 @@ class TestMarkdownIndentation(unittest.TestCase):
 
         # Edit to add indentation to nested bullet points
         old_string = (
-            "- Available options:\n" "- option1: description\n" "- option2: description"
+            "- Available options:\n- option1: description\n- option2: description"
         )
         new_string = (
-            "- Available options:\n"
-            "  - option1: description\n"
-            "  - option2: description"
+            "- Available options:\n  - option1: description\n  - option2: description"
         )
 
         result = edit_file(str(markdown_file), old_string, new_string)
@@ -55,7 +53,7 @@ class TestMarkdownIndentation(unittest.TestCase):
         self.assertIn("---", result)  # diff header
 
         # Read the updated content
-        with open(markdown_file, "r", encoding="utf-8") as f:
+        with open(markdown_file, encoding="utf-8") as f:
             updated_content = f.read()
 
         # Check that the text was edited

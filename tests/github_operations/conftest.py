@@ -2,8 +2,8 @@
 
 import io
 import zipfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 from unittest.mock import Mock, patch
 
 import git

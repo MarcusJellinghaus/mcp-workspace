@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
 from unittest.mock import Mock
 
 import pytest
@@ -62,7 +61,7 @@ class TestMergeableState:
         assert env.repo.get_pull.call_count == 2
 
     @pytest.mark.parametrize("state", ["unknown", None])
-    def test_not_final_not_stored(self, state: Optional[str]) -> None:
+    def test_not_final_not_stored(self, state: str | None) -> None:
         env = _Env()
         env.mergeable = state
         assert _one_run(env, "mergeable_state", _open_pr(), _issue()) == state
@@ -240,8 +239,8 @@ class TestFeedback:
     def test_error_outside_sections_propagates_not_stored(self) -> None:
         env = _Env()
         env.manager._validate_pr_number.side_effect = _server_error()
-        env.manager._collect_pr_feedback.side_effect = (
-            lambda n, include_alerts=True: PRFeedbackMixin._collect_pr_feedback(
+        env.manager._collect_pr_feedback.side_effect = lambda n, include_alerts=True: (
+            PRFeedbackMixin._collect_pr_feedback(
                 env.manager, n, include_alerts=include_alerts
             )
         )

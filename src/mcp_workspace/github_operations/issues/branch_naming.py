@@ -1,7 +1,7 @@
 """Branch naming utilities for GitHub issues."""
 
 import re
-from typing import List, Optional, TypedDict
+from typing import TypedDict
 
 
 class BranchCreationResult(TypedDict):
@@ -12,8 +12,8 @@ class BranchCreationResult(TypedDict):
 
     success: bool
     branch_name: str
-    error: Optional[str]
-    existing_branches: List[str]
+    error: str | None
+    existing_branches: list[str]
 
 
 def generate_branch_name_from_issue(
@@ -51,11 +51,8 @@ def generate_branch_name_from_issue(
 
     # Step 7: Truncate to max_length if needed
     branch_prefix = f"{issue_number}-"
-    if sanitized:
-        full_branch_name = f"{branch_prefix}{sanitized}"
-    else:
-        # Handle empty title case
-        full_branch_name = str(issue_number)
+    # An empty title leaves just the issue number
+    full_branch_name = f"{branch_prefix}{sanitized}" if sanitized else str(issue_number)
 
     if len(full_branch_name) > max_length:
         # Keep issue number prefix and truncate title

@@ -19,7 +19,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Install in development mode with dev dependencies
-pip install -e ".[dev,config]"
+pip install -e ".[dev]"
 ```
 
 ## Running from Source (Development Mode)
@@ -79,16 +79,15 @@ For LLM-based testing, see [tests/LLM_Test.md](tests/LLM_Test.md) - this contain
 
 The project includes several development utility scripts in the `tools/` directory:
 
-- `format_all.bat` - Format code with Black and isort
-- `pylint_check_for_errors.bat` - Run pylint checks
-- `reinstall.bat` - Reinstall the package in development mode
-- `update_packages.bat` - Update dependencies
+- `run_all_checks.bat` / `.sh` - Run all code quality and architecture checks
+- `pylint_check.bat` - Run pylint checks
+- `reinstall_local.bat` / `.sh` - Reinstall the package in development mode
 
 ## Code Style
 
 The project uses:
-- **Black** for code formatting (line length: 88)
-- **isort** for import sorting
+- **ruff format** for code formatting (line length: 88)
+- **ruff** (`I` rules) for import sorting
 - **pylint** for code quality checks
 
 ## Troubleshooting Development Setup
@@ -107,7 +106,7 @@ The project uses:
 
 1. **Fork the repository** and create a feature branch
 2. **Write tests** for new functionality
-3. **Follow code style** guidelines (Black, isort, pylint)
+3. **Follow code style** guidelines (ruff, pylint)
 4. **Update documentation** as needed
 5. **Test thoroughly** including edge cases
 6. **Submit a pull request** with a clear description
@@ -132,3 +131,5 @@ mcp-workspace/
 - Open an issue on GitHub for bugs or feature requests
 - Check existing issues before creating new ones
 - Include detailed information about your development environment
+
+Report vulnerabilities as described in [SECURITY.md](SECURITY.md).

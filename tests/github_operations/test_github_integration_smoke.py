@@ -17,9 +17,10 @@ Config File Alternative (~/.mcp_coder/config.toml):
 Note: Tests will be skipped if configuration is missing.
 """
 
+import contextlib
 import datetime
-from pathlib import Path
-from typing import TYPE_CHECKING, Generator
+from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -199,18 +200,16 @@ class TestPullRequestManagerSmoke:
         finally:
             # Cleanup
             if created_pr and "number" in created_pr:
-                try:
+                with contextlib.suppress(Exception):
                     pr_manager.close_pull_request(created_pr["number"])
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
 
             # Switch back to original branch and delete test branch
             try:
                 repo.git.checkout(original_branch)
                 # Delete the test branch locally and remotely
-                assert (
-                    pr_manager.project_dir is not None
-                ), "project_dir should not be None"
+                assert pr_manager.project_dir is not None, (
+                    "project_dir should not be None"
+                )
                 delete_branch(
                     test_branch, pr_manager.project_dir, force=True, delete_remote=True
                 )
@@ -266,10 +265,9 @@ class TestLabelsManagerSmoke:
         finally:
             # Cleanup
             if created_label and "name" in created_label:
-                try:
+                # Ignore cleanup failures
+                with contextlib.suppress(Exception):
                     labels_manager.delete_label(created_label["name"])
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass  # Ignore cleanup failures
 
 
 @pytest.mark.github_integration

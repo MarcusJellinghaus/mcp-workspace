@@ -2,7 +2,6 @@
 
 import sys
 from pathlib import Path
-from typing import Tuple
 
 import pytest
 
@@ -596,7 +595,7 @@ class TestSearchFilesSkippedFiles:
         (project_dir / "good.py").write_text("def target():\n    pass\n")
         (project_dir / "bad.py").write_text("def target():\n    pass\n")
 
-        def fake_normalize_path(path: str, base_dir: Path) -> Tuple[Path, str]:
+        def fake_normalize_path(path: str, base_dir: Path) -> tuple[Path, str]:
             if Path(path).name == "bad.py":
                 raise error
             return real_normalize_path(path, base_dir)
@@ -620,7 +619,7 @@ class TestSearchFilesSkippedFiles:
         nested.mkdir(parents=True)
         (nested / "bad.py").write_text("def target():\n    pass\n")
 
-        def fake_normalize_path(path: str, base_dir: Path) -> Tuple[Path, str]:
+        def fake_normalize_path(path: str, base_dir: Path) -> tuple[Path, str]:
             if Path(path).name == "bad.py":
                 raise OSError("boom")
             return real_normalize_path(path, base_dir)
