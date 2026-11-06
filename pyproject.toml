@@ -107,6 +107,7 @@ preview = true
 explicit-preview-rules = true   # preview rules fire only when selected by exact code
 select = [
     "D",
+    "ANN",
     # DOC rules are preview-only; with explicit-preview-rules they must be
     # listed by exact code — a bare "DOC" prefix silently enforces nothing.
     "DOC201", "DOC202", "DOC402", "DOC403", "DOC501", "DOC502",
@@ -119,6 +120,7 @@ select = [
 ]
 ignore = [
     "D107",  # missing docstring in __init__ method (redundant with class docstring)
+    "ANN401",  # Any is correct at library/CLI boundaries; mypy strict covers the rest
     "E501",  # line length is owned by the formatter; not re-checked here
 ]
 
