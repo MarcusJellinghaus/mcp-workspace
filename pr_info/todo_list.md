@@ -60,7 +60,7 @@ Per section: verify still needed, verify against the source, apply, commit, push
 
 ### Badges
 
-- [ ] **22. License metadata (#1291).** `LICENSE` already exists. Set `license = "MIT"` and `license-files = ["LICENSE"]`, raise to `setuptools>=77`, and remove the `License ::` classifier (the build fails if it stays).
+- [x] **22. License metadata (#1291).** `LICENSE` already exists. Set `license = "MIT"` and `license-files = ["LICENSE"]`, raise to `setuptools>=77`, and remove the `License ::` classifier (the build fails if it stays).
 - [ ] **23. Coverage badge plumbing (#1291).** Needs task 15. Reuse the shared gist with file `mcp-workspace-coverage.json`, because an unrenamed copy overwrites mcp_coder's badge. Manual: set secret `BADGE_GIST_TOKEN` and variable `BADGE_GIST_ID`.
 - [ ] **24. Add the README badges (#1291).** Under the title. Metadata: CI, PyPI, Python, License. Quality: Ruff, mypy strict, pylint, architecture, coverage. Security: Scorecard, CodeQL. Only list tools that actually run here.
 - [ ] **25. Verify after merge.** Every badge renders, coverage shows a percentage (not `pending`), Scorecard published.
