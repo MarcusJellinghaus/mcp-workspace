@@ -1,9 +1,10 @@
 """Per-command argument validation for read-only git operations.
 
 Validates CLI flags against allowlists to prevent injection of
-dangerous flags (e.g. --exec, --output). Non-flag arguments (refs,
-SHAs, ranges) pass through — git validates them.
+dangerous flags (e.g. --exec, --output).
 """
+
+import re
 
 LOG_ALLOWED_FLAGS: frozenset[str] = frozenset(
     {
@@ -139,8 +140,6 @@ FETCH_ALLOWED_FLAGS: frozenset[str] = frozenset(
         "--depth",
         "--shallow-since",
         "--shallow-exclude",
-        "--force",
-        "-f",
         "--verbose",
         "-v",
         "--quiet",
@@ -287,6 +286,109 @@ _SUPPORTS_PATHSPEC: frozenset[str] = frozenset(
     {"log", "diff", "show", "status", "ls_tree", "ls_files", "check_ignore"}
 )
 
+_COUNT = re.compile(r"[0-9]*")
+_SIMILARITY = re.compile(r"[0-9]*\.?[0-9]*%?")
+
+# Short flags that take a value in the same argument, with the value's format.
+# Every other short flag is a switch, and a cluster of them must all be listed.
+_ATTACHED_VALUE_FLAGS: dict[str, dict[str, re.Pattern[str]]] = {
+    "log": {"-n": _COUNT, "-U": _COUNT},
+    "diff": {"-U": _COUNT, "-M": _SIMILARITY, "-C": _SIMILARITY},
+    "show": {"-U": _COUNT, "-M": _SIMILARITY, "-C": _SIMILARITY},
+    "status": {"-u": re.compile(r"(no|normal|all)?")},
+}
+
+# Flags that git lets take their value from the next argument, which is then
+# not a ref or a path.
+_SEPARATE_VALUE_FLAGS: dict[str, frozenset[str]] = {
+    "log": frozenset(
+        {
+            "-n",
+            "--max-count",
+            "--skip",
+            "--author",
+            "--committer",
+            "--grep",
+            "--since",
+            "--until",
+            "--after",
+            "--before",
+        }
+    ),
+    "branch": frozenset({"--contains", "--merged", "--no-merged", "--sort"}),
+    "ls_files": frozenset({"--exclude"}),
+    "ls_remote": frozenset({"--sort"}),
+}
+
+# With one of these, git branch treats other arguments as patterns to list.
+# Without one, it treats them as names to create.
+_BRANCH_LIST_MODE_FLAGS: frozenset[str] = frozenset(
+    {"--list", "--contains", "--merged", "--no-merged"}
+)
+
+
+def _short_cluster_allowed(command: str, cluster: str) -> bool:
+    """Check a short flag argument one letter at a time.
+
+    Args:
+        command: Git sub-command name.
+        cluster: The argument without its leading ``-``, e.g. ``vv`` or ``n5``.
+
+    Returns:
+        True if every letter is an allowed flag, and any value attached to a
+        value-taking flag has the expected format.
+    """
+    allowlist = _ALLOWLISTS[command]
+    attached = _ATTACHED_VALUE_FLAGS.get(command, {})
+    for index, letter in enumerate(cluster):
+        flag = f"-{letter}"
+        if flag not in allowlist:
+            return False
+        if flag in attached:
+            return attached[flag].fullmatch(cluster[index + 1 :]) is not None
+    return bool(cluster)
+
+
+def _is_allowed_flag(command: str, arg: str) -> bool:
+    """Check one flag argument against the command's allowlist.
+
+    Args:
+        command: Git sub-command name.
+        arg: An argument starting with ``-``.
+
+    Returns:
+        True if the flag is allowed.
+    """
+    allowlist = _ALLOWLISTS[command]
+    if arg.startswith("--"):
+        return arg.split("=", 1)[0] in allowlist
+    if arg[1:].isascii() and arg[1:].isdigit():
+        return "-<int>" in allowlist
+    return _short_cluster_allowed(command, arg[1:])
+
+
+def positional_args(command: str, args: list[str]) -> list[str]:
+    """Return the arguments that are neither flags nor the value of a flag.
+
+    Args:
+        command: Git sub-command name.
+        args: CLI arguments, without any ``--`` separator.
+
+    Returns:
+        The refs, paths or other operands in *args*, in order.
+    """
+    separate_value_flags = _SEPARATE_VALUE_FLAGS.get(command, frozenset())
+    positional: list[str] = []
+    previous_takes_value = False
+    for arg in args:
+        if arg.startswith("-"):
+            previous_takes_value = arg in separate_value_flags
+            continue
+        if not previous_takes_value:
+            positional.append(arg)
+        previous_takes_value = False
+    return positional
+
 
 def split_args_pathspec(
     command: str,
@@ -327,37 +429,36 @@ def split_args_pathspec(
 
 
 def validate_branch_has_read_flag(args: list[str]) -> None:
-    """Raise ValueError if no read-only flag is present in branch args.
+    """Raise ValueError unless the branch args can only list.
 
-    Checks against BRANCH_ALLOWED_FLAGS — every allowed flag is a read-only
-    flag, so any allowed flag proves read-only intent.
-    Prevents bare ``git branch <name>`` from creating branches.
+    Requires at least one allowed flag. A name alongside the flag is accepted
+    only with a flag that puts git branch in list mode, because any other
+    combination (``-v <name>``, ``--sort=x <name>``) creates a branch.
 
     Args:
         args: List of CLI arguments to check.
 
     Raises:
-        ValueError: If no read-only flag is found.
+        ValueError: If no read-only flag is found, or a name could create a
+            branch.
     """
-    for arg in args:
-        if not arg.startswith("-"):
-            continue
-        if arg in BRANCH_ALLOWED_FLAGS:
-            return
-        if "=" in arg:
-            prefix = arg.split("=", 1)[0]
-            if prefix in BRANCH_ALLOWED_FLAGS:
-                return
-    msg = "git branch requires a read-only flag (e.g. --list, -a, --show-current)"
-    raise ValueError(msg)
+    flags = [arg for arg in args if arg.startswith("-")]
+    in_list_mode = any(
+        flag.split("=", 1)[0] in _BRANCH_LIST_MODE_FLAGS for flag in flags
+    )
+    if not any(_is_allowed_flag("branch", flag) for flag in flags) or (
+        positional_args("branch", args) and not in_list_mode
+    ):
+        msg = "git branch requires a read-only flag (e.g. --list, -a, --show-current)"
+        raise ValueError(msg)
 
 
 def validate_args(command: str, args: list[str]) -> None:
     """Validate args against per-command allowlist.
 
-    Non-flag arguments (refs, SHAs, ranges) pass through without
-    validation — git validates them. Only flags (starting with ``-``)
-    are checked.
+    Only flags (starting with ``-``) are checked here. Long flags match on
+    the part before any ``=``. Short flags are checked letter by letter, and
+    only flags that take a value may have one attached (``-n5``, ``-U3``).
 
     Args:
         command: Git sub-command name (e.g. "log", "diff").
@@ -374,30 +475,8 @@ def validate_args(command: str, args: list[str]) -> None:
         msg = f"Unknown command: '{command}'"
         raise ValueError(msg)
 
-    allowlist = _ALLOWLISTS[command]
-
     for arg in args:
-        if not arg.startswith("-"):
-            continue
-
-        # Exact match
-        if arg in allowlist:
-            continue
-
-        # --flag=value: check prefix before "="
-        if "=" in arg:
-            prefix = arg.split("=", 1)[0]
-            if prefix in allowlist:
-                continue
-
-        # Short flag with attached value (e.g. -n5): check first 2 chars
-        if len(arg) > 2 and not arg.startswith("--"):
-            short_prefix = arg[:2]
-            if short_prefix in allowlist:
-                continue
-
-        # Bare numeric flag (e.g. -10): allowed if command opts in via "-<int>"
-        if not arg.startswith("--") and arg[1:].isdigit() and "-<int>" in allowlist:
+        if not arg.startswith("-") or _is_allowed_flag(command, arg):
             continue
 
         msg = (
