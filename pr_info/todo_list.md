@@ -75,6 +75,7 @@ Per section: verify still needed, verify against the source, apply, commit, push
 
 - [ ] **31. Separate PRs after this one merges: harden path and argument validation, then credential scrubbing.** Details are in the uncommitted `pr_info/security_issue_draft.md`: never commit it, and move it out before deleting `pr_info/`.
 - [x] **32. Merge the `architecture` extra into `dev`.** `.[dev]` alone (`INSTALL.md`, `CONTRIBUTING.md`) lacked `lint-imports`, `tach` and `vulture`, which `tools/run_all_checks.*` needs from step 6; `tools/reinstall_local.*` only got them transitively from `mcp-tools-py`. Matches mcp_coder's `dev`, which also brings `pydeps>=3.0.0` for `tools/pydeps_graph.*`. `typecheck` stays: `upstream-mypy-check.yml` installs it.
+- [x] **33. Make the reference tool logging tests assert on logging.** Task 7 left three tests in `tests/test_reference_projects_mcp_tools.py` that only checked return values. `get_reference_projects` now asserts the logged count and names. `list_reference_directory` and `read_reference_file` log only through `@log_function_call`, so they assert its DEBUG records with `caplog`, which pins that the decorator is applied here.
 
 ## Not applicable here
 
