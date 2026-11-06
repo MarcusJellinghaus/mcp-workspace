@@ -1,7 +1,10 @@
 """Path utilities for file operations."""
 
 import logging
+import os
 from pathlib import Path
+
+from mcp_workspace.utils.git_paths import is_path_in_git_dir
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +43,49 @@ def _outside_error(path: str, project_dir: Path, reason: str) -> ValueError:
     )
 
 
+def resolves_into_git_dir(path: Path, project_dir: Path) -> bool:
+    """Check whether a path reaches a ``.git`` entry once the OS has resolved it.
+
+    Covers what the spelling alone cannot show: links, and names the filesystem
+    maps to ``.git``. Each existing ancestor is also compared with the project's
+    ``.git`` by file identity, for names that ``resolve()`` does not rewrite.
+
+    Args:
+        path: Absolute path to check; it need not exist.
+        project_dir: Project directory the path belongs to.
+
+    Returns:
+        True if the resolved path is a ``.git`` entry or below one. False if it
+        resolves outside the project or cannot be resolved; ``normalize_path``
+        decides those cases.
+    """
+    try:
+        base = project_dir.resolve()
+        relative = path.resolve().relative_to(base)
+    except (OSError, ValueError):
+        return False
+    if is_path_in_git_dir(relative.as_posix()):
+        return True
+
+    git_dir = base / ".git"
+    ancestor = base
+    for part in relative.parts:
+        ancestor = ancestor / part
+        try:
+            if os.path.samefile(ancestor, git_dir):
+                return True
+        except OSError:
+            return False
+    return False
+
+
 def normalize_path(path: str, project_dir: Path) -> tuple[Path, str]:
     """Normalize a path to be relative to the project directory.
 
     Relative paths are anchored to the project directory; absolute paths are
-    taken as given. The result is validated twice: no '..' segment anywhere,
-    and the resolved path stays inside the resolved project directory.
+    taken as given. The result is validated three times: no '..' segment
+    anywhere, the resolved path stays inside the resolved project directory, and
+    neither the path nor its resolved location is a ``.git`` entry or below one.
 
     Resolution is used only to *decide*: the returned absolute path is the
     lexically joined one, so a symlink names the link rather than its target
@@ -75,6 +115,7 @@ def normalize_path(path: str, project_dir: Path) -> tuple[Path, str]:
             directory component, neither of which contains '..'. A path the OS
             refuses to resolve at all, such as one with an embedded NUL byte,
             is rejected the same way rather than surfacing a raw ValueError.
+            Also if the path is a ``.git`` entry or below one.
     """  # noqa: DOC501 - _outside_error returns the documented ValueError
     if project_dir is None:
         raise ValueError("Project directory cannot be None")
@@ -115,4 +156,13 @@ def normalize_path(path: str, project_dir: Path) -> tuple[Path, str]:
     except ValueError as exc:
         raise _outside_error(path, project_dir, "is") from exc
 
-    return joined_path, relative_path.as_posix()
+    relative_posix = relative_path.as_posix()
+    if is_path_in_git_dir(relative_posix) or resolves_into_git_dir(
+        joined_path, project_dir
+    ):
+        raise ValueError(
+            f"Security error: Path '{path}' is inside a git directory, "
+            "which the file tools do not access."
+        )
+
+    return joined_path, relative_posix

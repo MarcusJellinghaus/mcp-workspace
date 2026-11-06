@@ -10,8 +10,27 @@ from typing import Any
 from mcp_coder_utils.log_utils import log_function_call
 
 from mcp_workspace.file_tools.path_utils import normalize_line_endings, normalize_path
+from mcp_workspace.utils.git_paths import is_path_in_git_dir
 
 logger = logging.getLogger(__name__)
+
+
+def _contains_git_dir_error(directory: Path, rel_path: str) -> ValueError | None:
+    """Build the refusal for a directory holding a ``.git`` entry at any depth.
+
+    Args:
+        directory: Directory about to be deleted or moved as a whole.
+        rel_path: The same directory relative to the project, for the message.
+
+    Returns:
+        The ValueError to raise, or None when the directory holds no ``.git``.
+    """
+    if any(is_path_in_git_dir(entry.name) for entry in directory.rglob("*")):
+        return ValueError(
+            f"Security error: Directory '{rel_path}' contains a git directory, "
+            "which the file tools do not access."
+        )
+    return None
 
 
 def read_file(
@@ -409,7 +428,8 @@ def delete_directory(
     Raises:
         ValueError: If dir_path is invalid, project_dir is None, the path is
             outside the project directory, resolves to the project root, points
-            to a file, or the directory is non-empty without recursive=True.
+            to a file, the directory holds a .git entry at any depth, or it is
+            non-empty without recursive=True.
     """
     # Validate dir_path parameter
     if not dir_path or not isinstance(dir_path, str):
@@ -448,6 +468,10 @@ def delete_directory(
             "Pass recursive=True to delete it and its contents."
         )
 
+    git_dir_error = _contains_git_dir_error(abs_path, rel_path)
+    if git_dir_error is not None:
+        raise git_dir_error
+
     n_files = sum(1 for p in children if p.is_file())
     n_dirs = sum(1 for p in children if p.is_dir()) + 1
     all_rel = [rel_path] + [p.relative_to(project_dir).as_posix() for p in children]
@@ -476,10 +500,10 @@ def _validate_move_parameters(
         Tuple of (src_abs, src_rel, dest_abs, dest_rel)
 
     Raises:
-        ValueError: If paths are invalid
+        ValueError: If paths are invalid, or the source holds a .git entry
         FileNotFoundError: If source doesn't exist
         FileExistsError: If destination already exists
-    """
+    """  # noqa: DOC501 - _contains_git_dir_error returns the documented ValueError
     # Validate inputs
     if not source_path or not isinstance(source_path, str):
         raise ValueError(
@@ -501,6 +525,10 @@ def _validate_move_parameters(
     # Check if source exists
     if not src_abs.exists():
         raise FileNotFoundError(f"Source file '{source_path}' does not exist")
+
+    git_dir_error = _contains_git_dir_error(src_abs, src_rel)
+    if git_dir_error is not None:
+        raise git_dir_error
 
     # Check if destination already exists
     if dest_abs.exists():
