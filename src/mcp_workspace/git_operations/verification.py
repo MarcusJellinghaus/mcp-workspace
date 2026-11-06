@@ -312,9 +312,7 @@ def verify_git(
                         ok=False,
                         value=f"{signing_format_resolved} binary timed out",
                         severity="error",
-                        error=(
-                            f"{signing_format_resolved} --version timed out " "(>5s)"
-                        ),
+                        error=(f"{signing_format_resolved} --version timed out (>5s)"),
                     )
                     signing_binary_path = None
                 else:

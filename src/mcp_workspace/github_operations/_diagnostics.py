@@ -84,8 +84,7 @@ def format_rate_limit_error(exc: BaseException) -> str | None:
             return "GitHub rate limit: retries exhausted"
         if status is None:
             return (
-                "GitHub request failed: retries exhausted "
-                "(rate limit or server error)"
+                "GitHub request failed: retries exhausted (rate limit or server error)"
             )
         return None
     if not isinstance(exc, GithubException):

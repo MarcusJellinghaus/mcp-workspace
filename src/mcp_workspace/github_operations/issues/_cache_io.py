@@ -16,9 +16,8 @@ from typing import Any, NotRequired, TypedDict
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 from mcp_workspace.utils.timezone_utils import parse_iso_timestamp
 
-from ..caching._store import _save_cache_file
+from ..caching._store import _save_cache_file, load_json
 from ..caching._store import cache_file_path as _store_cache_file_path
-from ..caching._store import load_json
 from .types import IssueData
 
 __all__ = [

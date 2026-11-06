@@ -40,12 +40,10 @@ class TestMarkdownIndentation(unittest.TestCase):
 
         # Edit to add indentation to nested bullet points
         old_string = (
-            "- Available options:\n" "- option1: description\n" "- option2: description"
+            "- Available options:\n- option1: description\n- option2: description"
         )
         new_string = (
-            "- Available options:\n"
-            "  - option1: description\n"
-            "  - option2: description"
+            "- Available options:\n  - option1: description\n  - option2: description"
         )
 
         result = edit_file(str(markdown_file), old_string, new_string)

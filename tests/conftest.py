@@ -135,7 +135,7 @@ def github_test_setup(tmp_path: Path) -> Generator[GitHubTestSetup, None, None]:
 
     if not test_repo_url:
         pytest.skip(
-            "Test repo URL not configured " "(set GITHUB_TEST_REPO_URL or config file)"
+            "Test repo URL not configured (set GITHUB_TEST_REPO_URL or config file)"
         )
 
     # Clone the actual test repository

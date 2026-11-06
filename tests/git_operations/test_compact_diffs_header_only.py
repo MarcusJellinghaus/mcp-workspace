@@ -181,11 +181,7 @@ _HEADER_ONLY_CASES = [
         id="pure_copy",
     ),
     pytest.param(
-        (
-            "diff --git a/script.sh b/script.sh\n"
-            "old mode 100644\n"
-            "new mode 100755\n"
-        ),
+        ("diff --git a/script.sh b/script.sh\nold mode 100644\nnew mode 100755\n"),
         ["old mode", "new mode"],
         id="mode_change",
     ),

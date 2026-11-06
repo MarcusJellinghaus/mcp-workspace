@@ -234,7 +234,9 @@ def _parse_thread_nodes(
     return unresolved_threads, resolved_count
 
 
-def fetch_review_data(manager: PullRequestManager, pr_number: int) -> tuple[
+def fetch_review_data(
+    manager: PullRequestManager, pr_number: int
+) -> tuple[
     list[ReviewThreadData],
     int,
     list[ChangesRequestedData],

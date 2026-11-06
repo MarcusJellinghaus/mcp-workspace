@@ -24,8 +24,7 @@ from .conftest import make_retry_error
 
 _URL = "https://github.com/test/repo/issues/3"
 _DUPLICATE = (
-    "Issue may not contain duplicate sub-issues and Sub issue may only have one "
-    "parent"
+    "Issue may not contain duplicate sub-issues and Sub issue may only have one parent"
 )
 
 

@@ -303,9 +303,9 @@ class TestPullRequestManagerIntegration:
                 # Branch exists remotely - checkout or create tracking branch
                 if branch_exists_locally:
                     print(f"Checking out existing local branch: {test_branch}")
-                    assert (
-                        pr_manager.project_dir is not None
-                    ), "project_dir should not be None"
+                    assert pr_manager.project_dir is not None, (
+                        "project_dir should not be None"
+                    )
                     checkout_result = checkout_branch(
                         test_branch, pr_manager.project_dir
                     )
@@ -330,9 +330,9 @@ class TestPullRequestManagerIntegration:
             elif branch_exists_locally:
                 # Branch exists locally but not remotely - just checkout
                 print(f"Checking out existing local branch: {test_branch}")
-                assert (
-                    pr_manager.project_dir is not None
-                ), "project_dir should not be None"
+                assert pr_manager.project_dir is not None, (
+                    "project_dir should not be None"
+                )
                 checkout_result = checkout_branch(test_branch, pr_manager.project_dir)
                 print(f"Checkout result: {checkout_result}")
                 if not checkout_result:
@@ -340,9 +340,9 @@ class TestPullRequestManagerIntegration:
             else:
                 # Branch doesn't exist - create new branch and push it
                 print(f"Creating new branch: {test_branch}")
-                assert (
-                    pr_manager.project_dir is not None
-                ), "project_dir should not be None"
+                assert pr_manager.project_dir is not None, (
+                    "project_dir should not be None"
+                )
                 create_result = create_branch(
                     test_branch, pr_manager.project_dir, from_branch="main"
                 )
@@ -358,13 +358,11 @@ class TestPullRequestManagerIntegration:
                     push_info = repo.git.push("--set-upstream", "origin", test_branch)
                     print(f"Manual push info: {push_info}")
                     push_result = True
-                except (
-                    Exception
-                ) as push_error:  # pylint: disable=broad-exception-caught
+                except Exception as push_error:  # pylint: disable=broad-exception-caught
                     print(f"Manual push failed with: {push_error}")
-                    assert (
-                        pr_manager.project_dir is not None
-                    ), "project_dir should not be None"
+                    assert pr_manager.project_dir is not None, (
+                        "project_dir should not be None"
+                    )
                     push_result = push_branch(test_branch, pr_manager.project_dir)
                     print(f"Push branch result: {push_result}")
 
@@ -752,12 +750,12 @@ class TestLabelsManagerIntegration:
             assert created_label, "Expected label creation to return data"
             assert "name" in created_label, "Expected label name in response"
             assert created_label["name"] == label_name, f"Expected name '{label_name}'"
-            assert (
-                created_label["color"] == label_color
-            ), f"Expected color '{label_color}'"
-            assert (
-                created_label["description"] == label_description
-            ), f"Expected description '{label_description}'"
+            assert created_label["color"] == label_color, (
+                f"Expected color '{label_color}'"
+            )
+            assert created_label["description"] == label_description, (
+                f"Expected description '{label_description}'"
+            )
 
             # Get specific label
             retrieved_label = labels_manager.get_label(label_name)
@@ -785,9 +783,9 @@ class TestLabelsManagerIntegration:
             assert updated_label, "Expected update operation to return data"
             assert updated_label["name"] == label_name, "Expected same label name"
             assert updated_label["color"] == updated_color, "Expected updated color"
-            assert (
-                updated_label["description"] == updated_description
-            ), "Expected updated description"
+            assert updated_label["description"] == updated_description, (
+                "Expected updated description"
+            )
 
             # Delete label
             delete_result = labels_manager.delete_label(label_name)

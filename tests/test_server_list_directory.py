@@ -50,7 +50,8 @@ def test_list_directory(
 
 @patch("mcp_workspace.server.list_files_util")
 def test_list_directory_directory_not_found(
-    mock_list_files: MagicMock, project_dir: Path  # pylint: disable=unused-argument
+    mock_list_files: MagicMock,
+    project_dir: Path,  # pylint: disable=unused-argument
 ) -> None:
     """Test the list_directory tool with a non-existent directory."""
     # Mock list_files to raise FileNotFoundError

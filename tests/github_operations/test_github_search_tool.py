@@ -138,8 +138,7 @@ def test_github_search_with_qualifiers(mock_manager_cls: MagicMock) -> None:
 
     call_kwargs = mock_mgr._github_client.search_issues.call_args[1]
     assert call_kwargs["query"] == (
-        'repo:owner/repo is:issue bug is:open label:"bug" label:"urgent" '
-        "assignee:alice"
+        'repo:owner/repo is:issue bug is:open label:"bug" label:"urgent" assignee:alice'
     )
     assert "state" not in call_kwargs
     assert "labels" not in call_kwargs
@@ -419,9 +418,9 @@ def test_github_search_live_label_and_state_filters(live_repo_root: Path) -> Non
 
     result_lines = [line for line in result.strip().split("\n") if line.startswith("#")]
     # startswith, not substring: anchor #12 would also match a line for #123.
-    assert any(
-        line.startswith(f"#{anchor['number']} ") for line in result_lines
-    ), result
+    assert any(line.startswith(f"#{anchor['number']} ") for line in result_lines), (
+        result
+    )
     for line in result_lines:
         assert "[open]" in line, line
         assert anchor_label in line, line
@@ -451,9 +450,9 @@ def test_github_search_live_label_and_state_filters(live_repo_root: Path) -> Non
     text_lines = [
         line for line in text_result.strip().split("\n") if line.startswith("#")
     ]
-    assert any(
-        line.startswith(f"#{anchor['number']} ") for line in text_lines
-    ), text_result
+    assert any(line.startswith(f"#{anchor['number']} ") for line in text_lines), (
+        text_result
+    )
 
 
 @pytest.mark.github_integration

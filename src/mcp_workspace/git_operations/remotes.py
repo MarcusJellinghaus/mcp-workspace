@@ -94,8 +94,7 @@ def clone_repo(url: str, target_path: Path) -> None:
         git.Repo.clone_from(url, str(target_path))
     except GitCommandError as e:
         error_msg = (
-            f"Failed to clone '{_scrub_credentials(url)}': "
-            f"{_scrub_credentials(str(e))}"
+            f"Failed to clone '{_scrub_credentials(url)}': {_scrub_credentials(str(e))}"
         )
     # Raised outside the except block: the GitCommandError holds the
     # unscrubbed URL and must not survive in __context__
@@ -146,9 +145,7 @@ def git_push(project_dir: Path, force_with_lease: bool = False) -> dict[str, Any
         error_msg = f"Git error during push: {e}"
         logger.error(error_msg)
         return {"success": False, "error": error_msg}
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         error_msg = f"Unexpected error during push: {e}"
         logger.error(error_msg)
         return {"success": False, "error": error_msg}
@@ -211,9 +208,7 @@ def push_branch(branch_name: str, project_dir: Path, set_upstream: bool = True) 
     except (InvalidGitRepositoryError, GitCommandError) as e:
         logger.error("Git error pushing branch: %s", e)
         return False
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.error("Unexpected error pushing branch: %s", e)
         return False
 
@@ -259,9 +254,7 @@ def fetch_remote(project_dir: Path, remote: str = "origin") -> bool:
     except (InvalidGitRepositoryError, GitCommandError) as e:
         logger.error("Git error fetching from remote: %s", e)
         return False
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.error("Unexpected error fetching from remote: %s", e)
         return False
 
@@ -481,9 +474,7 @@ def get_repository_identifier(
     except (InvalidGitRepositoryError, GitCommandError) as e:
         logger.debug("Git error getting repository URL: %s", e)
         return None
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.warning("Unexpected error getting repository URL: %s", e)
         return None
 
@@ -588,8 +579,6 @@ def rebase_onto_branch(project_dir: Path, target_branch: str) -> bool:
         )
         return False
 
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.warning(f"Unexpected error during rebase: {e}")
         return False

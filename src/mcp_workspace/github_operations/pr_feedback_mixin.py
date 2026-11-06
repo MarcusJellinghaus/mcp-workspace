@@ -158,18 +158,14 @@ class PRFeedbackMixin:
                     f"Failed to fetch review data for PR #{pr_number}: {review_error}"
                 )
                 unavailable["threads"] = review_error
-        except (
-            Exception
-        ) as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
+        except Exception as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
             logger.warning(f"Failed to fetch review data for PR #{pr_number}: {e}")
             threads, resolved_count, changes_requested = ([], 0, [])
             unavailable["threads"] = e
 
         try:
             comments = _pr_feedback_sources.fetch_conversation_comments(self, pr_number)
-        except (
-            Exception
-        ) as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
+        except Exception as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
             logger.warning(
                 f"Failed to fetch conversation comments for PR #{pr_number}: {e}"
             )
@@ -182,9 +178,7 @@ class PRFeedbackMixin:
                 alerts = _pr_feedback_sources.fetch_code_scanning_alerts(
                     self, pr_number
                 )
-            except (
-                Exception
-            ) as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
+            except Exception as e:  # pylint: disable=broad-exception-caught  # one section failure must not abort
                 # 403/404 without a rate limit: token lacks security_events:read,
                 # code scanning is disabled, or no analysis exists — not a failure.
                 if _pr_feedback_sources.alert_skip_status(e) is not None:

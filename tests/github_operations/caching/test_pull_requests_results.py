@@ -239,8 +239,8 @@ class TestFeedback:
     def test_error_outside_sections_propagates_not_stored(self) -> None:
         env = _Env()
         env.manager._validate_pr_number.side_effect = _server_error()
-        env.manager._collect_pr_feedback.side_effect = (
-            lambda n, include_alerts=True: PRFeedbackMixin._collect_pr_feedback(
+        env.manager._collect_pr_feedback.side_effect = lambda n, include_alerts=True: (
+            PRFeedbackMixin._collect_pr_feedback(
                 env.manager, n, include_alerts=include_alerts
             )
         )

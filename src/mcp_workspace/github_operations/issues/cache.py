@@ -218,9 +218,7 @@ def _fetch_additional_issues(  # pylint: disable=too-many-arguments,too-many-pos
 
         try:
             issue = issue_manager.get_issue(issue_num)
-        except (
-            Exception
-        ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+        except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
             if (rl := to_rate_limit_error(e)) is not None:
                 raise rl from e
             if issue_key in cache_data["issues"]:
@@ -312,9 +310,7 @@ def _put_back_session_issues(  # pylint: disable=too-many-arguments,too-many-pos
             except IssueIdentityMismatchError as e:
                 logger.info(f"Issue #{issue_num} dropped from cache: {e}")
                 continue
-            except (
-                Exception
-            ) as e:  # pylint: disable=broad-exception-caught  # keep cached copy on any other failure
+            except Exception as e:  # pylint: disable=broad-exception-caught  # keep cached copy on any other failure
                 if (rl := to_rate_limit_error(e)) is not None:
                     raise rl from e
                 logger.warning(

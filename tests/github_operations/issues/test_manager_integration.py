@@ -142,9 +142,9 @@ class TestIssueManagerIntegration:
             # Test duplicate label (idempotent)
             print("\n2.2: Testing duplicate label (should be idempotent)...")
             dup = issue_manager.add_labels(issue_number, "bug")
-            assert (
-                dup["labels"].count("bug") == 1
-            ), "Duplicate label should not be added"
+            assert dup["labels"].count("bug") == 1, (
+                "Duplicate label should not be added"
+            )
             print(f"✓ Duplicate handling works: {dup['labels']}")
 
             # Remove labels
@@ -163,9 +163,9 @@ class TestIssueManagerIntegration:
                 )
                 # If it returns data, verify the issue wasn't affected
                 if result and result.get("number") == issue_number:
-                    assert (
-                        "enhancement" in result["labels"]
-                    ), "Existing labels should remain"
+                    assert "enhancement" in result["labels"], (
+                        "Existing labels should remain"
+                    )
                     print(
                         f"✓ Gracefully handled non-existent label: {result['labels']}"
                     )

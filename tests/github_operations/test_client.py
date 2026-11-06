@@ -33,9 +33,7 @@ def test_build_github_client_applies_timeout_retry_and_base_url() -> None:
     assert call_kwargs["base_url"] == "https://api.github.com"
     assert call_kwargs["retry"].total == 2
     assert call_kwargs["retry"].max_rate_limit_wait == 60
-    assert (
-        type(call_kwargs["retry"]) is _LoggingGithubRetry
-    )  # pylint: disable=unidiomatic-typecheck
+    assert type(call_kwargs["retry"]) is _LoggingGithubRetry  # pylint: disable=unidiomatic-typecheck
     assert client is mock_github.return_value
 
 
@@ -130,9 +128,7 @@ def test_logging_retry_logs_primary_rate_limit_wait(
     assert f"{round(slept)}s" in messages[0]
     assert "resets" in messages[0]
     assert "(GET /user)" in messages[0]
-    assert (
-        type(new_retry) is _LoggingGithubRetry
-    )  # pylint: disable=unidiomatic-typecheck
+    assert type(new_retry) is _LoggingGithubRetry  # pylint: disable=unidiomatic-typecheck
 
 
 def test_logging_retry_logs_secondary_rate_limit_wait(

@@ -22,10 +22,9 @@ from mcp_workspace.file_tools import append_file as append_file_util
 from mcp_workspace.file_tools import delete_directory as delete_directory_util
 from mcp_workspace.file_tools import delete_file as delete_file_util
 from mcp_workspace.file_tools import edit_file as edit_file_util
-from mcp_workspace.file_tools import list_directory_tree
+from mcp_workspace.file_tools import list_directory_tree, normalize_path
 from mcp_workspace.file_tools import list_files as list_files_util
 from mcp_workspace.file_tools import move_file as move_file_util
-from mcp_workspace.file_tools import normalize_path
 from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools import save_file as save_file_util
 from mcp_workspace.file_tools import search_files as search_files_util
@@ -34,9 +33,9 @@ from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server_reference_tools import (
     get_reference_project_path,
     get_reference_repo_url,
+    set_reference_projects,
 )
 from mcp_workspace.server_reference_tools import register as register_reference_tools
-from mcp_workspace.server_reference_tools import set_reference_projects
 
 if TYPE_CHECKING:
     # Type-only: does not execute, so PyGithub stays off the startup import path
@@ -1678,10 +1677,7 @@ def _subissue_write(
         count = "" if link.total is None else f" (~{link.total} sub-issues, may lag)"
         verb = "Unlinked" if unlink else "Linked"
         relation = "from" if unlink else "as a sub-issue of"
-        return (
-            f"{verb} #{child_number} {relation} #{parent_number} "
-            f"— {link.url}{count}"
-        )
+        return f"{verb} #{child_number} {relation} #{parent_number} — {link.url}{count}"
     except (GithubException, RetryError, ValueError) as exc:
         return _api_error(exc, reference_name)
 
@@ -1745,8 +1741,7 @@ def github_subissue_list(
 
     if parent_number <= 0:
         return (
-            f"Error: invalid issue number: {parent_number}"
-            f"{_ref_suffix(reference_name)}"
+            f"Error: invalid issue number: {parent_number}{_ref_suffix(reference_name)}"
         )
     try:
         manager = _issue_manager(reference_name)

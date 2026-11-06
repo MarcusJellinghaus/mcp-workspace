@@ -47,9 +47,9 @@ _login_cache: dict[tuple[str, str], str] = {}
 
 # (api_base_url, sha256(token), full_name.lower()) -> (raw_data, raw_headers).
 # Plain data only: each manager rebuilds its own Repository on its own client.
-_repository_cache: dict[tuple[str, str, str], tuple[dict[str, Any], dict[str, Any]]] = (
-    {}
-)
+_repository_cache: dict[
+    tuple[str, str, str], tuple[dict[str, Any], dict[str, Any]]
+] = {}
 
 
 def _token_key(base_url: str, token: str) -> tuple[str, str]:
@@ -178,9 +178,7 @@ def _handle_github_errors(
                 if on_error is not None:
                     on_error(e, resolved)
                 return cast(T, resolved)
-            except (
-                Exception
-            ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+            except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
                 msg = format_rate_limit_error(e)
                 if msg is not None:
                     logger.error(f"{msg} in {func.__name__}")
@@ -237,9 +235,7 @@ def get_authenticated_username(hostname: str | None = None) -> str:
             logger.error(msg)
             raise ValueError(msg) from e
         raise ValueError(f"Failed to authenticate with GitHub: {e}") from e
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
         msg = format_rate_limit_error(e)
         if msg is not None:
             logger.error(msg)
@@ -466,9 +462,7 @@ class BaseGitHubManager:
                 )
             self._last_repository_error = _format_error_message(e)
             return None
-        except (
-            Exception
-        ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+        except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
             msg = format_rate_limit_error(e)
             if msg is not None:
                 logger.error("%s (repository %s)", msg, self._repo_identifier.full_name)

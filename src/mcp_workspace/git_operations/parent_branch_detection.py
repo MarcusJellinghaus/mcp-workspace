@@ -120,18 +120,14 @@ def detect_parent_branch_via_merge_base(
                     continue
                 try:
                     candidates.append((head.name, head.name, head.commit))
-                except (
-                    Exception
-                ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+                except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
                     # One unreadable ref must not cost us every other candidate.
                     logger.debug("Error reading local branch '%s': %s", head.name, e)
             remote_refs: list[RemoteReference] = []
             try:
                 if "origin" in [r.name for r in repo.remotes]:
                     remote_refs = list(repo.remotes.origin.refs)
-            except (
-                Exception
-            ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+            except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
                 logger.debug("Error listing remote branches: %s", e)
             for ref in remote_refs:
                 try:
@@ -139,9 +135,7 @@ def detect_parent_branch_via_merge_base(
                     if branch_name in (current_branch, "HEAD"):
                         continue
                     candidates.append((branch_name, ref.name, ref.commit))
-                except (
-                    Exception
-                ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+                except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
                     # One unreadable ref must not cost us every other candidate.
                     logger.debug("Error reading remote branch: %s", e)
 
@@ -207,8 +201,6 @@ def detect_parent_branch_via_merge_base(
     except InvalidGitRepositoryError:
         logger.debug("Invalid git repository: %s", project_dir)
         return None
-    except (
-        Exception
-    ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
+    except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.debug("Failed to detect parent branch: %s", e)
         return None

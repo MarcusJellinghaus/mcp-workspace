@@ -383,8 +383,7 @@ def _format_deleted_paths(paths: list[str], n_files: int, n_dirs: int) -> list[s
     if len(paths) <= 20:
         return paths
     return paths[:20] + [
-        f"... and {len(paths) - 20} more "
-        f"({n_files} files, {n_dirs} dirs deleted total)"
+        f"... and {len(paths) - 20} more ({n_files} files, {n_dirs} dirs deleted total)"
     ]
 
 

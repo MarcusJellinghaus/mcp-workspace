@@ -407,7 +407,7 @@ def format_pr_view(
         parts.append(f"## Inline Review Comments ({len(inline_comments)})")
         for ic in inline_comments:
             line_num = ic["line"] if ic["line"] is not None else "?"
-            parts.append(f"{ic['path']}:{line_num} ({ic['user']}): \"{ic['body']}\"")
+            parts.append(f'{ic["path"]}:{line_num} ({ic["user"]}): "{ic["body"]}"')
 
     return truncate_output("\n\n".join(parts), max_lines)
 

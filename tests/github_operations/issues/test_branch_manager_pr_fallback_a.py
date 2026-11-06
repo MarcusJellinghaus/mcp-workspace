@@ -36,7 +36,9 @@ class TestGetBranchWithPRFallback:
         # Setup: Mock GraphQL client (should NOT be called)
         mock_manager._github_client._Github__requester = Mock()  # type: ignore[attr-defined]
         mock_graphql_query = Mock()
-        mock_manager._github_client._Github__requester.graphql_query = mock_graphql_query  # type: ignore[attr-defined]
+        mock_manager._github_client._Github__requester.graphql_query = (  # type: ignore[attr-defined]
+            mock_graphql_query
+        )
 
         # Execute
         result = mock_manager.get_branch_with_pr_fallback(

@@ -71,7 +71,7 @@ class TestLoadAllowlist:
     def test_parses_entries(self, tmp_path: Path) -> None:
         p = tmp_path / ".large-files-allowlist"
         p.write_text(
-            "# comment\n" "\n" "src/big.py\n" "tests/huge.py  # inline comment\n",
+            "# comment\n\nsrc/big.py\ntests/huge.py  # inline comment\n",
             encoding="utf-8",
         )
         result = load_allowlist(p)

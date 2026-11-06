@@ -132,7 +132,7 @@ class _Env:
         self.manager = Mock(spec=PullRequestManager)
         self.manager.repo_identifier = _REPO
         self.manager._get_repository.return_value = self.repo
-        self.manager._collect_pr_feedback.side_effect = lambda *_a, **_kw: (_feedback())
+        self.manager._collect_pr_feedback.side_effect = lambda *_a, **_kw: _feedback()
         self.issue = Mock()
         self.issue.get_events.return_value = [_event()]
         self.manager._get_issue_checked.return_value = self.issue

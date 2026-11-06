@@ -16,9 +16,9 @@ from mcp_workspace.github_operations.caching._store import (
 )
 from mcp_workspace.github_operations.issues import (
     _get_cache_file_path,
+    get_issue_cache_last_checked,
 )
 from mcp_workspace.github_operations.issues import _save_cache_file as reexported
-from mcp_workspace.github_operations.issues import get_issue_cache_last_checked
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 
 _REPO = RepoIdentifier("o", "r")

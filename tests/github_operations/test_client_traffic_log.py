@@ -260,7 +260,9 @@ def _rate_limit_headers() -> dict[str, str]:
 def test_increment_logs_retry_without_response(log_dir: Path) -> None:
     """A read timeout writes one ``retry ReadTimeoutError`` line without rate data."""
     _LoggingGithubRetry(total=2).increment(
-        "GET", "/x", error=ReadTimeoutError(None, "/x", "timed out")  # type: ignore[arg-type]
+        "GET",
+        "/x",
+        error=ReadTimeoutError(None, "/x", "timed out"),  # type: ignore[arg-type]
     )
 
     lines = _lines(log_dir)

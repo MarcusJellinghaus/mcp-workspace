@@ -81,9 +81,9 @@ def test_server_import_does_not_eagerly_load_github_or_gitpython() -> None:
     assert SRC_DIR in data["file"], f"tested wrong copy: {data['file']}"
     assert data["github"] is False, "PyGithub imported eagerly at server import"
     assert data["git"] is False, "GitPython imported eagerly at server import"
-    assert (
-        data["markdown_it"] is False
-    ), "markdown-it-py imported eagerly at server import"
+    assert data["markdown_it"] is False, (
+        "markdown-it-py imported eagerly at server import"
+    )
 
 
 def test_file_tools_import_does_not_load_gitpython() -> None:

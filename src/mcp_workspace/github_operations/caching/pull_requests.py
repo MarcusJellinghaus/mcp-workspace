@@ -469,10 +469,8 @@ class PullRequestCache:
             return cached
         # Undecorated body: the decorator's empty default on an unexpected
         # error would look like "no feedback" and be cached.
-        feedback = (
-            self._pr_manager._collect_pr_feedback(  # pylint: disable=protected-access
-                pr["number"], include_alerts=False
-            )
+        feedback = self._pr_manager._collect_pr_feedback(  # pylint: disable=protected-access
+            pr["number"], include_alerts=False
         )
         for exc in feedback["unavailable"].values():
             if (rl := to_rate_limit_error(exc)) is not None:

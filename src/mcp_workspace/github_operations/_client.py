@@ -75,7 +75,12 @@ class _LoggingGithubRetry(GithubRetry):
             The retry object from ``super().increment``.
         """
         new_retry = super().increment(
-            method, url, response, error, _pool, _stacktrace  # type: ignore[arg-type]
+            method,
+            url,
+            response,  # type: ignore[arg-type]
+            error,
+            _pool,
+            _stacktrace,
         )
         if response is not None:
             status, headers = f"retry {response.status}", response.headers

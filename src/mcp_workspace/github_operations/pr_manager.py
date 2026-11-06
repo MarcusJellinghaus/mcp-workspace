@@ -467,8 +467,6 @@ class PullRequestManager(
         try:
             default_branch = get_default_branch_name(self.project_dir)
             return default_branch or ""
-        except (
-            Exception
-        ) as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
+        except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type
             logger.debug(f"Error getting default branch: {e}")
             return ""
