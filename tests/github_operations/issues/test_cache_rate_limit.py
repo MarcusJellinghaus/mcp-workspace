@@ -57,7 +57,7 @@ def _write_cache(
         "last_checked": last_checked,
         "last_full_refresh": _LAST_FULL_REFRESH,
         "updates_covered_through": _COVERED_THROUGH,
-        "cached_at": {key: _FRESH_STAMP for key in issues},
+        "cached_at": dict.fromkeys(issues, _FRESH_STAMP),
         "version": CACHE_SCHEMA_VERSION,
         "issues": issues,
     }

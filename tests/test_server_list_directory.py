@@ -92,10 +92,10 @@ def test_list_directory_error_handling(
     mock_list_files: MagicMock, project_dir: Path
 ) -> None:
     """Test error handling in the list_directory tool."""
-    # Mock list_files to raise an exception
-    mock_list_files.side_effect = Exception("Test error")
+    # Mock list_files to raise an exception it documents
+    mock_list_files.side_effect = NotADirectoryError("Test error")
 
-    with pytest.raises(Exception):
+    with pytest.raises(NotADirectoryError, match="Test error"):
         list_directory()
 
 

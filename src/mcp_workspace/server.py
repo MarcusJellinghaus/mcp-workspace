@@ -1769,7 +1769,7 @@ def github_subissue_list(
         return "\n".join(
             f"#{c.number}  {c.state}  {untrusted_prefix(login, assoc, trusted)}"
             f"{c.title}"
-            for c, (login, assoc) in zip(children, authors)
+            for c, (login, assoc) in zip(children, authors, strict=True)
         )
     except (GithubException, RetryError, ValueError) as exc:
         return _api_error(exc, reference_name)

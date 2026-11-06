@@ -2131,7 +2131,7 @@ class TestRepositoryCache:
         ):
             managers = [
                 BaseGitHubManager(repo_url=url, github_token=token)
-                for url, token in zip(repo_urls, tokens)
+                for url, token in zip(repo_urls, tokens, strict=True)
             ]
             for manager in managers:
                 manager._get_repository()

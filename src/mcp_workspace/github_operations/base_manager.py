@@ -315,8 +315,8 @@ class BaseGitHubManager:
                 self._cached_repo_identifier = RepoIdentifier.from_repo_url(
                     repo_url  # type: ignore[arg-type]
                 )
-            except ValueError:
-                raise ValueError(f"Invalid GitHub repository URL: {repo_url}")
+            except ValueError as exc:
+                raise ValueError(f"Invalid GitHub repository URL: {repo_url}") from exc
 
         # Resolve GitHub token (after directory/repository validation).
         if github_token is not None:

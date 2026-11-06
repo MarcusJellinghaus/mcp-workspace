@@ -41,7 +41,7 @@ def test_discover_files(project_dir: Path) -> None:
     discovered_files = _discover_files(test_dir, project_dir)
 
     # Convert to a set for easy comparison
-    rel_paths = set(str(Path(f)) for f in discovered_files)
+    rel_paths = {str(Path(f)) for f in discovered_files}
     expected_paths = {
         str(Path("testdata/test_file_tools/test1.txt")),
         str(Path("testdata/test_file_tools/test2.txt")),

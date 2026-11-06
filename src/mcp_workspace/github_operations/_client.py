@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlsplit
 
 from github import Auth, Github, GithubRetry
@@ -176,7 +176,8 @@ def _install_traffic_log(client: Github) -> None:
     ``self.__requestRaw(...)`` calls for 202/301/302 hops pass it again.
     """
     global _warned_missing  # pylint: disable=global-statement
-    requester = client.requester
+    # Any: this function patches a private, name-mangled PyGithub attribute.
+    requester: Any = client.requester
     original = getattr(requester, "_Requester__requestRaw", None)
     if original is None:
         if not _warned_missing:
@@ -204,11 +205,12 @@ def _install_traffic_log(client: Github) -> None:
                     start,
                 )
                 try:
-                    setattr(exc, "_traffic_logged", True)
+                    # Any: the marker is ad hoc, on an arbitrary exception type.
+                    cast(Any, exc)._traffic_logged = True
                 except Exception:  # pylint: disable=broad-exception-caught
                     pass
             raise
         log_request(verb, logged_url, str(status), headers, start)
         return status, headers, output
 
-    setattr(requester, "_Requester__requestRaw", wrapper)
+    requester._Requester__requestRaw = wrapper
