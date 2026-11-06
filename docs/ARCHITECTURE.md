@@ -247,24 +247,27 @@ This runs:
 
 ## CI/CD Integration
 
-### Regular CI (All Branches)
+`.github/workflows/ci.yml`. These names are the check names a PR reports, so renaming one breaks required status checks.
 
-Runs on every push:
-- ruff-format
-- ruff
-- pylint
-- pytest
-- mypy
+### Every Push, PR and Dispatch
 
-### Architecture CI (PRs Only)
+- `push-checks` matrix: ruff-format, ruff, mypy, no-url-deps, pylint
+- file-size
+- unit-tests
+- git-integration-tests
+- check-github-secrets
+- github-integration-tests (skipped when `check-github-secrets` finds no credentials)
 
-Runs only on pull requests:
-- import-linter
-- tach
-- vulture
-- deptry
+### PRs Only
+
+- check-forbidden-folders
+- `pr-checks` matrix: import-linter, tach, vulture, deptry
 
 **Why PR-only?** Architecture checks are more expensive and are most valuable when reviewing code changes.
+
+### PRs and Pushes to `main`
+
+- coverage: reporting only, never a gate. Runs when unit-tests and git-integration-tests succeeded and github-integration-tests succeeded or was skipped.
 
 ## Common Violations and Fixes
 

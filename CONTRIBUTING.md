@@ -19,7 +19,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Install in development mode with dev dependencies
-pip install -e ".[dev,config]"
+pip install -e ".[dev]"
 ```
 
 ## Running from Source (Development Mode)

@@ -1,5 +1,12 @@
 name: CI
 
+# Which job runs on which event:
+#   Every push, PR and dispatch → push-checks, file-size and the test jobs.
+#   Pull request only           → check-forbidden-folders and pr-checks.
+#   PR and main push            → coverage.
+# github-integration-tests also needs the credentials check-github-secrets looks for.
+# Job and matrix row names are required-check names: don't rename them, and never skip a check with a step-level `if`.
+
 on:
   push:
     branches: ["**"]
@@ -99,18 +106,20 @@ jobs:
           echo "✅ All checks passed! No forbidden folders found."
         fi
 
-  test:
+  # Matrix approach: Each check runs as independent job with individual pass/fail status
+  # fail-fast: false ensures all checks complete even if one fails
+  # First-line checks: run on every push, PR and dispatch.
+  push-checks:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         check:
           - {name: "ruff-format", cmd: "ruff version && ruff format --check src tests tools"}
-          - {name: "pylint", cmd: "pylint --version && pylint ./src ./tests"}
-          - {name: "mypy", cmd: "mypy --version && mypy --strict src tests"}
           - {name: "ruff", cmd: "ruff version && ruff check src tests tools"}
+          - {name: "mypy", cmd: "mypy --version && mypy --strict src tests"}
           - {name: "no-url-deps", cmd: "python tools/check_no_url_deps.py"}
-
+          - {name: "pylint", cmd: "pylint --version && pylint ./src ./tests"}
     name: ${{ matrix.check.name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -120,7 +129,8 @@ jobs:
         with:
           enable-cache: false
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - name: Set up Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
@@ -132,9 +142,83 @@ jobs:
         # install aborts, leaving runtime deps like `mcp` uninstalled and
         # breaking every downstream check (mypy/pylint/pytest).
         run: |
-          uv pip install --system \
-            "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
-            -e ".[dev]"
+          mapfile -t SPECS < <(python tools/read_github_deps.py --specs)
+          uv pip install --system "${SPECS[@]}" -e ".[dev]"
+
+      - name: Environment info
+        run: |
+          uname -a
+          python --version
+          uv --version
+          git --version
+
+      - name: Run ${{ matrix.check.name }}
+        run: ${{ matrix.check.cmd }}
+
+  # Own job, not a push-checks row: mcp-coder isn't a dependency here, so this
+  # needs its isolated venv rather than the shared install step.
+  file-size:
+    runs-on: ubuntu-latest
+    name: file-size
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: false
+
+      - name: Check file sizes
+        # mcp-coder is installed in an isolated venv. We install mcp-coder
+        # from its git URL first (which would pull mcp-workspace from git as
+        # a transitive dep), then force-reinstall mcp-workspace from THIS
+        # branch (.) so the file-size check exercises this branch's code.
+        # Note: the previous `uvx --with .` pattern is no longer viable
+        # because uv now reports "conflicting URLs for package mcp-workspace"
+        # when mcp-coder declares mcp-workspace as a git URL dependency.
+        # Workaround: mcp-coder HEAD imports unreleased mcp-tools-py code
+        # (resolve_steps), but its plain dependency resolves to the PyPI
+        # release. Install mcp-tools-py from git until upstream is fixed.
+        run: |
+          uv venv --python 3.11
+          source .venv/bin/activate
+          uv pip install "git+https://github.com/MarcusJellinghaus/mcp_coder.git"
+          uv pip install "git+https://github.com/MarcusJellinghaus/mcp-tools-py.git"
+          uv pip install --force-reinstall --no-deps .
+          mcp-coder check file-size --max-lines 750 --allowlist-file .large-files-allowlist
+
+  # Backup checks: slower architecture checks, PR only.
+  pr-checks:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        check:
+          - {name: "import-linter", cmd: "uv pip show import-linter | grep Version && ./tools/lint_imports.sh"}
+          - {name: "tach", cmd: "tach --version && tach check"}
+          - {name: "vulture", cmd: "vulture --version && vulture src tests vulture_whitelist.py --min-confidence 60"}
+          - {name: "deptry", cmd: "deptry --version && ./tools/deptry_check.sh"}
+    name: ${{ matrix.check.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        # See note in the `push-checks` job: mcp-coder-utils is git-only and must be
+        # pre-installed so the editable project install can resolve it.
+        run: |
+          mapfile -t SPECS < <(python tools/read_github_deps.py --specs)
+          uv pip install --system "${SPECS[@]}" -e ".[dev]"
 
       - name: Environment info
         run: |
@@ -157,17 +241,17 @@ jobs:
         with:
           enable-cache: false
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - name: Set up Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
       - name: Install dependencies
-        # See note in the `test` job: mcp-coder-utils is git-only and must be
+        # See note in the `push-checks` job: mcp-coder-utils is git-only and must be
         # pre-installed so the editable project install can resolve it.
         run: |
-          uv pip install --system \
-            "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
-            -e ".[dev]"
+          mapfile -t SPECS < <(python tools/read_github_deps.py --specs)
+          uv pip install --system "${SPECS[@]}" -e ".[dev]"
 
       - name: Environment info
         run: |
@@ -201,17 +285,17 @@ jobs:
         with:
           enable-cache: false
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - name: Set up Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
       - name: Install dependencies
-        # See note in the `test` job: mcp-coder-utils is git-only and must be
+        # See note in the `push-checks` job: mcp-coder-utils is git-only and must be
         # pre-installed so the editable project install can resolve it.
         run: |
-          uv pip install --system \
-            "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
-            -e ".[dev]"
+          mapfile -t SPECS < <(python tools/read_github_deps.py --specs)
+          uv pip install --system "${SPECS[@]}" -e ".[dev]"
 
       - name: Environment info
         run: |
@@ -284,7 +368,8 @@ jobs:
         with:
           enable-cache: false
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - name: Set up Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
@@ -296,9 +381,8 @@ jobs:
         # install aborts, leaving runtime deps like `mcp` uninstalled and
         # breaking every downstream check (mypy/pylint/pytest).
         run: |
-          uv pip install --system \
-            "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
-            -e ".[dev]"
+          mapfile -t SPECS < <(python tools/read_github_deps.py --specs)
+          uv pip install --system "${SPECS[@]}" -e ".[dev]"
 
       - name: Environment info
         run: |
@@ -344,7 +428,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - name: Set up Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
@@ -408,75 +493,3 @@ jobs:
           else
             python tools/ci_coverage_summary.py --coverage-xml coverage.xml --output "$GITHUB_STEP_SUMMARY"
           fi
-
-  file-size:
-    runs-on: ubuntu-latest
-    name: file-size
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
-        with:
-          enable-cache: false
-
-      - name: Check file sizes
-        # mcp-coder is installed in an isolated venv. We install mcp-coder
-        # from its git URL first (which would pull mcp-workspace from git as
-        # a transitive dep), then force-reinstall mcp-workspace from THIS
-        # branch (.) so the file-size check exercises this branch's code.
-        # Note: the previous `uvx --with .` pattern is no longer viable
-        # because uv now reports "conflicting URLs for package mcp-workspace"
-        # when mcp-coder declares mcp-workspace as a git URL dependency.
-        # Workaround: mcp-coder HEAD imports unreleased mcp-tools-py code
-        # (resolve_steps), but its plain dependency resolves to the PyPI
-        # release. Install mcp-tools-py from git until upstream is fixed.
-        run: |
-          uv venv --python 3.11
-          source .venv/bin/activate
-          uv pip install "git+https://github.com/MarcusJellinghaus/mcp_coder.git"
-          uv pip install "git+https://github.com/MarcusJellinghaus/mcp-tools-py.git"
-          uv pip install --force-reinstall --no-deps .
-          mcp-coder check file-size --max-lines 750 --allowlist-file .large-files-allowlist
-
-  architecture:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    strategy:
-      fail-fast: false
-      matrix:
-        check:
-          - {name: "import-linter", cmd: "uv pip show import-linter | grep Version && ./tools/lint_imports.sh"}
-          - {name: "tach", cmd: "tach --version && tach check"}
-          - {name: "vulture", cmd: "vulture --version && vulture src tests vulture_whitelist.py --min-confidence 60"}
-          - {name: "deptry", cmd: "deptry --version && ./tools/deptry_check.sh"}
-    name: ${{ matrix.check.name }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
-        with:
-          enable-cache: false
-
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        # See note in the `test` job: mcp-coder-utils is git-only and must be
-        # pre-installed so the editable project install can resolve it.
-        run: |
-          uv pip install --system \
-            "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
-            -e ".[dev]"
-
-      - name: Environment info
-        run: |
-          uname -a
-          python --version
-          uv --version
-          git --version
-
-      - name: Run ${{ matrix.check.name }}
-        run: ${{ matrix.check.cmd }}
