@@ -79,7 +79,6 @@ For LLM-based testing, see [tests/LLM_Test.md](tests/LLM_Test.md) - this contain
 
 The project includes several development utility scripts in the `tools/` directory:
 
-- `format_all.bat` - Format code with Black and isort
 - `pylint_check_for_errors.bat` - Run pylint checks
 - `reinstall.bat` - Reinstall the package in development mode
 - `update_packages.bat` - Update dependencies
@@ -87,8 +86,8 @@ The project includes several development utility scripts in the `tools/` directo
 ## Code Style
 
 The project uses:
-- **Black** for code formatting (line length: 88)
-- **isort** for import sorting
+- **ruff format** for code formatting (line length: 88)
+- **ruff** (`I` rules) for import sorting
 - **pylint** for code quality checks
 
 ## Troubleshooting Development Setup
@@ -107,7 +106,7 @@ The project uses:
 
 1. **Fork the repository** and create a feature branch
 2. **Write tests** for new functionality
-3. **Follow code style** guidelines (Black, isort, pylint)
+3. **Follow code style** guidelines (ruff, pylint)
 4. **Update documentation** as needed
 5. **Test thoroughly** including edge cases
 6. **Submit a pull request** with a clear description

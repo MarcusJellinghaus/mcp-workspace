@@ -41,7 +41,7 @@ Per section: verify still needed, verify against the source, apply, commit, push
 
 ### Formatter
 
-- [ ] **12. Migrate to ruff format and `I` in one PR (#1175).** Do this after the rule groups, so the reformat runs once on final code. `formatter = "ruff"`, empty `[tool.ruff.format]`, add `I` (3 hits), remove `[tool.black]`, `[tool.isort]` and both dev dependencies. CI: delete `black` and `isort` rows, add `ruff-format` over `src tests tools`. Delete `tools/black.bat`, `iSort.bat`, `format_all.bat`, `format_all.sh`. Update `tools/check_version.bat`, `run_all_checks.*`, `.gitignore` (`*.isorted`), `CONTRIBUTING.md`, `docs/ARCHITECTURE.md`, `.claude/CLAUDE.md`, and the `commit_push` and `implement_direct` skills.
+- [x] **12. Migrate to ruff format and `I` in one PR (#1175).** Do this after the rule groups, so the reformat runs once on final code. `formatter = "ruff"`, empty `[tool.ruff.format]`, add `I` (3 hits), remove `[tool.black]`, `[tool.isort]` and both dev dependencies. CI: delete `black` and `isort` rows, add `ruff-format` over `src tests tools`. Delete `tools/black.bat`, `iSort.bat`, `format_all.bat`, `format_all.sh`. Update `tools/check_version.bat`, `run_all_checks.*`, `.gitignore` (`*.isorted`), `CONTRIBUTING.md`, `docs/ARCHITECTURE.md`, `.claude/CLAUDE.md`, and the `commit_push` and `implement_direct` skills.
 - [ ] **13. Update required status checks in the same step as task 12 (manual).** GitHub matches them by job name, so a removed required name blocks every PR. Also covers the task 3 rename and the task 14/15 job changes. Keep required checks in the ruleset only, not also in classic protection.
 
 ### Dependencies and coverage

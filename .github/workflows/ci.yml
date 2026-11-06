@@ -105,8 +105,7 @@ jobs:
       fail-fast: false
       matrix:
         check:
-          - {name: "black", cmd: "black --version && black --check src tests"}
-          - {name: "isort", cmd: "isort --version && isort --check --profile=black --float-to-top src tests"}
+          - {name: "ruff-format", cmd: "ruff version && ruff format --check src tests tools"}
           - {name: "pylint", cmd: "pylint --version && pylint ./src ./tests"}
           - {name: "unit-tests", cmd: "pytest --version && pytest -n auto -m 'not git_integration and not github_integration'"}
           - {name: "git-integration-tests", cmd: "pytest --version && pytest -n auto -m 'git_integration'"}

@@ -6,8 +6,10 @@ echo Running All Code Quality Checks
 echo ========================================
 echo.
 
-echo [1/6] Running black...
-call tools\format_all.bat
+echo [1/6] Running ruff import sort and format...
+ruff check --select I --fix src tests tools
+if %errorlevel% neq 0 exit /b 1
+ruff format src tests tools
 if %errorlevel% neq 0 exit /b 1
 echo.
 

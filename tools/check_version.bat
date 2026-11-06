@@ -14,8 +14,7 @@ python -c "import sys, os; print('Environment:', os.path.dirname(sys.executable)
 pip --version
 echo.
 echo --- Formatting ---
-black --version
-isort --version-number
+ruff version
 echo.
 echo --- Linting and Quality ---
 pylint --version

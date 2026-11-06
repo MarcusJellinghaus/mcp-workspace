@@ -215,7 +215,7 @@ tools\run_all_checks.bat
 ```
 
 This runs:
-1. Code formatting (black, isort)
+1. Code formatting (ruff format, ruff `I`)
 2. Linting (pylint)
 3. Type checking (mypy)
 4. Tests (pytest)
@@ -227,8 +227,8 @@ This runs:
 ### Regular CI (All Branches)
 
 Runs on every push:
-- black
-- isort
+- ruff-format
+- ruff
 - pylint
 - pytest
 - mypy

@@ -39,7 +39,6 @@ dist/
 checks_output.txt
 bash.exe.stackdump
 /.mcp-coder-tmp/
-*.isorted
 
 # Log folder for LLM sessions etc
 /.mcp-coder/*

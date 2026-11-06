@@ -7,8 +7,9 @@ echo "Running All Code Quality Checks"
 echo "========================================"
 echo ""
 
-echo "[1/6] Running black and isort..."
-./tools/format_all.sh
+echo "[1/6] Running ruff import sort and format..."
+ruff check --select I --fix src tests tools
+ruff format src tests tools
 echo ""
 
 echo "[2/6] Running pylint..."
