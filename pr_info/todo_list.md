@@ -46,7 +46,7 @@ Per section: verify still needed, verify against the source, apply, commit, push
 
 ### Dependencies and coverage
 
-- [ ] **14. deptry (#1176, #1290): 22 findings.** Add `[tool.deptry]` with `optional_dependencies_dev_groups` (clears the 17 `DEP002`). Declare `requests` and `typing_extensions` in `[project.dependencies]` (the 5 `DEP003`). Add `tools/deptry_check.sh/.bat` and a CI row.
+- [x] **14. deptry (#1176, #1290): 22 findings.** Add `[tool.deptry]` with `optional_dependencies_dev_groups` (clears the 17 `DEP002`). Declare `requests` and `typing_extensions` in `[project.dependencies]` (the 5 `DEP003`). Add `tools/deptry_check.sh/.bat` and a CI row. Re-measured 18 after task 10: 14 `DEP002`, 4 `DEP003` (`requests`). `typing_extensions` is not declared: `UP035` removed its `src` use, and the last import was a dead `except ImportError` branch in `tests/conftest.py`, now deleted. New required-check candidate: `deptry`.
 - [ ] **15. Coverage reporting, never a gate (#1178).** Split `unit-tests` and `git-integration-tests` out of the `test` matrix into their own jobs, then add a combining `coverage` job with `diff-cover`, `pytest-cov`, `tools/ci_coverage_summary.py` and `.gitignore` entries. `github-integration-tests` is skipped without secrets, so the job's `needs:` must not let that skip the coverage job.
 
 ### Security

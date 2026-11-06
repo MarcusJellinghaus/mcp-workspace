@@ -138,7 +138,7 @@ appear, so CI cannot catch a regression. The guard is
 
 ## Architecture Enforcement Tools
 
-We use three tools to enforce architectural boundaries:
+We use three tools to enforce architectural boundaries, and deptry for dependency declarations:
 
 ### 1. import-linter
 
@@ -202,6 +202,26 @@ tools\vulture_check.bat
 ./tools/vulture_check.sh
 ```
 
+### 4. deptry
+
+**Purpose:** Dependency declaration check
+
+**Configuration:** `[tool.deptry]` in `pyproject.toml`
+
+**What it checks:**
+- Imports in `src` that are not declared, or only arrive transitively
+- Declared runtime dependencies that `src` does not import
+- Dev-only packages imported from `src`
+
+**Run:**
+```bash
+# Windows
+tools\deptry_check.bat
+
+# Linux/Mac
+./tools/deptry_check.sh
+```
+
 ## Running All Checks
 
 Run all quality and architecture checks at once:
@@ -239,6 +259,7 @@ Runs only on pull requests:
 - import-linter
 - tach
 - vulture
+- deptry
 
 **Why PR-only?** Architecture checks are more expensive and are most valuable when reviewing code changes.
 

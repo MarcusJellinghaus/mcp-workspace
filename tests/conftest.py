@@ -6,7 +6,7 @@ import shutil
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import TypeVar
+from typing import TypedDict, TypeVar
 
 import git
 import pytest
@@ -105,12 +105,6 @@ def _traffic_log_off(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     monkeypatch.setattr("mcp_workspace.config.get_traffic_log_dir", lambda: None)
     yield
     original.cache_clear()
-
-
-try:
-    from typing import TypedDict
-except ImportError:
-    from typing_extensions import TypedDict
 
 
 class GitHubTestSetup(TypedDict):

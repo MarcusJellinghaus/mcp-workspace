@@ -30,6 +30,7 @@ dependencies = [
     "PyGithub>=2.10.0",
     "markdown-it-py>=3.0.0",
     "truststore",
+    "requests>=2.28.0",
 ]
 
 [project.optional-dependencies]
@@ -40,6 +41,7 @@ dev = [
     "pylint>=3.3.3",
     "mypy>=1.13.0",
     "ruff~=0.17.2",
+    "deptry>=0.25.1",
     "types-requests>=2.31.0",
     # "mcp-tools-py",  # TODO: uncomment once mcp-tools-py is published on PyPI
     # "mcp-coder",  # TODO: uncomment once mcp-coder is published on PyPI
@@ -142,6 +144,15 @@ ignore = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+# Dependency-declaration hygiene. Run as `deptry src`.
+# src only: running it over tests/ yields DEP004 noise and no signal.
+[tool.deptry]
+known_first_party = ["mcp_workspace"]
+# Extras holding dev-only packages: deptry exempts them from DEP002 and reports
+# DEP004 if src/ imports them. Keep in sync with [project.optional-dependencies]:
+# a renamed or removed extra only produces a deptry warning, not a failure.
+optional_dependencies_dev_groups = ["dev", "typecheck", "architecture"]
 
 [tool.mcp-coder.install-from-github]
 # Installed WITH deps (picks up external deps like jedi)
