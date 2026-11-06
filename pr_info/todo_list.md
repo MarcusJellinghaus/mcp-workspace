@@ -56,7 +56,7 @@ Per section: verify still needed, verify against the source, apply, commit, push
 - [x] **18. SHA-pin all GitHub Actions (#1310).** With a `# vX.Y.Z` comment, so Dependabot keeps them updated. Includes `pypa/gh-action-pypi-publish@release/v1` in `publish.yml`.
 - [x] **19. Signed release assets (#1310).** Add the `attach-signed-artifacts` job to `publish.yml`.
 - [ ] **20. Enable CodeQL default setup (manual; #1163 follow-up 4).** Needed before the CodeQL badge can render.
-- [ ] **21. Add `.github/workflows/scorecard.yml` (#1291).** Publish results and upload SARIF. Not a required check. Triage the resulting code-scanning alerts once after merge.
+- [x] **21. Add `.github/workflows/scorecard.yml` (#1291).** Publish results and upload SARIF. Not a required check. Triage the resulting code-scanning alerts once after merge.
 
 ### Badges
 
