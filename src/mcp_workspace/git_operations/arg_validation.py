@@ -5,6 +5,9 @@ dangerous flags (e.g. --exec, --output).
 """
 
 import re
+from pathlib import PureWindowsPath
+
+from mcp_workspace.utils.git_paths import is_path_in_git_dir
 
 LOG_ALLOWED_FLAGS: frozenset[str] = frozenset(
     {
@@ -286,6 +289,9 @@ _SUPPORTS_PATHSPEC: frozenset[str] = frozenset(
     {"log", "diff", "show", "status", "ls_tree", "ls_files", "check_ignore"}
 )
 
+_PATHSPEC_MAGIC = re.compile(r"^:(\([^)]*\)|[!^/]*)")
+_PATH_SEPARATORS = re.compile(r"[\\/]")
+
 _COUNT = re.compile(r"[0-9]*")
 _SIMILARITY = re.compile(r"[0-9]*\.?[0-9]*%?")
 
@@ -426,6 +432,58 @@ def split_args_pathspec(
             "parameter, not both."
         )
     return head, (tail or pathspec)
+
+
+def _leaves_repository(token: str) -> bool:
+    """Check whether a path, pathspec or ``<rev>:<path>`` reaches outside the repo.
+
+    The check is on the spelling only, which is what git itself uses to decide
+    whether a path is inside the repository. An absolute path is always
+    refused: git compares it with its own spelling of the repository path, so
+    one that Python resolves inside the project can still be outside for git.
+
+    Args:
+        token: Argument or pathspec entry to check.
+
+    Returns:
+        True if the token is empty, absolute, has a drive, has a ``..``
+        component, or names a ``.git`` entry.
+    """
+    if not token or PureWindowsPath(token).drive:
+        return True
+    for segment in _PATHSPEC_MAGIC.sub("", token, count=1).split(":"):
+        if segment.startswith(("/", "\\")) or ".." in _PATH_SEPARATORS.split(segment):
+            return True
+        if is_path_in_git_dir(segment):
+            return True
+    return False
+
+
+def validate_path_args(
+    command: str, args: list[str], pathspec: list[str] | None
+) -> None:
+    """Refuse operands and pathspec entries that reach outside the repository.
+
+    This also keeps ``git diff`` from comparing plain files: with two paths of
+    which one is outside the repository, git does that even when they follow
+    ``--``. Commands that take no paths are not checked.
+
+    Args:
+        command: Git sub-command name.
+        args: CLI arguments, without any ``--`` separator.
+        pathspec: Paths that follow ``--``.
+
+    Raises:
+        ValueError: If an operand or pathspec entry leaves the repository.
+    """
+    if command not in _SUPPORTS_PATHSPEC:
+        return
+    for token in [*positional_args(command, args), *(pathspec or [])]:
+        if _leaves_repository(token):
+            raise ValueError(
+                f"git {command}: '{token}' is refused. Paths must stay inside the "
+                "repository and be relative to it, and cannot name a .git entry."
+            )
 
 
 def validate_branch_has_read_flag(args: list[str]) -> None:

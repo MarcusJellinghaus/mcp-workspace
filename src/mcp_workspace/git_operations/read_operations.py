@@ -16,6 +16,7 @@ from .arg_validation import (
     split_args_pathspec,
     validate_args,
     validate_branch_has_read_flag,
+    validate_path_args,
 )
 from .compact_diffs import render_compact_diff
 from .core import run_git_text, safe_repo_context
@@ -79,6 +80,7 @@ def _run_simple_command(
     """
     args, pathspec = split_args_pathspec(command, args, pathspec)
     validate_args(command, args)
+    validate_path_args(command, args, pathspec)
 
     cmd_args = (list(_SAFETY_FLAGS) if use_safety_flags else []) + args
     if pathspec:
@@ -120,6 +122,7 @@ def git_log(
     safe_args = args or []
     safe_args, pathspec = split_args_pathspec("log", safe_args, pathspec)
     validate_args("log", safe_args)
+    validate_path_args("log", safe_args, pathspec)
 
     cmd_args = list(_SAFETY_FLAGS) + safe_args
     if pathspec:
@@ -171,6 +174,7 @@ def git_diff(
     user_args = args or []
     user_args, pathspec = split_args_pathspec("diff", user_args, pathspec)
     validate_args("diff", user_args)
+    validate_path_args("diff", user_args, pathspec)
 
     # When non-patch-only flags (e.g. --stat, --numstat) are present without
     # -p/--patch, bypass the compact path: parse_diff() returns [] for such
@@ -274,6 +278,7 @@ def git_status(
     safe_args = args or []
     safe_args, pathspec = split_args_pathspec("status", safe_args, pathspec)
     validate_args("status", safe_args)
+    validate_path_args("status", safe_args, pathspec)
 
     cmd_args = list(safe_args)
     if pathspec:
@@ -362,6 +367,7 @@ def git_show(
     user_args = args or []
     user_args, pathspec = split_args_pathspec("show", user_args, pathspec)
     validate_args("show", user_args)
+    validate_path_args("show", user_args, pathspec)
 
     # Detect colon pattern (e.g. HEAD:README.md) — file content, not diff
     has_colon = any(":" in a and not a.startswith("-") for a in user_args)
@@ -516,6 +522,7 @@ def git_check_ignore(
         "check_ignore", args or [], pathspec
     )
     validate_args("check_ignore", safe_args)
+    validate_path_args("check_ignore", safe_args, split_pathspec)
 
     cmd_args = safe_args + ["--"] + (split_pathspec or [])
 
