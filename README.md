@@ -626,6 +626,8 @@ Reports files whose line count exceeds a threshold.
 - Delete operations are restricted to the project directory for safety
 - Reference project *files* are strictly read-only to prevent accidental modifications
 
+Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
+
 ### MCP Configuration Management Tool
 
 For easy configuration and installation of this MCP server, you can use the **mcp-config** development tool. This CLI tool simplifies the process of managing MCP server configurations across multiple clients (Claude Desktop, VS Code, etc.).

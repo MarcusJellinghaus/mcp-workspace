@@ -131,3 +131,5 @@ mcp-workspace/
 - Open an issue on GitHub for bugs or feature requests
 - Check existing issues before creating new ones
 - Include detailed information about your development environment
+
+Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
