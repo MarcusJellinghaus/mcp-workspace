@@ -359,9 +359,40 @@ jobs:
           merge-multiple: true
 
       - name: Combine coverage data
+        id: coverage_combine
         run: |
           coverage combine coverage-data
           coverage xml -o coverage.xml
+          echo "total=$(coverage report --format=total)" >> "$GITHUB_OUTPUT"
+
+      # `secrets` isn't available in a step-level `if:`, so this step exposes
+      # only whether publishing can work. Runs on main pushes only, so PRs and
+      # forks skip it, and the skipped output skips the badge step too.
+      - name: Check coverage badge configuration
+        id: badge_config
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          TOKEN: ${{ secrets.BADGE_GIST_TOKEN }}
+          GIST_ID: ${{ vars.BADGE_GIST_ID }}
+          TOTAL: ${{ steps.coverage_combine.outputs.total }}
+        run: |
+          if [[ -n "$TOKEN" && -n "$GIST_ID" && -n "$TOTAL" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Coverage badge skipped: BADGE_GIST_TOKEN, BADGE_GIST_ID or the total is missing"
+          fi
+
+      - name: Update coverage badge
+        if: steps.badge_config.outputs.publish == 'true'
+        continue-on-error: true
+        uses: schneegans/dynamic-badges-action@28b0fa8bdeb46170ac397105ece0c1fe58f68910 # v1.9.0
+        with:
+          auth: ${{ secrets.BADGE_GIST_TOKEN }}
+          gistID: ${{ vars.BADGE_GIST_ID }}
+          filename: mcp-workspace-coverage.json
+          label: coverage
+          message: ${{ steps.coverage_combine.outputs.total }}%
+          color: blue
 
       - name: Run diff-cover
         if: github.event_name == 'pull_request'

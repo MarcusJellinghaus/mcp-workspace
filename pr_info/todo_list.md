@@ -61,7 +61,7 @@ Per section: verify still needed, verify against the source, apply, commit, push
 ### Badges
 
 - [x] **22. License metadata (#1291).** `LICENSE` already exists. Set `license = "MIT"` and `license-files = ["LICENSE"]`, raise to `setuptools>=77`, and remove the `License ::` classifier (the build fails if it stays).
-- [ ] **23. Coverage badge plumbing (#1291).** Needs task 15. Reuse the shared gist with file `mcp-workspace-coverage.json`, because an unrenamed copy overwrites mcp_coder's badge. Manual: set secret `BADGE_GIST_TOKEN` and variable `BADGE_GIST_ID`.
+- [x] **23. Coverage badge plumbing (#1291).** Needs task 15. Reuse the shared gist with file `mcp-workspace-coverage.json`, because an unrenamed copy overwrites mcp_coder's badge. Manual: set secret `BADGE_GIST_TOKEN` and variable `BADGE_GIST_ID`. Deviates from mcp_coder with a `badge_config` step that skips publishing when the secret, variable or total is missing; mcp_coder relies on `continue-on-error` alone.
 - [ ] **24. Add the README badges (#1291).** Under the title. Metadata: CI, PyPI, Python, License. Quality: Ruff, mypy strict, pylint, architecture, coverage. Security: Scorecard, CodeQL. Only list tools that actually run here.
 - [ ] **25. Verify after merge.** Every badge renders, coverage shows a percentage (not `pending`), Scorecard published.
 
@@ -72,6 +72,8 @@ Per section: verify still needed, verify against the source, apply, commit, push
 - [ ] **28. Align `check-forbidden-folders`.** mcp_coder blocks all of `pr_info/`; here only `pr_info/steps`, `pr_info/.conversations` and `.commit_message.txt` are blocked.
 - [ ] **29. Update the epic and wiki when done.** Comment on #1163. Add any lessons to the wiki as a Field Note. mcp-tools-py is still on the old ruff block, so track its propagation in its chore issue (mcp-tools-py#107).
 - [x] **30. Fix drift in `tools/` scripts.** `run_all_checks.*` now runs every CI row that has a wrapper (9 steps, adds ruff lint, vulture, deptry) and calls `mypy.bat`, not the missing `mypy_check.bat`. `ruff_check.*` covers `tools`. Removed `update_packages.bat`, whose `requirements.txt` no longer exists. Fixed `CONTRIBUTING.md` and `docs/ARCHITECTURE.md`.
+
+- [ ] **31. Separate PRs after this one merges: harden path and argument validation, then credential scrubbing.** Details are in the uncommitted `pr_info/security_issue_draft.md`: never commit it, and move it out before deleting `pr_info/`.
 
 ## Not applicable here
 
