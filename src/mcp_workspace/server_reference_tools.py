@@ -10,6 +10,7 @@ from mcp_coder_utils.log_utils import log_function_call
 from mcp_workspace.file_tools import list_files as list_files_util
 from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools import search_files as search_files_util
+from mcp_workspace.file_tools.directory_utils import check_path_not_gitignored
 from mcp_workspace.reference_projects import ReferenceProject, ensure_available
 
 logger = logging.getLogger(__name__)
@@ -143,6 +144,8 @@ async def read_reference_file(
         The contents of the file as a string
     """
     ref_path = await get_reference_project_path(reference_name)
+
+    check_path_not_gitignored(file_path, ref_path)
 
     # Call read_file_util with the reference project directory
     # The utility function handles all parameter validation and security checks
