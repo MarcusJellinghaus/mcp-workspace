@@ -388,7 +388,7 @@ class TestCollectTaskStatus:
         steps_dir.mkdir()
         (steps_dir / "step_1.md").write_text("step")
         mock_counts.return_value = (5, 5)
-        status, reason, blocking = _collect_task_status(tmp_path)
+        status, _, blocking = _collect_task_status(tmp_path)
         assert status == TaskTrackerStatus.COMPLETE
         assert not blocking
 
@@ -523,7 +523,7 @@ class TestCollectPRInfo:
                 "mergeable_state": "clean",
             }
         ]
-        number, url, found, mergeable, mergeable_state = _collect_pr_info(
+        number, _, found, mergeable, mergeable_state = _collect_pr_info(
             mock_pr, "feature"
         )
         assert number == 45
@@ -534,7 +534,7 @@ class TestCollectPRInfo:
     def test_no_pr(self) -> None:
         mock_pr = MagicMock()
         mock_pr.find_pull_request_by_head.return_value = []
-        number, url, found, mergeable, mergeable_state = _collect_pr_info(
+        number, _, found, mergeable, mergeable_state = _collect_pr_info(
             mock_pr, "feature"
         )
         assert number is None
@@ -545,9 +545,7 @@ class TestCollectPRInfo:
     def test_exception(self) -> None:
         mock_pr = MagicMock()
         mock_pr.find_pull_request_by_head.side_effect = Exception("fail")
-        number, url, found, mergeable, mergeable_state = _collect_pr_info(
-            mock_pr, "feature"
-        )
+        _, _, found, mergeable, mergeable_state = _collect_pr_info(mock_pr, "feature")
         assert found is None
         assert mergeable is None
         assert mergeable_state is None
@@ -562,7 +560,7 @@ class TestCollectPRInfo:
                 "mergeable": None,
             }
         ]
-        number, url, found, mergeable, mergeable_state = _collect_pr_info(
+        number, _, found, mergeable, mergeable_state = _collect_pr_info(
             mock_pr, "feature"
         )
         assert number == 45
@@ -581,7 +579,7 @@ class TestCollectPRInfo:
                 "mergeable_state": "dirty",
             }
         ]
-        number, url, found, mergeable, mergeable_state = _collect_pr_info(
+        number, _, found, mergeable, mergeable_state = _collect_pr_info(
             mock_pr, "feature"
         )
         assert number == 45

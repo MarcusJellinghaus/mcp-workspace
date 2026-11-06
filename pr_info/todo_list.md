@@ -67,7 +67,7 @@ Per section: verify still needed, verify against the source, apply, commit, push
 
 ## Also needed (not sub-issues of the epic)
 
-- [ ] **26. Enable pylint `W`.** Use mcp_coder's `disable` list (`C`, `R` and 10 named `W` codes). Not measured yet.
+- [x] **26. Enable pylint `W`.** Use mcp_coder's `disable` list (`C`, `R` and 10 named `W` codes). 19 findings over `src tests`, no real bugs: `W0612` 8, `W0108` 6, `W0622` 4 (test fakes keep `_run_with_input`'s `input` keyword), `W0603` 1. `tools/` stays out of scope, as in mcp_coder (2 `W1514` there). 99 suppressions made useless are left in place, since `useless-suppression` isn't enforced.
 - [ ] **27. Align the `ci.yml` layout.** `push-checks` / `pr-checks` split, dependency install via `tools/read_github_deps.py`, comment header explaining which job runs when. Update required checks with task 13.
 - [ ] **28. Align `check-forbidden-folders`.** mcp_coder blocks all of `pr_info/`; here only `pr_info/steps`, `pr_info/.conversations` and `.commit_message.txt` are blocked.
 - [ ] **29. Update the epic and wiki when done.** Comment on #1163. Add any lessons to the wiki as a Field Note. mcp-tools-py is still on the old ruff block, so track its propagation in its chore issue (mcp-tools-py#107).

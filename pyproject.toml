@@ -167,13 +167,21 @@ packages-no-deps = [
 ]
 
 [tool.pylint.messages_control]
-# W, C, R categories disabled - only errors (E) and fatals (F) are checked
-# Previously disabled individually (now covered by W category above):
-# W1203: Disable lazy % formatting - project prefers f-strings for readability
-# W0621: Disable redefined-outer-name - pytest fixtures standard pattern
-# R0401: Enable cyclic-import detection (not enabled by default as it's in refactor category)
-disable = ["W", "C", "R"]
-enable = ["R0401"]
+disable = [
+    "C",       # conventions — not enabled in this project
+    "R",       # refactor suggestions — not enabled in this project
+    "W1203",   # logging-fstring-interpolation — project uses f-strings for readability
+    "W0621",   # redefined-outer-name — standard pytest fixture pattern
+    "W0511",   # fixme/TODO — informational only, not a quality gate
+    "W0212",   # protected-access — legitimate in tests and controlled src usage
+    "W0613",   # unused-argument — pytest fixtures injected by name
+    "W0611",   # unused-import — owned by ruff F401 (pylint flags the X-as-X re-export convention)
+    "W0404",   # reimported — reimports across test functions
+    "W0718",   # broad-exception-caught — intentional catch-all in CLI/workflow error handling
+    "W0706",   # try-except-raise — explicit re-raise for clarity in error chains
+    "W4903",   # deprecated-argument — tracked for future cleanup
+]
+enable = ["R0401"]  # cyclic-import detection, off by default as it is in the refactor category
 
 [tool.mypy]
 mypy_path = "src"

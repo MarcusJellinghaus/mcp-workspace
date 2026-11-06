@@ -58,7 +58,7 @@ class TestCollectCIStatus:
             "jobs": [],
         }
         mock_ci_cls.return_value = mock_ci
-        status, details, failing_names = _collect_ci_status(Path("/tmp"), "main", 300)
+        status, _, failing_names = _collect_ci_status(Path("/tmp"), "main", 300)
         assert status == CIStatus.PENDING
         assert failing_names == []
 

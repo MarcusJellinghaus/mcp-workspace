@@ -102,7 +102,10 @@ def _patch_step7(
         return default_run_handler(args)
 
     def default_run_with_input(
-        args: list[str], *, input: str, timeout: float
+        args: list[str],
+        *,
+        input: str,  # pylint: disable=redefined-builtin  # _run_with_input's keyword
+        timeout: float,
     ) -> "subprocess.CompletedProcess[str]":
         del input, timeout
         return subprocess.CompletedProcess(
@@ -211,7 +214,10 @@ class TestActuallySignOpenPGP:
         """returncode 2 + 'No pinentry' stderr → ok=False, error captured."""
 
         def handler(
-            args: list[str], *, input: str, timeout: float
+            args: list[str],
+            *,
+            input: str,  # pylint: disable=redefined-builtin  # _run_with_input's keyword
+            timeout: float,
         ) -> "subprocess.CompletedProcess[str]":
             del input, timeout
             return subprocess.CompletedProcess(
@@ -234,7 +240,10 @@ class TestActuallySignOpenPGP:
         """returncode 2 + 'No secret key' → ok=False, error captured."""
 
         def handler(
-            args: list[str], *, input: str, timeout: float
+            args: list[str],
+            *,
+            input: str,  # pylint: disable=redefined-builtin  # _run_with_input's keyword
+            timeout: float,
         ) -> "subprocess.CompletedProcess[str]":
             del input, timeout
             return subprocess.CompletedProcess(
@@ -256,7 +265,10 @@ class TestActuallySignOpenPGP:
         """gpg --clearsign times out → ok=False, severity=error, value mentions timeout."""
 
         def handler(
-            args: list[str], *, input: str, timeout: float
+            args: list[str],
+            *,
+            input: str,  # pylint: disable=redefined-builtin  # _run_with_input's keyword
+            timeout: float,
         ) -> "subprocess.CompletedProcess[str]":
             del input
             raise subprocess.TimeoutExpired(cmd=args, timeout=timeout)
