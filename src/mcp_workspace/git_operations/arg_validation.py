@@ -289,6 +289,8 @@ _SUPPORTS_PATHSPEC: frozenset[str] = frozenset(
     {"log", "diff", "show", "status", "ls_tree", "ls_files", "check_ignore"}
 )
 
+_REMOTE_COMMANDS: frozenset[str] = frozenset({"fetch", "ls_remote"})
+
 _PATHSPEC_MAGIC = re.compile(r"^:(\([^)]*\)|[!^/]*)")
 _PATH_SEPARATORS = re.compile(r"[\\/]")
 
@@ -324,6 +326,7 @@ _SEPARATE_VALUE_FLAGS: dict[str, frozenset[str]] = {
     "branch": frozenset({"--contains", "--merged", "--no-merged", "--sort"}),
     "ls_files": frozenset({"--exclude"}),
     "ls_remote": frozenset({"--sort"}),
+    "fetch": frozenset({"--depth", "--shallow-since", "--shallow-exclude"}),
 }
 
 # With one of these, git branch treats other arguments as patterns to list.
@@ -484,6 +487,41 @@ def validate_path_args(
                 f"git {command}: '{token}' is refused. Paths must stay inside the "
                 "repository and be relative to it, and cannot name a .git entry."
             )
+
+
+def validate_remote_args(command: str, args: list[str], remote_names: set[str]) -> None:
+    """Refuse fetch and ls-remote operands other than configured remote names.
+
+    Fetch refspecs may name what to fetch but not where to store it, so a fetch
+    only updates remote-tracking refs and ``FETCH_HEAD``. Commands other than
+    fetch and ls-remote are not checked.
+
+    Args:
+        command: Git sub-command name.
+        args: CLI arguments.
+        remote_names: Names of the remotes configured in the repository.
+
+    Raises:
+        ValueError: If the first operand is not a configured remote, or a fetch
+            refspec could update a local ref.
+    """
+    if command not in _REMOTE_COMMANDS:
+        return
+    operands = positional_args(command, args)
+    if not operands:
+        return
+    if operands[0] not in remote_names:
+        raise ValueError(
+            f"git {command}: '{operands[0]}' is refused. Only a configured remote "
+            "name is accepted, not a URL or a path."
+        )
+    if command == "fetch":
+        for refspec in operands[1:]:
+            if ":" in refspec or refspec.startswith("+") or refspec == "tag":
+                raise ValueError(
+                    f"git fetch: refspec '{refspec}' is refused. Name the ref to "
+                    "fetch, without a destination or a forced update."
+                )
 
 
 def validate_branch_has_read_flag(args: list[str]) -> None:

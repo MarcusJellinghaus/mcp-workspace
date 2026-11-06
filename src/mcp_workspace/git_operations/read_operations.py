@@ -12,11 +12,13 @@ from pathlib import Path
 from git.exc import GitCommandError
 
 from .arg_validation import (
+    _REMOTE_COMMANDS,
     _SUPPORTS_PATHSPEC,
     split_args_pathspec,
     validate_args,
     validate_branch_has_read_flag,
     validate_path_args,
+    validate_remote_args,
 )
 from .compact_diffs import render_compact_diff
 from .core import run_git_text, safe_repo_context
@@ -87,6 +89,9 @@ def _run_simple_command(
         cmd_args += ["--"] + pathspec
 
     with safe_repo_context(project_dir) as repo:
+        if command in _REMOTE_COMMANDS:
+            remote_names = {remote.name for remote in repo.remotes}
+            validate_remote_args(command, args, remote_names)
         output: str = run_git_text(repo, git_method, *cmd_args)
 
     if not output:
