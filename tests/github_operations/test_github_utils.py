@@ -593,22 +593,22 @@ class TestPullRequestManagerIntegration:
             manager = PullRequestManager(git_dir)
 
         # Test invalid PR numbers
-        assert manager._validate_pr_number(0) == False
-        assert manager._validate_pr_number(-1) == False
-        assert manager._validate_pr_number(1) == True
+        assert manager._validate_pr_number(0) is False
+        assert manager._validate_pr_number(-1) is False
+        assert manager._validate_pr_number(1) is True
         # Note: Testing with wrong types (like strings) is skipped as it's a type error
 
         # Test invalid branch names
-        assert manager._validate_branch_name("") == False
-        assert manager._validate_branch_name("   ") == False
-        assert manager._validate_branch_name("branch~name") == False
-        assert manager._validate_branch_name("branch^name") == False
-        assert manager._validate_branch_name("branch:name") == False
-        assert manager._validate_branch_name(".branch") == False
-        assert manager._validate_branch_name("branch.") == False
-        assert manager._validate_branch_name("branch.lock") == False
-        assert manager._validate_branch_name("valid-branch") == True
-        assert manager._validate_branch_name("feature/new-feature") == True
+        assert manager._validate_branch_name("") is False
+        assert manager._validate_branch_name("   ") is False
+        assert manager._validate_branch_name("branch~name") is False
+        assert manager._validate_branch_name("branch^name") is False
+        assert manager._validate_branch_name("branch:name") is False
+        assert manager._validate_branch_name(".branch") is False
+        assert manager._validate_branch_name("branch.") is False
+        assert manager._validate_branch_name("branch.lock") is False
+        assert manager._validate_branch_name("valid-branch") is True
+        assert manager._validate_branch_name("feature/new-feature") is True
 
         # Test methods with invalid inputs return empty dict/list
         # Note: These return cast TypedDict instances, so we check for empty/falsy values
@@ -679,17 +679,17 @@ class TestLabelsManagerUnit:
             manager = LabelsManager(git_dir)
 
             # Valid names - should pass validation
-            assert manager._validate_label_name("bug") == True
-            assert manager._validate_label_name("feature-request") == True
-            assert manager._validate_label_name("high priority") == True
-            assert manager._validate_label_name("bug :bug:") == True
-            assert manager._validate_label_name("type/enhancement") == True
+            assert manager._validate_label_name("bug") is True
+            assert manager._validate_label_name("feature-request") is True
+            assert manager._validate_label_name("high priority") is True
+            assert manager._validate_label_name("bug :bug:") is True
+            assert manager._validate_label_name("type/enhancement") is True
 
             # Invalid names - should fail validation
-            assert manager._validate_label_name("") == False
-            assert manager._validate_label_name("   ") == False
-            assert manager._validate_label_name("  leading") == False
-            assert manager._validate_label_name("trailing  ") == False
+            assert manager._validate_label_name("") is False
+            assert manager._validate_label_name("   ") is False
+            assert manager._validate_label_name("  leading") is False
+            assert manager._validate_label_name("trailing  ") is False
 
     def test_color_validation_and_normalization(self, tmp_path: Path) -> None:
         """Test color validation and normalization."""
@@ -706,16 +706,16 @@ class TestLabelsManagerUnit:
             manager = LabelsManager(git_dir)
 
             # Valid colors - should pass validation
-            assert manager._validate_color("FF0000") == True
-            assert manager._validate_color("#FF0000") == True
-            assert manager._validate_color("00ff00") == True
-            assert manager._validate_color("#00FF00") == True
+            assert manager._validate_color("FF0000") is True
+            assert manager._validate_color("#FF0000") is True
+            assert manager._validate_color("00ff00") is True
+            assert manager._validate_color("#00FF00") is True
 
             # Invalid colors - should fail validation
-            assert manager._validate_color("red") == False
-            assert manager._validate_color("12345") == False
-            assert manager._validate_color("GGGGGG") == False
-            assert manager._validate_color("#12345") == False
+            assert manager._validate_color("red") is False
+            assert manager._validate_color("12345") is False
+            assert manager._validate_color("GGGGGG") is False
+            assert manager._validate_color("#12345") is False
 
             # Test normalization (removing '#' prefix)
             assert manager._normalize_color("#FF0000") == "FF0000"

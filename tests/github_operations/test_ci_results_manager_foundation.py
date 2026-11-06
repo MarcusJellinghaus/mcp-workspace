@@ -82,30 +82,30 @@ class TestCIResultsManagerFoundation:
                 manager = CIResultsManager(repo_url=repo_url)
 
                 # Valid branch names
-                assert manager._validate_branch_name("feature/xyz") == True
-                assert manager._validate_branch_name("main") == True
-                assert manager._validate_branch_name("develop") == True
+                assert manager._validate_branch_name("feature/xyz") is True
+                assert manager._validate_branch_name("main") is True
+                assert manager._validate_branch_name("develop") is True
 
                 # Invalid branch names
-                assert manager._validate_branch_name("") == False
-                assert manager._validate_branch_name("   ") == False
+                assert manager._validate_branch_name("") is False
+                assert manager._validate_branch_name("   ") is False
                 assert (
-                    manager._validate_branch_name("branch~1") == False
+                    manager._validate_branch_name("branch~1") is False
                 )  # Invalid char
                 assert (
-                    manager._validate_branch_name("branch^2") == False
+                    manager._validate_branch_name("branch^2") is False
                 )  # Invalid char
                 assert (
-                    manager._validate_branch_name("branch:fix") == False
+                    manager._validate_branch_name("branch:fix") is False
                 )  # Invalid char
                 assert (
-                    manager._validate_branch_name("branch?test") == False
+                    manager._validate_branch_name("branch?test") is False
                 )  # Invalid char
                 assert (
-                    manager._validate_branch_name("branch*glob") == False
+                    manager._validate_branch_name("branch*glob") is False
                 )  # Invalid char
                 assert (
-                    manager._validate_branch_name("branch[1]") == False
+                    manager._validate_branch_name("branch[1]") is False
                 )  # Invalid char
 
     def test_validate_run_id(self) -> None:
@@ -121,14 +121,14 @@ class TestCIResultsManagerFoundation:
                 manager = CIResultsManager(repo_url=repo_url)
 
                 # Valid run IDs
-                assert manager._validate_run_id(12345) == True
-                assert manager._validate_run_id(1) == True
-                assert manager._validate_run_id(999999999) == True
+                assert manager._validate_run_id(12345) is True
+                assert manager._validate_run_id(1) is True
+                assert manager._validate_run_id(999999999) is True
 
                 # Invalid run IDs
-                assert manager._validate_run_id(0) == False
-                assert manager._validate_run_id(-1) == False
-                assert manager._validate_run_id(-100) == False
+                assert manager._validate_run_id(0) is False
+                assert manager._validate_run_id(-1) is False
+                assert manager._validate_run_id(-100) is False
 
     def test_cistatus_data_structure(self) -> None:
         """Test that CIStatusData TypedDict is properly defined and importable."""
