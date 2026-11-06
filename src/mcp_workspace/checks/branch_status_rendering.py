@@ -21,7 +21,7 @@ from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 if TYPE_CHECKING:
     from mcp_workspace.checks.branch_status import BranchStatusReport
 
-GITHUB_TOKEN_HINT = "no GitHub token; set GITHUB_TOKEN or add to config.toml"
+GITHUB_TOKEN_HINT = "no GitHub token; set GITHUB_TOKEN or add to config.toml"  # noqa: S105 -- user-facing hint text, not a credential
 
 MAX_CHECK_NAMES = 10
 
@@ -387,9 +387,11 @@ def _format_linked_branch_line(report: "BranchStatusReport") -> Optional[str]:
     )
     if status == LinkedBranchStatus.OK:
         text = f"OK ('{current}')"
-    elif status == LinkedBranchStatus.LINKED_VIA_PR:
+    elif (
+        status == LinkedBranchStatus.LINKED_VIA_PR
+        and report.closing_pr_candidate is not None
+    ):
         pr = report.closing_pr_candidate
-        assert pr is not None
         text = (
             f"OK via PR #{pr.number} — PR branch matches current branch '{current}' "
             f"(closes {issue}; no branch linked in the Development panel)"

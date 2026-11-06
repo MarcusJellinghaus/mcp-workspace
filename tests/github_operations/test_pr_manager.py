@@ -41,6 +41,7 @@ class TestPullRequestManagerUnit:
 
         assert manager.project_dir is None
         assert manager.repository_name == "test/repo"
+        assert manager.default_branch == ""
 
     def test_initialization_requires_git_repository(self, tmp_path: Path) -> None:
         """Test that non-git directory raises ValueError."""

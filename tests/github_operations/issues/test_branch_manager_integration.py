@@ -14,10 +14,12 @@ Config File Alternative (~/.mcp_coder/config.toml):
 Note: Tests will be skipped if configuration is missing.
 """
 
+import contextlib
 import datetime
 from typing import TYPE_CHECKING, Generator
 
 import pytest
+from github import GithubException
 
 from mcp_workspace.github_operations.issues import IssueBranchManager, IssueManager
 
@@ -297,28 +299,24 @@ class TestIssueBranchManagerIntegration:
         finally:
             # Final cleanup: ensure issue is closed and branches are deleted
             if created_issue and "number" in created_issue:
-                try:
+                # Ignore cleanup failures: API errors and network errors
+                with contextlib.suppress(GithubException, OSError):
                     issue_manager.close_issue(created_issue["number"])
                     print(
                         f"\n✓ Final cleanup: Ensured issue #{created_issue['number']} is closed"
                     )
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass  # Ignore cleanup failures
 
             # Attempt to delete any remaining branches
             if created_branches:
-                try:
+                with contextlib.suppress(GithubException, OSError):
                     repo = issue_branch_manager._get_repository()
                     if repo is not None:
                         for branch_name in created_branches:
-                            try:
+                            # Branch may already be deleted
+                            with contextlib.suppress(GithubException, OSError):
                                 ref = repo.get_git_ref(f"heads/{branch_name}")
                                 ref.delete()
                                 print(f"✓ Final cleanup: Deleted branch {branch_name}")
-                            except Exception:  # pylint: disable=broad-exception-caught
-                                pass  # Branch may already be deleted
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass  # Ignore cleanup failures
 
     def test_error_handling_without_creating_issues(
         self, issue_branch_manager: IssueBranchManager

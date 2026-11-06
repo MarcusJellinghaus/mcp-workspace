@@ -13,7 +13,7 @@ and uses targeted manual ``logger.debug`` calls that omit sensitive values.
 
 import logging
 import shutil
-import subprocess  # noqa: S404
+import subprocess
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -501,7 +501,7 @@ def verify_git(
                     isinstance(signing_key_check, dict)
                     and signing_key_check.get("ok") is True
                 )
-                if not signing_key_ok:
+                if not signing_key_ok or signing_key is None:
                     result["actual_signature"] = CheckResult(
                         ok=False,
                         value="cannot probe: user.signingkey unavailable",
@@ -516,10 +516,6 @@ def verify_git(
                         error="signing binary unavailable",
                     )
                 else:
-                    # signing_key_ok is True only when signing_key is not None
-                    # (build_signing_key_result returns ok=False otherwise);
-                    # narrow for mypy.
-                    assert signing_key is not None
                     try:
                         proc = _run_with_input(
                             [

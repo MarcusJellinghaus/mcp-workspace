@@ -36,7 +36,8 @@ def new_expiry(now: datetime) -> str:
     The jitter spreads rechecks of entries written in the same run over
     later runs.
     """
-    return format_for_cache(now + MAX_AGE * random.uniform(0.75, 1.0))  # nosec B311
+    jitter = random.uniform(0.75, 1.0)  # noqa: S311 -- not security  # nosec B311
+    return format_for_cache(now + MAX_AGE * jitter)
 
 
 def is_expired(entry: Mapping[str, Any], now: datetime) -> bool:

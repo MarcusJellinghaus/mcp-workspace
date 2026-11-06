@@ -175,26 +175,24 @@ def parse_base_branch(body: str) -> Optional[str]:
     lines = _LINE_BREAK.split(body)
 
     # Top-level ATX headings only: level 0 excludes blockquotes and list items,
-    # "#" markup excludes setext headings.
+    # "#" markup excludes setext headings. The parser sets map on every heading.
     headings = [
-        (index, token)
+        (index, token.map)
         for index, token in enumerate(tokens)
         if token.type == "heading_open"
         and token.level == 0
         and token.markup.startswith("#")
+        and token.map is not None
     ]
 
-    for position, (index, token) in enumerate(headings):
+    for position, (index, heading_map) in enumerate(headings):
         if not _BASE_BRANCH_HEADING.fullmatch(tokens[index + 1].content.strip()):
             continue
-        assert token.map is not None
         if position + 1 < len(headings):
-            next_map = headings[position + 1][1].map
-            assert next_map is not None
-            end = next_map[0]
+            end = headings[position + 1][1][0]
         else:
             end = len(lines)
-        content = "\n".join(lines[token.map[1] : end]).strip()
+        content = "\n".join(lines[heading_map[1] : end]).strip()
 
         if not content:
             return None

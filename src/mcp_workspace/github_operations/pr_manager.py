@@ -97,9 +97,6 @@ class PullRequestManager(
         if project_dir is not None:
             # _repo_identifier is a lazy property from BaseGitHubManager.
             # Eagerly resolve it here to fail fast if no GitHub remote.
-            assert (
-                self.project_dir is not None
-            ), "project_dir must be set after initialization"
             try:
                 _ = self._repo_identifier  # triggers resolution
             except ValueError as e:
@@ -463,9 +460,11 @@ class PullRequestManager(
         Returns:
             Default branch name (typically "main" or "master") or empty string on failure
         """
+        if self.project_dir is None:
+            # repo_url mode (reference projects) has no local checkout to read
+            logger.debug("No project_dir: default branch not available locally")
+            return ""
         try:
-            # project_dir is guaranteed to be non-None for PullRequestManager
-            assert self.project_dir is not None, "project_dir must be set"
             default_branch = get_default_branch_name(self.project_dir)
             return default_branch or ""
         except (

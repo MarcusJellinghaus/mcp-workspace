@@ -327,8 +327,7 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
                 time.sleep(delay)
 
         # Retries exhausted — last_result holds the final failure
-        assert last_result is not None
-        return last_result
+        return cast(BranchCreationResult, last_result)
 
     def _invalidate_branch_cache(self, issue_number: int) -> None:
         """Drop the issue's branch-lookup cache entry. Never raises."""

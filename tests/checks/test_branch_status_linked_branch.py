@@ -354,6 +354,16 @@ class TestLinkedBranchRendering:
         assert f"'{branch}'" in lines[0]
 
     @pytest.mark.parametrize("formatter", _FORMATTERS)
+    def test_linked_via_pr_without_candidate_renders_unknown(
+        self, formatter: Formatter
+    ) -> None:
+        report = _make_report(LinkedBranchStatus.LINKED_VIA_PR)
+
+        lines = _linked_lines(formatter(report))
+        assert len(lines) == 1
+        assert lines[0].startswith("Linked Branch: UNKNOWN")
+
+    @pytest.mark.parametrize("formatter", _FORMATTERS)
     def test_not_checked_renders_no_line(self, formatter: Formatter) -> None:
         rendered = formatter(_make_report(LinkedBranchStatus.NOT_CHECKED))
 

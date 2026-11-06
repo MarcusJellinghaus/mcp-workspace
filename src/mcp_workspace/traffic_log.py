@@ -5,6 +5,7 @@ must not load PyGithub or ``requests``. Never writes tokens, auth headers or
 request/response bodies.
 """
 
+import logging
 import os
 import sys
 import threading
@@ -22,6 +23,8 @@ if sys.platform == "win32":
     import msvcrt  # pylint: disable=import-error
 else:
     import fcntl  # pylint: disable=import-error
+
+logger = logging.getLogger(__name__)
 
 _command = ""
 _thread_lock = threading.Lock()
@@ -95,7 +98,7 @@ def log_request(
         )
         _append(directory, now.strftime("%Y-%m-%d"), line)
     except Exception:  # pylint: disable=broad-exception-caught
-        pass
+        logger.debug("Could not write traffic log line", exc_info=True)
 
 
 def error_status(exc: BaseException) -> str:

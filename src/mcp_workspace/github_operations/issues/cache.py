@@ -413,8 +413,9 @@ def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-posi
         cache_refresh_minutes,
     )
 
-    # Fetch issues using appropriate method
-    if is_full_refresh:
+    # Fetch issues using appropriate method. _is_full_refresh_due is already True
+    # when either timestamp is missing; the explicit checks narrow them below.
+    if is_full_refresh or last_checked is None or updates_covered_through is None:
         refresh_type = "force" if force_refresh else "full"
         logger.debug(f"Full refresh for {repo_name} (type={refresh_type})")
         fresh_issues = issue_manager._list_issues_no_error_handling(
@@ -441,10 +442,6 @@ def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-posi
         # A full, unfiltered enumeration is a complete observation.
         new_cursor: Optional[datetime] = now
     else:
-        # last_checked / updates_covered_through are guaranteed non-None here
-        assert last_checked is not None
-        assert updates_covered_through is not None
-
         # Re-scan a short trailing window to absorb GitHub's since-index lag.
         since = updates_covered_through - timedelta(minutes=SINCE_OVERLAP_MINUTES)
         cache_age_minutes = int((now - last_checked).total_seconds() / 60)
@@ -616,8 +613,7 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
             )
 
     # Step 3: Check duplicate protection (50 second window)
-    if duplicate_protected:
-        assert last_checked is not None
+    if duplicate_protected and last_checked is not None:
         age_seconds = int((now - last_checked).total_seconds())
         _log_cache_metrics(
             "hit",

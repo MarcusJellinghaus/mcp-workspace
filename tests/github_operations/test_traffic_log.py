@@ -1,5 +1,6 @@
 """Tests for the opt-in GitHub traffic log writer."""
 
+import logging
 import re
 import subprocess
 import sys
@@ -27,7 +28,8 @@ def _lines(directory: Path) -> list[str]:
 def _define(module: str, source: str, **names: Any) -> dict[str, Any]:
     """Execute ``source`` as if it lived in ``module``; return its namespace."""
     namespace: dict[str, Any] = {"__name__": module, **names}
-    exec(textwrap.dedent(source), namespace)  # pylint: disable=exec-used
+    code = textwrap.dedent(source)
+    exec(code, namespace)  # noqa: S102 -- fixed test code  # pylint: disable=exec-used
     return namespace
 
 
@@ -99,6 +101,21 @@ class TestLogRequestLine:
         not_a_dir.write_text("x", encoding="utf-8")
         _enable(monkeypatch, not_a_dir)
         traffic_log.log_request("GET", "/a", "200", None, None)
+
+    def test_write_failure_is_logged_at_debug(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        not_a_dir = tmp_path / "file.txt"
+        not_a_dir.write_text("x", encoding="utf-8")
+        _enable(monkeypatch, not_a_dir)
+
+        with caplog.at_level(logging.DEBUG, logger="mcp_workspace.traffic_log"):
+            traffic_log.log_request("GET", "/a", "200", None, None)
+
+        assert "Could not write traffic log line" in caplog.text
 
 
 _WRITER = """
