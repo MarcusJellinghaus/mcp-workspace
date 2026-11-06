@@ -43,6 +43,7 @@ def _run(code: str) -> str:
         text=True,
         env=_fresh_env(),
         timeout=60,
+        check=False,
     )
     assert proc.returncode == 0, f"subprocess failed:\n{proc.stderr}"
     return proc.stdout.strip()
@@ -57,6 +58,7 @@ def _time_process(code: str) -> float:
         text=True,
         env=_fresh_env(),
         timeout=60,
+        check=False,
     )
     elapsed = time.perf_counter() - start
     assert proc.returncode == 0, f"subprocess failed:\n{proc.stderr}"

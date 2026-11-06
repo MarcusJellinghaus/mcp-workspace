@@ -37,7 +37,7 @@ Per section: verify still needed, verify against the source, apply, commit, push
 - [x] **8. `ANN`, ignore `ANN401` (#1171): 0 findings to fix.** All 136 hits are `ANN401`. Config change only.
 - [x] **9. `S` with filters (#1170): 30 findings after filtering (6274 raw).** Test-only ignores: `S101`, `S105`, `S106`, `S108`. Do **not** copy mcp_coder's global `S404`/`S603` ignores, as the epic says: `S404` has 0 hits once gated and `S603` has 0 in `src`, so scope any `S603` ignore to tests/tools. Review `S101` (10), `S105` (1), `S110` (2) and `S311` (1) in `src`.
 - [x] **10. `UP` (#1166): 1181 findings, own commit.** `run_ruff_fix(select=["UP", "F401"])`, then `UP042` separately with `--unsafe-fixes` (5 sites in `src`). `StrEnum` changes `str()` and f-string output, so check each use. Re-measured 1175. No `src` site formats a member, all go through `.value`. `Dict[str, Any]` → `dict[str, Any]` on `search_files`, `search_reference_files` and `get_reference_projects` drops the `{"result": ...}` wrapper from their `structuredContent` and `outputSchema` (FastMCP only wraps non-`GenericAlias` dicts); text content is unchanged.
-- [ ] **11. `PLW1510` (3 findings) and `PLE2502` (0 findings) (#1177).** Cherry-pick the exact codes, not the `PL` group.
+- [x] **11. `PLW1510` (3 findings) and `PLE2502` (0 findings) (#1177).** Cherry-pick the exact codes, not the `PL` group. `tools/tach_docs.py` uses `check=True`, deviating from mcp_coder's `check=False`: nothing inspects the exit code, and a failed `tach` otherwise writes blank docs and reports success.
 
 ### Formatter
 

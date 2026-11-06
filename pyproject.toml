@@ -118,6 +118,10 @@ select = [
     "F",
     "C4", "B",
     "S",
+    # PLW1510 only: the PL prefix would re-enable pylint's disabled R category (PLR09xx).
+    "PLW1510",
+    # PLE2502 bidirectional-unicode: covers bandit B613 (trojansource), which has no S port.
+    "PLE2502",
     "UP",
 ]
 ignore = [
