@@ -469,7 +469,7 @@ jobs:
         run: |
           uv pip install --system \
             "mcp-coder-utils @ git+https://github.com/MarcusJellinghaus/mcp-coder-utils.git" \
-            -e ".[dev,architecture]"
+            -e ".[dev]"
 
       - name: Environment info
         run: |

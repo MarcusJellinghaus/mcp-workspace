@@ -74,6 +74,7 @@ Per section: verify still needed, verify against the source, apply, commit, push
 - [x] **30. Fix drift in `tools/` scripts.** `run_all_checks.*` now runs every CI row that has a wrapper (9 steps, adds ruff lint, vulture, deptry) and calls `mypy.bat`, not the missing `mypy_check.bat`. `ruff_check.*` covers `tools`. Removed `update_packages.bat`, whose `requirements.txt` no longer exists. Fixed `CONTRIBUTING.md` and `docs/ARCHITECTURE.md`.
 
 - [ ] **31. Separate PRs after this one merges: harden path and argument validation, then credential scrubbing.** Details are in the uncommitted `pr_info/security_issue_draft.md`: never commit it, and move it out before deleting `pr_info/`.
+- [x] **32. Merge the `architecture` extra into `dev`.** `.[dev]` alone (`INSTALL.md`, `CONTRIBUTING.md`) lacked `lint-imports`, `tach` and `vulture`, which `tools/run_all_checks.*` needs from step 6; `tools/reinstall_local.*` only got them transitively from `mcp-tools-py`. Matches mcp_coder's `dev`, which also brings `pydeps>=3.0.0` for `tools/pydeps_graph.*`. `typecheck` stays: `upstream-mypy-check.yml` installs it.
 
 ## Not applicable here
 

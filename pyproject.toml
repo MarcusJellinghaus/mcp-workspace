@@ -45,15 +45,14 @@ dev = [
     "ruff~=0.17.2",
     "deptry>=0.25.1",
     "types-requests>=2.31.0",
+    "import-linter>=2.0",
+    "pydeps>=3.0.0",
+    "tach>=0.6.0",
+    "vulture>=2.14",
     # "mcp-tools-py",  # TODO: uncomment once mcp-tools-py is published on PyPI
     # "mcp-coder",  # TODO: uncomment once mcp-coder is published on PyPI
 ]
 typecheck = ["mypy>=1.13.0", "types-requests>=2.31.0", "pytest>=8.3.5", "pytest-asyncio>=0.25.3"]
-architecture = [
-    "import-linter>=2.0",
-    "tach>=0.6.0",
-    "vulture>=2.14",
-]
 
 [project.scripts]
 mcp-workspace = "mcp_workspace.main:main"
@@ -154,7 +153,7 @@ known_first_party = ["mcp_workspace"]
 # Extras holding dev-only packages: deptry exempts them from DEP002 and reports
 # DEP004 if src/ imports them. Keep in sync with [project.optional-dependencies]:
 # a renamed or removed extra only produces a deptry warning, not a failure.
-optional_dependencies_dev_groups = ["dev", "typecheck", "architecture"]
+optional_dependencies_dev_groups = ["dev", "typecheck"]
 
 [tool.mcp-coder.install-from-github]
 # Installed WITH deps (picks up external deps like jedi)
