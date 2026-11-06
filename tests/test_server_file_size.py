@@ -5,8 +5,8 @@ vs. the configured ``--file-size-limit`` flag vs. the 600 fallback) and that
 ``run_server`` threads ``file_size_limit`` through to ``set_file_size_limit``.
 """
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 from unittest.mock import patch
 
 import pytest

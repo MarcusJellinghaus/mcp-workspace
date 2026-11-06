@@ -10,7 +10,7 @@ Cache file I/O (CacheData, load, save, path, metrics) lives in ``_cache_io``.
 
 import logging
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from mcp_workspace.constants import DUPLICATE_PROTECTION_SECONDS, SINCE_OVERLAP_MINUTES
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
@@ -110,7 +110,7 @@ def update_issue_labels_in_cache(
 
 
 def _log_stale_cache_entries(
-    cached_issues: Dict[str, IssueData], fresh_issues: Dict[str, IssueData]
+    cached_issues: dict[str, IssueData], fresh_issues: dict[str, IssueData]
 ) -> None:
     """Log detailed staleness information when cached data differs from fresh data.
 
@@ -334,9 +334,9 @@ def _put_back_session_issues(  # pylint: disable=too-many-arguments,too-many-pos
 
 def _is_full_refresh_due(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     force_refresh: bool,
-    last_checked: Optional[datetime],
-    last_full_refresh: Optional[datetime],
-    updates_covered_through: Optional[datetime],
+    last_checked: datetime | None,
+    last_full_refresh: datetime | None,
+    updates_covered_through: datetime | None,
     now: datetime,
     cache_refresh_minutes: int,
 ) -> bool:
@@ -370,12 +370,12 @@ def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-posi
     cache_data: CacheData,
     repo_name: str,
     force_refresh: bool,
-    last_checked: Optional[datetime],
+    last_checked: datetime | None,
     now: datetime,
     cache_refresh_minutes: int,
-    last_full_refresh: Optional[datetime] = None,
-    updates_covered_through: Optional[datetime] = None,
-) -> Tuple[List[IssueData], bool, Optional[datetime]]:
+    last_full_refresh: datetime | None = None,
+    updates_covered_through: datetime | None = None,
+) -> tuple[list[IssueData], bool, datetime | None]:
     """Fetch fresh issues and merge into cache.
 
     Splits the wall-clock poll time (``last_checked``) from the data cursor
@@ -440,7 +440,7 @@ def _fetch_and_merge_issues(  # pylint: disable=too-many-arguments,too-many-posi
         cache_data["cached_at"] = {}
 
         # A full, unfiltered enumeration is a complete observation.
-        new_cursor: Optional[datetime] = now
+        new_cursor: datetime | None = now
     else:
         # Re-scan a short trailing window to absorb GitHub's since-index lag.
         since = updates_covered_through - timedelta(minutes=SINCE_OVERLAP_MINUTES)
@@ -488,7 +488,7 @@ def get_all_cached_issues(  # pylint: disable=too-many-locals
     force_refresh: bool = False,
     cache_refresh_minutes: int = 1440,
     additional_issues: list[int] | None = None,
-) -> List[IssueData]:
+) -> list[IssueData]:
     """Get all cached issues using cache for performance and duplicate protection.
 
     This function handles:

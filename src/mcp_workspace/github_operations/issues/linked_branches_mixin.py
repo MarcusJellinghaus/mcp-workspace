@@ -8,7 +8,7 @@ issue, plus the issue-number validation helper they share with the manager.
 from __future__ import annotations
 
 import logging
-from typing import List, NamedTuple, Optional, Tuple
+from typing import NamedTuple
 
 from mcp_coder_utils.log_utils import log_function_call
 
@@ -90,7 +90,7 @@ query($owner: String!, $repo: String!, $issueNumber: Int!) {
 
 def _query_linked_branches(
     manager: BaseGitHubManager, issue_number: int
-) -> Optional[List[str]]:
+) -> list[str] | None:
     """Query linked branches for an issue via GraphQL, undecorated.
 
     Failure is signalled with a None sentinel rather than an exception, so
@@ -155,7 +155,7 @@ def _query_linked_branches(
 
 def _query_linked_branch_and_closing_prs(
     manager: BaseGitHubManager, issue_number: int
-) -> Optional[Tuple[List[str], List[ClosingPRRef]]]:
+) -> tuple[list[str], list[ClosingPRRef]] | None:
     """Query linked branches and open closing PRs for an issue, undecorated.
 
     Mirrors _query_linked_branches: failure is signalled with a None
@@ -225,7 +225,7 @@ class LinkedBranchesMixin:
 
     @log_function_call
     @_handle_github_errors(default_return=[])
-    def get_linked_branches(self: "BaseGitHubManager", issue_number: int) -> List[str]:
+    def get_linked_branches(self: BaseGitHubManager, issue_number: int) -> list[str]:
         """Query linked branches for an issue via GraphQL.
 
         Args:
@@ -245,8 +245,8 @@ class LinkedBranchesMixin:
 
     @log_function_call
     def get_linked_branches_or_none(
-        self: "BaseGitHubManager", issue_number: int
-    ) -> Optional[List[str]]:
+        self: BaseGitHubManager, issue_number: int
+    ) -> list[str] | None:
         """Query linked branches for an issue, distinguishing failure from none.
 
         Unlike get_linked_branches(), a failed lookup returns None instead of
@@ -277,8 +277,8 @@ class LinkedBranchesMixin:
 
     @log_function_call
     def get_linked_branch_and_closing_prs_or_none(
-        self: "BaseGitHubManager", issue_number: int
-    ) -> Optional[Tuple[List[str], List[ClosingPRRef]]]:
+        self: BaseGitHubManager, issue_number: int
+    ) -> tuple[list[str], list[ClosingPRRef]] | None:
         """Query linked branches and open closing PRs for an issue.
 
         Combines two pieces of data in one GraphQL request: the issue's
@@ -313,7 +313,7 @@ class LinkedBranchesMixin:
     @log_function_call
     @_handle_github_errors(default_return=False)
     def delete_linked_branch(
-        self: "BaseGitHubManager", issue_number: int, branch_name: str
+        self: BaseGitHubManager, issue_number: int, branch_name: str
     ) -> bool:
         """Unlink branch from issue (doesn't delete Git branch).
 

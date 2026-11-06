@@ -6,7 +6,6 @@ checks, and builds the matching ``Not ready to merge`` recommendation.
 
 import logging
 import time
-from typing import Optional
 
 from mcp_workspace.checks.branch_status_rendering import CIStatus, format_check_names
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
@@ -18,12 +17,12 @@ _UNSTABLE_REREAD_DELAY_SECONDS = 5.0
 
 
 def _recheck_unstable(
-    pr_manager: Optional[PullRequestManager],
+    pr_manager: PullRequestManager | None,
     ci_status: CIStatus,
-    pr_number: Optional[int],
-    pr_mergeable: Optional[bool],
-    pr_mergeable_state: Optional[str],
-) -> tuple[Optional[bool], Optional[str], Optional[tuple[str, ...]], Optional[str]]:
+    pr_number: int | None,
+    pr_mergeable: bool | None,
+    pr_mergeable_state: str | None,
+) -> tuple[bool | None, str | None, tuple[str, ...] | None, str | None]:
     """Re-read a possibly stale ``unstable`` once, then look up non-green checks.
 
     Runs only when CI is PASSED or NOT_CONFIGURED and the state is
@@ -44,7 +43,7 @@ def _recheck_unstable(
     ):
         return pr_mergeable, pr_mergeable_state, None, None
     time.sleep(_UNSTABLE_REREAD_DELAY_SECONDS)
-    head_sha: Optional[str] = None
+    head_sha: str | None = None
     try:
         pr = pr_manager.get_pull_request(pr_number)
         sha = pr.get("head_sha")
@@ -62,7 +61,7 @@ def _recheck_unstable(
 
 
 def _merge_state_recommendation(
-    state: str, names: Optional[tuple[str, ...]], error: Optional[str]
+    state: str, names: tuple[str, ...] | None, error: str | None
 ) -> str:
     """Build the ``Not ready to merge`` text for a blocking mergeable state.
 

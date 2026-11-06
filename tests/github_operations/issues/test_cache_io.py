@@ -8,7 +8,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -219,7 +219,7 @@ class TestSaveCacheFileAtomicity:
     ) -> None:
         """Two saves use different temp files next to the target."""
         cache_path = tmp_path / "x.issues.json"
-        sources: List[str] = []
+        sources: list[str] = []
         real_replace = os.replace
 
         def recording_replace(src: str, dst: Any) -> None:
@@ -316,7 +316,7 @@ class TestStalenessLogging:
             logging.INFO, logger="mcp_workspace.github_operations.issues.cache"
         )
 
-        cached_issues: Dict[str, IssueData] = {
+        cached_issues: dict[str, IssueData] = {
             "123": {
                 "number": 123,
                 "state": "open",
@@ -332,7 +332,7 @@ class TestStalenessLogging:
                 "updated_at": "2025-12-31T08:00:00Z",
             }
         }
-        fresh_issues: Dict[str, IssueData] = {
+        fresh_issues: dict[str, IssueData] = {
             "123": {
                 "number": 123,
                 "state": "closed",
@@ -361,7 +361,7 @@ class TestStalenessLogging:
             logging.INFO, logger="mcp_workspace.github_operations.issues.cache"
         )
 
-        cached_issues: Dict[str, IssueData] = {
+        cached_issues: dict[str, IssueData] = {
             "123": {
                 "number": 123,
                 "state": "open",
@@ -377,7 +377,7 @@ class TestStalenessLogging:
                 "updated_at": "2025-12-31T08:00:00Z",
             }
         }
-        fresh_issues: Dict[str, IssueData] = {
+        fresh_issues: dict[str, IssueData] = {
             "123": {
                 "number": 123,
                 "state": "open",
@@ -408,7 +408,7 @@ class TestStalenessLogging:
             logging.INFO, logger="mcp_workspace.github_operations.issues.cache"
         )
 
-        cached_issues: Dict[str, IssueData] = {
+        cached_issues: dict[str, IssueData] = {
             "123": {
                 "number": 123,
                 "state": "open",
@@ -424,7 +424,7 @@ class TestStalenessLogging:
                 "updated_at": "2025-12-31T08:00:00Z",
             }
         }
-        fresh_issues: Dict[str, IssueData] = {}
+        fresh_issues: dict[str, IssueData] = {}
 
         _log_stale_cache_entries(cached_issues, fresh_issues)
 
@@ -434,7 +434,7 @@ class TestStalenessLogging:
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Test no logging when no changes detected."""
-        cached_issues: Dict[str, IssueData] = {
+        cached_issues: dict[str, IssueData] = {
             "123": {
                 "number": 123,
                 "state": "open",
@@ -450,7 +450,7 @@ class TestStalenessLogging:
                 "updated_at": "2025-12-31T08:00:00Z",
             }
         }
-        fresh_issues: Dict[str, IssueData] = {
+        fresh_issues: dict[str, IssueData] = {
             "123": {
                 "number": 123,
                 "state": "open",

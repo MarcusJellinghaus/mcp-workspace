@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -94,13 +94,13 @@ class TestGetIssueCacheLastChecked:
             json.dumps({"last_checked": "2026-01-02T03:04:05+00:00", "issues": {}})
         )
         result = get_issue_cache_last_checked(_REPO)
-        assert result == datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+        assert result == datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
         assert result is not None and result.tzinfo is not None
 
     def test_z_suffix_parsed(self) -> None:
         self._write(json.dumps({"last_checked": "2026-01-02T03:04:05Z", "issues": {}}))
         assert get_issue_cache_last_checked(_REPO) == datetime(
-            2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc
+            2026, 1, 2, 3, 4, 5, tzinfo=UTC
         )
 
     def test_missing_file(self) -> None:

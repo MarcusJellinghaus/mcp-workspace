@@ -8,7 +8,7 @@ chokepoint for ``subprocess`` calls in this package.
 
 from __future__ import annotations
 
-from typing import Literal, NotRequired, Optional, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 PROBE_PAYLOAD = "mcp-workspace verify_git probe"
 
@@ -23,9 +23,7 @@ class CheckResult(TypedDict):
     install_hint: NotRequired[str]
 
 
-def build_user_identity_result(
-    name: Optional[str], email: Optional[str]
-) -> "CheckResult":
+def build_user_identity_result(name: str | None, email: str | None) -> CheckResult:
     """Construct the user_identity CheckResult from raw config values.
 
     Returns:
@@ -55,7 +53,7 @@ def build_user_identity_result(
     )
 
 
-def build_signing_intent_result(flags_truthy: dict[str, bool]) -> "CheckResult":
+def build_signing_intent_result(flags_truthy: dict[str, bool]) -> CheckResult:
     """Construct the signing_intent CheckResult from per-flag truthy map.
 
     Returns:
@@ -80,7 +78,7 @@ def build_signing_intent_result(flags_truthy: dict[str, bool]) -> "CheckResult":
     )
 
 
-def build_signing_consistency_result(flags_truthy: dict[str, bool]) -> "CheckResult":
+def build_signing_consistency_result(flags_truthy: dict[str, bool]) -> CheckResult:
     """Construct the signing_consistency CheckResult from the flag map.
 
     Precondition: ``flags_truthy["commit.gpgsign"]`` is True. The caller is
@@ -113,8 +111,8 @@ def build_signing_consistency_result(flags_truthy: dict[str, bool]) -> "CheckRes
 
 
 def classify_signing_format(
-    raw_format: Optional[str],
-) -> tuple[str, "CheckResult"]:
+    raw_format: str | None,
+) -> tuple[str, CheckResult]:
     """Resolve the configured signing format and build its CheckResult.
 
     Returns:
@@ -143,8 +141,8 @@ def classify_signing_format(
 
 
 def build_signing_key_result(
-    signing_key: Optional[str], commit_gpgsign: bool
-) -> "CheckResult":
+    signing_key: str | None, commit_gpgsign: bool
+) -> CheckResult:
     """Construct the signing_key CheckResult per Decision #10 severity rules.
 
     Returns:

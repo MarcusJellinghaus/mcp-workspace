@@ -5,8 +5,8 @@ fixture builds the git repo and patches the token/Github client so the
 per-test boilerplate copied into sibling tests is not repeated here.
 """
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, Tuple
 from unittest.mock import MagicMock, patch
 
 import git
@@ -25,7 +25,7 @@ class TestMergePullRequest:
     @pytest.fixture
     def merge_env(
         self, tmp_path: Path
-    ) -> Iterator[Tuple[PullRequestManager, MagicMock]]:
+    ) -> Iterator[tuple[PullRequestManager, MagicMock]]:
         """Build a git repo + patched manager, yielding (manager, mock_repo)."""
         git_dir = tmp_path / "git_dir"
         git_dir.mkdir()
@@ -50,7 +50,7 @@ class TestMergePullRequest:
             yield manager, mock_repo
 
     def test_merge_success_squash(
-        self, merge_env: Tuple[PullRequestManager, MagicMock]
+        self, merge_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """200 — outcome='merged', sha set, only merge_method kwarg forwarded."""
         manager, mock_repo = merge_env
@@ -70,7 +70,7 @@ class TestMergePullRequest:
         mock_pr.merge.assert_called_once_with(merge_method="squash")
 
     def test_merge_refused_405_not_merged(
-        self, merge_env: Tuple[PullRequestManager, MagicMock]
+        self, merge_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """405, re-fetched pr.merged is False -> outcome='refused', status=405."""
         manager, mock_repo = merge_env
@@ -89,7 +89,7 @@ class TestMergePullRequest:
         assert mock_repo.get_pull.call_count == 2
 
     def test_merge_405_refetch_merged_true(
-        self, merge_env: Tuple[PullRequestManager, MagicMock]
+        self, merge_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """405, re-fetched pr.merged is True -> outcome='merged', merge_commit_sha."""
         manager, mock_repo = merge_env
@@ -109,7 +109,7 @@ class TestMergePullRequest:
         assert result["status"] == 405
 
     def test_merge_405_refetch_fails(
-        self, merge_env: Tuple[PullRequestManager, MagicMock]
+        self, merge_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """405, second get_pull raises GithubException -> outcome='refused'."""
         manager, mock_repo = merge_env
@@ -129,7 +129,7 @@ class TestMergePullRequest:
         assert result["status"] == 405
 
     def test_merge_sha_mismatch_409(
-        self, merge_env: Tuple[PullRequestManager, MagicMock]
+        self, merge_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """409 (head moved) -> outcome='refused', status=409."""
         manager, mock_repo = merge_env
@@ -146,7 +146,7 @@ class TestMergePullRequest:
         assert result["status"] == 409
 
     def test_merge_server_error_500(
-        self, merge_env: Tuple[PullRequestManager, MagicMock]
+        self, merge_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """500 -> outcome='error' (NOT refused)."""
         manager, mock_repo = merge_env
@@ -161,7 +161,7 @@ class TestMergePullRequest:
         assert result["status"] == 500
 
     def test_merge_invalid_pr_number(
-        self, merge_env: Tuple[PullRequestManager, MagicMock]
+        self, merge_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """pr_number=0 -> outcome='error', get_pull not called."""
         manager, mock_repo = merge_env
@@ -173,7 +173,7 @@ class TestMergePullRequest:
         mock_repo.get_pull.assert_not_called()
 
     def test_merge_invalid_merge_method(
-        self, merge_env: Tuple[PullRequestManager, MagicMock]
+        self, merge_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """Invalid merge_method -> ValueError; get_pull not called."""
         manager, mock_repo = merge_env
@@ -184,7 +184,7 @@ class TestMergePullRequest:
         mock_repo.get_pull.assert_not_called()
 
     def test_merge_auth_401_reraised(
-        self, merge_env: Tuple[PullRequestManager, MagicMock]
+        self, merge_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """401 -> GithubException bubbles up (config error, not an outcome)."""
         manager, mock_repo = merge_env
@@ -196,7 +196,7 @@ class TestMergePullRequest:
             manager.merge_pull_request(123)
 
     def test_merge_auth_403_reraised(
-        self, merge_env: Tuple[PullRequestManager, MagicMock]
+        self, merge_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """403 -> GithubException bubbles up (config error, not an outcome)."""
         manager, mock_repo = merge_env
@@ -208,7 +208,7 @@ class TestMergePullRequest:
             manager.merge_pull_request(123)
 
     def test_merge_passes_optional_kwargs(
-        self, merge_env: Tuple[PullRequestManager, MagicMock]
+        self, merge_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """Non-None sha/title/message are forwarded to pr.merge()."""
         manager, mock_repo = merge_env

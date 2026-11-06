@@ -17,7 +17,8 @@ code-scanning alerts, which is stored as a skip.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Callable, TypedDict, TypeVar
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, TypedDict, TypeVar
 
 from github.PullRequest import PullRequest
 from github.Repository import Repository

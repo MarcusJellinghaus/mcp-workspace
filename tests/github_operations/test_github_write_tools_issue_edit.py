@@ -7,9 +7,10 @@ that partially landed.
 """
 
 import time
-from datetime import datetime, timezone
+from collections.abc import Callable, Generator
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Generator
+from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -281,7 +282,7 @@ def test_github_issue_edit_rate_limit_names_bucket_and_reset(
 
     result = github_issue_edit(number=42, title="New title")
 
-    hhmm = f"{datetime.fromtimestamp(reset, tz=timezone.utc):%H:%M}"
+    hhmm = f"{datetime.fromtimestamp(reset, tz=UTC):%H:%M}"
     assert "`core`" in result
     assert hhmm in result
     assert "Could not access repository" not in result

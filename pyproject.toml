@@ -118,6 +118,7 @@ select = [
     "F",
     "C4", "B",
     "S",
+    "UP",
 ]
 ignore = [
     "D107",  # missing docstring in __init__ method (redundant with class docstring)

@@ -1,7 +1,6 @@
 """Conflict inspection and resolution for a stopped rebase or merge."""
 
 from pathlib import Path
-from typing import Optional
 
 from git import Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
@@ -63,7 +62,7 @@ def _read_blob(repo: Repo, sha: str) -> tuple[int, bytes, str]:
 
 
 def _blob_info_failure(
-    error: str, returncode: Optional[int] = None, stderr: Optional[str] = None
+    error: str, returncode: int | None = None, stderr: str | None = None
 ) -> ConflictBlobInfoResult:
     """Build a failed ConflictBlobInfoResult.
 
@@ -141,10 +140,10 @@ def get_conflict_blob_info(project_dir: Path) -> ConflictBlobInfoResult:
 
 def _stage_result(
     success: bool,
-    error: Optional[str],
-    returncode: Optional[int] = None,
-    stderr: Optional[str] = None,
-    content: Optional[str] = None,
+    error: str | None,
+    returncode: int | None = None,
+    stderr: str | None = None,
+    content: str | None = None,
     is_binary: bool = False,
 ) -> ConflictStageResult:
     """Build a ConflictStageResult.
@@ -310,7 +309,7 @@ def resolve_take_theirs_or_remove(project_dir: Path, path: str) -> GitResult:
 
 
 def _tree_failure(
-    error: str, returncode: Optional[int] = None, stderr: Optional[str] = None
+    error: str, returncode: int | None = None, stderr: str | None = None
 ) -> TreeListing:
     """Build a failed TreeListing.
 

@@ -7,8 +7,9 @@ functionality for all GitHub manager classes.
 import functools
 import hashlib
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 from github import Github
 from github.GithubException import GithubException
@@ -64,7 +65,7 @@ def _token_key(base_url: str, token: str) -> tuple[str, str]:
     return (base_url, hashlib.sha256(token.encode()).hexdigest())
 
 
-def _cached_login(token: str, base_url: str, client: Optional[Github] = None) -> str:
+def _cached_login(token: str, base_url: str, client: Github | None = None) -> str:
     """Return the login for token on base_url, calling GET /user at most once per key.
 
     Args:
@@ -119,7 +120,7 @@ def _format_error_message(e: BaseException) -> str:
 
 def _handle_github_errors(
     default_return: Any,
-    on_error: Optional[Callable[[BaseException, Any], None]] = None,
+    on_error: Callable[[BaseException, Any], None] | None = None,
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """Decorator to handle GitHub API errors consistently.
 
@@ -198,7 +199,7 @@ def _handle_github_errors(
     return decorator
 
 
-def get_authenticated_username(hostname: Optional[str] = None) -> str:
+def get_authenticated_username(hostname: str | None = None) -> str:
     """Get authenticated GitHub username via PyGithub API.
 
     Args:
@@ -272,9 +273,9 @@ class BaseGitHubManager:
 
     def __init__(
         self,
-        project_dir: Optional[Path] = None,
-        repo_url: Optional[str] = None,
-        github_token: Optional[str] = None,
+        project_dir: Path | None = None,
+        repo_url: str | None = None,
+        github_token: str | None = None,
     ) -> None:
         """Initialize the BaseGitHubManager.
 
@@ -296,8 +297,8 @@ class BaseGitHubManager:
             raise ValueError("Exactly one of project_dir or repo_url must be provided")
 
         # Initialize attributes
-        self.project_dir: Optional[Path] = None
-        self._cached_repo_identifier: Optional[RepoIdentifier] = None
+        self.project_dir: Path | None = None
+        self._cached_repo_identifier: RepoIdentifier | None = None
 
         # Validate directory/repository BEFORE checking token
         if project_dir is not None:
@@ -331,9 +332,9 @@ class BaseGitHubManager:
             )
 
         self.github_token = raw_token
-        self._cached_github_client: Optional[Github] = None
-        self._repository: Optional[Repository] = None
-        self._last_repository_error: Optional[str] = None
+        self._cached_github_client: Github | None = None
+        self._repository: Repository | None = None
+        self._last_repository_error: str | None = None
 
     @property
     def _repo_identifier(self) -> RepoIdentifier:
@@ -387,7 +388,7 @@ class BaseGitHubManager:
         return repo.default_branch
 
     @log_function_call
-    def _get_repository(self) -> Optional[Repository]:
+    def _get_repository(self) -> Repository | None:
         """Get the GitHub repository object.
 
         Uses cached repository if available, otherwise retrieves it from

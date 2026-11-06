@@ -6,7 +6,6 @@ for use by the mixin classes and manager.
 
 import logging
 import re
-from typing import Optional
 
 from markdown_it import MarkdownIt
 
@@ -142,7 +141,7 @@ def validate_comment_id(comment_id: int) -> bool:
     return True
 
 
-def parse_base_branch(body: str) -> Optional[str]:
+def parse_base_branch(body: str) -> str | None:
     r"""Parse base branch from issue body.
 
     Looks for a top-level ATX heading (``#`` to ``######``) reading "Base Branch"

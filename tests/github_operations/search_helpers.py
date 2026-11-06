@@ -7,7 +7,8 @@ truncation notice) and ``test_github_search_tool`` (query construction) need
 them.
 """
 
-from typing import Any, Iterator, Optional
+from collections.abc import Iterator
+from typing import Any
 from unittest.mock import MagicMock
 
 
@@ -20,7 +21,7 @@ class FakeSearchResults:
     and how many items the caller pulled.
     """
 
-    def __init__(self, items: list[Any], total_count: Optional[int] = None) -> None:
+    def __init__(self, items: list[Any], total_count: int | None = None) -> None:
         self._items = items
         self._total_count = len(items) if total_count is None else total_count
         self.items_pulled = 0

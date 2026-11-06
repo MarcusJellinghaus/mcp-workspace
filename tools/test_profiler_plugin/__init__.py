@@ -8,7 +8,7 @@ import cProfile
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -21,7 +21,7 @@ class TestProfiler:
     """Manages profiling of individual tests."""
 
     def __init__(self) -> None:
-        self.durations: Dict[str, float] = {}
+        self.durations: dict[str, float] = {}
         self.test_count = 0
         self.total_tests = 0
 

@@ -3,14 +3,12 @@
 This module contains TypedDict and Enum definitions used across the issues subpackage.
 """
 
-from enum import Enum
+from enum import StrEnum
 from typing import (
     TYPE_CHECKING,
-    List,
     Literal,
     NamedTuple,
     NotRequired,
-    Optional,
     TypedDict,
 )
 
@@ -20,7 +18,7 @@ if TYPE_CHECKING:
     from github.Issue import Issue
 
 
-class IssueEventType(str, Enum):
+class IssueEventType(StrEnum):
     """Enum for GitHub issue event types."""
 
     # Label events
@@ -71,16 +69,16 @@ class IssueData(TypedDict):
     title: str
     body: str
     state: str
-    labels: List[str]
-    assignees: List[str]
-    user: Optional[str]
-    created_at: Optional[str]
-    updated_at: Optional[str]
+    labels: list[str]
+    assignees: list[str]
+    user: str | None
+    created_at: str | None
+    updated_at: str | None
     url: str
     locked: bool
-    author_association: Optional[str]
-    base_branch: NotRequired[Optional[str]]
-    base_branch_error: NotRequired[Optional[str]]
+    author_association: str | None
+    base_branch: NotRequired[str | None]
+    base_branch_error: NotRequired[str | None]
 
 
 class BranchLookup(NamedTuple):
@@ -98,20 +96,20 @@ class CommentData(TypedDict):
 
     id: int
     body: str
-    user: Optional[str]
-    created_at: Optional[str]
-    updated_at: Optional[str]
+    user: str | None
+    created_at: str | None
+    updated_at: str | None
     url: str
-    author_association: Optional[str]
+    author_association: str | None
 
 
 class EventData(TypedDict):
     """TypedDict for issue event data structure."""
 
     event: str  # Event type (e.g., "labeled", "unlabeled")
-    label: Optional[str]  # Label name (for label events)
+    label: str | None  # Label name (for label events)
     created_at: str  # ISO format timestamp
-    actor: Optional[str]  # GitHub username who performed action
+    actor: str | None  # GitHub username who performed action
 
 
 def create_empty_issue_data() -> IssueData:

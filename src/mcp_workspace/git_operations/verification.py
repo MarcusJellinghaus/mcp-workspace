@@ -15,7 +15,7 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from git import Repo
 from git.exc import GitCommandError
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["CheckResult", "PROBE_PAYLOAD", "verify_git"]
 
 
-def _get_config(repo: Repo, key: str, *extra_args: str) -> Optional[str]:
+def _get_config(repo: Repo, key: str, *extra_args: str) -> str | None:
     """Read a git config value.
 
     Manually logs only the requested key (never the value) to honour
@@ -243,9 +243,9 @@ def verify_git(
     # Tier 2: config-only checks (gated on signing_intent_detected)
     # ------------------------------------------------------------------
     signing_format_resolved: str = "openpgp"
-    signing_key: Optional[str] = None
-    gpg_program_raw: Optional[str] = None
-    allowed_signers_raw: Optional[str] = None
+    signing_key: str | None = None
+    gpg_program_raw: str | None = None
+    allowed_signers_raw: str | None = None
     if signing_intent_detected:
         with safe_repo_context(project_dir) as repo:
             raw_format = _get_config(repo, "gpg.format")
@@ -263,7 +263,7 @@ def verify_git(
         # ----------------------------------------------------------
         # Tier 2: signing_binary
         # ----------------------------------------------------------
-        signing_binary_path: Optional[str] = None
+        signing_binary_path: str | None = None
 
         if signing_format_resolved == "openpgp":
             if gpg_program_raw is not None:

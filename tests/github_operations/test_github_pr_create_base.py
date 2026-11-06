@@ -4,8 +4,9 @@ An omitted base is resolved for ``head`` via ``_resolve_base_branch`` and
 verified on origin; every failure is an ``Error:`` string and no PR is created.
 """
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generator, Optional
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,9 +20,9 @@ PR_MANAGER = "mcp_workspace.github_operations.pr_manager.PullRequestManager"
 
 
 def _probe(
-    exists: Optional[bool],
-    stderr: Optional[str] = None,
-    error: Optional[str] = None,
+    exists: bool | None,
+    stderr: str | None = None,
+    error: str | None = None,
 ) -> dict[str, Any]:
     """Build a ``BranchProbe``-shaped dict; ``exists=None`` is a failed probe."""
     return {

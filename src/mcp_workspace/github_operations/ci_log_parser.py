@@ -7,7 +7,8 @@ groups, extracting failed step logs, and building CI error detail reports.
 
 import logging
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from mcp_workspace.github_operations.ci_results_manager import CIResultsManager
@@ -110,7 +111,7 @@ def _strip_timestamps(log_content: str) -> str:
     return "\n".join(stripped)
 
 
-def _parse_groups(log_content: str) -> List[Tuple[str, List[str]]]:
+def _parse_groups(log_content: str) -> list[tuple[str, list[str]]]:
     """Parse GitHub Actions log groups from log content.
 
     GitHub Actions uses ::group:: and ::endgroup:: markers to create
@@ -123,9 +124,9 @@ def _parse_groups(log_content: str) -> List[Tuple[str, List[str]]]:
         List of (group_name, lines) tuples. Lines outside groups are
         collected under an empty group name.
     """
-    groups: List[Tuple[str, List[str]]] = []
-    current_group: Optional[str] = None
-    current_lines: List[str] = []
+    groups: list[tuple[str, list[str]]] = []
+    current_group: str | None = None
+    current_lines: list[str] = []
 
     for line in log_content.split("\n"):
         if line.startswith("##[group]"):
@@ -199,7 +200,7 @@ def _extract_failed_step_log(log_content: str, step_name: str) -> str:
                 return "\n".join(lines)
 
     # 4. Error-group fallback: collect groups that contain ##[error] lines
-    error_sections: List[str] = []
+    error_sections: list[str] = []
     for group_name, lines in groups:
         if any(line.startswith("##[error]") for line in lines):
             error_sections.append(f"--- {group_name} ---")
@@ -258,7 +259,7 @@ def build_ci_error_details(
     ci_manager: "CIResultsManager",
     status_result: Mapping[str, object],
     max_lines: int = 300,
-) -> Optional[str]:
+) -> str | None:
     """Build structured CI error details with logs for multiple failed jobs.
 
     Shows logs for as many failed jobs as fit within the line limit.
@@ -280,12 +281,12 @@ def build_ci_error_details(
     failed_jobs = [job for job in jobs_data if job.get("conclusion") == "failure"]
 
     # Collect distinct run_ids from failed jobs, preserving order
-    failed_run_ids: List[int] = list(
+    failed_run_ids: list[int] = list(
         dict.fromkeys(j["run_id"] for j in failed_jobs if j.get("run_id"))
     )
 
     # Fetch logs for up to 3 failed run_ids
-    logs: Dict[str, str] = {}
+    logs: dict[str, str] = {}
     fetched_run_ids = failed_run_ids[:3]
     for rid in fetched_run_ids:
         try:
@@ -299,10 +300,10 @@ def build_ci_error_details(
         return None
 
     # Build output sections
-    output_lines: List[str] = []
+    output_lines: list[str] = []
     lines_used = 0
-    jobs_shown: List[str] = []
-    jobs_truncated: List[str] = []
+    jobs_shown: list[str] = []
+    jobs_truncated: list[str] = []
 
     # Prepend jobs_fetch_warning if present
     jobs_fetch_warning = run_data.get("jobs_fetch_warning")

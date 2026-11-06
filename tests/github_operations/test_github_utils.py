@@ -15,8 +15,9 @@ Note: Tests will be skipped if configuration is missing.
 """
 
 import contextlib
+from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Generator, List
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, Mock, patch
 
 import git
@@ -623,7 +624,7 @@ class TestPullRequestManagerIntegration:
         assert not invalid_create_result
 
         invalid_list_result = manager.list_pull_requests(base_branch="invalid~branch")
-        expected_empty_list: List[Dict[str, Any]] = []
+        expected_empty_list: list[dict[str, Any]] = []
         assert invalid_list_result == expected_empty_list
 
 

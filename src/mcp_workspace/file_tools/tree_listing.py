@@ -5,7 +5,6 @@ directories, and renders back to a flat list of path strings.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
 
 _COLLAPSE_THRESHOLD = 250
 
@@ -15,13 +14,13 @@ class _TreeNode:
     """Internal tree node representing a directory."""
 
     name: str
-    children: Dict[str, "_TreeNode"] = field(default_factory=dict)
-    files: List[str] = field(default_factory=list)
+    children: dict[str, "_TreeNode"] = field(default_factory=dict)
+    files: list[str] = field(default_factory=list)
     collapsed: bool = False
     collapsed_file_count: int = 0
 
 
-def _build_tree(file_paths: List[str], base_path: str) -> _TreeNode:
+def _build_tree(file_paths: list[str], base_path: str) -> _TreeNode:
     """Build tree from flat file paths.
 
     Args:
@@ -103,13 +102,13 @@ def _score(node: _TreeNode, depth: int) -> float:
 
 def _find_collapsible(
     node: _TreeNode, depth: int
-) -> List[Tuple[float, str, _TreeNode]]:
+) -> list[tuple[float, str, _TreeNode]]:
     """Find all collapsible directories (depth >= 2, not already collapsed).
 
     Returns:
         List of (score, name, node) tuples for collapsible directories.
     """
-    results: List[Tuple[float, str, _TreeNode]] = []
+    results: list[tuple[float, str, _TreeNode]] = []
     for child in node.children.values():
         if depth >= 2 and not child.collapsed:
             results.append((_score(child, depth), child.name, child))
@@ -131,7 +130,7 @@ def _collapse(root: _TreeNode, dirs_only: bool) -> None:
         target.files.clear()
 
 
-def _render(node: _TreeNode, prefix: str, dirs_only: bool) -> List[str]:
+def _render(node: _TreeNode, prefix: str, dirs_only: bool) -> list[str]:
     """Render tree to flat list of path strings.
 
     Args:
@@ -142,7 +141,7 @@ def _render(node: _TreeNode, prefix: str, dirs_only: bool) -> List[str]:
     Returns:
         List of rendered path strings.
     """
-    results: List[str] = []
+    results: list[str] = []
 
     for child_name in sorted(node.children):
         child_node = node.children[child_name]
@@ -165,7 +164,7 @@ def _render(node: _TreeNode, prefix: str, dirs_only: bool) -> List[str]:
     return results
 
 
-def _truncate(lines: List[str], limit: int = _COLLAPSE_THRESHOLD) -> List[str]:
+def _truncate(lines: list[str], limit: int = _COLLAPSE_THRESHOLD) -> list[str]:
     """If lines exceed limit, keep first `limit` entries and append summary.
 
     Returns:
@@ -191,10 +190,10 @@ def _truncate(lines: List[str], limit: int = _COLLAPSE_THRESHOLD) -> List[str]:
 
 
 def list_directory_tree(
-    file_paths: List[str],
+    file_paths: list[str],
     base_path: str = ".",
     dirs_only: bool = False,
-) -> List[str]:
+) -> list[str]:
     """Build tree from file paths and render back to flat list.
 
     Builds an internal tree, auto-collapses large deep directories when the

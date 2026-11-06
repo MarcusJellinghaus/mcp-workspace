@@ -1,7 +1,7 @@
 """Tests for the list_directory MCP server tool."""
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, List
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -257,7 +257,7 @@ def _make_tree(project_dir: Path) -> None:
     ],
 )
 def test_list_directory_entries_are_valid_paths_integration(
-    project_dir: Path, scope: str, expected: List[str]
+    project_dir: Path, scope: str, expected: list[str]
 ) -> None:
     """Integration: every returned entry is a path read_file accepts unmodified."""
     _make_tree(project_dir)

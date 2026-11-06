@@ -1,6 +1,6 @@
 """Minimal tests for git commit operations."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -208,7 +208,7 @@ class TestGetHeadCommitInfo:
         # as UTC and keeps a "+HHMM" offset for display only.
         repo.index.commit(
             "Add test file",
-            author_date=datetime(2026, 1, 1, 8, 0, 0, tzinfo=timezone.utc),
+            author_date=datetime(2026, 1, 1, 8, 0, 0, tzinfo=UTC),
             commit_date=datetime(
                 2026, 1, 2, 12, 0, 0, tzinfo=timezone(timedelta(hours=2))
             ),
@@ -219,8 +219,8 @@ class TestGetHeadCommitInfo:
         assert info is not None
         sha, committed = info
         assert sha == repo.head.commit.hexsha[:7]
-        assert committed == datetime(2026, 1, 2, 10, 0, 0, tzinfo=timezone.utc)
-        assert committed.tzinfo == timezone.utc
+        assert committed == datetime(2026, 1, 2, 10, 0, 0, tzinfo=UTC)
+        assert committed.tzinfo == UTC
 
     def test_returns_none_outside_git_repo(self, tmp_path: Path) -> None:
         """Should return None when not in a git repository."""

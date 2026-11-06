@@ -1,8 +1,9 @@
 """Unit tests for verify_github() connectivity and branch protection checks."""
 
 import logging
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, Literal
+from typing import Literal
 from unittest.mock import Mock, PropertyMock, patch
 
 import pytest

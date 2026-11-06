@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import git
 from git import Repo
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from mcp_workspace.utils.repo_identifier import RepoIdentifier
 
 
-def get_remote_url(project_dir: Path) -> Optional[str]:
+def get_remote_url(project_dir: Path) -> str | None:
     """Get the raw remote origin URL from a git repository.
 
     Unlike ``get_repository_identifier`` which normalises to a
@@ -89,7 +89,7 @@ def clone_repo(url: str, target_path: Path) -> None:
             f"Target path exists and is not an empty directory: {target_path}"
         )
 
-    error_msg: Optional[str] = None
+    error_msg: str | None = None
     try:
         git.Repo.clone_from(url, str(target_path))
     except GitCommandError as e:
@@ -440,7 +440,7 @@ def list_remote_branches(project_dir: Path) -> RemoteBranchesResult:
 
 def get_repository_identifier(
     project_dir: Path,
-) -> Optional[RepoIdentifier]:
+) -> RepoIdentifier | None:
     """Get repository identifier from git remote origin.
 
     Returns RepoIdentifier if origin is a parseable git URL, None otherwise.

@@ -1,7 +1,8 @@
 """Tests for the one-shot re-read of a stale ``unstable`` mergeable_state."""
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -53,9 +54,9 @@ def fixture_env() -> Iterator[dict[str, MagicMock]]:
 def _run(
     env: dict[str, MagicMock],
     ci_status: CIStatus,
-    state: Optional[str],
+    state: str | None,
     reread: Any = None,
-    checks: tuple[tuple[str, ...], Optional[str]] = ((), None),
+    checks: tuple[tuple[str, ...], str | None] = ((), None),
 ) -> BranchStatusReport:
     """Configure CI/PR info, the re-read and the lookup, then collect."""
     env["ci"].return_value = (ci_status, None, [])
@@ -141,7 +142,7 @@ def test_still_unstable_no_names_is_stale(env: dict[str, MagicMock]) -> None:
     ],
 )
 def test_indefinite_reread_keeps_unstable(
-    env: dict[str, MagicMock], reread: dict[str, Any], expected_sha: Optional[str]
+    env: dict[str, MagicMock], reread: dict[str, Any], expected_sha: str | None
 ) -> None:
     """unknown / None / missing state is not accepted."""
     report = _run(env, CIStatus.PASSED, "unstable", reread=reread)

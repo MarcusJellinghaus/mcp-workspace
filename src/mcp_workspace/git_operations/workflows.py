@@ -12,7 +12,6 @@ Constraints:
 
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
 
 from git.exc import GitCommandError, GitCommandNotFound, InvalidGitRepositoryError
 
@@ -161,8 +160,8 @@ def commit_all_changes(message: str, project_dir: Path) -> CommitResult:
 
 
 def needs_rebase(
-    project_dir: Path, target_branch: Optional[str] = None
-) -> Tuple[bool, str]:
+    project_dir: Path, target_branch: str | None = None
+) -> tuple[bool, str]:
     """Detect if current branch needs rebasing onto target branch.
 
     Args:

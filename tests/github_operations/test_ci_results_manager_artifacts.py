@@ -2,7 +2,6 @@
 
 import io
 import zipfile
-from typing import Dict
 from unittest.mock import Mock, patch
 
 import pytest
@@ -72,7 +71,7 @@ class TestGetArtifacts:
         artifact1_content = {"junit.xml": "<?xml version='1.0'?>..."}
         artifact2_content = {"coverage.json": '{"total": 85.5}'}
 
-        def download_side_effect(url: str) -> Dict[str, str]:
+        def download_side_effect(url: str) -> dict[str, str]:
             if "456" in url:
                 return artifact1_content
             elif "789" in url:
@@ -138,7 +137,7 @@ class TestGetArtifacts:
         mock_repo.get_workflow_run.return_value = mock_run
 
         # Mock the ZIP downloads for junit artifacts only
-        def download_side_effect(url: str) -> Dict[str, str]:
+        def download_side_effect(url: str) -> dict[str, str]:
             if "456" in url:
                 return {"junit.xml": "<?xml version='1.0'?>..."}
             elif "012" in url:
@@ -206,7 +205,7 @@ class TestGetArtifacts:
         mock_repo.get_workflow_run.return_value = mock_run
 
         # Mock first download failing, second succeeding
-        def download_side_effect(url: str) -> Dict[str, str]:
+        def download_side_effect(url: str) -> dict[str, str]:
             if "456" in url:
                 return {}  # Download failed
             elif "789" in url:

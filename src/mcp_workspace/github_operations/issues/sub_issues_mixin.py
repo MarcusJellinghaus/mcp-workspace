@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from itertools import islice
-from typing import List, NamedTuple, Optional, cast
+from typing import NamedTuple, cast
 
 from github.GithubException import GithubException
 from github.Issue import Issue, SubIssue
@@ -29,11 +29,11 @@ class SubIssueLink(NamedTuple):
 
     url: str
     """The parent issue's URL."""
-    total: Optional[int]
+    total: int | None
     """The parent's sub-issue count after the write, or None when unknown."""
 
 
-def sub_issue_total(issue: Issue) -> Optional[int]:
+def sub_issue_total(issue: Issue) -> int | None:
     """Return the issue's sub-issue count, or None when GitHub sent no summary.
 
     PyGithub annotates ``sub_issues_summary`` as non-Optional but returns None
@@ -45,7 +45,7 @@ def sub_issue_total(issue: Issue) -> Optional[int]:
     Returns:
         Total number of sub-issues, or None when the summary is absent
     """
-    summary = cast(Optional[SubIssueSummary], issue.sub_issues_summary)
+    summary = cast(SubIssueSummary | None, issue.sub_issues_summary)
     return None if summary is None else summary.total
 
 
@@ -74,7 +74,7 @@ def _write_link(
     parent_number: int,
     child_number: int,
     unlink: bool,
-) -> Optional[SubIssueLink]:
+) -> SubIssueLink | None:
     """Link or unlink a sub-issue and report the parent's resulting state.
 
     Args:
@@ -128,8 +128,8 @@ class SubIssuesMixin:
 
     @log_function_call
     def add_sub_issue(
-        self: "BaseGitHubManager", parent_number: int, child_number: int
-    ) -> Optional[SubIssueLink]:
+        self: BaseGitHubManager, parent_number: int, child_number: int
+    ) -> SubIssueLink | None:
         """Link an existing issue as a sub-issue of another.
 
         Args:
@@ -151,8 +151,8 @@ class SubIssuesMixin:
 
     @log_function_call
     def remove_sub_issue(
-        self: "BaseGitHubManager", parent_number: int, child_number: int
-    ) -> Optional[SubIssueLink]:
+        self: BaseGitHubManager, parent_number: int, child_number: int
+    ) -> SubIssueLink | None:
         """Unlink a sub-issue from its parent.
 
         Args:
@@ -174,8 +174,8 @@ class SubIssuesMixin:
 
     @log_function_call
     def list_sub_issues(
-        self: "BaseGitHubManager", parent_number: int, max_results: int = 30
-    ) -> Optional[List[SubIssue]]:
+        self: BaseGitHubManager, parent_number: int, max_results: int = 30
+    ) -> list[SubIssue] | None:
         """List an issue's sub-issues.
 
         Args:

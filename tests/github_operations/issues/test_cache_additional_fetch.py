@@ -5,9 +5,9 @@ fetched individually, and how fetched issues are saved on early-return paths.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from unittest.mock import Mock, patch
 
 from mcp_workspace.github_operations.issues import CacheData, IssueData
@@ -18,7 +18,7 @@ from mcp_workspace.github_operations.issues.cache import (
 )
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 
-_NOW = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC)
 _NOW_STR = "2025-12-31T12:00:00+00:00"
 _FRESH_STAMP = "2025-12-31T11:00:00+00:00"  # 1 hour old, < 1440 min
 _STALE_STAMP = "2025-12-29T12:00:00+00:00"  # 2 days old, > 1440 min
@@ -48,8 +48,8 @@ class TestAdditionalIssuesFetchRule:
     def _write_cache(
         self,
         cache_file: Path,
-        issues: Dict[str, IssueData],
-        cached_at: Dict[str, str],
+        issues: dict[str, IssueData],
+        cached_at: dict[str, str],
     ) -> None:
         """Write a cache that triggers an incremental refresh at _NOW."""
         cache_data: CacheData = {
@@ -66,9 +66,9 @@ class TestAdditionalIssuesFetchRule:
         self,
         cache_file: Path,
         manager: Mock,
-        additional_issues: List[int],
+        additional_issues: list[int],
         force_refresh: bool = False,
-    ) -> List[IssueData]:
+    ) -> list[IssueData]:
         """Call get_all_cached_issues against cache_file at _NOW."""
         with (
             patch(
@@ -87,9 +87,9 @@ class TestAdditionalIssuesFetchRule:
                 additional_issues=additional_issues,
             )
 
-    def _saved(self, cache_file: Path) -> Dict[str, Any]:
+    def _saved(self, cache_file: Path) -> dict[str, Any]:
         with cache_file.open("r") as f:
-            data: Dict[str, Any] = json.load(f)
+            data: dict[str, Any] = json.load(f)
         return data
 
     def test_fresh_cached_issue_not_fetched(
@@ -244,8 +244,8 @@ class TestSaveFetchedIssuesOnEarlyReturn:
     def _cache(
         self,
         last_checked: str,
-        issues: Optional[Dict[str, IssueData]] = None,
-        cached_at: Optional[Dict[str, str]] = None,
+        issues: dict[str, IssueData] | None = None,
+        cached_at: dict[str, str] | None = None,
     ) -> CacheData:
         return {
             "last_checked": last_checked,
@@ -257,8 +257,8 @@ class TestSaveFetchedIssuesOnEarlyReturn:
         }
 
     def _run(
-        self, cache_file: Path, manager: Mock, additional_issues: List[int]
-    ) -> List[IssueData]:
+        self, cache_file: Path, manager: Mock, additional_issues: list[int]
+    ) -> list[IssueData]:
         """Call get_all_cached_issues against a real cache_file at _NOW."""
         with (
             patch(
@@ -276,9 +276,9 @@ class TestSaveFetchedIssuesOnEarlyReturn:
                 additional_issues=additional_issues,
             )
 
-    def _saved(self, cache_file: Path) -> Dict[str, Any]:
+    def _saved(self, cache_file: Path) -> dict[str, Any]:
         with cache_file.open("r") as f:
-            data: Dict[str, Any] = json.load(f)
+            data: dict[str, Any] = json.load(f)
         return data
 
     def test_uncached_issue_saved_with_timestamps_untouched(

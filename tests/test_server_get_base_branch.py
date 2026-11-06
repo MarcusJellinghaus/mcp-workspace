@@ -5,8 +5,9 @@ A malformed Base Branch section on the linked issue is surfaced as an
 """
 
 import logging
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest

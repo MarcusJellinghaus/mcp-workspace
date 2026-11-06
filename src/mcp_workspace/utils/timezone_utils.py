@@ -11,15 +11,14 @@ to prevent timezone conversion bugs.
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
 
 def utc_now() -> datetime:
     """Return the current UTC time as a timezone-aware datetime."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def parse_iso_timestamp(timestamp_str: str) -> datetime:
@@ -53,10 +52,10 @@ def parse_iso_timestamp(timestamp_str: str) -> datetime:
 
         # If naive (no timezone), assume UTC
         if parsed_dt.tzinfo is None:
-            parsed_dt = parsed_dt.replace(tzinfo=timezone.utc)
+            parsed_dt = parsed_dt.replace(tzinfo=UTC)
         else:
             # Convert to UTC if not already
-            parsed_dt = parsed_dt.astimezone(timezone.utc)
+            parsed_dt = parsed_dt.astimezone(UTC)
 
         return parsed_dt
 
@@ -70,7 +69,7 @@ def now_utc() -> datetime:
     Returns:
         Current time in UTC timezone
     """
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def format_for_cache(dt: datetime) -> str:
@@ -94,7 +93,7 @@ def format_for_cache(dt: datetime) -> str:
 def is_within_duration(
     timestamp: datetime,
     duration_seconds: float,
-    reference_time: Optional[datetime] = None,
+    reference_time: datetime | None = None,
 ) -> bool:
     """Check if a timestamp is within a duration from a reference time.
 

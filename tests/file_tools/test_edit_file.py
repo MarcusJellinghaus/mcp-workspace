@@ -28,7 +28,7 @@ class TestEditFile(unittest.TestCase):
         self.assertIn("-def test_function():", result)
         self.assertIn("+def modified_function():", result)
 
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
         self.assertEqual(content, "def modified_function():\n    return 'test'\n")
 
@@ -44,7 +44,7 @@ class TestEditFile(unittest.TestCase):
         self.assertIsInstance(result, str)
         self.assertIn("modified_function", result)
 
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
         self.assertEqual(content, "def modified_function():\n    return 'test'\n")
 
@@ -107,7 +107,7 @@ class TestEditFile(unittest.TestCase):
         )
 
         self.assertIsInstance(result, str)
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
         self.assertTrue(content.startswith("# Header comment\n"))
         self.assertIn("def test_function():", content)
@@ -125,7 +125,7 @@ class TestEditFile(unittest.TestCase):
         )
 
         self.assertIsInstance(result, str)
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
         self.assertEqual(content, "xxx bbb xxx ccc xxx\n")
 
@@ -161,7 +161,7 @@ class TestEditFile(unittest.TestCase):
         )
 
         self.assertIsInstance(result, str)
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
         self.assertIn("x = compute()", content)
         self.assertIn("return x", content)
@@ -184,7 +184,7 @@ class TestEditFile(unittest.TestCase):
             new_string="\treturn 20",
         )
 
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
         self.assertIn("    return 10", content)
         self.assertIn("\treturn 20", content)
@@ -201,7 +201,7 @@ class TestEditFile(unittest.TestCase):
         )
 
         self.assertIsInstance(result, str)
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
         self.assertIn("hi", content)
         self.assertNotIn("\r", content)
@@ -231,7 +231,7 @@ class TestEditFile(unittest.TestCase):
         )
 
         self.assertIsInstance(result, str)
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
         self.assertEqual(content, "line1\nline3\n")
 

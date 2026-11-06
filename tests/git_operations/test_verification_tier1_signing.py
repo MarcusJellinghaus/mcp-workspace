@@ -6,9 +6,9 @@ invoking signing binaries).
 """
 
 import subprocess
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, Optional
 from unittest.mock import Mock, patch
 
 import pytest
@@ -21,18 +21,18 @@ MODULE = "mcp_workspace.git_operations.verification"
 def _patch_baseline_ok(
     project_dir: Path,
     *,
-    git_path: Optional[str] = "/usr/bin/git",
+    git_path: str | None = "/usr/bin/git",
     git_version_stdout: str = "git version 2.42.0",
     git_version_returncode: int = 0,
     is_git_repo: bool = True,
-    user_name: Optional[str] = "Alice",
-    user_email: Optional[str] = "alice@example.com",
-    commit_gpgsign: Optional[str] = None,
-    tag_gpgsign: Optional[str] = None,
-    rebase_gpgsign: Optional[str] = None,
-    push_gpgsign: Optional[str] = None,
-    gpg_format: Optional[str] = None,
-    user_signingkey: Optional[str] = None,
+    user_name: str | None = "Alice",
+    user_email: str | None = "alice@example.com",
+    commit_gpgsign: str | None = None,
+    tag_gpgsign: str | None = None,
+    rebase_gpgsign: str | None = None,
+    push_gpgsign: str | None = None,
+    gpg_format: str | None = None,
+    user_signingkey: str | None = None,
 ) -> dict[str, object]:
     """Run verify_git with all Tier 1 dependencies mocked."""
 
@@ -47,14 +47,14 @@ def _patch_baseline_ok(
 
     fake_repo = Mock()
 
-    signing_flags: dict[str, Optional[str]] = {
+    signing_flags: dict[str, str | None] = {
         "commit.gpgsign": commit_gpgsign,
         "tag.gpgsign": tag_gpgsign,
         "rebase.gpgSign": rebase_gpgsign,
         "push.gpgSign": push_gpgsign,
     }
 
-    def fake_get_config(repo: object, key: str, *extra_args: str) -> Optional[str]:
+    def fake_get_config(repo: object, key: str, *extra_args: str) -> str | None:
         del repo, extra_args
         if key == "user.name":
             return user_name
@@ -136,7 +136,7 @@ class TestSigningIntentDetected:
 
         def fake_get_config_inner(
             repo: object, key: str, *extra_args: str
-        ) -> Optional[str]:
+        ) -> str | None:
             del repo, extra_args
             if key == "user.name":
                 return "Alice"

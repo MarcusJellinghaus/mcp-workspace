@@ -1,7 +1,7 @@
 """Branch naming utilities for GitHub issues."""
 
 import re
-from typing import List, Optional, TypedDict
+from typing import TypedDict
 
 
 class BranchCreationResult(TypedDict):
@@ -12,8 +12,8 @@ class BranchCreationResult(TypedDict):
 
     success: bool
     branch_name: str
-    error: Optional[str]
-    existing_branches: List[str]
+    error: str | None
+    existing_branches: list[str]
 
 
 def generate_branch_name_from_issue(

@@ -1,10 +1,9 @@
 """Tests for Tier 2 binary checks in git_operations.verification module."""
 
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, Optional
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -18,24 +17,24 @@ def _patch_step5(
     project_dir: Path,
     *,
     is_git_repo: bool = True,
-    user_name: Optional[str] = "Alice",
-    user_email: Optional[str] = "alice@example.com",
-    commit_gpgsign: Optional[str] = "true",
-    tag_gpgsign: Optional[str] = None,
-    rebase_gpgsign: Optional[str] = None,
-    push_gpgsign: Optional[str] = None,
-    gpg_format: Optional[str] = None,
-    user_signingkey: Optional[str] = "ABCD1234",
-    gpg_program: Optional[str] = None,
-    which_map: Optional[dict[str, Optional[str]]] = None,
-    is_file_map: Optional[dict[str, bool]] = None,
-    run_handler: Optional[
-        Callable[[list[str]], "subprocess.CompletedProcess[str]"]
-    ] = None,
+    user_name: str | None = "Alice",
+    user_email: str | None = "alice@example.com",
+    commit_gpgsign: str | None = "true",
+    tag_gpgsign: str | None = None,
+    rebase_gpgsign: str | None = None,
+    push_gpgsign: str | None = None,
+    gpg_format: str | None = None,
+    user_signingkey: str | None = "ABCD1234",
+    gpg_program: str | None = None,
+    which_map: dict[str, str | None] | None = None,
+    is_file_map: dict[str, bool] | None = None,
+    run_handler: (
+        Callable[[list[str]], "subprocess.CompletedProcess[str]"] | None
+    ) = None,
 ) -> tuple[dict[str, object], dict[str, list[object]]]:
     """Run verify_git with all Step-5-relevant mocks."""
 
-    final_which_map: dict[str, Optional[str]] = {
+    final_which_map: dict[str, str | None] = {
         "git": "/usr/bin/git",
         "gpg": "/usr/bin/gpg",
         "ssh-keygen": "/usr/bin/ssh-keygen",
@@ -48,7 +47,7 @@ def _patch_step5(
 
     calls: dict[str, list[object]] = {"which": [], "run": []}
 
-    def fake_which(name: str) -> Optional[str]:
+    def fake_which(name: str) -> str | None:
         calls["which"].append(name)
         return final_which_map.get(name)
 
@@ -89,14 +88,14 @@ def _patch_step5(
 
     fake_repo = Mock()
 
-    signing_flags: dict[str, Optional[str]] = {
+    signing_flags: dict[str, str | None] = {
         "commit.gpgsign": commit_gpgsign,
         "tag.gpgsign": tag_gpgsign,
         "rebase.gpgSign": rebase_gpgsign,
         "push.gpgSign": push_gpgsign,
     }
 
-    def fake_get_config(repo: object, key: str, *extra_args: str) -> Optional[str]:
+    def fake_get_config(repo: object, key: str, *extra_args: str) -> str | None:
         del repo, extra_args
         if key == "user.name":
             return user_name

@@ -10,9 +10,10 @@ import os
 import random
 import tempfile
 import time
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any
 
 from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
@@ -111,7 +112,7 @@ def _save_cache_file(cache_file_path: Path, cache_data: Mapping[str, Any]) -> bo
     Returns:
         True if successful, False otherwise
     """
-    temp_path: Optional[str] = None
+    temp_path: str | None = None
     try:
         # Ensure directory exists
         cache_file_path.parent.mkdir(parents=True, exist_ok=True)

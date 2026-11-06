@@ -3,7 +3,7 @@
 Split from the original test_issue_cache.py by whole test class.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -353,7 +353,7 @@ class TestApiFailureHandling:
         }
         mock_get_path.return_value = tmp_path / "cache.json"
         mock_load.return_value = cache_data
-        mock_now.return_value = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+        mock_now.return_value = datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC)
 
         # Simulate API failure
         from github import GithubException
@@ -402,7 +402,7 @@ class TestApiFailureHandling:
         }
         mock_get_path.return_value = tmp_path / "cache.json"
         mock_load.return_value = cache_data
-        mock_now.return_value = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+        mock_now.return_value = datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC)
 
         mock_cache_issue_manager._list_issues_no_error_handling.side_effect = (
             ConnectionError("Network failure")
@@ -444,7 +444,7 @@ class TestApiFailureHandling:
         }
         mock_get_path.return_value = tmp_path / "cache.json"
         mock_load.return_value = cache_data
-        mock_now.return_value = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+        mock_now.return_value = datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC)
 
         # _fetch_and_merge_issues will clear cache_data["issues"] = {} on full refresh
         # THEN call the API which raises — snapshot must restore the original issues
@@ -489,7 +489,7 @@ class TestApiFailureHandling:
         }
         mock_get_path.return_value = tmp_path / "cache.json"
         mock_load.return_value = cache_data
-        mock_now.return_value = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+        mock_now.return_value = datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC)
 
         # Simulate the exact failure raised by _list_issues_no_error_handling
         # when _get_repository() returns None.
@@ -533,7 +533,7 @@ class TestApiFailureHandling:
         }
         mock_get_path.return_value = tmp_path / "cache.json"
         mock_load.return_value = cache_data
-        now_time = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+        now_time = datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC)
         mock_now.return_value = now_time
 
         new_issue = self._make_issue(2, "New issue")

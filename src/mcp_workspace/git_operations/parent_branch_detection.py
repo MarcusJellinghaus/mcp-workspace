@@ -5,7 +5,6 @@
 # risk selecting wrong branches; lower values may miss valid parents that
 # have moved forward since branching.
 from pathlib import Path
-from typing import Optional
 
 from git import Commit, RemoteReference, Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError
@@ -19,7 +18,7 @@ MERGE_BASE_DISTANCE_THRESHOLD = 20
 
 def _merge_base_distance(
     repo: Repo, current_commit: Commit, candidate_commit: Commit, ref_name: str
-) -> Optional[int]:
+) -> int | None:
     """Count the commits between merge-base(HEAD, candidate) and HEAD.
 
     Args:
@@ -54,7 +53,7 @@ def detect_parent_branch_via_merge_base(
     project_dir: Path,
     current_branch: str,
     distance_threshold: int = MERGE_BASE_DISTANCE_THRESHOLD,
-) -> Optional[str]:
+) -> str | None:
     """Detect parent branch using git merge-base.
 
     For each local and remote branch (candidate), find the merge-base with
@@ -154,7 +153,7 @@ def detect_parent_branch_via_merge_base(
             # of one branch normally point at the same commit, and that commit
             # only has to be walked once; they are still scored separately when
             # they actually differ, which is the case issue #265 is about.
-            distance_by_commit: dict[str, Optional[int]] = {}
+            distance_by_commit: dict[str, int | None] = {}
             for branch_name, ref_name, candidate_commit in candidates:
                 sha = candidate_commit.hexsha
                 if sha not in distance_by_commit:

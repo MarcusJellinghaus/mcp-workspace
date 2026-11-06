@@ -10,7 +10,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlsplit
 
@@ -121,7 +121,7 @@ class _LoggingGithubRetry(GithubRetry):
                 )
                 reset = headers.get("X-RateLimit-Reset", "")
                 if reset.isdigit():
-                    reset_at = datetime.fromtimestamp(int(reset), timezone.utc)
+                    reset_at = datetime.fromtimestamp(int(reset), UTC)
                     msg += f" (resets {reset_at.strftime('%H:%M:%S')} UTC)"
             else:
                 msg = (

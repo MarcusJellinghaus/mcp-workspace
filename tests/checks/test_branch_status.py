@@ -1,9 +1,8 @@
 """Tests for branch_status check module."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -149,9 +148,9 @@ class TestBranchStatusReport:
         [
             pytest.param(
                 "MarcusJellinghaus",
-                datetime(2026, 10, 22, 4, 58, 13, tzinfo=timezone.utc),
+                datetime(2026, 10, 22, 4, 58, 13, tzinfo=UTC),
                 "abc1234",
-                datetime(2026, 10, 22, 7, 12, 40, tzinfo=timezone.utc),
+                datetime(2026, 10, 22, 7, 12, 40, tzinfo=UTC),
                 True,
                 "Last ❌ issue comment (by MarcusJellinghaus, 2026-10-22 04:58:13 UTC;"
                 " HEAD abc1234 committed 2026-10-22 07:12:40 UTC — may be outdated):",
@@ -159,9 +158,9 @@ class TestBranchStatusReport:
             ),
             pytest.param(
                 "MarcusJellinghaus",
-                datetime(2026, 10, 22, 9, 30, 5, tzinfo=timezone.utc),
+                datetime(2026, 10, 22, 9, 30, 5, tzinfo=UTC),
                 "abc1234",
-                datetime(2026, 10, 22, 7, 12, 40, tzinfo=timezone.utc),
+                datetime(2026, 10, 22, 7, 12, 40, tzinfo=UTC),
                 False,
                 "Last ❌ issue comment (by MarcusJellinghaus, 2026-10-22 09:30:05 UTC;"
                 " HEAD abc1234 committed 2026-10-22 07:12:40 UTC):",
@@ -181,10 +180,10 @@ class TestBranchStatusReport:
     def test_last_marked_comment_header(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
         method_name: str,
-        user: Optional[str],
-        created_at: Optional[datetime],
-        head_short_sha: Optional[str],
-        head_committed_at: Optional[datetime],
+        user: str | None,
+        created_at: datetime | None,
+        head_short_sha: str | None,
+        head_committed_at: datetime | None,
         stale: bool,
         header: str,
     ) -> None:
@@ -853,7 +852,7 @@ class TestCollectBranchStatus:
         assert note is not None
         assert note["body"] == owner_note
 
-    _HEAD = ("abc1234", datetime(2026, 10, 22, 7, 12, 40, tzinfo=timezone.utc))
+    _HEAD = ("abc1234", datetime(2026, 10, 22, 7, 12, 40, tzinfo=UTC))
 
     def _marked_report(
         self, created_at: str, head: tuple[str, datetime] | None
@@ -865,7 +864,7 @@ class TestCollectBranchStatus:
         report = self._marked_report("2026-10-22T04:58:13Z", self._HEAD)
         assert report.marked_comment_stale is True
         assert report.marked_comment_created_at == datetime(
-            2026, 10, 22, 4, 58, 13, tzinfo=timezone.utc
+            2026, 10, 22, 4, 58, 13, tzinfo=UTC
         )
         assert report.head_short_sha == "abc1234"
         assert report.head_committed_at == self._HEAD[1]
@@ -884,7 +883,7 @@ class TestCollectBranchStatus:
         assert report.head_committed_at is None
         assert report.marked_comment_stale is False
         assert report.marked_comment_created_at == datetime(
-            2026, 10, 22, 4, 58, 13, tzinfo=timezone.utc
+            2026, 10, 22, 4, 58, 13, tzinfo=UTC
         )
 
     def test_marked_comment_unparseable_created_at(self) -> None:

@@ -7,9 +7,9 @@ Split from the original test_issue_cache.py by whole test class. The module help
 import json
 import logging
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -91,7 +91,7 @@ class TestNewCacheSchemaFields:
         assert "1" in loaded["issues"]
 
 
-def _make_cursor_issue(number: int, updated_at: Optional[str]) -> IssueData:
+def _make_cursor_issue(number: int, updated_at: str | None) -> IssueData:
     """Build a minimal IssueData with a given updated_at for cursor tests."""
     return {
         "number": number,
@@ -118,10 +118,10 @@ class TestUpdatesCoveredThrough:
     or malformed cursor self-heals via a full refresh.
     """
 
-    NOW = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+    NOW = datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC)
 
     def _incremental_seed(
-        self, updates_covered_through: Optional[str] = "2025-12-31T11:00:00+00:00"
+        self, updates_covered_through: str | None = "2025-12-31T11:00:00+00:00"
     ) -> CacheData:
         """Cache seed that stays on the incremental path under ``NOW``.
 
@@ -145,8 +145,8 @@ class TestUpdatesCoveredThrough:
         seed: CacheData,
         *,
         force_refresh: bool = False,
-        additional_issues: Optional[List[int]] = None,
-    ) -> Dict[str, Any]:
+        additional_issues: list[int] | None = None,
+    ) -> dict[str, Any]:
         """Save the seed, run get_all_cached_issues, return the reloaded JSON."""
         _save_cache_file(cache_file, seed)
         get_all_cached_issues(
@@ -156,7 +156,7 @@ class TestUpdatesCoveredThrough:
             additional_issues=additional_issues,
         )
         with cache_file.open("r") as f:
-            data: Dict[str, Any] = json.load(f)
+            data: dict[str, Any] = json.load(f)
         return data
 
     @patch("mcp_workspace.github_operations.issues.cache._get_cache_file_path")
@@ -303,7 +303,7 @@ class TestUpdatesCoveredThrough:
 
         self._run(mock_cache_issue_manager, cache_file, self._incremental_seed())
 
-        cursor = datetime(2025, 12, 31, 11, 0, 0, tzinfo=timezone.utc)
+        cursor = datetime(2025, 12, 31, 11, 0, 0, tzinfo=UTC)
         expected_since = cursor - timedelta(minutes=SINCE_OVERLAP_MINUTES)
         mock_cache_issue_manager._list_issues_no_error_handling.assert_called_once_with(
             state="all", include_pull_requests=False, since=expected_since
@@ -411,8 +411,8 @@ class TestWatermarkRecovery:
 
         # Advance wall-clock between the two polls (>60s apart to clear
         # duplicate protection), both well under the 24 h full-refresh threshold.
-        now1 = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
-        now2 = datetime(2025, 12, 31, 12, 2, 0, tzinfo=timezone.utc)
+        now1 = datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC)
+        now2 = datetime(2025, 12, 31, 12, 2, 0, tzinfo=UTC)
         mock_now.side_effect = [now1, now2]
 
         # Cursor at 11:59; the missed write (11:57) sits inside the overlap
@@ -457,7 +457,7 @@ class TestCacheBookkeeping:
     (dropping stale entries for issues no longer returned).
     """
 
-    NOW = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+    NOW = datetime(2025, 12, 31, 12, 0, 0, tzinfo=UTC)
     NOW_STR = "2025-12-31T12:00:00+00:00"
 
     def _incremental_seed(self) -> CacheData:
@@ -476,8 +476,8 @@ class TestCacheBookkeeping:
         seed: CacheData,
         *,
         force_refresh: bool = False,
-        additional_issues: Optional[List[int]] = None,
-    ) -> Dict[str, Any]:
+        additional_issues: list[int] | None = None,
+    ) -> dict[str, Any]:
         """Save the seed, run get_all_cached_issues, return the reloaded JSON."""
         _save_cache_file(cache_file, seed)
         get_all_cached_issues(
@@ -487,7 +487,7 @@ class TestCacheBookkeeping:
             additional_issues=additional_issues,
         )
         with cache_file.open("r") as f:
-            data: Dict[str, Any] = json.load(f)
+            data: dict[str, Any] = json.load(f)
         return data
 
     @patch("mcp_workspace.github_operations.issues.cache._get_cache_file_path")

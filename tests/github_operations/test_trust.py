@@ -1,6 +1,5 @@
 """Tests for mcp_workspace.github_operations.trust module."""
 
-from typing import Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -31,7 +30,7 @@ class TestIsTrustedAuthor:
             None,
         ],
     )
-    def test_untrusted_associations(self, association: Optional[str]) -> None:
+    def test_untrusted_associations(self, association: str | None) -> None:
         assert is_trusted_author("stranger", association, frozenset({"alice"})) is False
 
     def test_allowlisted_login_case_insensitive(self) -> None:
@@ -44,7 +43,7 @@ class TestIsTrustedAuthor:
 
     @pytest.mark.parametrize("login", ["", None])
     def test_empty_login_untrusted_even_if_empty_allowlisted(
-        self, login: Optional[str]
+        self, login: str | None
     ) -> None:
         assert is_trusted_author(login, None, frozenset({""})) is False
 

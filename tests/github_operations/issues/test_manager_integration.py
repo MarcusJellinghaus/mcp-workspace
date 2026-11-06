@@ -16,7 +16,8 @@ Note: Tests will be skipped if configuration is missing.
 
 import contextlib
 import datetime
-from typing import TYPE_CHECKING, Generator
+from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 import pytest
 from github import GithubException

@@ -1,6 +1,6 @@
 """Tests for mcp_workspace.utils.timezone_utils module."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from mcp_workspace.utils.timezone_utils import utc_now
 
@@ -17,11 +17,11 @@ def test_utc_now_is_timezone_aware() -> None:
 
 def test_utc_now_uses_utc_timezone() -> None:
     result = utc_now()
-    assert result.tzinfo == timezone.utc
+    assert result.tzinfo == UTC
 
 
 def test_utc_now_returns_current_time() -> None:
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     result = utc_now()
-    after = datetime.now(timezone.utc)
+    after = datetime.now(UTC)
     assert before <= result <= after

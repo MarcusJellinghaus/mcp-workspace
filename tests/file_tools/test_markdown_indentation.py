@@ -32,7 +32,7 @@ class TestMarkdownIndentation(unittest.TestCase):
             )
 
         # Verify file was created
-        with open(markdown_file, "r", encoding="utf-8") as f:
+        with open(markdown_file, encoding="utf-8") as f:
             content = f.read()
 
         self.assertIn("# Documentation", content)
@@ -55,7 +55,7 @@ class TestMarkdownIndentation(unittest.TestCase):
         self.assertIn("---", result)  # diff header
 
         # Read the updated content
-        with open(markdown_file, "r", encoding="utf-8") as f:
+        with open(markdown_file, encoding="utf-8") as f:
             updated_content = f.read()
 
         # Check that the text was edited

@@ -3,8 +3,9 @@
 Tests editing a pull request's title and/or body using mocked GitHub API.
 """
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator, Optional, Tuple
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import git
@@ -17,7 +18,7 @@ from ._pr_test_helpers import create_mock_pr
 
 
 @pytest.fixture
-def manager_and_repo(tmp_path: Path) -> Iterator[Tuple[PullRequestManager, MagicMock]]:
+def manager_and_repo(tmp_path: Path) -> Iterator[tuple[PullRequestManager, MagicMock]]:
     """Yield a PullRequestManager wired to a mocked GitHub repository."""
     git_dir = tmp_path / "git_dir"
     git_dir.mkdir()
@@ -58,9 +59,9 @@ class TestUpdatePullRequest:
     )
     def test_update_fields(
         self,
-        manager_and_repo: Tuple[PullRequestManager, MagicMock],
-        title: Optional[str],
-        body: Optional[str],
+        manager_and_repo: tuple[PullRequestManager, MagicMock],
+        title: str | None,
+        body: str | None,
         expected_kwargs: dict[str, Any],
         expected_title: str,
         expected_body: str,
@@ -78,7 +79,7 @@ class TestUpdatePullRequest:
         assert result["body"] == expected_body
 
     def test_update_neither_field(
-        self, manager_and_repo: Tuple[PullRequestManager, MagicMock]
+        self, manager_and_repo: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """No fields — no edit, no re-fetch, returns current PR data."""
         manager, mock_repo = manager_and_repo
@@ -92,7 +93,7 @@ class TestUpdatePullRequest:
         assert result["number"] == 123
 
     def test_update_blank_title_raises(
-        self, manager_and_repo: Tuple[PullRequestManager, MagicMock]
+        self, manager_and_repo: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """Blank title — ValueError raised before any API call."""
         manager, mock_repo = manager_and_repo
@@ -103,7 +104,7 @@ class TestUpdatePullRequest:
         mock_repo.get_pull.assert_not_called()
 
     def test_update_invalid_pr_number(
-        self, manager_and_repo: Tuple[PullRequestManager, MagicMock]
+        self, manager_and_repo: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """Invalid pr_number — returns empty dict, get_pull not called."""
         manager, mock_repo = manager_and_repo
@@ -114,7 +115,7 @@ class TestUpdatePullRequest:
         mock_repo.get_pull.assert_not_called()
 
     def test_update_api_error(
-        self, manager_and_repo: Tuple[PullRequestManager, MagicMock]
+        self, manager_and_repo: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """GithubException — returns empty dict (decorator handles)."""
         manager, mock_repo = manager_and_repo

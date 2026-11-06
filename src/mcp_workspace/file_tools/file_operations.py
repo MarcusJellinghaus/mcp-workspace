@@ -5,7 +5,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from mcp_coder_utils.log_utils import log_function_call
 
@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 def read_file(
     file_path: str,
     project_dir: Path,
-    start_line: Optional[int] = None,
-    end_line: Optional[int] = None,
-    with_line_numbers: Optional[bool] = None,
+    start_line: int | None = None,
+    end_line: int | None = None,
+    with_line_numbers: bool | None = None,
 ) -> str:
     """Read the contents of a file.
 
@@ -85,7 +85,7 @@ def read_file(
         logger.debug("Reading file: %s", rel_path)
 
         collected: list[tuple[int, str]] = []
-        with open(abs_path, "r", encoding="utf-8") as file_handle:
+        with open(abs_path, encoding="utf-8") as file_handle:
             for line_num, line in enumerate(file_handle, start=1):
                 if start_line is None or (start_line <= line_num <= end_line):  # type: ignore[operator]
                     collected.append((line_num, line))
@@ -537,7 +537,7 @@ def _determine_move_method(src_abs: Path, project_dir: Path) -> bool:
 
 def _execute_git_move(
     src_abs: Path, dest_abs: Path, src_rel: str, dest_rel: str, project_dir: Path
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Execute move using git mv.
 
     Args:
@@ -574,7 +574,7 @@ def _execute_git_move(
 
 def _execute_filesystem_move(
     src_abs: Path, dest_abs: Path, src_rel: str, dest_rel: str, is_fallback: bool
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Execute move using filesystem operations.
 
     Args:
@@ -614,7 +614,7 @@ def _execute_filesystem_move(
 @log_function_call  # Automatic logging of parameters, timing, and exceptions
 def move_file(
     source_path: str, destination_path: str, project_dir: Path
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Move or rename a file or directory.
 
     Automatically uses git mv if the file is tracked by git,

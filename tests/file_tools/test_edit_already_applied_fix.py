@@ -58,7 +58,7 @@ class TestEditAlreadyAppliedFix(unittest.TestCase):
         # Should succeed and produce a diff
         self.assertIn("---", result)
 
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
         self.assertIn('test = "test"', content)
         self.assertNotIn('function_name = "test"', content)
@@ -83,7 +83,7 @@ class TestEditAlreadyAppliedFix(unittest.TestCase):
         # Should succeed and produce a diff
         self.assertIn("---", result)
 
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
         self.assertIn("def new_function():", content)
         self.assertNotIn("def old_function():", content)
@@ -137,7 +137,7 @@ class TestEditAlreadyAppliedFix(unittest.TestCase):
 
         self.assertIn("---", result)
 
-        with open(self.test_file, "r", encoding="utf-8") as f:
+        with open(self.test_file, encoding="utf-8") as f:
             content = f.read()
 
         # Both occurrences should be changed

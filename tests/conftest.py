@@ -6,7 +6,7 @@ import shutil
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import Type, TypeVar
+from typing import TypeVar
 
 import git
 import pytest
@@ -162,6 +162,6 @@ def github_test_setup(tmp_path: Path) -> Generator[GitHubTestSetup, None, None]:
 T = TypeVar("T")
 
 
-def create_github_manager(manager_class: Type[T], github_setup: GitHubTestSetup) -> T:
+def create_github_manager(manager_class: type[T], github_setup: GitHubTestSetup) -> T:
     """Create a GitHub manager instance using real configuration."""
     return manager_class(github_setup["project_dir"])  # type: ignore[call-arg]

@@ -6,9 +6,10 @@ for managing GitHub issues through the PyGithub library.
 
 import functools
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, List, Optional
+from typing import Any
 
 from github.Issue import Issue
 from github.Repository import Repository
@@ -47,7 +48,7 @@ def _parse_base_branch_fields(
     repo: Repository,
     github_issue: Issue,
     allowlist: Callable[[], frozenset[str]],
-) -> tuple[Optional[str], Optional[str]]:
+) -> tuple[str | None, str | None]:
     """Return (base_branch, base_branch_error), or (None, None) for an untrusted body.
 
     Args:
@@ -62,7 +63,7 @@ def _parse_base_branch_fields(
         empty or untrusted one, and ``(None, message)`` for a malformed one.
     """
     number = github_issue.number
-    error: Optional[MalformedBaseBranchError] = None
+    error: MalformedBaseBranchError | None = None
     try:
         value = parse_base_branch(github_issue.body or "")
     except MalformedBaseBranchError as exc:
@@ -110,9 +111,9 @@ class IssueManager(
 
     def __init__(
         self,
-        project_dir: Optional[Path] = None,
-        repo_url: Optional[str] = None,
-        github_token: Optional[str] = None,
+        project_dir: Path | None = None,
+        repo_url: str | None = None,
+        github_token: str | None = None,
     ) -> None:
         """Initialize the IssueManager.
 
@@ -134,8 +135,8 @@ class IssueManager(
         self,
         title: str,
         body: str = "",
-        labels: Optional[List[str]] = None,
-        assignees: Optional[List[str]] = None,
+        labels: list[str] | None = None,
+        assignees: list[str] | None = None,
     ) -> IssueData:
         """Create a new issue in the repository.
 
@@ -251,11 +252,11 @@ class IssueManager(
         self,
         state: str = "open",
         include_pull_requests: bool = False,
-        since: Optional[datetime] = None,
-        labels: Optional[List[str]] = None,
-        assignee: Optional[str] = None,
-        max_results: Optional[int] = None,
-    ) -> List[IssueData]:
+        since: datetime | None = None,
+        labels: list[str] | None = None,
+        assignee: str | None = None,
+        max_results: int | None = None,
+    ) -> list[IssueData]:
         """List issues without error handling. Raises on API failure.
 
         Private method for callers that need to detect failures (e.g., cache).
@@ -282,7 +283,7 @@ class IssueManager(
         if assignee is not None:
             kwargs["assignee"] = assignee
 
-        issues_list: List[IssueData] = []
+        issues_list: list[IssueData] = []
         issues_iterator = repo.get_issues(**kwargs)
         # Read at most once for the whole list, and only if some body needs it
         allowlist = functools.cache(config.get_trusted_commenters)
@@ -310,11 +311,11 @@ class IssueManager(
         self,
         state: str = "open",
         include_pull_requests: bool = False,
-        since: Optional[datetime] = None,
-        labels: Optional[List[str]] = None,
-        assignee: Optional[str] = None,
-        max_results: Optional[int] = None,
-    ) -> List[IssueData]:
+        since: datetime | None = None,
+        labels: list[str] | None = None,
+        assignee: str | None = None,
+        max_results: int | None = None,
+    ) -> list[IssueData]:
         """List all issues in the repository with pagination support.
 
         Args:
@@ -426,13 +427,13 @@ class IssueManager(
     def edit_issue(
         self,
         issue_number: int,
-        title: Optional[str] = None,
-        body: Optional[str] = None,
-        add_labels: Optional[List[str]] = None,
-        remove_labels: Optional[List[str]] = None,
-        add_assignees: Optional[List[str]] = None,
-        state: Optional[str] = None,
-        attempted_writes: Optional[List[str]] = None,
+        title: str | None = None,
+        body: str | None = None,
+        add_labels: list[str] | None = None,
+        remove_labels: list[str] | None = None,
+        add_assignees: list[str] | None = None,
+        state: str | None = None,
+        attempted_writes: list[str] | None = None,
     ) -> IssueData:
         """Apply several edits to an issue in one combined operation.
 

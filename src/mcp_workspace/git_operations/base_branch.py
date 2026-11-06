@@ -80,7 +80,7 @@ def _fetch_issue_data(
     return issue
 
 
-def _detect_from_issue(issue_data: Optional["IssueData"]) -> Optional[str]:
+def _detect_from_issue(issue_data: Optional["IssueData"]) -> str | None:
     """Try to detect base branch from caller-supplied issue data.
 
     Args:
@@ -100,7 +100,7 @@ def _detect_from_issue(issue_data: Optional["IssueData"]) -> Optional[str]:
 def _detect_from_pr(
     current_branch: str,
     pr_manager: Optional["PullRequestManager"],
-) -> Optional[str]:
+) -> str | None:
     """Try to detect base branch from an open GitHub PR.
 
     Args:
@@ -133,7 +133,7 @@ def _detect_from_pr(
 def _detect_from_merge_base(
     project_dir: Path,
     current_branch: str,
-) -> Optional[str]:
+) -> str | None:
     """Try to detect base branch from git merge-base analysis.
 
     Args:
@@ -185,11 +185,11 @@ def _detect_from_merge_base(
 
 def detect_base_branch_with_source(
     project_dir: Path,
-    current_branch: Optional[str] = None,
+    current_branch: str | None = None,
     issue_data: Optional["IssueData"] = None,
     pr_manager: Optional["PullRequestManager"] = None,
     issue_manager: Optional["IssueManager"] = None,
-) -> Optional[tuple[str, BaseBranchSource]]:
+) -> tuple[str, BaseBranchSource] | None:
     """Detect the base branch for the current feature branch and its source.
 
     Detection priority:
@@ -255,11 +255,11 @@ def detect_base_branch_with_source(
 
 def detect_base_branch(
     project_dir: Path,
-    current_branch: Optional[str] = None,
+    current_branch: str | None = None,
     issue_data: Optional["IssueData"] = None,
     pr_manager: Optional["PullRequestManager"] = None,
     issue_manager: Optional["IssueManager"] = None,
-) -> Optional[str]:
+) -> str | None:
     """Detect the base branch for the current feature branch.
 
     Same detection as ``detect_base_branch_with_source``, returning only the

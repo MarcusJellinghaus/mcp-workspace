@@ -7,8 +7,9 @@ collection) and ``branch_status_polling.py`` (async polling).
 """
 
 import logging
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any
 
 from mcp_workspace.checks.branch_status_rendering import CIStatus
 from mcp_workspace.config import get_github_token
@@ -32,7 +33,7 @@ _JOB_FAIL_CONCLUSIONS: frozenset[str] = frozenset({"failure", "cancelled", "time
 
 def get_failed_jobs_summary(
     jobs: Sequence[Mapping[str, Any]], logs: Mapping[str, str]
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Summarize failed jobs from CI results.
 
     Args:
@@ -94,7 +95,7 @@ def get_failed_jobs_summary(
 
 
 def _is_stale_ci_run(
-    project_dir: Path, branch_name: str, run_commit_sha: Optional[str]
+    project_dir: Path, branch_name: str, run_commit_sha: str | None
 ) -> bool:
     """Return True only when HEAD is pushed and the run predates it."""
     if not run_commit_sha:
@@ -110,7 +111,7 @@ def _is_stale_ci_run(
 
 def _collect_ci_status(
     project_dir: Path, branch_name: str, max_log_lines: int
-) -> tuple[CIStatus, Optional[str], List[str]]:
+) -> tuple[CIStatus, str | None, list[str]]:
     """Collect CI status and details.
 
     Returns:

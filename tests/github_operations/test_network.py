@@ -51,7 +51,7 @@ def test_tcp_probe_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     """socket.timeout maps to timeout."""
     monkeypatch.setattr(
         f"{MODULE}.socket.create_connection",
-        _make_create_connection(socket.timeout("timed out")),
+        _make_create_connection(TimeoutError("timed out")),
     )
     assert _tcp_probe("api.example.com") == "timeout"
 
@@ -151,7 +151,7 @@ def test_maybe_log_fires_for_timeout(
     monkeypatch.setattr(f"{MODULE}.getproxies", dict)
     monkeypatch.setattr(
         f"{MODULE}.socket.create_connection",
-        _make_create_connection(socket.timeout("timed out")),
+        _make_create_connection(TimeoutError("timed out")),
     )
 
     with caplog.at_level(logging.WARNING, logger=MODULE):

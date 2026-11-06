@@ -1,7 +1,7 @@
 """Tests for detect_base_branch_with_source and BaseBranchSource."""
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,8 +19,8 @@ _MODULE = "mcp_workspace.git_operations.base_branch"
 
 def _issue(
     number: int = 123,
-    base_branch: Optional[str] = None,
-    base_branch_error: Optional[str] = None,
+    base_branch: str | None = None,
+    base_branch_error: str | None = None,
 ) -> IssueData:
     """Build IssueData with optional base branch fields."""
     data = IssueData(
@@ -44,7 +44,7 @@ def _issue(
     return data
 
 
-def _pr_manager(base: Optional[str]) -> MagicMock:
+def _pr_manager(base: str | None) -> MagicMock:
     """Build a PR manager mock returning one PR with ``base`` (or none)."""
     manager = MagicMock()
     manager.find_pull_request_by_head.return_value = (

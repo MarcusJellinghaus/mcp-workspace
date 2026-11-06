@@ -6,8 +6,8 @@ We use the external igittigitt library for handling .gitignore patterns.
 
 import logging
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Optional, Union
 
 from igittigitt import IgnoreParser
 
@@ -52,7 +52,7 @@ def is_path_gitignored(path: str, project_dir: Path) -> bool:
     return bool(matcher(abs_path))
 
 
-def _discover_files(directory: Path, project_dir: Path) -> List[str]:
+def _discover_files(directory: Path, project_dir: Path) -> list[str]:
     """Discover all files recursively, excluding the .git directory.
 
     Returns:
@@ -81,7 +81,7 @@ def _discover_files(directory: Path, project_dir: Path) -> List[str]:
 
 def read_gitignore_rules(
     gitignore_path: Path,
-) -> Optional[Callable[[str], bool]]:
+) -> Callable[[str], bool] | None:
     """Read and parse a .gitignore file to create a matcher function.
 
     Args:
@@ -112,8 +112,8 @@ def read_gitignore_rules(
 
 
 def apply_gitignore_filter(
-    file_paths: List[str], matcher: Optional[Callable[[str], bool]], project_dir: Path
-) -> List[str]:
+    file_paths: list[str], matcher: Callable[[str], bool] | None, project_dir: Path
+) -> list[str]:
     """Filter a list of file paths using a gitignore matcher function.
 
     Args:
@@ -153,8 +153,8 @@ def apply_gitignore_filter(
 
 
 def filter_with_gitignore(
-    file_paths: List[str], base_dir: Path, project_dir: Path
-) -> List[str]:
+    file_paths: list[str], base_dir: Path, project_dir: Path
+) -> list[str]:
     """Filter a list of file paths using .gitignore rules.
 
     Args:
@@ -178,8 +178,8 @@ def filter_with_gitignore(
 
 
 def list_files(
-    directory: Union[str, Path], project_dir: Path, use_gitignore: bool = True
-) -> List[str]:
+    directory: str | Path, project_dir: Path, use_gitignore: bool = True
+) -> list[str]:
     """List all files in a directory and its subdirectories with optional gitignore filtering.
 
     Args:

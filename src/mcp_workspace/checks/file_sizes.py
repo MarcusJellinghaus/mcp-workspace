@@ -3,7 +3,6 @@
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Set, Tuple
 
 from mcp_workspace.file_tools.directory_utils import list_files
 
@@ -34,10 +33,10 @@ class CheckResult:
     """Result of file size check."""
 
     passed: bool
-    violations: List[FileMetrics] = field(default_factory=list)
+    violations: list[FileMetrics] = field(default_factory=list)
     total_files_checked: int = 0
     allowlisted_count: int = 0
-    stale_entries: List[str] = field(default_factory=list)
+    stale_entries: list[str] = field(default_factory=list)
 
 
 def count_lines(file_path: Path) -> int:
@@ -47,13 +46,13 @@ def count_lines(file_path: Path) -> int:
         Number of lines, or -1 for binary/non-UTF-8 files.
     """
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             return sum(1 for _ in f)
     except (UnicodeDecodeError, OSError):
         return -1
 
 
-def load_allowlist(allowlist_path: Path) -> Set[str]:
+def load_allowlist(allowlist_path: Path) -> set[str]:
     """Load allowlist from file.
 
     Returns:
@@ -62,9 +61,9 @@ def load_allowlist(allowlist_path: Path) -> Set[str]:
     if not allowlist_path.is_file():
         return set()
 
-    entries: Set[str] = set()
+    entries: set[str] = set()
     try:
-        with open(allowlist_path, "r", encoding="utf-8") as f:
+        with open(allowlist_path, encoding="utf-8") as f:
             for line in f:
                 stripped = line.strip()
                 # Skip empty lines and comments
@@ -81,13 +80,13 @@ def load_allowlist(allowlist_path: Path) -> Set[str]:
     return entries
 
 
-def get_file_metrics(files: List[str], project_dir: Path) -> List[FileMetrics]:
+def get_file_metrics(files: list[str], project_dir: Path) -> list[FileMetrics]:
     """Get file metrics for a list of files.
 
     Returns:
         List of FileMetrics for readable (non-binary) files.
     """
-    metrics: List[FileMetrics] = []
+    metrics: list[FileMetrics] = []
     for file_path in files:
         abs_path = project_dir / file_path
         line_count = count_lines(abs_path)
@@ -99,7 +98,7 @@ def get_file_metrics(files: List[str], project_dir: Path) -> List[FileMetrics]:
 def check_file_sizes(
     project_dir: Path,
     max_lines: int,
-    allowlist: Set[str],
+    allowlist: set[str],
 ) -> CheckResult:
     """Check file sizes against maximum line limit.
 
@@ -117,9 +116,9 @@ def check_file_sizes(
     # Get metrics
     metrics = get_file_metrics(raw_files, project_dir)
 
-    violations: List[FileMetrics] = []
+    violations: list[FileMetrics] = []
     allowlisted_count = 0
-    over_limit_allowlisted: Set[str] = set()
+    over_limit_allowlisted: set[str] = set()
 
     for m in metrics:
         normalized = m.path
@@ -133,7 +132,7 @@ def check_file_sizes(
             violations.append(m)
 
     # Detect stale entries: in allowlist but file doesn't exist or is under limit
-    stale_entries: List[str] = []
+    stale_entries: list[str] = []
     for entry in sorted(allowlist):
         if entry in over_limit_allowlisted:
             continue
@@ -158,7 +157,7 @@ def render_output(result: CheckResult, max_lines: int) -> str:
     Returns:
         Multi-line report string describing the check outcome.
     """
-    lines: List[str] = []
+    lines: list[str] = []
 
     if result.passed:
         lines.append(
@@ -200,7 +199,7 @@ def render_output(result: CheckResult, max_lines: int) -> str:
     return "\n".join(lines)
 
 
-def render_allowlisted(project_dir: Path, max_lines: int, allowlist: Set[str]) -> str:
+def render_allowlisted(project_dir: Path, max_lines: int, allowlist: set[str]) -> str:
     """List every allowlist entry with its size, largest first.
 
     Sized entries come first (line count descending, ties by path), then
@@ -215,7 +214,7 @@ def render_allowlisted(project_dir: Path, max_lines: int, allowlist: Set[str]) -
     sizes = {m.path: m.line_count for m in metrics}
     root = project_dir.resolve()
 
-    rows: List[Tuple[int, int, str, str]] = []
+    rows: list[tuple[int, int, str, str]] = []
     for entry in allowlist:
         if entry in sizes:
             text = f"{sizes[entry]} lines"
@@ -235,7 +234,7 @@ def render_allowlisted(project_dir: Path, max_lines: int, allowlist: Set[str]) -
     return "\n".join(lines)
 
 
-def render_allowlist(violations: List[FileMetrics]) -> str:
+def render_allowlist(violations: list[FileMetrics]) -> str:
     """Render violations as allowlist entries.
 
     Returns:

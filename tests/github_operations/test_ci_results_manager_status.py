@@ -1,6 +1,6 @@
 """Tests for CIResultsManager get_latest_ci_status method."""
 
-from typing import Callable
+from collections.abc import Callable
 from unittest.mock import Mock, patch
 
 import pytest

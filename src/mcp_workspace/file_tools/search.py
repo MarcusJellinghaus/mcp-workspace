@@ -3,7 +3,7 @@
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pathspec import GitIgnoreSpec, RegexPattern
 
@@ -26,7 +26,7 @@ _BRACE_NOTE = (
 )
 
 
-def _glob_note(glob: str) -> Optional[str]:
+def _glob_note(glob: str) -> str | None:
     """Explain a zero-match glob when its braces are the likely cause.
 
     Args:
@@ -38,7 +38,7 @@ def _glob_note(glob: str) -> Optional[str]:
     return _BRACE_NOTE if "{" in glob else None
 
 
-def _match_glob(glob: str, files: List[str]) -> List[str]:
+def _match_glob(glob: str, files: list[str]) -> list[str]:
     """Match project-relative paths against a gitignore-semantics glob.
 
     Args:
@@ -73,13 +73,13 @@ def _match_glob(glob: str, files: List[str]) -> List[str]:
 
 
 def _search_content(
-    files: List[str],
+    files: list[str],
     compiled: "re.Pattern[str]",
     project_dir: Path,
     context_lines: int,
     max_results: int,
     max_result_lines: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Search file contents for regex matches.
 
     Returns:
@@ -87,18 +87,18 @@ def _search_content(
         project-relative paths that could not be read — a path rejected by the
         security check, or an unreadable file — present only when non-empty.
     """
-    matches: List[Dict[str, Any]] = []
+    matches: list[dict[str, Any]] = []
     total_matches = 0
     char_budget = max_result_lines * 120
     chars_used = 0
     truncated = False
-    files_map: Dict[str, List[int]] = {}
-    skipped: List[str] = []
+    files_map: dict[str, list[int]] = {}
+    skipped: list[str] = []
 
     for rel_path in files:
         try:
             abs_path, _ = normalize_path(rel_path, project_dir)
-            with open(abs_path, "r", encoding="utf-8") as f:
+            with open(abs_path, encoding="utf-8") as f:
                 file_lines = f.readlines()
         except UnicodeDecodeError:
             # Must precede the next handler: UnicodeDecodeError is a subclass
@@ -141,7 +141,7 @@ def _search_content(
             matches.append({"file": rel_path, "line": i + 1, "text": context})
             chars_used += len(context)
 
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "mode": "content_search",
         "details": matches,
         "total_matches": total_matches,
@@ -158,12 +158,12 @@ def _search_content(
 
 def search_files(
     project_dir: Path,
-    glob: Optional[str] = None,
-    pattern: Optional[str] = None,
+    glob: str | None = None,
+    pattern: str | None = None,
     context_lines: int = 0,
     max_results: int = 50,
     max_result_lines: int = 200,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Search file contents by regex and/or find files by glob pattern.
 
     Args:
@@ -237,7 +237,7 @@ def search_files(
     total = len(matched)
     truncated = total > max_results
 
-    file_result: Dict[str, Any] = {
+    file_result: dict[str, Any] = {
         "mode": "file_search",
         "files": matched[:max_results],
         "total_files": total,

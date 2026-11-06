@@ -1,7 +1,7 @@
 """Tests for the ``github_subissue_add/_list/_remove`` MCP tools in server.py."""
 
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import Callable, Generator, Optional
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -52,7 +52,7 @@ def reference_projects() -> Generator[None, None, None]:
     set_reference_projects({})
 
 
-def _make_parent(total: Optional[int] = 2) -> SubIssueLink:
+def _make_parent(total: int | None = 2) -> SubIssueLink:
     """Build a link result; ``total=None`` means the count is unknown."""
     return SubIssueLink(_URL, total)
 

@@ -7,7 +7,6 @@ for GitHub issues.
 from __future__ import annotations
 
 import logging
-from typing import List
 
 from mcp_coder_utils.log_utils import log_function_call
 
@@ -40,7 +39,7 @@ class CommentsMixin:
         )
     )
     def add_comment(
-        self: "BaseGitHubManager", issue_number: int, body: str
+        self: BaseGitHubManager, issue_number: int, body: str
     ) -> CommentData:
         """Add a comment to an issue.
 
@@ -109,7 +108,7 @@ class CommentsMixin:
 
     @log_function_call
     @_handle_github_errors(default_return=[])
-    def get_comments(self: "BaseGitHubManager", issue_number: int) -> List[CommentData]:
+    def get_comments(self: BaseGitHubManager, issue_number: int) -> list[CommentData]:
         """Get all comments on an issue.
 
         Args:
@@ -142,7 +141,7 @@ class CommentsMixin:
         github_comments = github_issue.get_comments()
 
         # Convert to CommentData list
-        comments: List[CommentData] = []
+        comments: list[CommentData] = []
         for comment in github_comments:
             comments.append(
                 CommentData(
@@ -177,7 +176,7 @@ class CommentsMixin:
         )
     )
     def edit_comment(
-        self: "BaseGitHubManager", issue_number: int, comment_id: int, body: str
+        self: BaseGitHubManager, issue_number: int, comment_id: int, body: str
     ) -> CommentData:
         """Edit an existing comment on an issue.
 
@@ -259,7 +258,7 @@ class CommentsMixin:
     @log_function_call
     @_handle_github_errors(default_return=False)
     def delete_comment(
-        self: "BaseGitHubManager", issue_number: int, comment_id: int
+        self: BaseGitHubManager, issue_number: int, comment_id: int
     ) -> bool:
         """Delete a comment from an issue.
 

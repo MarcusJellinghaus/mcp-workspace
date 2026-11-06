@@ -1,7 +1,6 @@
 """Branch operations for git repositories."""
 
 from pathlib import Path
-from typing import Optional
 
 from git.exc import GitCommandError, InvalidGitRepositoryError
 
@@ -11,7 +10,7 @@ from .repository_status import is_git_repository
 
 
 def create_branch(
-    branch_name: str, project_dir: Path, from_branch: Optional[str] = None
+    branch_name: str, project_dir: Path, from_branch: str | None = None
 ) -> bool:
     """Create a new git branch.
 

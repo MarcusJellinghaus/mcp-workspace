@@ -6,7 +6,7 @@ operation for GitHub pull requests.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from github.GithubException import GithubException
 from mcp_coder_utils.log_utils import log_function_call
@@ -41,12 +41,12 @@ class PRMergeMixin:
     @log_function_call
     @_handle_github_errors(default_return=_failed_merge_result)
     def merge_pull_request(
-        self: "PullRequestManager",
+        self: PullRequestManager,
         pr_number: int,
         merge_method: str = "squash",
-        sha: Optional[str] = None,
-        commit_title: Optional[str] = None,
-        commit_message: Optional[str] = None,
+        sha: str | None = None,
+        commit_title: str | None = None,
+        commit_message: str | None = None,
     ) -> MergeResult:
         """Merge a pull request, wrapping PyGithub's PullRequest.merge().
 

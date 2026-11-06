@@ -1,8 +1,8 @@
 """Git commit operations for creating commits."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
@@ -225,8 +225,8 @@ def commit_paths(message: str, paths: list[Path], project_dir: Path) -> CommitRe
         category: Literal[
             "signing_failed", "commit_failed", "validation_failed", "nothing_to_commit"
         ],
-        returncode: Optional[int] = None,
-        stderr: Optional[str] = None,
+        returncode: int | None = None,
+        stderr: str | None = None,
     ) -> CommitResult:
         logger.debug("commit_paths failed: %s", error)
         return {
@@ -318,7 +318,7 @@ def commit_paths(message: str, paths: list[Path], project_dir: Path) -> CommitRe
         )
 
 
-def get_latest_commit_sha(project_dir: Path) -> Optional[str]:
+def get_latest_commit_sha(project_dir: Path) -> str | None:
     """Get the SHA of the current HEAD commit.
 
     Args:
@@ -334,7 +334,7 @@ def get_latest_commit_sha(project_dir: Path) -> Optional[str]:
         return None
 
 
-def get_head_commit_info(project_dir: Path) -> Optional[tuple[str, datetime]]:
+def get_head_commit_info(project_dir: Path) -> tuple[str, datetime] | None:
     """Get HEAD's short SHA and committer date in UTC.
 
     Committer date, not author date: a rebase rewrites the committer date.
@@ -351,7 +351,7 @@ def get_head_commit_info(project_dir: Path) -> Optional[tuple[str, datetime]]:
             commit = repo.head.commit
             return (
                 commit.hexsha[:GIT_SHORT_HASH_LENGTH],
-                commit.committed_datetime.astimezone(timezone.utc),
+                commit.committed_datetime.astimezone(UTC),
             )
     except (InvalidGitRepositoryError, GitCommandError, ValueError, OSError):
         return None

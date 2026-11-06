@@ -5,8 +5,8 @@ Tests the non-green check lookup using a mocked GitHub API. A local
 """
 
 import time
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, List, Optional, Tuple
 from unittest.mock import MagicMock, patch
 
 import git
@@ -25,7 +25,7 @@ def _status(context: str, state: str) -> MagicMock:
     return status
 
 
-def _run(name: str, status: str, conclusion: Optional[str] = None) -> MagicMock:
+def _run(name: str, status: str, conclusion: str | None = None) -> MagicMock:
     """Build a mock check run (``name`` is a MagicMock kwarg, so set it after)."""
     run = MagicMock()
     run.name = name
@@ -35,7 +35,7 @@ def _run(name: str, status: str, conclusion: Optional[str] = None) -> MagicMock:
 
 
 def _set_checks(
-    mock_repo: MagicMock, statuses: List[MagicMock], runs: List[MagicMock]
+    mock_repo: MagicMock, statuses: list[MagicMock], runs: list[MagicMock]
 ) -> MagicMock:
     """Configure mock_repo.get_commit to return the given statuses and runs."""
     commit = MagicMock()
@@ -52,7 +52,7 @@ class TestGetNonGreenChecks:
     @pytest.fixture
     def checks_env(
         self, tmp_path: Path
-    ) -> Iterator[Tuple[PullRequestManager, MagicMock]]:
+    ) -> Iterator[tuple[PullRequestManager, MagicMock]]:
         """Build a git repo + patched manager, yielding (manager, mock_repo)."""
         git_dir = tmp_path / "git_dir"
         git_dir.mkdir()
@@ -77,7 +77,7 @@ class TestGetNonGreenChecks:
             yield manager, mock_repo
 
     def test_check_runs_classification(
-        self, checks_env: Tuple[PullRequestManager, MagicMock]
+        self, checks_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """Passing conclusions excluded; failing and unfinished runs included."""
         manager, mock_repo = checks_env
@@ -110,7 +110,7 @@ class TestGetNonGreenChecks:
         )
 
     def test_statuses_classification(
-        self, checks_env: Tuple[PullRequestManager, MagicMock]
+        self, checks_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """Success statuses excluded; pending/failure/error included before runs."""
         manager, mock_repo = checks_env
@@ -135,7 +135,7 @@ class TestGetNonGreenChecks:
             "lint (failure)",
         )
 
-    def test_all_green(self, checks_env: Tuple[PullRequestManager, MagicMock]) -> None:
+    def test_all_green(self, checks_env: tuple[PullRequestManager, MagicMock]) -> None:
         """Everything green -> ((), None)."""
         manager, mock_repo = checks_env
         _set_checks(
@@ -147,7 +147,7 @@ class TestGetNonGreenChecks:
         assert manager.get_non_green_checks(1, head_sha="abc") == ((), None)
 
     def test_head_sha_given_skips_get_pull(
-        self, checks_env: Tuple[PullRequestManager, MagicMock]
+        self, checks_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """head_sha given -> get_pull not called, get_commit uses that SHA."""
         manager, mock_repo = checks_env
@@ -159,7 +159,7 @@ class TestGetNonGreenChecks:
         mock_repo.get_commit.assert_called_once_with("deadbeef")
 
     def test_head_sha_none_resolves_from_pr(
-        self, checks_env: Tuple[PullRequestManager, MagicMock]
+        self, checks_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """head_sha=None -> SHA resolved from repo.get_pull(pr_number).head.sha."""
         manager, mock_repo = checks_env
@@ -172,7 +172,7 @@ class TestGetNonGreenChecks:
         mock_repo.get_commit.assert_called_once_with("cafe123")
 
     def test_permission_error(
-        self, checks_env: Tuple[PullRequestManager, MagicMock]
+        self, checks_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """403 without rate-limit headers -> PERMISSION_ERROR_TEXT."""
         manager, mock_repo = checks_env
@@ -187,7 +187,7 @@ class TestGetNonGreenChecks:
         )
 
     def test_rate_limit_error(
-        self, checks_env: Tuple[PullRequestManager, MagicMock]
+        self, checks_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """403 with X-RateLimit-Remaining: 0 -> rate-limit text with reset time."""
         manager, mock_repo = checks_env
@@ -207,7 +207,7 @@ class TestGetNonGreenChecks:
         assert "resets at" in error
 
     def test_server_error(
-        self, checks_env: Tuple[PullRequestManager, MagicMock]
+        self, checks_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """500 -> 'GitHub API error 500: boom'."""
         manager, mock_repo = checks_env
@@ -222,7 +222,7 @@ class TestGetNonGreenChecks:
         )
 
     def test_network_error_during_iteration(
-        self, checks_env: Tuple[PullRequestManager, MagicMock]
+        self, checks_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """ConnectionError while iterating check runs -> network error text."""
         manager, mock_repo = checks_env
@@ -240,7 +240,7 @@ class TestGetNonGreenChecks:
         )
 
     def test_repository_not_accessible(
-        self, checks_env: Tuple[PullRequestManager, MagicMock]
+        self, checks_env: tuple[PullRequestManager, MagicMock]
     ) -> None:
         """_get_repository() returning None -> error, no raise."""
         manager, _ = checks_env

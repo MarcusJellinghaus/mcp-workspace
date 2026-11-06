@@ -11,7 +11,6 @@ import json
 import pstats
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 # Configuration
 PROF_OUTPUT_DIR = Path("docs/tests/performance_data/prof")
@@ -86,7 +85,7 @@ def generate_profile_report(
 
 
 def create_summary_report(
-    durations_data: Dict[str, object], slow_tests: List[Tuple[str, float]]
+    durations_data: dict[str, object], slow_tests: list[tuple[str, float]]
 ) -> None:
     """Create a summary report of all profiling results."""
     with open(SUMMARY_FILE, "w", encoding="utf-8") as f:
@@ -141,11 +140,11 @@ def main() -> int:
         print("Make sure pytest ran successfully with the profiling plugin.")
         return 1
 
-    with open(DURATIONS_FILE, "r") as f:
-        durations_data: Dict[str, object] = json.load(f)
+    with open(DURATIONS_FILE) as f:
+        durations_data: dict[str, object] = json.load(f)
 
     threshold = durations_data.get("threshold_seconds", 1.0)
-    durations: Dict[str, float] = durations_data.get("durations", {})  # type: ignore[assignment]
+    durations: dict[str, float] = durations_data.get("durations", {})  # type: ignore[assignment]
 
     slow_tests = [
         (nodeid, duration)

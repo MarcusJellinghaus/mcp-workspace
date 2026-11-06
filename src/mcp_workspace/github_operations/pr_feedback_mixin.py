@@ -7,7 +7,7 @@ and get_closing_issue_numbers operations for GitHub pull requests.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from mcp_coder_utils.log_utils import log_function_call
 
@@ -46,8 +46,8 @@ class PRFeedbackMixin:
     @log_function_call
     @_handle_github_errors(default_return=[])
     def get_closing_issue_numbers(
-        self: "PullRequestManager", pr_number: int
-    ) -> List[int]:
+        self: PullRequestManager, pr_number: int
+    ) -> list[int]:
         """Query closing issue references for a PR via GraphQL.
 
         Args:
@@ -105,7 +105,7 @@ class PRFeedbackMixin:
     @log_function_call
     @_handle_github_errors(default_return=_empty_pr_feedback)
     def get_pr_feedback(
-        self: "PullRequestManager", pr_number: int, include_alerts: bool = True
+        self: PullRequestManager, pr_number: int, include_alerts: bool = True
     ) -> PRFeedback:
         """Fetch aggregated PR feedback (review threads, comments, alerts).
 
@@ -126,7 +126,7 @@ class PRFeedbackMixin:
         return self._collect_pr_feedback(pr_number, include_alerts=include_alerts)
 
     def _collect_pr_feedback(  # type: ignore[misc]  # mixin self-type; decorated siblings hide the same check
-        self: "PullRequestManager", pr_number: int, include_alerts: bool = True
+        self: PullRequestManager, pr_number: int, include_alerts: bool = True
     ) -> PRFeedback:
         """Undecorated body of ``get_pr_feedback``.
 

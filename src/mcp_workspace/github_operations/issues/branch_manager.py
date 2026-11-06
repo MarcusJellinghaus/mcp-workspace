@@ -4,7 +4,7 @@ import logging
 import re
 import time
 from pathlib import Path
-from typing import Any, List, Optional, cast
+from typing import Any, cast
 
 from github import GithubException
 from mcp_coder_utils.log_utils import log_function_call
@@ -72,9 +72,9 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
 
     def __init__(
         self,
-        project_dir: Optional[Path] = None,
-        repo_url: Optional[str] = None,
-        github_token: Optional[str] = None,
+        project_dir: Path | None = None,
+        repo_url: str | None = None,
+        github_token: str | None = None,
     ) -> None:
         """Initialize the IssueBranchManager.
 
@@ -92,9 +92,9 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
 
     @staticmethod
     def _extract_prs_by_states(
-        timeline_items: List[dict[str, Any]],
+        timeline_items: list[dict[str, Any]],
         states: set[str],
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Extract PRs matching given states from timeline items.
 
         Args:
@@ -126,7 +126,7 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
         self,
         issue_number: int,
         repo: Any,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Search for branches matching an issue number pattern.
 
         Args:
@@ -209,8 +209,8 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
     def create_remote_branch_for_issue(
         self,
         issue_number: int,
-        branch_name: Optional[str] = None,
-        base_branch: Optional[str] = None,
+        branch_name: str | None = None,
+        base_branch: str | None = None,
         allow_multiple: bool = False,
     ) -> BranchCreationResult:
         """Create and link branch to issue via GraphQL.
@@ -294,7 +294,7 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
         }
 
         # Step 6: Run mutation with retry-on-missing-ref (eventual-consistency flake)
-        last_result: Optional[BranchCreationResult] = None
+        last_result: BranchCreationResult | None = None
         for attempt in range(_CREATE_LINKED_BRANCH_MAX_ATTEMPTS):
             # Execute GraphQL mutation
             # Note: Using private attribute is the documented way to access GraphQL in PyGithub
@@ -421,7 +421,7 @@ class IssueBranchManager(LinkedBranchesMixin, BaseGitHubManager):
     @_handle_github_errors(default_return=None)
     def get_branch_with_pr_fallback(
         self, issue_number: int, repo_owner: str, repo_name: str
-    ) -> Optional[str]:
+    ) -> str | None:
         """Get branch for issue using a 4-step resolution strategy.
 
         Wraps resolve_branch_for_issue(): ambiguous, not-found and

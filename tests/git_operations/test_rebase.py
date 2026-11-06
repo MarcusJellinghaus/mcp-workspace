@@ -1,7 +1,7 @@
 """Tests for the rebase flow (is_rebase_in_progress, rebase_*) and reset_hard."""
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 from unittest.mock import patch
 
 import pytest

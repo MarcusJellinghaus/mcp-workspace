@@ -6,7 +6,6 @@ threshold. The functions here render `PRFeedback` dicts as text and wrap
 """
 
 import logging
-from typing import List, Optional, Tuple
 
 from mcp_workspace.github_operations.exception_renderer import (
     render_exception_for_display,
@@ -105,7 +104,7 @@ def format_pr_feedback(feedback: PRFeedback, trusted: frozenset[str]) -> str:
         ]
     )
 
-    rendered: List[str] = []
+    rendered: list[str] = []
     body_cut = False
 
     for thread in unresolved:
@@ -168,7 +167,7 @@ def format_pr_feedback(feedback: PRFeedback, trusted: frozenset[str]) -> str:
         )
         rendered = kept
 
-    lines: List[str] = ["PR Reviews:"]
+    lines: list[str] = ["PR Reviews:"]
     if withheld_line:
         lines.append(withheld_line)
     lines.extend(rendered)
@@ -192,7 +191,7 @@ def format_pr_feedback(feedback: PRFeedback, trusted: frozenset[str]) -> str:
 
 def collect_pr_feedback(
     pr_manager: PullRequestManager, pr_number: int, trusted: frozenset[str]
-) -> Tuple[Optional[str], bool, bool]:
+) -> tuple[str | None, bool, bool]:
     """Fetch PR feedback for a pull request.
 
     Args:

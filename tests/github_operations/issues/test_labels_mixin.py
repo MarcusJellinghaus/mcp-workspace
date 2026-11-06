@@ -1,6 +1,6 @@
 """Unit tests for IssueManager label operations with mocked dependencies."""
 
-from typing import Any, Dict, List
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -199,7 +199,7 @@ class TestIssueManagerLabels:
 class TestTransitionIssueLabel:
     """Unit tests for IssueManager.transition_issue_label primitive."""
 
-    def _build_issue_data(self, number: int, labels: List[str]) -> Dict[str, Any]:
+    def _build_issue_data(self, number: int, labels: list[str]) -> dict[str, Any]:
         """Helper to build minimal IssueData-shaped dict for get_issue mock."""
         return {
             "number": number,

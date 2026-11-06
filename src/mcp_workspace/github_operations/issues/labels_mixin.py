@@ -7,7 +7,7 @@ for managing issue labels through the GitHub API.
 from __future__ import annotations
 
 import logging
-from typing import Iterable, List
+from collections.abc import Iterable
 
 from mcp_coder_utils.log_utils import log_function_call
 
@@ -29,7 +29,7 @@ class LabelsMixin:
     """
 
     @log_function_call
-    def get_available_labels(self: "BaseGitHubManager") -> List[LabelData]:
+    def get_available_labels(self: BaseGitHubManager) -> list[LabelData]:
         """Get all available labels in the repository.
 
         Deliberately undecorated with ``_handle_github_errors``: callers
@@ -58,7 +58,7 @@ class LabelsMixin:
         github_labels = repo.get_labels()
 
         # Convert to LabelData list
-        labels: List[LabelData] = []
+        labels: list[LabelData] = []
         for label in github_labels:
             labels.append(
                 LabelData(
@@ -74,7 +74,7 @@ class LabelsMixin:
     @log_function_call
     @_handle_github_errors(default_return=create_empty_issue_data())
     def add_labels(
-        self: "BaseGitHubManager", issue_number: int, *labels: str
+        self: BaseGitHubManager, issue_number: int, *labels: str
     ) -> IssueData:
         """Add labels to an issue.
 
@@ -121,7 +121,7 @@ class LabelsMixin:
     @log_function_call
     @_handle_github_errors(default_return=create_empty_issue_data())
     def remove_labels(
-        self: "BaseGitHubManager", issue_number: int, *labels: str
+        self: BaseGitHubManager, issue_number: int, *labels: str
     ) -> IssueData:
         """Remove labels from an issue.
 
@@ -168,7 +168,7 @@ class LabelsMixin:
     @log_function_call
     @_handle_github_errors(default_return=create_empty_issue_data())
     def set_labels(
-        self: "BaseGitHubManager", issue_number: int, *labels: str
+        self: BaseGitHubManager, issue_number: int, *labels: str
     ) -> IssueData:
         """Set labels on an issue, replacing all existing labels.
 
@@ -213,7 +213,7 @@ class LabelsMixin:
     @log_function_call
     @_handle_github_errors(default_return=False)
     def transition_issue_label(
-        self: "BaseGitHubManager",
+        self: BaseGitHubManager,
         issue_number: int,
         new_label: str,
         labels_to_clear: Iterable[str] = (),

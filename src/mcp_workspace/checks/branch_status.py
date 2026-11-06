@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp_workspace import config
 from mcp_workspace.checks.branch_status_ci import (
@@ -69,7 +69,7 @@ __all__ = [
 ]
 
 DEFAULT_LABEL = "unknown"
-EMPTY_RECOMMENDATIONS: List[str] = []
+EMPTY_RECOMMENDATIONS: list[str] = []
 
 # Written by collect_branch_status, read by _generate_recommendations. Named
 # once so the two sides cannot drift.
@@ -85,39 +85,39 @@ class BranchStatusReport:
     branch_name: str
     base_branch: str
     ci_status: CIStatus
-    ci_details: Optional[str]
-    rebase_needed: Optional[bool]  # None = UNKNOWN (rebase check skipped)
+    ci_details: str | None
+    rebase_needed: bool | None  # None = UNKNOWN (rebase check skipped)
     rebase_reason: str
     tasks_status: TaskTrackerStatus
     tasks_reason: str
     tasks_is_blocking: bool
     current_github_label: str
-    recommendations: List[str]
-    pr_number: Optional[int] = None
-    pr_url: Optional[str] = None
-    pr_found: Optional[bool] = None
-    pr_mergeable: Optional[bool] = None
-    pr_mergeable_state: Optional[str] = None
-    pr_feedback_text: Optional[str] = None
+    recommendations: list[str]
+    pr_number: int | None = None
+    pr_url: str | None = None
+    pr_found: bool | None = None
+    pr_mergeable: bool | None = None
+    pr_mergeable_state: str | None = None
+    pr_feedback_text: str | None = None
     pr_feedback_blocks_merge: bool = False
     pr_feedback_undeterminable: bool = False
     linked_branch_status: LinkedBranchStatus = LinkedBranchStatus.NOT_CHECKED
     linked_branches: tuple[str, ...] = ()
-    linked_branch_issue_number: Optional[int] = None
-    last_marked_comment: Optional[CommentData] = None
+    linked_branch_issue_number: int | None = None
+    last_marked_comment: CommentData | None = None
     # UTC; None if missing/unparseable
-    marked_comment_created_at: Optional[datetime] = None
-    head_short_sha: Optional[str] = None
-    head_committed_at: Optional[datetime] = None  # UTC
+    marked_comment_created_at: datetime | None = None
+    head_short_sha: str | None = None
+    head_committed_at: datetime | None = None  # UTC
     marked_comment_stale: bool = False
-    closing_pr_candidate: Optional[ClosingPRRef] = None
-    base_branch_error: Optional[str] = None
-    non_green_checks: Optional[tuple[str, ...]] = None  # None = lookup not run
-    non_green_checks_error: Optional[str] = None
+    closing_pr_candidate: ClosingPRRef | None = None
+    base_branch_error: str | None = None
+    non_green_checks: tuple[str, ...] | None = None  # None = lookup not run
+    non_green_checks_error: str | None = None
 
     def format_for_human(
         self,
-        wait_context: Optional[WaitContext] = None,
+        wait_context: WaitContext | None = None,
         fail_on_reviews: bool = False,
     ) -> str:
         """Format report for human consumption.
@@ -136,7 +136,7 @@ class BranchStatusReport:
     def format_for_llm(
         self,
         max_lines: int = 300,
-        wait_context: Optional[WaitContext] = None,
+        wait_context: WaitContext | None = None,
         fail_on_reviews: bool = False,
     ) -> str:
         """Format report for LLM consumption with truncation.
@@ -264,7 +264,7 @@ def _collect_task_status(
         return TaskTrackerStatus.ERROR, f"Could not read task tracker: {e}", True
 
 
-def _collect_github_label(issue_data: Optional[IssueData]) -> str:
+def _collect_github_label(issue_data: IssueData | None) -> str:
     """Extract the current status label from issue data.
 
     Returns:
@@ -281,7 +281,7 @@ def _collect_github_label(issue_data: Optional[IssueData]) -> str:
 
 def _collect_pr_info(
     pr_manager: PullRequestManager, branch_name: str
-) -> tuple[Optional[int], Optional[str], Optional[bool], Optional[bool], Optional[str]]:
+) -> tuple[int | None, str | None, bool | None, bool | None, str | None]:
     """Collect PR info for the branch.
 
     Returns:
@@ -306,7 +306,7 @@ def _collect_pr_info(
 
 def _collect_linked_branch_status(
     project_dir: Path, branch_name: str
-) -> tuple[LinkedBranchStatus, tuple[str, ...], Optional[int], Optional[ClosingPRRef]]:
+) -> tuple[LinkedBranchStatus, tuple[str, ...], int | None, ClosingPRRef | None]:
     """Compare the issue's linked branches against the current branch.
 
     The issue number is extracted from the branch name here and returned to
@@ -370,10 +370,10 @@ def _collect_linked_branch_status(
 
 
 def _apply_pr_merge_override(
-    rebase_needed: Optional[bool],
+    rebase_needed: bool | None,
     rebase_reason: str,
-    pr_mergeable: Optional[bool],
-) -> tuple[Optional[bool], str]:
+    pr_mergeable: bool | None,
+) -> tuple[bool | None, str]:
     """Override rebase status when PR is mergeable on GitHub.
 
     When the branch is behind but GitHub confirms the PR is mergeable
@@ -396,13 +396,13 @@ def _apply_pr_merge_override(
     return (rebase_needed, rebase_reason)
 
 
-def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
+def _generate_recommendations(report_data: dict[str, Any]) -> list[str]:
     """Generate actionable recommendations based on status.
 
     Returns:
         List of recommendation strings prioritized by importance.
     """
-    recommendations: List[str] = []
+    recommendations: list[str] = []
 
     ci_status = report_data.get("ci_status")
     rebase_needed = report_data.get("rebase_needed", False)
@@ -491,14 +491,14 @@ def _generate_recommendations(report_data: Dict[str, Any]) -> List[str]:
 
 def _marked_comment_context(
     project_dir: Path, comment: CommentData
-) -> tuple[Optional[datetime], Optional[str], Optional[datetime], bool]:
+) -> tuple[datetime | None, str | None, datetime | None, bool]:
     """Return (created_at, head_short_sha, head_committed_at, stale) for a marked comment.
 
     Never raises: an exception here would replace the whole report with the
     empty fallback. Stale only when both timestamps exist and the comment is
     strictly older than HEAD's committer date (second precision; a tie is current).
     """
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
     if comment["created_at"]:
         try:
             created_at = parse_iso_timestamp(comment["created_at"])
@@ -534,10 +534,10 @@ def collect_branch_status(
             return create_empty_report(ci_status=CIStatus.UNKNOWN)
 
         # 2. Fetch issue data once for sharing
-        issue_data: Optional[IssueData] = None
-        issue_manager: Optional[IssueManager] = None
-        pr_manager: Optional[PullRequestManager] = None
-        last_marked_comment: Optional[CommentData] = None
+        issue_data: IssueData | None = None
+        issue_manager: IssueManager | None = None
+        pr_manager: PullRequestManager | None = None
+        last_marked_comment: CommentData | None = None
         trusted = config.get_trusted_commenters()
 
         try:
@@ -586,8 +586,8 @@ def collect_branch_status(
         # 3. Detect base branch (DI: pass managers). A malformed Base Branch
         # section is surfaced as-is — never replaced by a guessed base.
         base_branch_error = issue_data.get("base_branch_error") if issue_data else None
-        base_branch_error_issue: Optional[int] = None
-        base_branch_result: Optional[str] = None
+        base_branch_error_issue: int | None = None
+        base_branch_result: str | None = None
         if issue_data is not None and base_branch_error:
             base_branch_error_issue = issue_data["number"]
             first_line = _malformed_first_line(issue_data.get("body") or "")
@@ -617,7 +617,7 @@ def collect_branch_status(
         )
 
         # 6. Check rebase status
-        rebase_needed: Optional[bool]
+        rebase_needed: bool | None
         if base_branch_error_issue is not None:
             rebase_needed = None
             rebase_reason = f"base branch malformed in issue #{base_branch_error_issue}"
@@ -670,7 +670,7 @@ def collect_branch_status(
 
         # 12. Generate recommendations
         default_branch_name = get_default_branch_name(project_dir)
-        report_data: Dict[str, Any] = {
+        report_data: dict[str, Any] = {
             "ci_status": ci_status,
             "ci_details": ci_details,
             "ci_failing_job_names": ci_failing_job_names,

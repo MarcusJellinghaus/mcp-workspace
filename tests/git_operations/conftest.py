@@ -1,12 +1,12 @@
 """Shared test fixtures for git operations testing."""
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional, Union
 
 import pytest
 from git import Repo
 
-FileChanges = dict[str, Optional[Union[str, bytes]]]
+FileChanges = dict[str, str | bytes | None]
 
 
 def commit_files(repo: Repo, files: FileChanges, message: str) -> str:

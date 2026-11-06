@@ -1,7 +1,6 @@
 """Tests for file_sizes check module."""
 
 from pathlib import Path
-from typing import List, Set
 
 import pytest
 
@@ -36,7 +35,7 @@ def _write_file(base: Path, rel: str, lines: int) -> Path:
     return p
 
 
-def _metrics(count: int) -> List[FileMetrics]:
+def _metrics(count: int) -> list[FileMetrics]:
     """Helper: build *count* violations, largest first."""
     return [FileMetrics(path=f"src/f{i}.py", line_count=1000 - i) for i in range(count)]
 
@@ -352,7 +351,7 @@ class TestRenderAllowlisted:
         )
 
     def test_uncapped(self, project_dir: Path) -> None:
-        allowlist: Set[str] = set()
+        allowlist: set[str] = set()
         for i in range(60):
             _write_file(project_dir, f"src/f{i:02d}.py", 700 + i)
             allowlist.add(f"src/f{i:02d}.py")

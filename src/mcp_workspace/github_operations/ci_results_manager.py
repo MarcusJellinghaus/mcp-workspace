@@ -9,11 +9,10 @@ import logging
 import time
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, TypedDict, cast
+from typing import Any, NotRequired, TypedDict, cast
 
 import requests
 from mcp_coder_utils.log_utils import log_function_call
-from typing_extensions import NotRequired
 
 from mcp_workspace.git_operations.branch_queries import validate_branch_name
 from mcp_workspace.traffic_log import error_status, log_request
@@ -42,7 +41,7 @@ class StepData(TypedDict):
 
     number: int
     name: str
-    conclusion: Optional[str]  # "success", "failure", "skipped", None
+    conclusion: str | None  # "success", "failure", "skipped", None
 
 
 class JobData(TypedDict):
@@ -52,18 +51,18 @@ class JobData(TypedDict):
     run_id: int
     name: str
     status: str
-    conclusion: Optional[str]
-    started_at: Optional[str]
-    completed_at: Optional[str]
-    steps: List[StepData]
+    conclusion: str | None
+    started_at: str | None
+    completed_at: str | None
+    steps: list[StepData]
 
 
 class RunData(TypedDict):
     """TypedDict for workflow run data."""
 
-    run_ids: List[int]
+    run_ids: list[int]
     status: str
-    conclusion: Optional[str]
+    conclusion: str | None
     workflow_name: str
     event: str
     workflow_path: str
@@ -81,7 +80,7 @@ class CIStatusData(TypedDict):
     """
 
     run: RunData
-    jobs: List[JobData]
+    jobs: list[JobData]
     lookup_failed: NotRequired[bool]
     lookup_error: NotRequired[str]
 
@@ -96,7 +95,7 @@ def _set_lookup_error(e: BaseException, data: CIStatusData) -> None:
     data["lookup_error"] = _format_error_message(e)
 
 
-def filter_runs_by_head_sha(runs: List[Any], max_runs: int = 25) -> List[Any]:
+def filter_runs_by_head_sha(runs: list[Any], max_runs: int = 25) -> list[Any]:
     """Filter workflow runs to only those matching the latest commit SHA.
 
     Args:
@@ -114,8 +113,8 @@ def filter_runs_by_head_sha(runs: List[Any], max_runs: int = 25) -> List[Any]:
 
 
 def aggregate_conclusion(
-    runs: List[Any],
-) -> Tuple[Optional[str], str]:
+    runs: list[Any],
+) -> tuple[str | None, str]:
     """Aggregate conclusion and status across multiple workflow runs.
 
     Priority: failure/cancelled/timed_out > in_progress > success.
@@ -159,9 +158,9 @@ class CIResultsManager(BaseGitHubManager):
 
     def __init__(
         self,
-        project_dir: Optional[Path] = None,
-        repo_url: Optional[str] = None,
-        github_token: Optional[str] = None,
+        project_dir: Path | None = None,
+        repo_url: str | None = None,
+        github_token: str | None = None,
     ) -> None:
         """Initialize the CIResultsManager.
 
@@ -254,15 +253,15 @@ class CIResultsManager(BaseGitHubManager):
                 return CIStatusData(run={}, jobs=[])  # type: ignore[typeddict-item]
 
             # Filter to latest commit SHA
-            all_runs: List[Any] = list(runs_paged[:25])  # cap iteration
+            all_runs: list[Any] = list(runs_paged[:25])  # cap iteration
             same_sha_runs = filter_runs_by_head_sha(all_runs)
 
             # Aggregate conclusion across all runs
             agg_conclusion, agg_status = aggregate_conclusion(same_sha_runs)
 
             # Fetch and merge jobs from all runs (Decision 7: partial results)
-            all_jobs: List[JobData] = []
-            failed_to_fetch_runs: List[int] = []
+            all_jobs: list[JobData] = []
+            failed_to_fetch_runs: list[int] = []
             for run in same_sha_runs:
                 try:
                     for job in run.jobs():
@@ -281,7 +280,7 @@ class CIResultsManager(BaseGitHubManager):
                                 else None
                             ),
                             "steps": cast(
-                                List[StepData],
+                                list[StepData],
                                 [
                                     {
                                         "number": step.number,
@@ -330,7 +329,7 @@ class CIResultsManager(BaseGitHubManager):
             # Re-raise to let the decorator handle it
             raise
 
-    def _download_and_extract_zip(self, url: str) -> Dict[str, str]:
+    def _download_and_extract_zip(self, url: str) -> dict[str, str]:
         """Download ZIP from URL and extract contents.
 
         Args:
@@ -398,7 +397,7 @@ class CIResultsManager(BaseGitHubManager):
 
     @log_function_call
     @_handle_github_errors(default_return={})
-    def get_run_logs(self, run_id: int) -> Dict[str, str]:
+    def get_run_logs(self, run_id: int) -> dict[str, str]:
         """Get all console logs from a workflow run.
 
         Args:
@@ -441,8 +440,8 @@ class CIResultsManager(BaseGitHubManager):
     @log_function_call
     @_handle_github_errors(default_return={})
     def get_artifacts(
-        self, run_id: int, name_filter: Optional[str] = None
-    ) -> Dict[str, str]:
+        self, run_id: int, name_filter: str | None = None
+    ) -> dict[str, str]:
         """Download and return artifact contents from a workflow run.
 
         Args:

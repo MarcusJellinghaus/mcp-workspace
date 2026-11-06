@@ -1,6 +1,6 @@
 """Tests for the Base Branch trust decision in base_branch_trust.py."""
 
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,14 +14,14 @@ from mcp_workspace.github_operations.issues.base_branch_trust import (
 _LOGIN_PATH = "mcp_workspace.github_operations.issues.base_branch_trust._cached_login"
 
 
-def _editor_response(editor: Optional[dict[str, str]]) -> dict[str, Any]:
+def _editor_response(editor: dict[str, str] | None) -> dict[str, Any]:
     """Build a GraphQL response carrying the given issue editor."""
     return {"data": {"repository": {"issue": {"editor": editor}}}}
 
 
 def _make_manager(
-    response: Optional[dict[str, Any]] = None,
-    side_effect: Optional[BaseException] = None,
+    response: dict[str, Any] | None = None,
+    side_effect: BaseException | None = None,
 ) -> MagicMock:
     """Return a manager mock whose graphql_query returns response or raises."""
     manager = MagicMock()
