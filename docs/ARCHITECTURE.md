@@ -236,11 +236,14 @@ tools\run_all_checks.bat
 
 This runs:
 1. Code formatting (ruff format, ruff `I`)
-2. Linting (pylint)
-3. Type checking (mypy)
-4. Tests (pytest)
-5. Import contracts (import-linter)
-6. Architecture boundaries (tach)
+2. Linting (ruff)
+3. Linting (pylint)
+4. Type checking (mypy)
+5. Tests (pytest)
+6. Import contracts (import-linter)
+7. Architecture boundaries (tach)
+8. Dead code (vulture)
+9. Dependency declarations (deptry)
 
 ## CI/CD Integration
 

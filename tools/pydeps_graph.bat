@@ -14,7 +14,12 @@ REM   --noshow           : Don't auto-open the result
 REM   -x tests.*         : Exclude test modules
 REM
 REM Note: For SVG output, install GraphViz from https://graphviz.org/download/
-REM       Alternatively, view pydeps_graph.html which renders DOT in browser.
+
+where pydeps >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: pydeps not found. Install with: pip install pydeps
+    exit /b 1
+)
 
 echo Generating dependency graph with pydeps...
 
@@ -35,14 +40,10 @@ if %ERRORLEVEL% EQU 0 (
     echo Created: docs/architecture/pydeps_graph.dot
     echo.
     echo To view SVG: start docs\architecture\pydeps_graph.svg
-    echo To view HTML: start docs\architecture\pydeps_graph.html
 ) else (
     echo.
     echo Created: docs/architecture/pydeps_graph.dot
     echo.
     echo SVG generation failed - GraphViz not installed.
     echo Install from: https://graphviz.org/download/
-    echo.
-    echo Alternative: View the HTML version which renders DOT in browser:
-    echo   start docs\architecture\pydeps_graph.html
 )

@@ -71,6 +71,7 @@ Per section: verify still needed, verify against the source, apply, commit, push
 - [ ] **27. Align the `ci.yml` layout.** `push-checks` / `pr-checks` split, dependency install via `tools/read_github_deps.py`, comment header explaining which job runs when. Update required checks with task 13.
 - [ ] **28. Align `check-forbidden-folders`.** mcp_coder blocks all of `pr_info/`; here only `pr_info/steps`, `pr_info/.conversations` and `.commit_message.txt` are blocked.
 - [ ] **29. Update the epic and wiki when done.** Comment on #1163. Add any lessons to the wiki as a Field Note. mcp-tools-py is still on the old ruff block, so track its propagation in its chore issue (mcp-tools-py#107).
+- [x] **30. Fix drift in `tools/` scripts.** `run_all_checks.*` now runs every CI row that has a wrapper (9 steps, adds ruff lint, vulture, deptry) and calls `mypy.bat`, not the missing `mypy_check.bat`. `ruff_check.*` covers `tools`. Removed `update_packages.bat`, whose `requirements.txt` no longer exists. Fixed `CONTRIBUTING.md` and `docs/ARCHITECTURE.md`.
 
 ## Not applicable here
 

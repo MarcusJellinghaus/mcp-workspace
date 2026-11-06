@@ -29,7 +29,7 @@ set PYTEST_EXIT_CODE=%errorlevel%
 
 if %PYTEST_EXIT_CODE% neq 0 (
     echo.
-    echo WARNING: Some tests failed (exit code: %PYTEST_EXIT_CODE%)
+    echo WARNING: Some tests failed ^(exit code: %PYTEST_EXIT_CODE%^)
     echo Continuing to generate reports for completed tests...
 ) else (
     echo.

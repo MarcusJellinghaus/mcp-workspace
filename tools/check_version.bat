@@ -27,6 +27,7 @@ echo.
 echo --- Architecture and Dependencies ---
 tach --version
 lint-imports --version
+deptry --version
 echo.
 echo --- Optional Tools ---
 mlflow --version

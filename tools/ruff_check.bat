@@ -1,5 +1,5 @@
 @echo off
-REM Check docstrings using ruff (D + DOC rules)
+REM Lint src, tests and tools using ruff
 REM
 REM Usage from cmd.exe: tools\ruff_check.bat
 
@@ -9,6 +9,6 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Checking docstrings with ruff...
-ruff check src tests %*
+echo Linting with ruff...
+ruff check src tests tools %*
 exit /b %ERRORLEVEL%

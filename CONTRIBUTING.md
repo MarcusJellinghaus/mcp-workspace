@@ -79,9 +79,9 @@ For LLM-based testing, see [tests/LLM_Test.md](tests/LLM_Test.md) - this contain
 
 The project includes several development utility scripts in the `tools/` directory:
 
-- `pylint_check_for_errors.bat` - Run pylint checks
-- `reinstall.bat` - Reinstall the package in development mode
-- `update_packages.bat` - Update dependencies
+- `run_all_checks.bat` / `.sh` - Run all code quality and architecture checks
+- `pylint_check.bat` - Run pylint checks
+- `reinstall_local.bat` / `.sh` - Reinstall the package in development mode
 
 ## Code Style
 
