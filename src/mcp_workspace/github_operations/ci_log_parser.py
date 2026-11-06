@@ -229,7 +229,7 @@ def _find_log_content(
         Log content string, or empty string if not found
     """
     # Try GitHub format first: pattern match on _{job_name}.txt
-    matching_files = [f for f in logs.keys() if f.endswith(f"_{job_name}.txt")]
+    matching_files = [f for f in logs if f.endswith(f"_{job_name}.txt")]
 
     if matching_files:
         if len(matching_files) > 1:

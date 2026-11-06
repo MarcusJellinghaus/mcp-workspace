@@ -386,7 +386,4 @@ def validate_branch_name(branch_name: str) -> bool:
 
     # Basic branch name validation (GitHub-compatible)
     invalid_chars = ["~", "^", ":", "?", "*", "["]
-    if any(char in branch_name for char in invalid_chars):
-        return False
-
-    return True
+    return not any(char in branch_name for char in invalid_chars)

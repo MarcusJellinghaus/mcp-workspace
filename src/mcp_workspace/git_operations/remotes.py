@@ -84,11 +84,10 @@ def clone_repo(url: str, target_path: Path) -> None:
         raise ValueError("URL cannot be empty")
     if not str(target_path) or str(target_path) == ".":
         raise ValueError("Target path cannot be empty")
-    if target_path.exists():
-        if target_path.is_file() or any(target_path.iterdir()):
-            raise ValueError(
-                f"Target path exists and is not an empty directory: {target_path}"
-            )
+    if target_path.exists() and (target_path.is_file() or any(target_path.iterdir())):
+        raise ValueError(
+            f"Target path exists and is not an empty directory: {target_path}"
+        )
 
     error_msg: Optional[str] = None
     try:

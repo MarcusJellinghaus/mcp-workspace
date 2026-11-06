@@ -101,7 +101,7 @@ target-version = "py311"
 line-length = 88
 
 [tool.ruff.lint]
-# Only enable docstring rules for now
+# Rule selection — see the per-group comments below
 # preview needed for DOC rules (pydoclint)
 preview = true
 explicit-preview-rules = true   # preview rules fire only when selected by exact code
@@ -110,6 +110,9 @@ select = [
     # DOC rules are preview-only; with explicit-preview-rules they must be
     # listed by exact code — a bare "DOC" prefix silently enforces nothing.
     "DOC201", "DOC202", "DOC402", "DOC403", "DOC501", "DOC502",
+    "SIM",
+    # SIM905 is preview-only; see explicit-preview-rules note above.
+    "SIM905",
     "E",
     "C4", "B",
 ]
@@ -119,7 +122,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["D", "DOC"]
+"tests/**/*.py" = ["D", "DOC", "SIM117"]
 # DOC502: these modules document exceptions propagated from OS/git/GitHub
 # calls or delegated utils (PermissionError, GitCommandError, ValueError,
 # ...) — useful docs, keep them.

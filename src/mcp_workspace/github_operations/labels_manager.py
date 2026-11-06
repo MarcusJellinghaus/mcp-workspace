@@ -61,10 +61,7 @@ class LabelsManager(BaseGitHubManager):
             return False
 
         # Check for leading or trailing whitespace
-        if name != name.strip():
-            return False
-
-        return True
+        return name == name.strip()
 
     def _validate_color(self, color: str) -> bool:
         """Validate hex color code.

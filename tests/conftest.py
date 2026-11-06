@@ -1,5 +1,6 @@
 """Test configuration and shared fixtures."""
 
+import contextlib
 import os
 import shutil
 import tempfile
@@ -145,10 +146,8 @@ def github_test_setup(tmp_path: Path) -> Generator[GitHubTestSetup, None, None]:
         try:
             repo.git.checkout("main")
         except Exception:  # pylint: disable=broad-exception-caught
-            try:
+            with contextlib.suppress(Exception):
                 repo.git.checkout("master")
-            except Exception:  # pylint: disable=broad-exception-caught
-                pass
     except Exception as e:  # pylint: disable=broad-exception-caught
         pytest.skip(f"Could not clone test repository {test_repo_url}: {e}")
 

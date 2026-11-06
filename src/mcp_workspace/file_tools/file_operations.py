@@ -81,17 +81,16 @@ def read_file(
         logger.error("Path is not a file: %s", file_path)
         raise IsADirectoryError(f"Path '{file_path}' is not a file")
 
-    file_handle = None
     try:
         logger.debug("Reading file: %s", rel_path)
-        file_handle = open(abs_path, "r", encoding="utf-8")
 
         collected: list[tuple[int, str]] = []
-        for line_num, line in enumerate(file_handle, start=1):
-            if start_line is None or (start_line <= line_num <= end_line):  # type: ignore[operator]
-                collected.append((line_num, line))
-            if end_line is not None and line_num >= end_line:
-                break
+        with open(abs_path, "r", encoding="utf-8") as file_handle:
+            for line_num, line in enumerate(file_handle, start=1):
+                if start_line is None or (start_line <= line_num <= end_line):  # type: ignore[operator]
+                    collected.append((line_num, line))
+                if end_line is not None and line_num >= end_line:
+                    break
 
         # Resolve with_line_numbers default
         if with_line_numbers is None:
@@ -117,9 +116,6 @@ def read_file(
     except Exception as e:
         logger.error("Error reading file %s: %s", rel_path, str(e))
         raise
-    finally:
-        if file_handle is not None:
-            file_handle.close()
 
 
 def _validate_save_parameters(

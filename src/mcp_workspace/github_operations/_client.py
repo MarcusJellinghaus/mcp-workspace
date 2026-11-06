@@ -7,6 +7,7 @@ individual call sites.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from datetime import datetime, timezone
@@ -204,11 +205,9 @@ def _install_traffic_log(client: Github) -> None:
                     getattr(exc, "headers", None),
                     start,
                 )
-                try:
+                with contextlib.suppress(Exception):
                     # Any: the marker is ad hoc, on an arbitrary exception type.
                     cast(Any, exc)._traffic_logged = True
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
             raise
         log_request(verb, logged_url, str(status), headers, start)
         return status, headers, output

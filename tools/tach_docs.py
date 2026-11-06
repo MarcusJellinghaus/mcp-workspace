@@ -242,7 +242,7 @@ def generate_report_html(reports: dict[str, str]) -> str:
     <div class="toc">
         <h2>Modules</h2>
         <ul>
-            {''.join(f'<li><a href="#{m.replace(".", "-")}">{m}</a></li>' for m in reports.keys())}
+            {''.join(f'<li><a href="#{m.replace(".", "-")}">{m}</a></li>' for m in reports)}
         </ul>
     </div>
 

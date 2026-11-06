@@ -17,6 +17,7 @@ Config File Alternative (~/.mcp_coder/config.toml):
 Note: Tests will be skipped if configuration is missing.
 """
 
+import contextlib
 import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Generator
@@ -199,10 +200,8 @@ class TestPullRequestManagerSmoke:
         finally:
             # Cleanup
             if created_pr and "number" in created_pr:
-                try:
+                with contextlib.suppress(Exception):
                     pr_manager.close_pull_request(created_pr["number"])
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
 
             # Switch back to original branch and delete test branch
             try:
@@ -266,10 +265,9 @@ class TestLabelsManagerSmoke:
         finally:
             # Cleanup
             if created_label and "name" in created_label:
-                try:
+                # Ignore cleanup failures
+                with contextlib.suppress(Exception):
                     labels_manager.delete_label(created_label["name"])
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass  # Ignore cleanup failures
 
 
 @pytest.mark.github_integration

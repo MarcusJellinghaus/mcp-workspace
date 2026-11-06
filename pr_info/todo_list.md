@@ -32,7 +32,7 @@ Per section: verify still needed, verify against the source, apply, commit, push
 - [x] **3. Add `tools` to the ruff scope; align `D`/`DOC`.** Rename CI row `ruff-docstrings` to `ruff`, running `ruff check src tests tools`. Drop the `D104` ignore (3 hits in `src`). Fix `D` in `tools` (10). Add `"tools/**" = ["DOC201"]` (10 hits); fix `DOC402` (1).
 - [x] **4. `C4` + `B` (#1165): 8 findings.** Set `zip(strict=)` per call site, not as a blanket value.
 - [x] **5. `E`, ignore `E501` (#1167): 47 findings.** All `E712`, all in tests. `E501` (217 hits) stays off permanently.
-- [ ] **6. `SIM`, with `SIM117` ignored in tests (#1168): 16 findings to fix.** The 78 `SIM117` hits are all in tests, so the carve-out covers them.
+- [x] **6. `SIM`, with `SIM117` ignored in tests (#1168): 16 findings to fix.** The 78 `SIM117` hits are all in tests, so the carve-out covers them.
 - [ ] **7. `F` (#1169): 139 findings, all in tests/tools.** `F401` 120, `F811` 11, `F841` 8. Keep imports that are the test's actual content, and assert on them. Must land before task 10.
 - [ ] **8. `ANN`, ignore `ANN401` (#1171): 0 findings to fix.** All 136 hits are `ANN401`. Config change only.
 - [ ] **9. `S` with filters (#1170): 30 findings after filtering (6274 raw).** Test-only ignores: `S101`, `S105`, `S106`, `S108`. Do **not** copy mcp_coder's global `S404`/`S603` ignores, as the epic says: `S404` has 0 hits once gated and `S603` has 0 in `src`, so scope any `S603` ignore to tests/tools. Review `S101` (10), `S105` (1), `S110` (2) and `S311` (1) in `src`.

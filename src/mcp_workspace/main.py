@@ -1,6 +1,7 @@
 """Main entry point for the MCP server."""
 
 import argparse
+import contextlib
 import logging
 import sys
 from datetime import datetime
@@ -198,10 +199,8 @@ def _has_real_file_handler() -> bool:
 def _handle_startup_failure(exc: Exception) -> None:
     """Log a startup failure, bootstrapping a fallback log file if needed."""
     if not _has_real_file_handler():
-        try:
+        with contextlib.suppress(OSError):
             setup_logging("INFO", _FALLBACK_LOG_FILE)
-        except OSError:
-            pass
     stdlogger.error("Startup failed", exc_info=exc)
     print(f"Error: {exc}", file=sys.stderr)
 

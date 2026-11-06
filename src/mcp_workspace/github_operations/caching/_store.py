@@ -3,6 +3,7 @@
 Shape-agnostic: each cache validates and merges its own data.
 """
 
+import contextlib
 import json
 import logging
 import os
@@ -137,7 +138,5 @@ def _save_cache_file(cache_file_path: Path, cache_data: Mapping[str, Any]) -> bo
 
     finally:
         if temp_path is not None:
-            try:
+            with contextlib.suppress(OSError):
                 Path(temp_path).unlink(missing_ok=True)
-            except OSError:
-                pass

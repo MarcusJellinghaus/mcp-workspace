@@ -14,6 +14,7 @@ Config File Alternative (~/.mcp_coder/config.toml):
 Note: Tests will be skipped if configuration is missing.
 """
 
+import contextlib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Generator, List
 from unittest.mock import MagicMock, Mock, patch
@@ -488,10 +489,9 @@ class TestPullRequestManagerIntegration:
         finally:
             # Cleanup: ensure PR is closed even if test fails
             if created_pr and "number" in created_pr:
-                try:
+                # Ignore cleanup failures
+                with contextlib.suppress(Exception):
                     pr_manager.close_pull_request(created_pr["number"])
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass  # Ignore cleanup failures
 
     def test_direct_instantiation(self, tmp_path: Path) -> None:
         """Test direct PullRequestManager instantiation."""
@@ -800,7 +800,6 @@ class TestLabelsManagerIntegration:
         finally:
             # Cleanup: ensure label is deleted even if test fails
             if created_label and "name" in created_label:
-                try:
+                # Ignore cleanup failures
+                with contextlib.suppress(Exception):
                     labels_manager.delete_label(created_label["name"])
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass  # Ignore cleanup failures

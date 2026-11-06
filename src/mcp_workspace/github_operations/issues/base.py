@@ -63,9 +63,7 @@ def is_valid_ref_name(name: str) -> bool:
         return False
     if name.startswith(("-", ".")):
         return False
-    if name.endswith((".", "/", ".lock")):
-        return False
-    return True
+    return not name.endswith((".", "/", ".lock"))
 
 
 def format_malformed_base_branch(error: MalformedBaseBranchError) -> str:
