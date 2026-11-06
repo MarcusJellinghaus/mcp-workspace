@@ -18,6 +18,7 @@ permissions:
   contents: read
 
 jobs:
+  # PR only: pr_info/ is allowed on branches, not in a merge.
   check-forbidden-folders:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
@@ -80,19 +81,9 @@ jobs:
         # Check for forbidden folders
         ERROR=0
 
-        check_forbidden_folder "pr_info/steps" "Temporary development steps folder" || ERROR=1
-        check_forbidden_folder "pr_info/.conversations" "Temporary conversation history folder" || ERROR=1
+        check_forbidden_folder "pr_info" "Temporary development folder (planning, tracking, review logs)" || ERROR=1
         check_forbidden_folder ".scratch" "Agent scratch probes (throwaway tests) - delete after the experiment" || ERROR=1
         check_empty_folder "docs/tests/performance_data/prof" "Profiler output folder should be empty in PRs" || ERROR=1
-
-        # Check for forbidden commit message file
-        if [ -f "pr_info/.commit_message.txt" ]; then
-            echo "❌ ERROR: Found forbidden file pr_info/.commit_message.txt"
-            echo "Description: Transient commit message file should not be committed"
-            ERROR=1
-        else
-            echo "✅ No forbidden commit message file found"
-        fi
 
         if [ $ERROR -eq 1 ]; then
           echo ""
