@@ -93,7 +93,7 @@ class TestReferenceProjectMCPTools:
         server_module._reference_projects = test_projects
 
         # Test logging behavior (the decorator handles logging)
-        with patch("mcp_workspace.server_reference_tools.logger") as mock_logger:
+        with patch("mcp_workspace.server_reference_tools.logger"):
             result = get_reference_projects()
 
             # Should return structured dict with project objects
@@ -225,9 +225,7 @@ class TestReferenceProjectMCPTools:
                 new_callable=AsyncMock,
                 return_value=None,
             ):
-                with patch(
-                    "mcp_workspace.server_reference_tools.logger"
-                ) as mock_logger:
+                with patch("mcp_workspace.server_reference_tools.logger"):
                     mock_list_files.return_value = ["test.py"]
 
                     result = await list_reference_directory("log_test_proj")
@@ -446,9 +444,7 @@ class TestReferenceProjectMCPTools:
                 new_callable=AsyncMock,
                 return_value=None,
             ):
-                with patch(
-                    "mcp_workspace.server_reference_tools.logger"
-                ) as mock_logger:
+                with patch("mcp_workspace.server_reference_tools.logger"):
                     mock_read_file.return_value = "test content"
 
                     result = await read_reference_file("log_test_proj", "test.txt")

@@ -1,6 +1,5 @@
 """Tests for file_sizes check module."""
 
-import os
 from pathlib import Path
 from typing import List, Set
 

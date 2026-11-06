@@ -2,15 +2,13 @@
 
 import io
 import zipfile
-from pathlib import Path
 from typing import Dict
 from unittest.mock import Mock, patch
 
 import pytest
-import requests
 from github import GithubException
 
-from mcp_workspace.github_operations import CIResultsManager, CIStatusData
+from mcp_workspace.github_operations import CIResultsManager
 
 
 class TestGetArtifacts:

@@ -1,6 +1,5 @@
 """Tests for file operations functionality."""
 
-import os
 import shutil
 from collections.abc import Callable
 from pathlib import Path

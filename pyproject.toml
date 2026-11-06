@@ -114,6 +114,7 @@ select = [
     # SIM905 is preview-only; see explicit-preview-rules note above.
     "SIM905",
     "E",
+    "F",
     "C4", "B",
 ]
 ignore = [

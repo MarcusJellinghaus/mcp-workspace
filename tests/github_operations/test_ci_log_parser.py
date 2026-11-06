@@ -1,6 +1,6 @@
 """Tests for ci_log_parser module."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

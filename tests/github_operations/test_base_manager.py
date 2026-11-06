@@ -7,7 +7,6 @@ from typing import Callable
 from unittest.mock import Mock, patch
 
 import pytest
-from github import Auth
 from github.GithubException import GithubException
 from github.Repository import Repository
 from requests.exceptions import RetryError

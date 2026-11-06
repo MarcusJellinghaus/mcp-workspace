@@ -6,30 +6,13 @@ Split from the original test_issue_cache.py by whole test class.
 import json
 import logging
 import tempfile
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
-from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
-from mcp_workspace.constants import SINCE_OVERLAP_MINUTES
 from mcp_workspace.github_operations.issues import (
-    CacheData,
-    IssueData,
     update_issue_labels_in_cache,
-)
-from mcp_workspace.github_operations.issues._cache_io import (
-    _get_cache_file_path,
-    _load_cache_file,
-    _log_cache_metrics,
-    _save_cache_file,
-)
-from mcp_workspace.github_operations.issues.cache import (
-    CACHE_SCHEMA_VERSION,
-    _log_stale_cache_entries,
-    get_all_cached_issues,
 )
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 

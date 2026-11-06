@@ -4,7 +4,6 @@ from typing import List
 
 from mcp_workspace.file_tools.tree_listing import (
     _build_tree,
-    _collapse,
     _count_lines,
     _find_collapsible,
     _recursive_file_count,

@@ -1,12 +1,9 @@
 """Tests for reference project dataclass, URL utilities, and ensure_available."""
 
-import asyncio
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from mcp_workspace.reference_projects import ReferenceProject
 
 
 class TestReferenceProjectDataclass:

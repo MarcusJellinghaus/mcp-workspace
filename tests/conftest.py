@@ -6,7 +6,7 @@ import shutil
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Type, TypeVar, cast
+from typing import Type, TypeVar
 
 import git
 import pytest

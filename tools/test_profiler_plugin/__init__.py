@@ -74,7 +74,7 @@ def pytest_runtest_protocol(item: Any, nextitem: Any) -> Any:
     start_time = time.time()
     profiler.enable()
 
-    outcome = yield
+    yield
 
     profiler.disable()
     duration = time.time() - start_time

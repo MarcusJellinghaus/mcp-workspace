@@ -1,9 +1,8 @@
 """Tests for git integration in move operations."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
-import pytest
 from git import Repo
 from git.exc import GitCommandError
 

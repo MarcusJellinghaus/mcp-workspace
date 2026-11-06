@@ -16,8 +16,6 @@ from mcp_workspace.github_operations.caching._store import (
 )
 from mcp_workspace.github_operations.issues import (
     _get_cache_file_path,
-    _load_cache_file,
-    _log_stale_cache_entries,
 )
 from mcp_workspace.github_operations.issues import _save_cache_file as reexported
 from mcp_workspace.github_operations.issues import get_issue_cache_last_checked

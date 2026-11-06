@@ -19,7 +19,6 @@ Note: Tests will be skipped if configuration is missing.
 
 import contextlib
 import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Generator
 
 import pytest
