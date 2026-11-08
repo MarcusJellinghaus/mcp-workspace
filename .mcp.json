@@ -38,7 +38,11 @@
         "--reference-project",
         "name=obsidian-dev-wiki,path=${USERPROFILE}\\Documents\\GitHub\\obsidian-dev-wiki,url=https://github.com/MarcusJellinghaus/obsidian-dev-wiki",
         "--reference-project",
-        "name=agent-workbench,path=${USERPROFILE}\\Documents\\GitHub\\agent-workbench,url=https://github.com/MarcusJellinghaus/agent-workbench"
+        "name=agent-workbench,path=${USERPROFILE}\\Documents\\GitHub\\agent-workbench,url=https://github.com/MarcusJellinghaus/agent-workbench",
+        "--reference-project",
+        "name=mcp-tools-sql,path=${USERPROFILE}\\Documents\\GitHub\\mcp-tools-sql,url=https://github.com/MarcusJellinghaus/mcp-tools-sql",
+        "--reference-project",
+        "name=AutoRunner,path=${USERPROFILE}\\Documents\\GitHub\\AutoRunner,url=https://github.com/MarcusJellinghaus/AutoRunner"
       ],
       "env": {
         "PYTHONPATH": "${MCP_CODER_VENV_DIR}\\Lib\\"
