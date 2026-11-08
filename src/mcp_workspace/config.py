@@ -65,6 +65,19 @@ def get_trusted_commenters() -> frozenset[str]:
     )
 
 
+def get_enterprise_hosts() -> frozenset[str]:
+    """Read GitHub Enterprise Server hosts from ``[github] enterprise_hosts``.
+
+    The token is sent only to github.com, ``*.ghe.com`` and these hosts.
+    Read from the user config file on every call; no env-var override, so
+    a repo's remote cannot add itself.
+
+    Returns:
+        Lowercased hostnames, or an empty set if missing or invalid.
+    """
+    return frozenset(v.lower() for v in _read_config_list("github", "enterprise_hosts"))
+
+
 @functools.cache
 def get_traffic_log_dir() -> Path | None:
     """Resolve the GitHub traffic log directory from ``[github]`` once per process.

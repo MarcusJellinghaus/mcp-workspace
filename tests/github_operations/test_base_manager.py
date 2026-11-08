@@ -589,6 +589,7 @@ class TestBaseGitHubManagerWithProjectDir:
             call_kwargs = mock_github_class.call_args.kwargs
             assert call_kwargs["base_url"] == "https://api.github.com"
 
+    @pytest.mark.usefixtures("allow_test_ghes_hosts")
     def test_ghe_project_dir_creates_client_with_ghe_base_url(self) -> None:
         """Test that GHE remote in project_dir mode creates Github with GHE base_url."""
         mock_path = Mock(spec=Path)
@@ -802,6 +803,7 @@ class TestBaseGitHubManagerWithRepoUrl:
             call_kwargs = mock_github_class.call_args.kwargs
             assert call_kwargs["base_url"] == "https://api.github.com"
 
+    @pytest.mark.usefixtures("allow_test_ghes_hosts")
     def test_ghe_repo_url_creates_client_with_ghe_base_url(self) -> None:
         """Test that GHE repo_url creates Github client with GHE base_url."""
         mock_github_repo = Mock()
@@ -1296,6 +1298,7 @@ class TestGetAuthenticatedUsername:
             call_kwargs = mock_github_class.call_args.kwargs
             assert call_kwargs["base_url"] == "https://api.github.com"
 
+    @pytest.mark.usefixtures("allow_test_ghes_hosts")
     def test_get_authenticated_username_ghe_hostname(self) -> None:
         """Test get_authenticated_username with GHE hostname."""
         with (
@@ -1395,6 +1398,7 @@ class TestLoginCache:
 
             assert mock_github_class.call_count == 2
 
+    @pytest.mark.usefixtures("allow_test_ghes_hosts")
     def test_different_hostname_looks_up_again(self) -> None:
         """A different API host gets its own cache entry."""
         with (

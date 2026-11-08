@@ -1006,6 +1006,7 @@ class TestAuthProbeBaseUrlGhe:
             == "https://api.tenant.ghe.com"
         )
 
+    @pytest.mark.usefixtures("allow_test_ghes_hosts")
     def test_base_url_is_ghes(self, tmp_path: Path) -> None:
         identifier = _make_identifier(
             hostname="ghe.example.com",

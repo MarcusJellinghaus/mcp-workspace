@@ -104,6 +104,7 @@ GitHub settings are read from `~/.mcp_coder/config.toml` (the user app-data dire
 - `token`: GitHub token. The `GITHUB_TOKEN` environment variable takes precedence.
 - `test_repo_url`: repository used by integration tests. The `GITHUB_TEST_REPO_URL` environment variable takes precedence.
 - `trusted_commenters`: list of GitHub logins trusted as authors (their comments are shown to the agent) and as issue body editors (see [Commenter trust](#commenter-trust)). There is no environment-variable override.
+- `enterprise_hosts`: list of GitHub Enterprise Server hosts, e.g. `["ghe.corp.com"]`. The token is sent only to `github.com`, `*.ghe.com` and these hosts; a repository whose remote points elsewhere gets an error instead. There is no environment-variable override.
 - `traffic_log`: `true` writes one line per GitHub HTTP request to a daily file (see [GitHub traffic log](#github-traffic-log)). Off by default. Read once per process; no environment-variable override; independent of `--log-level`.
 - `traffic_log_dir`: folder for the traffic log files. Default `logs/github_traffic/` in the same app-data directory (`~/.mcp_coder/logs/github_traffic/`).
 

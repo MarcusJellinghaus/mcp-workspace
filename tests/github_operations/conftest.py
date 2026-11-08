@@ -35,6 +35,15 @@ def setup_server(project_dir: Path) -> Generator[None, None, None]:
     server._project_dir = previous  # pylint: disable=protected-access
 
 
+@pytest.fixture
+def allow_test_ghes_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Allow the token to reach the GHES hosts the tests use."""
+    monkeypatch.setattr(
+        "mcp_workspace.config.get_enterprise_hosts",
+        lambda: frozenset({"ghe.corp.com", "ghe.example.com"}),
+    )
+
+
 def make_retry_error(status: int) -> RetryError:
     """Build the RetryError requests raises once GithubRetry gives up on `status`."""
     reason = ResponseError(ResponseError.SPECIFIC_ERROR.format(status_code=status))

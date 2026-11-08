@@ -17,9 +17,55 @@ from mcp_workspace.github_operations._client import (
     GITHUB_RETRY_TOTAL,
     _LoggingGithubRetry,
     build_github_client,
+    check_token_destination,
 )
 
 MODULE = "mcp_workspace.github_operations._client"
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "https://api.github.com",
+        "https://API.GitHub.com",
+        "https://api.tenant.ghe.com",
+    ],
+)
+def test_token_destination_github_hosts_allowed(base_url: str) -> None:
+    check_token_destination(base_url)
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "https://evil.example.com/api/v3",
+        "https://api.github.com.evil.example/api/v3",
+        "https://tenant.ghe.com.evil.example/api/v3",
+        "https://ghe.corp.com/api/v3",
+    ],
+)
+def test_token_destination_other_hosts_refused(base_url: str) -> None:
+    with pytest.raises(ValueError, match="enterprise_hosts"):
+        check_token_destination(base_url)
+
+
+def test_token_destination_configured_enterprise_host_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "mcp_workspace.config.get_enterprise_hosts",
+        lambda: frozenset({"ghe.corp.com"}),
+    )
+    check_token_destination("https://GHE.corp.com/api/v3")
+    with pytest.raises(ValueError):
+        check_token_destination("https://other.corp.com/api/v3")
+
+
+def test_build_github_client_refuses_unlisted_host() -> None:
+    with patch(f"{MODULE}.Github") as mock_github:
+        with pytest.raises(ValueError, match="evil.example.com"):
+            build_github_client("tok", "https://evil.example.com/api/v3")
+    mock_github.assert_not_called()
 
 
 def test_build_github_client_applies_timeout_retry_and_base_url() -> None:

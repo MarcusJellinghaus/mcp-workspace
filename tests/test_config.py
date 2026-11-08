@@ -9,6 +9,7 @@ import pytest
 from mcp_workspace.config import (
     _read_config_list,
     _read_config_value,
+    get_enterprise_hosts,
     get_github_token,
     get_github_token_with_source,
     get_test_repo_url,
@@ -293,6 +294,34 @@ class TestGetTrustedCommenters:
             return_value=tmp_path,
         ):
             assert get_trusted_commenters() == frozenset()
+
+
+class TestGetEnterpriseHosts:
+    """Tests for get_enterprise_hosts()."""
+
+    def test_missing_key_returns_empty(self, tmp_path: Path) -> None:
+        _write_config(tmp_path, '[github]\ntoken = "ghp_test"\n')
+        with patch(
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
+        ):
+            assert get_enterprise_hosts() == frozenset()
+
+    def test_lowercases_and_drops_empty(self, tmp_path: Path) -> None:
+        _write_config(tmp_path, '[github]\nenterprise_hosts = ["GHE.corp.com", ""]\n')
+        with patch(
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
+        ):
+            assert get_enterprise_hosts() == frozenset({"ghe.corp.com"})
+
+    def test_string_value_fails_closed(self, tmp_path: Path) -> None:
+        _write_config(tmp_path, '[github]\nenterprise_hosts = "ghe.corp.com"\n')
+        with patch(
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
+        ):
+            assert get_enterprise_hosts() == frozenset()
 
 
 class TestGetTrafficLogDir:

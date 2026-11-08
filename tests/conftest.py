@@ -90,6 +90,12 @@ def _empty_trusted_commenters(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _empty_enterprise_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep tests from reading the real ``[github] enterprise_hosts`` list."""
+    monkeypatch.setattr("mcp_workspace.config.get_enterprise_hosts", frozenset)
+
+
+@pytest.fixture(autouse=True)
 def _reset_repository_cache() -> Generator[None, None, None]:
     """Clear the per-process repository cache for test isolation."""
     clear_repository_cache()

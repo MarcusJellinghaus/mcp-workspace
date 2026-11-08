@@ -28,6 +28,7 @@ File tools:
 
 - Workspace file tools stay inside the project directory. Reference project file tools stay inside that reference project and only read. See [Path Confinement](README.md#path-confinement).
 - Workspace file tools and reference project reads refuse any `.git` entry, under any spelling or through a link, and paths matched by the root `.gitignore` of that project. Listing a subdirectory is the exception described in [Path Confinement](README.md#path-confinement): it can show file names, not content.
+- The root `.gitignore` itself is writable, so an agent that edits it changes which paths are refused.
 - `delete_directory` refuses the project root. It and `move_file` refuse a directory that contains a `.git` entry.
 
 `git` tool, on the workspace and on reference projects alike:
@@ -35,7 +36,7 @@ File tools:
 - It accepts a fixed set of subcommands, read commands plus `fetch`.
 - It checks flags against a per-command allowlist, short flags one letter at a time. Only flags that take a value may have one attached, in the expected format.
 - For commands that take paths, operands and pathspecs must be relative, stay inside the repository, and not name a `.git` entry. Git's own object store is readable, so anything committed can be shown. `status` and `ls_files` can show the names of gitignored files, not their content.
-- `fetch` and `ls_remote` accept only configured remote names, not URLs or paths. `fetch` refspecs cannot name a destination or force an update, so a fetch updates only remote-tracking refs, tags and `FETCH_HEAD`. It can still shallow the local history with `--depth`.
+- `fetch` and `ls_remote` accept only configured remote names, not URLs or paths. `fetch` refspecs cannot name a destination or force an update, and shallow-history flags are refused, so a fetch updates only remote-tracking refs, tags and `FETCH_HEAD`.
 - `branch` only lists: a name is accepted only with a flag that puts git in list mode.
 
 GitHub tools:
@@ -49,6 +50,8 @@ GitHub tools:
 ## Credentials
 
 The GitHub token comes from the `GITHUB_TOKEN` environment variable, otherwise from `[github] token` in the user config file. See [GitHub configuration](README.md#github-configuration). Protecting that file and limiting the token's scope is up to the user: the server can do on GitHub whatever the token allows.
+
+The API host comes from the repository's `origin` remote. The token is sent only to `github.com`, `*.ghe.com` and hosts listed in `[github] enterprise_hosts`.
 
 ## Scope
 
@@ -67,3 +70,4 @@ Out of scope:
 - anything requiring prior access to the user's account, config file or environment
 - what a token can do within its own permissions
 - the limitation documented under [Path Confinement](README.md#path-confinement)
+- editing the root `.gitignore` to lift its rules
