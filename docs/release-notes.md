@@ -1,5 +1,10 @@
 # Release notes
 
+## Next minor release — line limit for full reads (#380)
+
+- Full reads in `read_file` / `read_reference_file` are capped at 2000 lines by default, with a note giving the next `start_line` / `end_line`; explicit ranges are not capped. Set via `--read-max-lines` or `[mcp_workspace] read_max_lines` in `config.toml`; `0` disables.
+- `file_tools.DEFAULT_READ_MAX_LINES` is exported for library callers.
+
 ## Next minor release — git_operations: line-ending-only dirt helpers (#373)
 
 Adds helpers to `mcp_workspace.git_operations` for clearing a working tree whose only changes are line endings (MarcusJellinghaus/mcp_coder#1266).
