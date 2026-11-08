@@ -82,7 +82,7 @@ def _make_file_link(link: Path, target: Path) -> None:
 def _make_dir_link(link: Path, target: Path) -> None:
     """Create a directory link: a junction on Windows, a symlink elsewhere."""
     if sys.platform == "win32":
-        import _winapi  # pylint: disable=import-outside-toplevel
+        import _winapi  # pylint: disable=import-outside-toplevel,import-error
 
         _winapi.CreateJunction(str(target), str(link))
     else:
