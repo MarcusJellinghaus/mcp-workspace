@@ -14,6 +14,8 @@ from mcp_workspace.utils.git_paths import is_path_in_git_dir
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_READ_MAX_LINES = 2000
+
 
 def _contains_git_dir_error(directory: Path, rel_path: str) -> ValueError | None:
     """Build the refusal for a directory holding a ``.git`` entry at any depth.
@@ -39,6 +41,7 @@ def read_file(
     start_line: int | None = None,
     end_line: int | None = None,
     with_line_numbers: bool | None = None,
+    max_lines: int | None = None,
 ) -> str:
     """Read the contents of a file.
 
@@ -52,6 +55,10 @@ def read_file(
         with_line_numbers: If ``True``, prefix each returned line with its
             line number.  Defaults to ``False`` for full reads and ``True``
             for sliced reads.
+        max_lines: Maximum number of lines a full read returns. When the
+            file is longer, the first *max_lines* lines are returned
+            followed by a note naming the next range to read. ``None`` or
+            ``0`` means no limit. Ignored for sliced reads.
 
     Returns:
         The contents of the file as a string
@@ -60,8 +67,9 @@ def read_file(
         FileNotFoundError: If the file does not exist
         IsADirectoryError: If the path is not a file
         PermissionError: If access to the file is denied
-        ValueError: If the file is outside the project directory, or if
-            *start_line* / *end_line* are invalid
+        ValueError: If the file is outside the project directory, if
+            *start_line* / *end_line* are invalid, or if *max_lines* is
+            negative or not an integer
     """
     # Validate file_path parameter
     if not file_path or not isinstance(file_path, str):
@@ -71,6 +79,13 @@ def read_file(
     # Validate project_dir parameter
     if project_dir is None:
         raise ValueError("Project directory cannot be None")
+
+    # Validate max_lines parameter
+    if max_lines is not None:
+        if isinstance(max_lines, bool) or not isinstance(max_lines, int):
+            raise ValueError(f"max_lines must be an integer, got {type(max_lines)}")
+        if max_lines < 0:
+            raise ValueError(f"max_lines must be >= 0, got {max_lines}")
 
     # --- Validate line-range parameters ---
     _has_start = start_line is not None
@@ -103,9 +118,15 @@ def read_file(
     try:
         logger.debug("Reading file: %s", rel_path)
 
+        # Range reads are never limited
+        limit = max_lines if (start_line is None and max_lines) else None
+        total = 0
         collected: list[tuple[int, str]] = []
         with open(abs_path, encoding="utf-8") as file_handle:
             for line_num, line in enumerate(file_handle, start=1):
+                if limit is not None and line_num > limit:
+                    total = line_num  # count only; memory stays flat
+                    continue
                 if start_line is None or (start_line <= line_num <= end_line):  # type: ignore[operator]
                     collected.append((line_num, line))
                 if end_line is not None and line_num >= end_line:
@@ -120,6 +141,13 @@ def read_file(
         else:
             width = len(str(collected[-1][0]))
             content = "".join(f"{num:>{width}}→{line}" for num, line in collected)
+
+        if limit is not None and total > limit:
+            content += (
+                f"[truncated: showing lines 1–{limit} of {total}; "
+                f"continue with start_line={limit + 1}, "
+                f"end_line={min(2 * limit, total)}]"
+            )
 
         if start_line is not None:
             logger.debug("Read lines %d-%d from %s", start_line, end_line, rel_path)
