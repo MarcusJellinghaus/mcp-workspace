@@ -379,6 +379,9 @@ def server(monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[int, Script]]:
     thread.start()
     monkeypatch.setenv("NO_PROXY", "127.0.0.1")
     monkeypatch.setenv("no_proxy", "127.0.0.1")
+    monkeypatch.setattr(
+        "mcp_workspace.config.get_enterprise_hosts", lambda: frozenset({"127.0.0.1"})
+    )
     try:
         yield httpd.server_address[1], script
     finally:

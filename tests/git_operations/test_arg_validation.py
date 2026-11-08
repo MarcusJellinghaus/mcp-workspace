@@ -131,8 +131,12 @@ class TestValidateArgsFetchAllowed:
     def test_verbose(self) -> None:
         validate_args("fetch", ["--verbose"])
 
-    def test_depth_with_value(self) -> None:
-        validate_args("fetch", ["--depth=1"])
+    @pytest.mark.parametrize(
+        "flag", ["--depth=1", "--shallow-since=2020-01-01", "--shallow-exclude=v1"]
+    )
+    def test_shallow_flags_rejected(self, flag: str) -> None:
+        with pytest.raises(ValueError, match=flag.split("=", maxsplit=1)[0]):
+            validate_args("fetch", [flag])
 
 
 class TestValidateArgsShowAllowed:

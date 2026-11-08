@@ -140,6 +140,30 @@ class _LoggingGithubRetry(GithubRetry):
         super().sleep(response)
 
 
+def check_token_destination(base_url: str) -> None:
+    """Refuse an API base URL whose host may not receive the token.
+
+    Allowed: ``api.github.com``, ``api.<tenant>.ghe.com``, and hosts listed
+    in ``[github] enterprise_hosts``. The host comes from the git remote, so
+    without this check the token goes wherever ``origin`` points.
+
+    Raises:
+        ValueError: If the host is not allowed.
+    """
+    host = (urlsplit(base_url).hostname or "").lower()
+    if host == "api.github.com":
+        return
+    if host.startswith("api.") and host.endswith(".ghe.com"):
+        return
+    if host in config.get_enterprise_hosts():
+        return
+    raise ValueError(
+        f"Refusing to send the GitHub token to '{host}'. For a GitHub "
+        "Enterprise Server, add the host to [github] enterprise_hosts "
+        "in config.toml."
+    )
+
+
 def build_github_client(token: str, base_url: str) -> Github:
     """Create a PyGithub client with bounded timeout/retry.
 
@@ -152,6 +176,8 @@ def build_github_client(token: str, base_url: str) -> Github:
     waiting. The cap must stay >= ``secondary_rate_wait`` (60s) so a
     secondary limit still waits. ``_LoggingGithubRetry`` logs long waits.
     When the traffic log is on, every HTTP hop also writes one traffic line.
+    ``check_token_destination`` runs first, so a host that may not receive
+    the token raises ``ValueError`` before any client exists.
 
     Args:
         token: GitHub personal access token.
@@ -160,6 +186,7 @@ def build_github_client(token: str, base_url: str) -> Github:
     Returns:
         A configured ``github.Github`` instance.
     """
+    check_token_destination(base_url)
     client = Github(
         auth=Auth.Token(token),
         base_url=base_url,

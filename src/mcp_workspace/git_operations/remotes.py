@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import git
 from git import Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
+
+from mcp_workspace.utils.url_credentials import scrub_credentials
 
 from .branch_queries import branch_exists
 from .core import (
@@ -53,18 +54,6 @@ def get_remote_url(project_dir: Path) -> str | None:
         return None
 
 
-_USERINFO_RE = re.compile(r"(?<=://)[^/@\s]+@")
-
-
-def _scrub_credentials(text: str) -> str:
-    """Remove userinfo ('user:token@') from every URL in text.
-
-    Returns:
-        ``text`` with userinfo stripped from every URL.
-    """
-    return _USERINFO_RE.sub("", text)
-
-
 def clone_repo(url: str, target_path: Path) -> None:
     """Clone a git repository to *target_path*.
 
@@ -94,7 +83,7 @@ def clone_repo(url: str, target_path: Path) -> None:
         git.Repo.clone_from(url, str(target_path))
     except GitCommandError as e:
         error_msg = (
-            f"Failed to clone '{_scrub_credentials(url)}': {_scrub_credentials(str(e))}"
+            f"Failed to clone '{scrub_credentials(url)}': {scrub_credentials(str(e))}"
         )
     # Raised outside the except block: the GitCommandError holds the
     # unscrubbed URL and must not survive in __context__
@@ -461,14 +450,17 @@ def get_repository_identifier(
 
             # Get origin remote URL
             origin_url = repo.remotes.origin.url
-            logger.debug("Found origin URL: %s", origin_url)
+            logger.debug("Found origin URL: %s", scrub_credentials(origin_url))
 
             try:
                 identifier = RepoIdentifier.from_repo_url(origin_url)
                 logger.debug("Parsed repository identifier: %s", identifier)
                 return identifier
             except ValueError:
-                logger.debug("Could not parse as repository URL: %s", origin_url)
+                logger.debug(
+                    "Could not parse as repository URL: %s",
+                    scrub_credentials(origin_url),
+                )
                 return None
 
     except (InvalidGitRepositoryError, GitCommandError) as e:

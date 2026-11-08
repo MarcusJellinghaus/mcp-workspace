@@ -28,7 +28,7 @@ from mcp_workspace.file_tools import move_file as move_file_util
 from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools import save_file as save_file_util
 from mcp_workspace.file_tools import search_files as search_files_util
-from mcp_workspace.file_tools.directory_utils import is_path_gitignored
+from mcp_workspace.file_tools.directory_utils import check_path_not_gitignored
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server_reference_tools import (
     get_reference_project_path,
@@ -303,21 +303,10 @@ def _check_not_gitignored(file_path: str) -> None:
 
     Raises:
         ValueError: If the path is excluded by .gitignore.
-    """
+    """  # noqa: DOC502 - propagates from check_path_not_gitignored
     if _project_dir is None:
         return  # Can't check without project_dir; other validation will catch this
-    # Normalize to relative path for gitignore checking
-    path = Path(file_path)
-    if path.is_absolute():
-        try:
-            file_path = path.relative_to(_project_dir).as_posix()
-        except ValueError:
-            return  # Path outside project dir — other validation handles this
-    if is_path_gitignored(file_path, _project_dir):
-        raise ValueError(
-            f"File '{file_path}' is excluded by .gitignore and cannot be accessed. "
-            "Use list_directory() to see available files."
-        )
+    check_path_not_gitignored(file_path, _project_dir)
 
 
 def _resolve_body(
@@ -856,8 +845,10 @@ async def git(
     Args:
         command: Git subcommand (log, diff, status, merge_base, fetch,
             show, branch, rev_parse, ls_tree, ls_files, ls_remote, check_ignore).
-        args: Optional CLI flags (validated against per-command security allowlists).
-        pathspec: Optional file paths appended after --.
+        args: Optional CLI flags and operands. Flags are validated against
+            per-command security allowlists. Paths must be relative and stay inside
+            the repository. fetch and ls_remote take a configured remote name only.
+        pathspec: Optional file paths appended after --, under the same path rule.
         search: Optional regex to filter output (log, diff, show only).
         context: Lines of context around search matches (default 3).
         max_lines: Maximum output lines. Per-command defaults: log=50, diff=100, status=200, others=100.

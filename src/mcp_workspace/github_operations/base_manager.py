@@ -28,6 +28,7 @@ from mcp_workspace.github_operations._diagnostics import (
 from mcp_workspace.github_operations._network import maybe_log_network_diagnostics
 from mcp_workspace.utils.repo_identifier import RepoIdentifier, hostname_to_api_base_url
 from mcp_workspace.utils.token_fingerprint import format_token_fingerprint
+from mcp_workspace.utils.url_credentials import scrub_credentials
 
 __all__ = [
     "BaseGitHubManager",
@@ -313,7 +314,9 @@ class BaseGitHubManager:
                     repo_url  # type: ignore[arg-type]
                 )
             except ValueError as exc:
-                raise ValueError(f"Invalid GitHub repository URL: {repo_url}") from exc
+                raise ValueError(
+                    f"Invalid GitHub repository URL: {scrub_credentials(repo_url)}"  # type: ignore[arg-type]
+                ) from exc
 
         # Resolve GitHub token (after directory/repository validation).
         if github_token is not None:

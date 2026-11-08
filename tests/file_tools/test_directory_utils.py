@@ -14,10 +14,10 @@ from mcp_workspace.file_tools.directory_utils import (
     apply_gitignore_filter,
     filter_with_gitignore,
     is_path_gitignored,
-    is_path_in_git_dir,
     list_files,
     read_gitignore_rules,
 )
+from mcp_workspace.utils.git_paths import is_path_in_git_dir
 from tests.conftest import TEST_DIR
 
 

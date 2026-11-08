@@ -11,11 +11,16 @@ from pathlib import Path
 
 from git.exc import GitCommandError
 
+from mcp_workspace.utils.url_credentials import scrub_credentials
+
 from .arg_validation import (
+    _REMOTE_COMMANDS,
     _SUPPORTS_PATHSPEC,
     split_args_pathspec,
     validate_args,
     validate_branch_has_read_flag,
+    validate_path_args,
+    validate_remote_args,
 )
 from .compact_diffs import render_compact_diff
 from .core import run_git_text, safe_repo_context
@@ -79,12 +84,16 @@ def _run_simple_command(
     """
     args, pathspec = split_args_pathspec(command, args, pathspec)
     validate_args(command, args)
+    validate_path_args(command, args, pathspec)
 
     cmd_args = (list(_SAFETY_FLAGS) if use_safety_flags else []) + args
     if pathspec:
         cmd_args += ["--"] + pathspec
 
     with safe_repo_context(project_dir) as repo:
+        if command in _REMOTE_COMMANDS:
+            remote_names = {remote.name for remote in repo.remotes}
+            validate_remote_args(command, args, remote_names)
         output: str = run_git_text(repo, git_method, *cmd_args)
 
     if not output:
@@ -120,6 +129,7 @@ def git_log(
     safe_args = args or []
     safe_args, pathspec = split_args_pathspec("log", safe_args, pathspec)
     validate_args("log", safe_args)
+    validate_path_args("log", safe_args, pathspec)
 
     cmd_args = list(_SAFETY_FLAGS) + safe_args
     if pathspec:
@@ -171,6 +181,7 @@ def git_diff(
     user_args = args or []
     user_args, pathspec = split_args_pathspec("diff", user_args, pathspec)
     validate_args("diff", user_args)
+    validate_path_args("diff", user_args, pathspec)
 
     # When non-patch-only flags (e.g. --stat, --numstat) are present without
     # -p/--patch, bypass the compact path: parse_diff() returns [] for such
@@ -274,6 +285,7 @@ def git_status(
     safe_args = args or []
     safe_args, pathspec = split_args_pathspec("status", safe_args, pathspec)
     validate_args("status", safe_args)
+    validate_path_args("status", safe_args, pathspec)
 
     cmd_args = list(safe_args)
     if pathspec:
@@ -362,6 +374,7 @@ def git_show(
     user_args = args or []
     user_args, pathspec = split_args_pathspec("show", user_args, pathspec)
     validate_args("show", user_args)
+    validate_path_args("show", user_args, pathspec)
 
     # Detect colon pattern (e.g. HEAD:README.md) — file content, not diff
     has_colon = any(":" in a and not a.startswith("-") for a in user_args)
@@ -516,6 +529,7 @@ def git_check_ignore(
         "check_ignore", args or [], pathspec
     )
     validate_args("check_ignore", safe_args)
+    validate_path_args("check_ignore", safe_args, split_pathspec)
 
     cmd_args = safe_args + ["--"] + (split_pathspec or [])
 
@@ -576,11 +590,16 @@ def git(
         max_lines: Maximum output lines.  Per-command default when *None*.
         compact: If True, apply compact diff rendering where supported.
 
+    Credentials embedded in URLs are removed from ``fetch`` and
+    ``ls_remote`` output and from git error messages.
+
     Returns:
         Command output with optional warning prefix.
 
     Raises:
-        ValueError: If *command* is not recognised.
+        ValueError: If *command* is not recognised, or git failed with an
+            error message that contained credentials (scrubbed).
+        GitCommandError: If git failed and its message held no credentials.
     """
     resolved_max_lines = (
         max_lines if max_lines is not None else _DEFAULT_MAX_LINES.get(command, 100)
@@ -690,7 +709,21 @@ def git(
     if handler is None:
         raise ValueError(f"Unknown git command: '{command}'")
 
-    output: str = handler()  # type: ignore[operator]
+    # Remote URLs (ls_remote --get-url, fetch errors) can carry a token.
+    # Other commands' output is file content and history, left unchanged.
+    scrubbed_error: str | None = None
+    try:
+        output: str = handler()  # type: ignore[operator]
+        if command in _REMOTE_COMMANDS:
+            output = scrub_credentials(output)
+    except GitCommandError as exc:
+        if scrub_credentials(str(exc)) == str(exc):
+            raise
+        scrubbed_error = scrub_credentials(str(exc))
+    # Raised outside the except block so the unscrubbed error is not kept
+    # as __context__.
+    if scrubbed_error is not None:
+        raise ValueError(scrubbed_error)
 
     if warnings:
         prefix = "\n".join(warnings) + "\n\n"

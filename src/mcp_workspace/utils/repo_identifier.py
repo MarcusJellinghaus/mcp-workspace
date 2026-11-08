@@ -8,6 +8,8 @@ import logging
 import re
 from dataclasses import dataclass
 
+from mcp_workspace.utils.url_credentials import scrub_credentials
+
 logger = logging.getLogger(__name__)
 
 
@@ -221,5 +223,6 @@ class RepoIdentifier:
             return cls(owner=owner, repo_name=repo_name, hostname=hostname)
 
         raise ValueError(
-            f"Invalid repository URL '{url}': expected HTTPS or SSH URL format"
+            f"Invalid repository URL '{scrub_credentials(url)}': "
+            "expected HTTPS or SSH URL format"
         )

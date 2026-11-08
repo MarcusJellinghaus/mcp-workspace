@@ -11,25 +11,32 @@ from pathlib import Path
 
 from igittigitt import IgnoreParser
 
-from mcp_workspace.file_tools.path_utils import normalize_path
+from mcp_workspace.file_tools.path_utils import normalize_path, resolves_into_git_dir
+from mcp_workspace.utils.git_paths import canonical_spelling, is_path_in_git_dir
 
 logger = logging.getLogger(__name__)
 
 
-def is_path_in_git_dir(path: str) -> bool:
-    """Check if a path is inside a .git directory.
+def _resolved_relative(path: Path, project_dir: Path) -> str | None:
+    """Return where a path really points, relative to the project directory.
 
     Returns:
-        True if any component of the path is ".git".
+        The resolved project-relative path, or None if it resolves outside the
+        project or cannot be resolved.
     """
-    return ".git" in Path(path).parts
+    try:
+        return path.resolve().relative_to(project_dir.resolve()).as_posix()
+    except (OSError, ValueError):
+        return None
 
 
 def is_path_gitignored(path: str, project_dir: Path) -> bool:
     """Check if a path is gitignored.
 
     Checks both whether the path is inside a .git directory and whether it
-    matches any pattern in the root .gitignore file.
+    matches any pattern in the root .gitignore file. The patterns are tried on
+    the path as spelled, on its canonical spelling, and on the location it
+    resolves to, so a link into an ignored location counts as ignored.
 
     Works on non-existent paths (e.g., blocking save_file to a new *.log path).
 
@@ -43,13 +50,51 @@ def is_path_gitignored(path: str, project_dir: Path) -> bool:
     if is_path_in_git_dir(path):
         return True
 
+    joined = project_dir / path
+    if resolves_into_git_dir(joined, project_dir):
+        return True
+
     gitignore_path = project_dir / ".gitignore"
     matcher = read_gitignore_rules(gitignore_path)
     if matcher is None:
         return False
 
-    abs_path = str(project_dir / path)
-    return bool(matcher(abs_path))
+    candidates = {
+        path,
+        canonical_spelling(path),
+        _resolved_relative(joined, project_dir),
+    }
+    return any(
+        matcher(str(project_dir / candidate))
+        for candidate in candidates
+        if candidate is not None
+    )
+
+
+def check_path_not_gitignored(file_path: str, project_dir: Path) -> None:
+    """Raise ValueError if a path is excluded by .gitignore or inside .git.
+
+    An absolute path is checked relative to project_dir. One that is not below
+    project_dir is left for ``normalize_path`` to refuse.
+
+    Args:
+        file_path: Path to check, relative to project_dir or absolute.
+        project_dir: Project root directory containing .gitignore.
+
+    Raises:
+        ValueError: If the path is excluded.
+    """
+    path = Path(file_path)
+    if path.is_absolute():
+        try:
+            file_path = path.relative_to(project_dir).as_posix()
+        except ValueError:
+            return
+    if is_path_gitignored(file_path, project_dir):
+        raise ValueError(
+            f"File '{file_path}' is excluded by .gitignore and cannot be accessed. "
+            "Use list_directory() to see available files."
+        )
 
 
 def _discover_files(directory: Path, project_dir: Path) -> list[str]:
@@ -73,6 +118,9 @@ def _discover_files(directory: Path, project_dir: Path) -> list[str]:
             continue
 
         for file in files:
+            # A .git file marks a worktree or submodule
+            if is_path_in_git_dir(file):
+                continue
             rel_file_path = rel_root.joinpath(file).as_posix()
             discovered_files.append(rel_file_path)
 
@@ -111,6 +159,20 @@ def read_gitignore_rules(
         return None
 
 
+def _link_target_ignored(
+    path: Path, matcher: Callable[[str], bool], project_dir: Path
+) -> bool:
+    """Check whether a path is a symlink to a location the matcher ignores.
+
+    Returns:
+        True for a symlink whose target inside the project is ignored.
+    """
+    if not path.is_symlink():
+        return False
+    target = _resolved_relative(path, project_dir)
+    return target is not None and bool(matcher(str(project_dir / target)))
+
+
 def apply_gitignore_filter(
     file_paths: list[str], matcher: Callable[[str], bool] | None, project_dir: Path
 ) -> list[str]:
@@ -141,7 +203,9 @@ def apply_gitignore_filter(
         abs_file_path = str(project_dir / file_path)
 
         # The matcher returns True if the file should be ignored
-        if not matcher(abs_file_path):
+        if not matcher(abs_file_path) and not _link_target_ignored(
+            project_dir / file_path, matcher, project_dir
+        ):
             filtered_files.append(file_path)
 
     logger.info(

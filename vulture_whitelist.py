@@ -221,6 +221,10 @@ _.origin_has_base
 _.fixture_env  # name="env"
 # Autouse fixture isolating tests from the real trusted-commenters allowlist (issue #336, pytest collection only)
 _._empty_trusted_commenters
+# Autouse fixture isolating tests from the real [github] enterprise_hosts list
+_._empty_enterprise_hosts
+# Fixture reached through pytest.mark.usefixtures("allow_test_ghes_hosts")
+_.allow_test_ghes_hosts
 # Fixtures for issue #342 untrusted base-branch tests, reached through their name= alias
 _._editor  # name="editor"
 _._token_login  # name="token_login"
