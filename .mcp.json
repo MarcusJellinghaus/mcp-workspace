@@ -36,7 +36,9 @@
         "--reference-project",
         "name=mcp-config,path=${USERPROFILE}\\Documents\\GitHub\\mcp-config,url=https://github.com/MarcusJellinghaus/mcp-config",
         "--reference-project",
-        "name=obsidian-dev-wiki,path=${USERPROFILE}\\Documents\\GitHub\\obsidian-dev-wiki,url=https://github.com/MarcusJellinghaus/obsidian-dev-wiki"
+        "name=obsidian-dev-wiki,path=${USERPROFILE}\\Documents\\GitHub\\obsidian-dev-wiki,url=https://github.com/MarcusJellinghaus/obsidian-dev-wiki",
+        "--reference-project",
+        "name=agent-workbench,path=${USERPROFILE}\\Documents\\GitHub\\agent-workbench,url=https://github.com/MarcusJellinghaus/agent-workbench"
       ],
       "env": {
         "PYTHONPATH": "${MCP_CODER_VENV_DIR}\\Lib\\"
