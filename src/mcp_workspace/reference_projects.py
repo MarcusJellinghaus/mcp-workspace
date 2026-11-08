@@ -6,6 +6,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from mcp_workspace.utils.url_credentials import scrub_credentials
+
 logger = logging.getLogger(__name__)
 
 _project_locks: dict[str, asyncio.Lock] = {}
@@ -19,6 +21,15 @@ class ReferenceProject:
     name: str
     path: Path
     url: str | None = None
+
+    def __repr__(self) -> str:
+        """Show the URL without credentials, since reprs end up in logs.
+
+        Returns:
+            The dataclass-style repr with userinfo removed from the URL.
+        """
+        url = scrub_credentials(self.url) if self.url is not None else None
+        return f"ReferenceProject(name={self.name!r}, path={self.path!r}, url={url!r})"
 
 
 def normalize_git_url(url: str) -> str:
@@ -68,7 +79,8 @@ def verify_url_match(explicit_url: str, detected_url: str, project_name: str) ->
     if normalize_git_url(explicit_url) != normalize_git_url(detected_url):
         raise ValueError(
             f"URL mismatch for '{project_name}': "
-            f"explicit '{explicit_url}' != detected '{detected_url}'"
+            f"explicit '{scrub_credentials(explicit_url)}' != "
+            f"detected '{scrub_credentials(detected_url)}'"
         )
 
 
@@ -132,7 +144,8 @@ async def ensure_available(project: ReferenceProject) -> None:
         except Exception as e:
             _clone_failure_cache[project.name] = str(e)
             raise ValueError(
-                f"Failed to clone '{project.name}' from {project.url}: {e}"
+                f"Failed to clone '{project.name}' from "
+                f"{scrub_credentials(project.url)}: {e}"
             ) from e
 
 

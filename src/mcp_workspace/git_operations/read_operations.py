@@ -11,6 +11,8 @@ from pathlib import Path
 
 from git.exc import GitCommandError
 
+from mcp_workspace.utils.url_credentials import scrub_credentials
+
 from .arg_validation import (
     _REMOTE_COMMANDS,
     _SUPPORTS_PATHSPEC,
@@ -588,11 +590,16 @@ def git(
         max_lines: Maximum output lines.  Per-command default when *None*.
         compact: If True, apply compact diff rendering where supported.
 
+    Credentials embedded in URLs are removed from ``fetch`` and
+    ``ls_remote`` output and from git error messages.
+
     Returns:
         Command output with optional warning prefix.
 
     Raises:
-        ValueError: If *command* is not recognised.
+        ValueError: If *command* is not recognised, or git failed with an
+            error message that contained credentials (scrubbed).
+        GitCommandError: If git failed and its message held no credentials.
     """
     resolved_max_lines = (
         max_lines if max_lines is not None else _DEFAULT_MAX_LINES.get(command, 100)
@@ -702,7 +709,21 @@ def git(
     if handler is None:
         raise ValueError(f"Unknown git command: '{command}'")
 
-    output: str = handler()  # type: ignore[operator]
+    # Remote URLs (ls_remote --get-url, fetch errors) can carry a token.
+    # Other commands' output is file content and history, left unchanged.
+    scrubbed_error: str | None = None
+    try:
+        output: str = handler()  # type: ignore[operator]
+        if command in _REMOTE_COMMANDS:
+            output = scrub_credentials(output)
+    except GitCommandError as exc:
+        if scrub_credentials(str(exc)) == str(exc):
+            raise
+        scrubbed_error = scrub_credentials(str(exc))
+    # Raised outside the except block so the unscrubbed error is not kept
+    # as __context__.
+    if scrubbed_error is not None:
+        raise ValueError(scrubbed_error)
 
     if warnings:
         prefix = "\n".join(warnings) + "\n\n"

@@ -11,7 +11,6 @@ from git.exc import GitCommandError
 from mcp_workspace.git_operations.core import StatusResult
 from mcp_workspace.git_operations.remotes import (
     _format_dirty_tree,
-    _scrub_credentials,
     clone_repo,
     get_remote_url,
     get_repository_identifier,
@@ -667,25 +666,3 @@ class TestCloneRepo:
         """Test raises ValueError for empty target path."""
         with pytest.raises(ValueError, match="Target path cannot be empty"):
             clone_repo("https://github.com/org/repo.git", Path(""))
-
-
-class TestScrubCredentials:
-    """Tests for _scrub_credentials helper."""
-
-    def test_scrubs_user_and_password(self) -> None:
-        """Test user:password userinfo is removed."""
-        assert _scrub_credentials("https://u:p@h/x") == "https://h/x"
-
-    def test_scrubs_user_only(self) -> None:
-        """Test user-only userinfo is removed."""
-        assert _scrub_credentials("ssh://git@h/x") == "ssh://h/x"
-
-    def test_no_userinfo_unchanged(self) -> None:
-        """Test text without userinfo is returned unchanged."""
-        text = "fatal: could not read https://github.com/org/repo.git"
-        assert _scrub_credentials(text) == text
-
-    def test_scrubs_every_url(self) -> None:
-        """Test all URLs in the text are scrubbed."""
-        text = "a https://u:p@h/x b https://v:q@g/y"
-        assert _scrub_credentials(text) == "a https://h/x b https://g/y"

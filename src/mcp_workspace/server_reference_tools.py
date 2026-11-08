@@ -12,6 +12,7 @@ from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools import search_files as search_files_util
 from mcp_workspace.file_tools.directory_utils import check_path_not_gitignored
 from mcp_workspace.reference_projects import ReferenceProject, ensure_available
+from mcp_workspace.utils.url_credentials import scrub_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,13 @@ def get_reference_projects() -> dict[str, Any]:
             }
 
         projects = sorted(
-            [{"name": p.name, "url": p.url} for p in _reference_projects.values()],
+            [
+                {
+                    "name": p.name,
+                    "url": scrub_credentials(p.url) if p.url is not None else None,
+                }
+                for p in _reference_projects.values()
+            ],
             key=lambda p: str(p["name"]),
         )
         logger.info(

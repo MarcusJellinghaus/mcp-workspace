@@ -53,6 +53,8 @@ The GitHub token comes from the `GITHUB_TOKEN` environment variable, otherwise f
 
 The API host comes from the repository's `origin` remote. The token is sent only to `github.com`, `*.ghe.com` and hosts listed in `[github] enterprise_hosts`.
 
+Credentials embedded in remote URLs (`https://user:token@host/...`) are removed from `get_reference_projects`, `git fetch` and `ls_remote` output, and from error messages.
+
 ## Scope
 
 In scope are bypasses of the restrictions above, such as:
