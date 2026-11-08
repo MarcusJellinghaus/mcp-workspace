@@ -17,8 +17,8 @@ SECRET_TEXT = "SECRET=1\n"
 CONFIG_TEXT = "[remote]\n\turl = https://example.invalid/r\n"
 
 
-@pytest.fixture(name="reference")
-def reference_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+@pytest.fixture
+def reference(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Reference project with a git directory, ignored files and a plain file."""
     ref = tmp_path / "ref"
     (ref / ".git").mkdir(parents=True)

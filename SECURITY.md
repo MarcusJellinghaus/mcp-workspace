@@ -27,12 +27,16 @@ The server is meant to enforce the following. A way around any of them is a vuln
 File tools:
 
 - Workspace file tools stay inside the project directory. Reference project file tools stay inside that reference project and only read. See [Path Confinement](README.md#path-confinement).
-- Workspace file tools refuse the `.git` directory and paths matched by the project root's `.gitignore`.
-- `delete_directory` refuses the project root.
+- Workspace file tools and reference project reads refuse any `.git` entry, under any spelling or through a link, and paths matched by the root `.gitignore` of that project. Listing a subdirectory is the exception described in [Path Confinement](README.md#path-confinement): it can show file names, not content.
+- `delete_directory` refuses the project root. It and `move_file` refuse a directory that contains a `.git` entry.
 
-`git` tool:
+`git` tool, on the workspace and on reference projects alike:
 
-- It accepts a fixed set of subcommands, read commands plus `fetch`, and checks flags against a per-command allowlist.
+- It accepts a fixed set of subcommands, read commands plus `fetch`.
+- It checks flags against a per-command allowlist, short flags one letter at a time. Only flags that take a value may have one attached, in the expected format.
+- For commands that take paths, operands and pathspecs must be relative, stay inside the repository, and not name a `.git` entry. Git's own object store is readable, so anything committed can be shown. `status` and `ls_files` can show the names of gitignored files, not their content.
+- `fetch` and `ls_remote` accept only configured remote names, not URLs or paths. `fetch` refspecs cannot name a destination or force an update, so a fetch updates only remote-tracking refs, tags and `FETCH_HEAD`. It can still shallow the local history with `--depth`.
+- `branch` only lists: a name is accepted only with a flag that puts git in list mode.
 
 GitHub tools:
 
@@ -51,7 +55,7 @@ The GitHub token comes from the `GITHUB_TOKEN` environment variable, otherwise f
 In scope are bypasses of the restrictions above, such as:
 
 - reading or writing outside the project or reference project with any tool
-- workspace file tools reaching `.git` or gitignored paths
+- file tools reaching `.git` or the content of gitignored paths
 - the `git` tool changing anything beyond what `fetch` updates
 - getting untrusted text shown to the agent as trusted
 - changing an issue's status label through these tools, or promoting an issue without being trusted

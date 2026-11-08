@@ -110,8 +110,8 @@ def test_commands_without_paths_are_not_checked(command: str) -> None:
     validate_path_args(command, ["refs/heads/x"], None)
 
 
-@pytest.fixture(name="repo_setup")
-def repo_setup_fixture(
+@pytest.fixture
+def repo_setup(
     git_repo_with_commit: tuple[Repo, Path],
 ) -> tuple[Repo, Path, Path, Path]:
     """Repository with a gitignored secret and two files outside it."""
@@ -209,7 +209,7 @@ class TestDiffStaysInRepository:
         self, repo_setup: tuple[Repo, Path, Path, Path]
     ) -> None:
         repo, project_dir, *_ = repo_setup
-        tracked = next(iter(repo.head.commit.tree.blobs)).path
+        tracked = str(next(iter(repo.head.commit.tree.blobs)).path)
         output = git_diff(project_dir, args=[".env", tracked], compact=False)
         assert SECRET_TEXT not in output
         output = git_diff(project_dir, pathspec=[".env"], compact=False)

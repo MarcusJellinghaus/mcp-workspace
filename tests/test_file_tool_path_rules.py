@@ -11,13 +11,9 @@ import pytest
 
 from mcp_workspace import server
 from mcp_workspace.file_tools import read_file as read_file_util
-from mcp_workspace.file_tools.directory_utils import (
-    is_path_gitignored,
-    is_path_in_git_dir,
-    list_files,
-)
+from mcp_workspace.file_tools.directory_utils import is_path_gitignored, list_files
 from mcp_workspace.file_tools.path_utils import normalize_path
-from mcp_workspace.utils.git_paths import canonical_spelling
+from mcp_workspace.utils.git_paths import canonical_spelling, is_path_in_git_dir
 
 CONFIG_TEXT = "[core]\n\trepositoryformatversion = 0\n"
 SECRET_TEXT = "SECRET=1\n"
@@ -60,19 +56,19 @@ def _snapshot(directory: Path) -> dict[str, bytes]:
     }
 
 
-@pytest.fixture(name="project")
-def project_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+@pytest.fixture
+def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Project with a git directory, a gitignored secret, and a plain file."""
-    project = tmp_path / "project"
-    (project / ".git" / "hooks").mkdir(parents=True)
-    (project / ".git" / "config").write_text(CONFIG_TEXT, encoding="utf-8")
-    (project / "secret").mkdir()
-    (project / "secret" / "key.txt").write_text(SECRET_TEXT, encoding="utf-8")
-    (project / ".gitignore").write_text(".env\nsecret/\n*.log\n", encoding="utf-8")
-    (project / ".env").write_text(SECRET_TEXT, encoding="utf-8")
-    (project / "plain.txt").write_text("plain\n", encoding="utf-8")
-    monkeypatch.setattr(server, "_project_dir", project)
-    return project
+    root = tmp_path / "project"
+    (root / ".git" / "hooks").mkdir(parents=True)
+    (root / ".git" / "config").write_text(CONFIG_TEXT, encoding="utf-8")
+    (root / "secret").mkdir()
+    (root / "secret" / "key.txt").write_text(SECRET_TEXT, encoding="utf-8")
+    (root / ".gitignore").write_text(".env\nsecret/\n*.log\n", encoding="utf-8")
+    (root / ".env").write_text(SECRET_TEXT, encoding="utf-8")
+    (root / "plain.txt").write_text("plain\n", encoding="utf-8")
+    monkeypatch.setattr(server, "_project_dir", root)
+    return root
 
 
 def _make_file_link(link: Path, target: Path) -> None:

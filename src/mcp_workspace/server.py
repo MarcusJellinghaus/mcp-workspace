@@ -303,7 +303,7 @@ def _check_not_gitignored(file_path: str) -> None:
 
     Raises:
         ValueError: If the path is excluded by .gitignore.
-    """
+    """  # noqa: DOC502 - propagates from check_path_not_gitignored
     if _project_dir is None:
         return  # Can't check without project_dir; other validation will catch this
     check_path_not_gitignored(file_path, _project_dir)
@@ -845,8 +845,10 @@ async def git(
     Args:
         command: Git subcommand (log, diff, status, merge_base, fetch,
             show, branch, rev_parse, ls_tree, ls_files, ls_remote, check_ignore).
-        args: Optional CLI flags (validated against per-command security allowlists).
-        pathspec: Optional file paths appended after --.
+        args: Optional CLI flags and operands. Flags are validated against
+            per-command security allowlists. Paths must be relative and stay inside
+            the repository. fetch and ls_remote take a configured remote name only.
+        pathspec: Optional file paths appended after --, under the same path rule.
         search: Optional regex to filter output (log, diff, show only).
         context: Lines of context around search matches (default 3).
         max_lines: Maximum output lines. Per-command defaults: log=50, diff=100, status=200, others=100.

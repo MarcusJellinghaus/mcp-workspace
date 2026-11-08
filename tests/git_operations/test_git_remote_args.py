@@ -93,8 +93,8 @@ def test_other_commands_are_not_checked(command: str) -> None:
     validate_remote_args(command, ["anything"], REMOTES)
 
 
-@pytest.fixture(name="repos")
-def repos_fixture(
+@pytest.fixture
+def repos(
     git_repo_with_remote: tuple[Repo, Path, Path], tmp_path: Path
 ) -> tuple[Repo, Path, Path]:
     """Repository with origin, plus an unrelated repository outside the project."""

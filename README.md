@@ -19,7 +19,7 @@ This MCP server enables AI assistants like Claude (via Claude Desktop) or other 
 - Debug and fix issues in your codebase
 - Generate complete implementations based on your specifications
 
-All operations are securely contained within your specified project directory, giving you control while enabling powerful AI collaboration on your local files.
+File tools work inside your specified project directory, and refuse its `.git` directory and gitignored paths, giving you control while enabling powerful AI collaboration on your local files. [Path Confinement](#path-confinement) gives the rules and limits. The GitHub tools and `git fetch` reach the network, and [SECURITY.md](SECURITY.md) lists what is enforced.
 
 By connecting your AI assistant to your filesystem, you can transform your workflow from manual coding to a more intuitive prompting approach - describe what you need in natural language and let the AI generate, modify, and organize code directly in your project files.
 
@@ -33,6 +33,14 @@ Two kinds of path are rejected that earlier versions accepted:
 - **A path that leaves the project through a symlink.** A symlinked file inside the project whose target is outside it, or an intermediate symlinked directory component, is rejected even though the path contains no `..`. To read content that lives outside the project, configure it with `--reference-project` (read-only) or run a second server instance pointed at it.
 
 One limitation: if the operating system cannot resolve a path at all, validation falls back to the lexical checks alone — the path must contain no `..` and must lie under the project directory by name — so a symlink pointing outside the project is not detected in that case.
+
+File tools also refuse `.git` entries and gitignored paths:
+
+- **`.git`**: A path naming a `.git` file or directory at any depth, in any letter case or Windows alias, or resolving to one through a link, is rejected. So is deleting or moving a whole directory that contains one.
+- **Gitignored paths**: Paths matched by the project root's `.gitignore` are rejected for reading and writing, including a link into a gitignored location. Reference project reads apply their own root `.gitignore`. Nested `.gitignore` files and `.git/info/exclude` are not read here.
+- **Listing a subdirectory** applies the `.gitignore` in that directory only, so it can show the names of files the root `.gitignore` matches. Their content stays refused.
+
+The `git` tool checks its arguments separately. Paths must be relative and stay inside the repository, and `fetch` and `ls_remote` accept only configured remote names. See [SECURITY.md](SECURITY.md#intended-restrictions).
 
 ## Features
 
@@ -219,7 +227,7 @@ Reference projects allow you to provide AI assistants with read-only *file* acce
 - **Read-only file access**: Reference project *files* can only be browsed and read from, never modified. Their GitHub issues are a separate matter — see [Cross-Repo GitHub Access](#cross-repo-github-access)
 - **Multiple projects**: Configure multiple reference projects simultaneously
 - **Auto-discovery**: LLM can discover available reference projects
-- **Security**: Same path validation and gitignore filtering as main project
+- **Security**: Reads, searches and listings get the same path validation and gitignore filtering as the main project, using the reference project's own `.gitignore`
 - **Flexible paths**: Supports both relative and absolute paths
 
 ### Configuration
@@ -586,7 +594,7 @@ read_reference_file("config", "settings/production.yml")
 
 **Features:**
 - Read-only access (no modification possible)
-- Same path validation as main project files
+- Same path validation as main project files, including the `.git` and `.gitignore` rules
 - Supports any text-based file format
 - Returns raw file contents as string
 
@@ -624,8 +632,9 @@ Reports files whose line count exceeds a threshold.
 ## Security Features
 
 - All paths are normalized and validated to ensure they remain within the project directory
-- Reference projects use the same path validation and security measures
+- Reference projects use the same path validation and gitignore rules
 - Path traversal attacks are prevented for both main project and reference projects
+- The `git` tool checks flags, paths and remotes before running git; see [SECURITY.md](SECURITY.md#intended-restrictions)
 - Files are written atomically to prevent data corruption
 - Delete operations are restricted to the project directory for safety
 - Reference project *files* are strictly read-only to prevent accidental modifications
