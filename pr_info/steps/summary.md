@@ -28,7 +28,7 @@ A full read (no `start_line` / `end_line`) returns at most N lines (default **20
 
 - No `0 → None` conversion in `main.py`: the shared function already treats `0` as no limit, so `0` flows through unchanged. (The issue calls this conversion "harmless"; dropping it preserves every requirement.)
 - No helper extraction for the read loop unless pylint demands it.
-- `get_read_max_lines` builds on the existing `_read_config_value`.
+- `get_read_max_lines` reads `_load_config()` directly, because `_read_config_value` is typed `str | None`.
 - Tests: parametrize invalid values; no extra `test_startup.py` case (the existing file-size-limit startup test already covers the startup-error logging path).
 
 ## Files to modify
@@ -40,6 +40,7 @@ src/mcp_workspace/config.py                       # get_read_max_lines()
 src/mcp_workspace/server_reference_tools.py       # _read_max_lines, set_reference_read_max_lines, wrapper
 src/mcp_workspace/server.py                       # _read_max_lines, set_read_max_lines, wrapper, run_server
 src/mcp_workspace/main.py                         # --read-max-lines, resolution, run_server kwarg
+tach.toml                                         # main depends_on += config, file_tools
 tests/file_tools/test_file_operations.py
 tests/test_config.py
 tests/conftest.py                                 # autouse stub for get_read_max_lines

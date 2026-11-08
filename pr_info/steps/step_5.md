@@ -11,6 +11,7 @@ Steps 1, 2 and 4 are done (`DEFAULT_READ_MAX_LINES` exported, `config.get_read_m
 ## WHERE
 
 - `src/mcp_workspace/main.py`
+- `tach.toml`
 - `tests/test_main.py`
 
 ## WHAT
@@ -30,6 +31,7 @@ parser.add_argument(
 ## HOW
 
 - Imports: `from mcp_workspace import config` (call `config.get_read_max_lines()` through the module attribute so the conftest stub applies) and `from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES`. If importing `file_tools` at module top noticeably affects startup or causes a cycle, import it inside `_main()` next to the `run_server` import.
+- `tach.toml`: add `{ path = "mcp_workspace.config" }` and `{ path = "mcp_workspace.file_tools" }` to the `mcp_workspace.main` module's `depends_on`, otherwise the tach check fails (`.importlinter`'s layered contract already permits these downward imports).
 - Validation right after the `--file-size-limit` check: `< 0` (not `<= 0` — `0` is valid) → `ValueError(f"--read-max-lines must be a non-negative integer: {value}")`.
 - Pass `read_max_lines=read_max_lines` to `run_server(...)`.
 - No `0 → None` conversion: `0` flows through and the shared function treats it as no limit.
@@ -55,6 +57,7 @@ Follow the existing `test_main_passes_file_size_limit` pattern (patch `mcp_works
 - `parse_args` parses `--read-max-lines 500` → `500`; omitted → `None`.
 - Nothing configured (conftest stub returns `None`) → `run_server` called with `read_max_lines=2000`.
 - Config only (`monkeypatch.setattr("mcp_workspace.config.get_read_max_lines", lambda: 300)`) → `300`.
+- Config `0` (`get_read_max_lines` stubbed to return `0`), no CLI flag → `run_server` called with `read_max_lines=0` (not replaced by the 2000 default).
 - CLI and config both set (CLI `500`, config `300`) → `500`.
 - CLI `0` → `0`.
 - CLI `-1` → `SystemExit(1)`, `run_server` not called.

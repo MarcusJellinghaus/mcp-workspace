@@ -23,7 +23,7 @@ def get_read_max_lines() -> int | None:
 
 ## HOW
 
-- Build on the existing `_read_config_value("mcp_workspace", "read_max_lines")` (handles missing file / section / non-table section).
+- Read `_load_config()` directly rather than `_read_config_value`: that helper is annotated `-> str | None` (`config.py:102`), which conflicts with the `bool` / `int` checks under mypy. Leave `_read_config_value` unchanged, because widening it to `Any` would weaken its `str` callers. Handle a missing or non-table section the same way it does (`isinstance(section, dict)`).
 - No cache (`main.py` calls it once at startup).
 - Warning message style follows `_read_config_list`: `"Ignoring [%s] %s in config.toml: expected a non-negative integer"`.
 - `tests/conftest.py`: add autouse fixture next to `_empty_trusted_commenters`:
@@ -40,7 +40,9 @@ def _no_read_max_lines(monkeypatch: pytest.MonkeyPatch) -> None:
 ## ALGORITHM
 
 ```
-value = _read_config_value("mcp_workspace", "read_max_lines")
+section = _load_config().get("mcp_workspace", {})
+if not isinstance(section, dict): return None
+value: Any = section.get("read_max_lines")
 if value is None: return None
 if isinstance(value, bool) or not isinstance(value, int) or value < 0:
     logger.warning(...); return None
