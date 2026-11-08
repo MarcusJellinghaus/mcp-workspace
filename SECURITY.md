@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-Report vulnerabilities through GitHub private vulnerability reporting only: in this repository, go to **Security → Report a vulnerability**.
+Report vulnerabilities through GitHub private vulnerability reporting only: https://github.com/MarcusJellinghaus/mcp-workspace/security/advisories/new (in this repository, **Security → Report a vulnerability**).
 
 Do not open public issues for security problems.
 
