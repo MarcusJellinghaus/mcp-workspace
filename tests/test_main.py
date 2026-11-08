@@ -73,6 +73,23 @@ class TestParseArgs:
             assert args.file_size_limit is None
             assert unknown == []
 
+    def test_parse_read_max_lines(self) -> None:
+        """Test parsing the --read-max-lines argument."""
+        with patch(
+            "sys.argv",
+            ["script.py", "--project-dir", "/tmp", "--read-max-lines", "500"],
+        ):
+            args, unknown = parse_args()
+            assert args.read_max_lines == 500
+            assert unknown == []
+
+    def test_parse_read_max_lines_default(self) -> None:
+        """Test --read-max-lines defaults to None when omitted."""
+        with patch("sys.argv", ["script.py", "--project-dir", "/tmp"]):
+            args, unknown = parse_args()
+            assert args.read_max_lines is None
+            assert unknown == []
+
     def test_parse_file_size_limit_rejects_non_integer(self) -> None:
         """Test argparse rejects a non-integer --file-size-limit value."""
         with patch(
@@ -373,6 +390,73 @@ class TestMain:
 
                 mock_run_server.assert_called_once()
                 assert mock_run_server.call_args[1]["file_size_limit"] is None
+
+    @pytest.mark.parametrize(
+        ("cli_value", "config_value", "expected"),
+        [
+            (None, None, 2000),
+            (None, 300, 300),
+            (None, 0, 0),
+            ("500", 300, 500),
+            ("0", None, 0),
+        ],
+        ids=["default", "config_only", "config_zero", "cli_over_config", "cli_zero"],
+    )
+    @patch("mcp_workspace.server.run_server")
+    @patch("mcp_workspace.main.Path.exists")
+    @patch("mcp_workspace.main.Path.is_dir")
+    def test_main_resolves_read_max_lines(
+        self,
+        mock_is_dir: MagicMock,
+        mock_exists: MagicMock,
+        mock_run_server: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+        cli_value: str | None,
+        config_value: int | None,
+        expected: int,
+    ) -> None:
+        """Test main() resolves read_max_lines as CLI > config > default."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+        monkeypatch.setattr(
+            "mcp_workspace.config.get_read_max_lines", lambda: config_value
+        )
+
+        test_args = ["script.py", "--project-dir", "/test/project"]
+        if cli_value is not None:
+            test_args += ["--read-max-lines", cli_value]
+
+        with patch("sys.argv", test_args):
+            with patch("mcp_workspace.main.setup_logging"):
+                main()
+
+                mock_run_server.assert_called_once()
+                assert mock_run_server.call_args[1]["read_max_lines"] == expected
+
+    @patch("mcp_workspace.server.run_server")
+    @patch("mcp_workspace.main.Path.exists")
+    @patch("mcp_workspace.main.Path.is_dir")
+    def test_main_read_max_lines_negative_exits(
+        self, mock_is_dir: MagicMock, mock_exists: MagicMock, mock_run_server: MagicMock
+    ) -> None:
+        """Test main() fails fast when --read-max-lines is negative."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        test_args = [
+            "script.py",
+            "--project-dir",
+            "/test/project",
+            "--read-max-lines",
+            "-1",
+        ]
+
+        with patch("sys.argv", test_args):
+            with patch("mcp_workspace.main.setup_logging"):
+                with pytest.raises(SystemExit) as exc_info:
+                    main()
+                assert exc_info.value.code == 1
+                mock_run_server.assert_not_called()
 
     @patch("mcp_workspace.server.run_server")
     @patch("mcp_workspace.main.Path.exists")
