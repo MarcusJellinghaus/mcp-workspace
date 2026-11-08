@@ -54,6 +54,11 @@ dev = [
 ]
 typecheck = ["mypy>=1.13.0", "types-requests>=2.31.0", "pytest>=8.3.5", "pytest-asyncio>=0.25.3"]
 
+# Tools for single CI jobs, not published as extras. Unpinned by design.
+[dependency-groups]
+coverage = ["coverage", "diff-cover"]
+publish = ["build"]
+
 [project.scripts]
 mcp-workspace = "mcp_workspace.main:main"
 
