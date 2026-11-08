@@ -18,11 +18,15 @@ from mcp_workspace.checks.file_sizes import (
     render_allowlisted,
     render_output,
 )
+from mcp_workspace.file_tools import (
+    DEFAULT_READ_MAX_LINES,
+    list_directory_tree,
+    normalize_path,
+)
 from mcp_workspace.file_tools import append_file as append_file_util
 from mcp_workspace.file_tools import delete_directory as delete_directory_util
 from mcp_workspace.file_tools import delete_file as delete_file_util
 from mcp_workspace.file_tools import edit_file as edit_file_util
-from mcp_workspace.file_tools import list_directory_tree, normalize_path
 from mcp_workspace.file_tools import list_files as list_files_util
 from mcp_workspace.file_tools import move_file as move_file_util
 from mcp_workspace.file_tools import read_file as read_file_util
@@ -34,6 +38,7 @@ from mcp_workspace.server_reference_tools import (
     get_reference_project_path,
     get_reference_repo_url,
     set_reference_projects,
+    set_reference_read_max_lines,
 )
 from mcp_workspace.server_reference_tools import register as register_reference_tools
 
@@ -66,6 +71,9 @@ _project_dir: Path | None = None
 
 # Per-project default line limit for check_file_size (set via --file-size-limit)
 _file_size_limit: int | None = None
+
+# Full-read line limit for read_file (set via --read-max-lines)
+_read_max_lines: int | None = DEFAULT_READ_MAX_LINES
 
 # Per-server default for check_branch_status' review gate (set via --fail-on-reviews)
 _fail_on_reviews: bool = False
@@ -372,6 +380,18 @@ def set_file_size_limit(limit: int | None) -> None:
 
 
 @log_function_call
+def set_read_max_lines(limit: int | None) -> None:
+    """Set the full-read line limit used by read_file.
+
+    Args:
+        limit: Maximum lines returned by a full read; None or 0 means no limit
+    """
+    global _read_max_lines  # pylint: disable=global-statement
+    _read_max_lines = limit
+    logger.info("Read max lines set to: %s", limit)
+
+
+@log_function_call
 def set_fail_on_reviews(value: bool) -> None:
     """Set the per-server default for check_branch_status' review gate.
 
@@ -525,7 +545,10 @@ def read_file(
             sliced reads, False for full reads.
 
     Returns:
-        The contents of the file as a string
+        The contents of the file as a string. A full read beyond the
+        configured limit (default 2000 lines) is cut, followed by a note
+        giving the next start_line/end_line; an explicit range is returned
+        in full.
 
     Raises:
         ValueError: If file_path is not a non-empty string or the
@@ -548,6 +571,7 @@ def read_file(
             start_line=start_line,
             end_line=end_line,
             with_line_numbers=with_line_numbers,
+            max_lines=_read_max_lines,
         )
         return content
     except Exception as e:
@@ -2224,6 +2248,7 @@ def run_server(
     file_size_limit: int | None = None,
     fail_on_reviews: bool = False,
     enforce_base_branch_format: bool = True,
+    read_max_lines: int | None = DEFAULT_READ_MAX_LINES,
 ) -> None:
     """Run the MCP server with the given project directory and optional reference projects.
 
@@ -2234,6 +2259,8 @@ def run_server(
         fail_on_reviews: Per-server default for check_branch_status' review gate
         enforce_base_branch_format: Server-wide default for rejecting a malformed
             Base Branch section in github_issue_create / github_issue_edit
+        read_max_lines: Full-read line limit for read_file and
+            read_reference_file; None or 0 means no limit
     """
     logger.debug("Entering run_server function")
 
@@ -2242,6 +2269,10 @@ def run_server(
 
     # Set the per-project default file size limit
     set_file_size_limit(file_size_limit)
+
+    # Set the full-read line limit for workspace and reference reads
+    set_read_max_lines(read_max_lines)
+    set_reference_read_max_lines(read_max_lines)
 
     # Set the per-server review-gate default
     set_fail_on_reviews(fail_on_reviews)
