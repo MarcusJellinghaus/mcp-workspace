@@ -140,9 +140,6 @@ FETCH_ALLOWED_FLAGS: frozenset[str] = frozenset(
         "--prune",
         "--tags",
         "--no-tags",
-        "--depth",
-        "--shallow-since",
-        "--shallow-exclude",
         "--verbose",
         "-v",
         "--quiet",
@@ -326,7 +323,6 @@ _SEPARATE_VALUE_FLAGS: dict[str, frozenset[str]] = {
     "branch": frozenset({"--contains", "--merged", "--no-merged", "--sort"}),
     "ls_files": frozenset({"--exclude"}),
     "ls_remote": frozenset({"--sort"}),
-    "fetch": frozenset({"--depth", "--shallow-since", "--shallow-exclude"}),
 }
 
 # With one of these, git branch treats other arguments as patterns to list.

@@ -63,8 +63,6 @@ def test_fetch_refspecs_that_update_local_refs_refused(args: list[str]) -> None:
         ["origin", "main"],
         ["origin", "refs/pull/1/head"],
         ["-v", "origin", "main"],
-        ["--depth", "1", "origin"],
-        ["--depth=1", "origin"],
     ],
 )
 def test_fetch_uses_in_practice_accepted(args: list[str]) -> None:
