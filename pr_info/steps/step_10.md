@@ -41,8 +41,16 @@
   - `test_github_write_tools_reference.py`.
   - `test_github_write_tools_subissues.py`.
   - `test_github_pr_create_base.py`: `RESOLVE = "mcp_workspace.toolset.github_write.resolve_base_branch"`.
+  - `tests/test_server.py`:
+    - remove `_check_not_gitignored` from the `mcp_workspace.server` import (line 14), so collection
+      still works once `server._check_not_gitignored` is deleted;
+    - `test_check_not_gitignored_absolute_path_message_is_forward_slash` (373–384) calls
+      `check_not_gitignored(ctx, ...)` from `mcp_workspace.toolset._context`, with
+      `ctx = WorkspaceContext(gitignore_project, {}, None, None, False, True)`. Assertion unchanged.
   - `tests/test_server_get_base_branch.py`:
-    - the `_resolve_base_branch` import comes from `mcp_workspace.toolset._github_common`;
+    - import the public `resolve_base_branch` from `mcp_workspace.toolset._github_common` (matching
+      the name in WHERE above) instead of `_resolve_base_branch` from `server`, and rename the call
+      sites in `TestResolveBaseBranch` to `resolve_base_branch(...)`;
     - the `get_base_branch` tool stays legacy until step 11;
     - the caplog logger name for `_resolve_base_branch` warnings becomes `mcp_workspace.toolset._github_common`.
   - `tests/github_operations/conftest.py`: `setup_server` now has no users. Delete it, plus its

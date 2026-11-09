@@ -37,7 +37,8 @@
   - `tests/test_server.py`:
     - `check_branch_status` tests via `tools`;
     - delete the `_project_dir is None` test for `check_branch_status` (lines 551–561);
-    - the remaining `setup_server` fixture / `set_project_dir` / `_check_not_gitignored` imports go.
+    - the remaining `setup_server` fixture and `set_project_dir` import go (`_check_not_gitignored`
+      was already removed in step 10).
   - `tests/test_path_separator_invariant.py`: `check_file_size` via `tools`; its `server._project_dir`
     save/restore fixture becomes `make_tools(tmp_path)`.
   - Every other remaining `setup_server` autouse fixture in tests becomes unnecessary; delete it.

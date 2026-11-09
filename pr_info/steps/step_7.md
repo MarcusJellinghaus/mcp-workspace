@@ -34,6 +34,9 @@
     (`search_reference_files` case, same `Field`-based check as step 3).
   - Patch targets move from `mcp_workspace.server_reference_tools.<name>` to `mcp_workspace.toolset.reference.<name>`.
     This covers `ensure_available`, `read_file_util`, `list_files_util`, `search_files_util` and `logger`.
+  - Exception: `TestGetReferenceProjectPath` (`tests/test_reference_projects_mcp_tools.py:633-686`) stays
+    unchanged in this step. It tests `server_reference_tools.get_reference_project_path`, which still
+    exists, so its `server_reference_tools.ensure_available` patches must keep pointing there. Step 8 converts it.
   - The caplog logger name becomes `mcp_workspace.toolset.reference`.
   - Writes to `server_module._reference_projects` / `_read_max_lines` become
     `make_tools(reference_projects={...}, read_max_lines=...)`.

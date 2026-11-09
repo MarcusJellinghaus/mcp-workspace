@@ -22,6 +22,13 @@
     - the test that wrote `server_module._project_dir` uses `make_tools(test_dir)`.
   - `tests/test_server.py`: git tests use `tools["git"]`. Delete the `_project_dir is None` test for
     `git` (lines 483–493); this is one of the issue's listed exceptions.
+  - `tests/test_reference_projects_mcp_tools.py`, `TestGetReferenceProjectPath` (633–686), converted in
+    this step because it deletes `get_reference_project_path`:
+    - call `await reference_project_path(ctx, name)` from `mcp_workspace.toolset.reference`, with
+      `ctx = WorkspaceContext(tmp_path, {"test_proj": proj}, None, None, False, True)` (`{}` for the
+      not-found case) instead of writing `server_module._reference_projects`;
+    - the `ensure_available` patches become `mcp_workspace.toolset.reference.ensure_available`;
+    - assertions unchanged.
   - `tests/test_tool_refusals_mcp_layer.py`: no change needed, because it goes through `create_server` (step 2).
   - `tests/github_operations/test_github_read_tools_reference.py:149` and
     `test_github_write_tools_reference.py:193` patch `mcp_workspace.server_reference_tools.ensure_available`,
