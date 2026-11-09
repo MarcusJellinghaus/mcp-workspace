@@ -9,3 +9,13 @@ pr_info/steps/step_6.md:25 — low — Adding `github_issue_set_status` to `_TOO
 Verdict(decision='tasks', tasks=['In pr_info/steps/step_2.md, add tests/github_operations/issues/test_cache_io.py::test_get_cache_file_path_basic to the step\'s changes. Rewrite it so the expected path comes from the `cache_dir` fixture, the way caching/test_store.py:30 does, instead of from the unpatched get_user_app_data_dir("mcp_coder"). It must still pass once the autouse cache_dir fixture moves to tests/github_operations/conftest.py.', 'In pr_info/steps/step_6.md (around lines 61-65), change server.py `_check_labels` to call `is_status_label` from issues/status.py through a lazy import. Then delete the duplicated `_STATUS_LABEL_PREFIX` from server.py, so the status-label rule lives only in issues/status.py.', 'In pr_info/steps/step_6.md (around line 25), when adding github_issue_set_status to `_TOOL_CASES` in test_github_write_tools_reference.py, add a matching entry to `_TOOL_IDS` (lines 121-129). Give the case kwargs that include the required arguments, e.g. {"number": 42, "status": "status-01:created"}, instead of {}.'], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 2 — 2026-11-09
+**Findings**:
+Reviewing plan against code: checking `issue_to_data`, import-linter contracts, and `github_label_list`.I found one substantive problem in the plan, at medium severity:
+
+pr_info/steps/step_1.md:62 — medium — `_valid_entry` only checks that each cached label has a str `name`. Both consumers also index `description` (step 2's search filter, step 5's invalid-status list), and `github_label_list` also indexes `color`. The issue says the `.labels.json` file is shared with mcp-coder, so an entry missing one of these fields would make both tools return an `Error: 'description'`-style `KeyError` instead of refetching. Require all four `LabelData` fields to be str in `_valid_entry`, and add a step-1 test where an entry lacking `description` counts as a miss.
+**Decisions**:
+Verdict(decision='tasks', tasks=["In pr_info/steps/step_1.md (around line 62), make `_valid_entry` require all four LabelData fields (name, color, description, plus the remaining field) to be present and of type str. An entry that fails this should count as a cache miss and trigger a refetch, so it can't raise a KeyError in the step-2 search filter, the step-5 invalid-status list, or github_label_list. Add a step-1 test where a cached entry without `description` is treated as a miss."], escalate_reason=None)
+**Changes**:
+applied
