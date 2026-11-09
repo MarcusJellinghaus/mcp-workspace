@@ -45,9 +45,9 @@ See [step_3.md](./steps/step_3.md)
 ### Step 4: `set_issue_labels_in_cache` (coordinator issue cache)
 See [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: tests in `test_cache_update.py`, then `set_issue_labels_in_cache` in `issues/cache.py` (debug on miss, warning on failure, never raises)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests in `test_cache_update.py`, then `set_issue_labels_in_cache` in `issues/cache.py` (debug on miss, warning on failure, never raises)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 5: `issues/status.py` — `set_issue_status`
 See [step_5.md](./steps/step_5.md)
