@@ -21,6 +21,7 @@ from mcp_workspace.server import (
     set_project_dir,
 )
 from mcp_workspace.server_reference_tools import set_reference_projects
+from mcp_workspace.utils.repo_identifier import RepoIdentifier
 
 # Bound at import time, before any @patch is active: patching
 # ``mcp_workspace.github_operations.pr_manager.PullRequestManager`` replaces the
@@ -71,8 +72,30 @@ def _label(
 def _make_manager(labels: list[dict[str, str]] | None = None) -> MagicMock:
     """Create a mocked IssueManager returning the given repository labels."""
     mock_mgr = MagicMock()
+    # A real identifier: a MagicMock cache_safe_name is no valid label-cache file name
+    mock_mgr.repo_identifier = RepoIdentifier("owner", "repo")
     mock_mgr.get_available_labels.return_value = labels if labels is not None else []
     return mock_mgr
+
+
+def _body(result: str) -> list[str]:
+    """Return the lines before the cache footer, asserting the footer is there."""
+    *lines, footer = result.splitlines()
+    assert footer.startswith("Label cache last updated ")
+    return lines
+
+
+def _rate_limit() -> GithubException:
+    """Build a primary rate-limit GithubException."""
+    return GithubException(
+        403,
+        {"message": "API rate limit exceeded"},
+        {
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-resource": "core",
+            "x-ratelimit-reset": "1767225600",
+        },
+    )
 
 
 _LABELS = [
@@ -96,7 +119,7 @@ class TestGithubLabelList:
 
         result = github_label_list()
 
-        assert result.splitlines() == [
+        assert _body(result) == [
             "bug  #d73a4a  Something isn't working",
             "enhancement  #a2eeef  New feature or request",
         ]
@@ -108,7 +131,7 @@ class TestGithubLabelList:
 
         result = github_label_list(search="bug")
 
-        assert result == "bug  #d73a4a  Something isn't working"
+        assert _body(result) == ["bug  #d73a4a  Something isn't working"]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_search_matches_description_only(self, mock_manager_cls: MagicMock) -> None:
@@ -117,7 +140,7 @@ class TestGithubLabelList:
 
         result = github_label_list(search="New feature")
 
-        assert result == "enhancement  #a2eeef  New feature or request"
+        assert _body(result) == ["enhancement  #a2eeef  New feature or request"]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_search_is_case_insensitive(self, mock_manager_cls: MagicMock) -> None:
@@ -126,7 +149,7 @@ class TestGithubLabelList:
 
         result = github_label_list(search="ENHANCEment")
 
-        assert result == "enhancement  #a2eeef  New feature or request"
+        assert _body(result) == ["enhancement  #a2eeef  New feature or request"]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_search_matching_nothing(self, mock_manager_cls: MagicMock) -> None:
@@ -135,7 +158,7 @@ class TestGithubLabelList:
 
         result = github_label_list(search="nonexistent")
 
-        assert result == "No labels found."
+        assert _body(result) == ["No labels found."]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_empty_repository_label_set(self, mock_manager_cls: MagicMock) -> None:
@@ -144,7 +167,7 @@ class TestGithubLabelList:
 
         result = github_label_list()
 
-        assert result == "No labels found."
+        assert _body(result) == ["No labels found."]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_empty_description_leaves_no_trailing_space(
@@ -155,12 +178,55 @@ class TestGithubLabelList:
 
         result = github_label_list()
 
-        assert result == "wontfix  #ffffff"
+        assert _body(result) == ["wontfix  #ffffff"]
+
+    @patch("mcp_workspace.github_operations.issues.IssueManager")
+    def test_second_call_reads_cache(self, mock_manager_cls: MagicMock) -> None:
+        """Without refresh_labels a second call does not fetch again."""
+        mock_mgr = _make_manager(_LABELS)
+        mock_manager_cls.return_value = mock_mgr
+
+        github_label_list()
+        result = github_label_list()
+
+        assert mock_mgr.get_available_labels.call_count == 1
+        assert len(_body(result)) == 2
+
+    @patch("mcp_workspace.github_operations.issues.IssueManager")
+    def test_refresh_labels_refetches(self, mock_manager_cls: MagicMock) -> None:
+        """refresh_labels=True fetches again although a cache entry exists."""
+        mock_mgr = _make_manager(_LABELS)
+        mock_manager_cls.return_value = mock_mgr
+        github_label_list()
+        mock_mgr.get_available_labels.return_value = [_label("new")]
+
+        result = github_label_list(refresh_labels=True)
+
+        assert mock_mgr.get_available_labels.call_count == 2
+        assert _body(result) == ["new  #d73a4a"]
+
+    @patch("mcp_workspace.github_operations.issues.IssueManager")
+    def test_rate_limited_refresh_returns_stale_labels(
+        self, mock_manager_cls: MagicMock
+    ) -> None:
+        """A rate-limited forced refresh keeps the old labels, marked stale."""
+        mock_mgr = _make_manager(_LABELS)
+        mock_manager_cls.return_value = mock_mgr
+        github_label_list()
+        mock_mgr.get_available_labels.side_effect = _rate_limit()
+
+        result = github_label_list(refresh_labels=True)
+
+        assert _body(result) == [
+            "bug  #d73a4a  Something isn't working",
+            "enhancement  #a2eeef  New feature or request",
+        ]
+        assert "refresh failed: rate limited" in result.splitlines()[-1]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_exception_is_reported(self, mock_manager_cls: MagicMock) -> None:
         """An arbitrary failure surfaces as an error string."""
-        mock_mgr = MagicMock()
+        mock_mgr = _make_manager()
         mock_mgr.get_available_labels.side_effect = RuntimeError("boom")
         mock_manager_cls.return_value = mock_mgr
 
@@ -173,7 +239,7 @@ class TestGithubLabelList:
         self, mock_manager_cls: MagicMock
     ) -> None:
         """A 500 from the API reads as an error, never as 'No labels found.'."""
-        mock_mgr = MagicMock()
+        mock_mgr = _make_manager()
         mock_mgr.get_available_labels.side_effect = GithubException(
             500, {"message": "Server Error"}, None
         )

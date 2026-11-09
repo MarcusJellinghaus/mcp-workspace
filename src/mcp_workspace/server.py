@@ -1612,6 +1612,25 @@ def github_issue_edit(
         return _tool_error(e)
 
 
+def _rate_limit_message(exc: Exception) -> str | None:
+    """Describe a rate-limit failure, or return None for any other error.
+
+    Args:
+        exc: The exception to describe.
+
+    Returns:
+        The message of a GitHubRateLimitError; otherwise
+        format_rate_limit_error(exc).
+    """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations import format_rate_limit_error
+    from mcp_workspace.github_operations.caching.errors import GitHubRateLimitError
+
+    if isinstance(exc, GitHubRateLimitError):
+        return exc.message
+    return format_rate_limit_error(exc)
+
+
 def _api_error(exc: Exception, reference_name: str | None) -> str:
     """Render a GitHub or validation error as a caller-facing error string.
 
@@ -1624,10 +1643,7 @@ def _api_error(exc: Exception, reference_name: str | None) -> str:
         using GitHub's message when the exception carries a dict payload with
         one, otherwise str(exc).
     """
-    # Lazy import: keeps PyGithub off the server startup import path
-    from mcp_workspace.github_operations import format_rate_limit_error
-
-    if (msg := format_rate_limit_error(exc)) is not None:
+    if (msg := _rate_limit_message(exc)) is not None:
         return f"{msg}{_ref_suffix(reference_name)}"
     # exc.data is not reliably a dict with a "message" key
     data = getattr(exc, "data", None)
@@ -1645,10 +1661,7 @@ def _tool_error(e: Exception) -> str:
         The error string shown to the user; for rate limits it names the
         bucket and reset time.
     """
-    # Lazy import: keeps PyGithub off the server startup import path
-    from mcp_workspace.github_operations import format_rate_limit_error
-
-    return format_rate_limit_error(e) or f"Error: {e}"
+    return _rate_limit_message(e) or f"Error: {e}"
 
 
 def _subissue_write(
@@ -1942,10 +1955,14 @@ def github_review_thread_resolve(
 def github_label_list(
     search: str | None = None,
     reference_name: str | None = None,
+    refresh_labels: bool = False,
 ) -> str:
     """List the labels defined in the workspace repository or a reference project.
 
-    This only reads from GitHub.
+    This only reads from GitHub. The labels come from a disk cache shared
+    across sessions, so a label created on GitHub may not show for up to 24 h
+    unless ``refresh_labels=True``. This differs from the label check of the
+    issue create/edit tools, which is uncached.
 
     Args:
         search: Optional filter — case-insensitive substring matched against
@@ -1953,17 +1970,23 @@ def github_label_list(
             does. Omit it to list every label.
         reference_name: Optional reference project name. When set, lists the labels
             of that project's GitHub repository instead of the workspace repository.
+        refresh_labels: Force a reload of the label cache from GitHub.
 
     Returns:
         One line per label, ``<name>  #<color>  <description>``, or
         "No labels found." when nothing matches — naming the reference project
-        when one is given — or error message string.
+        when one is given — or error message string. The output ends with
+        ``Label cache last updated <timestamp>``, marked stale when a refresh
+        was rate-limited.
     """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.caching.labels import get_cached_labels
+
     try:
         manager = _issue_manager(reference_name)
         # Raises rather than returning [] on API failure, so an empty list here
         # means the repository really has no labels
-        labels = manager.get_available_labels()
+        labels, footer = get_cached_labels(manager, refresh=refresh_labels)
         if search:
             query = search.lower()
             labels = [
@@ -1973,11 +1996,13 @@ def github_label_list(
                 or query in label["description"].lower()
             ]
         if not labels:
-            return f"No labels found{_ref_suffix(reference_name)}."
-        return "\n".join(
-            f"{label['name']}  #{label['color']}  {label['description']}".rstrip()
-            for label in labels
-        )
+            body = f"No labels found{_ref_suffix(reference_name)}."
+        else:
+            body = "\n".join(
+                f"{label['name']}  #{label['color']}  {label['description']}".rstrip()
+                for label in labels
+            )
+        return f"{body}\n{footer}"
     except Exception as e:
         return _tool_error(e)
 

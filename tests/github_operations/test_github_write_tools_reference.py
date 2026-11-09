@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from github import GithubException
 
+from mcp_workspace.github_operations.caching.errors import GitHubRateLimitError
 from mcp_workspace.github_operations.issues.types import (
     CommentData,
     IssueData,
@@ -16,6 +17,7 @@ from mcp_workspace.github_operations.issues.types import (
 )
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server import (
+    _api_error,
     github_issue_comment,
     github_issue_create,
     github_issue_edit,
@@ -25,6 +27,7 @@ from mcp_workspace.server import (
     github_subissue_remove,
 )
 from mcp_workspace.server_reference_tools import set_reference_projects
+from mcp_workspace.utils.repo_identifier import RepoIdentifier
 from tests.github_operations.conftest import make_retry_error
 
 pytestmark = pytest.mark.usefixtures("setup_server")
@@ -89,6 +92,8 @@ def _make_issue() -> IssueData:
 def _make_manager() -> MagicMock:
     """Create a mock IssueManager that satisfies the covered tools."""
     mock_mgr = MagicMock()
+    # A real identifier: a MagicMock cache_safe_name is no valid label-cache file name
+    mock_mgr.repo_identifier = RepoIdentifier("owner", "repo")
     mock_mgr.get_available_labels.return_value = [
         {
             "name": "bug",
@@ -217,7 +222,9 @@ def test_no_labels_names_reference_project(
 
     result = github_label_list(reference_name="sibling")
 
-    assert result == "No labels found in reference project 'sibling'."
+    body, footer = result.rsplit("\n", 1)
+    assert body == "No labels found in reference project 'sibling'."
+    assert footer.startswith("Label cache last updated ")
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
@@ -242,6 +249,17 @@ def test_label_list_rate_limit_names_bucket(
 
     assert "`core`" in result
     assert not result.startswith("Error:")
+
+
+def test_api_error_renders_cache_rate_limit_with_suffix() -> None:
+    """A GitHubRateLimitError renders as its bare message plus the suffix."""
+    exc = GitHubRateLimitError("GitHub rate limit: `core` exhausted")
+
+    result = _api_error(exc, "sibling")
+
+    assert result == (
+        "GitHub rate limit: `core` exhausted in reference project 'sibling'"
+    )
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")

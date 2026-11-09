@@ -31,9 +31,9 @@ See [step_1.md](./steps/step_1.md)
 ### Step 2: `github_label_list` reads through the label cache
 See [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: move autouse `cache_dir` fixture up to `tests/github_operations/conftest.py`, fix manager mocks and `test_get_cache_file_path_basic`; add `_rate_limit_message`, update `_tool_error`/`_api_error`, add `refresh_labels` + footer to `github_label_list`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: move autouse `cache_dir` fixture up to `tests/github_operations/conftest.py`, fix manager mocks and `test_get_cache_file_path_basic`; add `_rate_limit_message`, update `_tool_error`/`_api_error`, add `refresh_labels` + footer to `github_label_list`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: `LabelsMixin.get_issue_for_status`
 See [step_3.md](./steps/step_3.md)

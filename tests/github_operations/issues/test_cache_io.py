@@ -12,7 +12,6 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from mcp_coder_utils.user_app_data import get_user_app_data_dir
 
 from mcp_workspace.github_operations.issues import (
     CacheData,
@@ -77,12 +76,12 @@ class TestCacheMetricsLogging:
 class TestCacheFilePath:
     """Tests for _get_cache_file_path function."""
 
-    def test_get_cache_file_path_basic(self) -> None:
+    def test_get_cache_file_path_basic(self, cache_dir: Path) -> None:
         """Test basic cache file path generation."""
         repo_identifier = RepoIdentifier.from_full_name("owner/repo")
         path = _get_cache_file_path(repo_identifier)
 
-        expected_dir = get_user_app_data_dir("mcp_coder") / "coordinator_cache"
+        expected_dir = cache_dir / "coordinator_cache"
         expected_file = expected_dir / "github_com_owner_repo.issues.json"
 
         assert path == expected_file
