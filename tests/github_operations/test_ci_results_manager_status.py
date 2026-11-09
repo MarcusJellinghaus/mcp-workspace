@@ -40,6 +40,9 @@ class TestGetLatestCIStatus:
         mock_job1.completed_at = Mock()
         mock_job1.completed_at.isoformat.return_value = "2024-01-15T10:35:00Z"
         mock_job1.steps = []
+        mock_job1.html_url = (
+            "https://github.com/test/repo/actions/runs/123456789/job/987654321"
+        )
 
         mock_job2 = Mock()
         mock_job2.id = 987654322
@@ -51,6 +54,9 @@ class TestGetLatestCIStatus:
         mock_job2.completed_at = Mock()
         mock_job2.completed_at.isoformat.return_value = "2024-01-15T10:33:00Z"
         mock_job2.steps = []
+        mock_job2.html_url = (
+            "https://github.com/test/repo/actions/runs/123456789/job/987654322"
+        )
 
         # Set head_branch for filtering
         mock_run.head_branch = "feature/xyz"
@@ -90,6 +96,12 @@ class TestGetLatestCIStatus:
         assert job1_data["conclusion"] == "failure"
         assert job1_data["started_at"] == "2024-01-15T10:31:00Z"
         assert job1_data["completed_at"] == "2024-01-15T10:35:00Z"
+        assert (
+            job1_data["html_url"]
+            == "https://github.com/test/repo/actions/runs/123456789/job/987654321"
+        )
+        assert job1_data["run_html_url"] == mock_run.html_url
+        assert job1_data["run_event"] == "push"
 
         job2_data = jobs_data[1]
         assert job2_data["id"] == 987654322
@@ -152,6 +164,9 @@ class TestGetLatestCIStatusSteps:
         mock_step3.conclusion = "success"
 
         mock_job.steps = [mock_step1, mock_step2, mock_step3]
+        mock_job.html_url = (
+            "https://github.com/test/repo/actions/runs/123456789/job/987654321"
+        )
         mock_run.jobs.return_value = [mock_job]
         mock_repo.get_workflow_runs.return_value = [mock_run]
 
@@ -226,6 +241,9 @@ class TestGetLatestCIStatusSteps:
         mock_step4.conclusion = None  # Still running or not started
 
         mock_job.steps = [mock_step1, mock_step2, mock_step3, mock_step4]
+        mock_job.html_url = (
+            "https://github.com/test/repo/actions/runs/123456789/job/987654321"
+        )
         mock_run.jobs.return_value = [mock_job]
         mock_repo.get_workflow_runs.return_value = [mock_run]
 
@@ -276,6 +294,9 @@ class TestGetLatestCIStatusSteps:
         mock_job.completed_at = Mock()
         mock_job.completed_at.isoformat.return_value = "2024-01-15T10:35:00Z"
         mock_job.steps = []  # No steps
+        mock_job.html_url = (
+            "https://github.com/test/repo/actions/runs/123456789/job/987654321"
+        )
 
         mock_run.jobs.return_value = [mock_job]
         mock_repo.get_workflow_runs.return_value = [mock_run]
@@ -323,6 +344,9 @@ class TestGetLatestCIStatusSteps:
         mock_step1_1.name = "Run linter"
         mock_step1_1.conclusion = "success"
         mock_job1.steps = [mock_step1_1]
+        mock_job1.html_url = (
+            "https://github.com/test/repo/actions/runs/123456789/job/111"
+        )
 
         # Setup second job with different steps
         mock_job2 = Mock()
@@ -345,6 +369,9 @@ class TestGetLatestCIStatusSteps:
         mock_step2_2.name = "Run pytest"
         mock_step2_2.conclusion = "success"
         mock_job2.steps = [mock_step2_1, mock_step2_2]
+        mock_job2.html_url = (
+            "https://github.com/test/repo/actions/runs/123456789/job/222"
+        )
 
         mock_run.jobs.return_value = [mock_job1, mock_job2]
         mock_repo.get_workflow_runs.return_value = [mock_run]
@@ -431,6 +458,7 @@ class TestGetLatestCIStatusSteps:
             if job.completed_at:
                 job.completed_at.isoformat.return_value = "2024-01-15T11:05:00Z"
             job.steps = []
+            job.html_url = f"https://github.com/test/repo/actions/runs/999888777/job/{config['id']}"
             jobs.append(job)
 
         # Set head_branch for filtering

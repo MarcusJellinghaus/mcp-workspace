@@ -53,6 +53,7 @@ def _make_mock_job(
     mock_job.completed_at = Mock()
     mock_job.completed_at.isoformat.return_value = "2024-01-15T10:35:00Z"
     mock_job.steps = []
+    mock_job.html_url = f"https://github.com/test/repo/actions/runs/0/job/{job_id}"
     return mock_job
 
 
@@ -263,7 +264,7 @@ class TestGetLatestCIStatusMultiWorkflow:
         run1 = _make_mock_run(100)
         run1.jobs.return_value = [_make_mock_job(1001, name="test")]
 
-        run2 = _make_mock_run(200)
+        run2 = _make_mock_run(200, event="pull_request")
         run2.jobs.return_value = [_make_mock_job(2001, name="lint")]
 
         mock_repo.get_workflow_runs.return_value = [run1, run2]
@@ -272,9 +273,13 @@ class TestGetLatestCIStatusMultiWorkflow:
 
         test_job = next(j for j in result["jobs"] if j["name"] == "test")
         assert test_job["run_id"] == 100
+        assert test_job["run_html_url"] == run1.html_url
+        assert test_job["run_event"] == "push"
 
         lint_job = next(j for j in result["jobs"] if j["name"] == "lint")
         assert lint_job["run_id"] == 200
+        assert lint_job["run_html_url"] == run2.html_url
+        assert lint_job["run_event"] == "pull_request"
 
     def test_jobs_call_failure_partial_results(
         self, mock_repo: Mock, ci_manager: CIResultsManager

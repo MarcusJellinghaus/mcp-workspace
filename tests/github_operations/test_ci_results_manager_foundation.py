@@ -151,6 +151,9 @@ class TestCIResultsManagerFoundation:
                     "started_at": "2023-01-01T00:01:00Z",
                     "completed_at": "2023-01-01T00:05:00Z",
                     "steps": [],
+                    "html_url": "https://github.com/test/repo/actions/runs/123/job/456",
+                    "run_html_url": "https://github.com/test/repo/actions/runs/123",
+                    "run_event": "push",
                 }
             ],
         }

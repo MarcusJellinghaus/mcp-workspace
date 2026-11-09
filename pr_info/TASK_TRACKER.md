@@ -23,9 +23,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: `JobData` carries the job URL and its run's URL and event — [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: tests first (status, aggregation, foundation fixtures), then add `html_url`, `run_html_url`, `run_event` to `JobData` and fill them in `get_latest_ci_status`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests first (status, aggregation, foundation fixtures), then add `html_url`, `run_html_url`, `run_event` to `JobData` and fill them in `get_latest_ci_status`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `build_ci_error_details` attributes links, logs and headers to each job's own run — [step_2.md](./steps/step_2.md)
 
