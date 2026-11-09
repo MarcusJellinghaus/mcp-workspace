@@ -52,9 +52,9 @@ See [step_4.md](./steps/step_4.md)
 ### Step 5: `issues/status.py` — `set_issue_status`
 See [step_5.md](./steps/step_5.md)
 
-- [ ] Implementation: new `test_status.py`, then `STATUS_LABEL_PREFIX`, `is_status_label`, `set_issue_status` with exact result texts
-- [ ] Quality checks: pylint, pytest, mypy (plus lint-imports) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: new `test_status.py`, then `STATUS_LABEL_PREFIX`, `is_status_label`, `set_issue_status` with exact result texts
+- [x] Quality checks: pylint, pytest, mypy (plus lint-imports) — fix all issues
+- [x] Commit message prepared
 
 ### Step 6: `github_issue_set_status` MCP tool + `_check_labels` wording
 See [step_6.md](./steps/step_6.md)
