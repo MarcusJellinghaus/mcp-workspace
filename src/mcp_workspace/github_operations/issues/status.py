@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from ..caching.labels import get_cached_labels
 from ..labels_manager import LabelData
-from .cache import set_issue_labels_in_cache
+from .cache_labels import set_issue_labels_in_cache
 
 if TYPE_CHECKING:
     from .manager import IssueManager
@@ -26,7 +26,12 @@ def is_status_label(name: str) -> bool:
 
 
 def _invalid(value: str, known: Iterable[LabelData], footer: str) -> str:
-    """Build the text for a status value that is not a cached status label."""
+    """Build the text for a status value that is not a cached status label.
+
+    Returns:
+        The "label not found" message listing the available status labels,
+        followed by the cache footer.
+    """
     lines = [f"{label['name']}  {label['description']}".rstrip() for label in known]
     available = "\n".join(lines) if lines else "(none)"
     return f'Label "{value}" not found. Available status labels:\n{available}\n{footer}'

@@ -26,11 +26,8 @@ from .body_trust import BodyTrust, BodyTrustResult
 # Branch manager and utilities
 from .branch_manager import BranchLookup, BranchLookupError, IssueBranchManager
 from .branch_naming import BranchCreationResult, generate_branch_name_from_issue
-from .cache import (
-    _log_stale_cache_entries,
-    get_all_cached_issues,
-    update_issue_labels_in_cache,
-)
+from .cache import _log_stale_cache_entries, get_all_cached_issues
+from .cache_labels import update_issue_labels_in_cache
 from .linked_branches_mixin import ClosingPRRef
 
 # Main managers
