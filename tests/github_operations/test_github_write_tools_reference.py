@@ -21,6 +21,7 @@ from mcp_workspace.server import (
     github_issue_comment,
     github_issue_create,
     github_issue_edit,
+    github_issue_set_status,
     github_label_list,
     github_subissue_add,
     github_subissue_list,
@@ -119,6 +120,7 @@ _TOOL_CASES: list[tuple[Callable[..., str], dict[str, Any]]] = [
     (github_issue_comment, {"number": 42, "body": "hi"}),
     (github_issue_create, {"title": "T"}),
     (github_issue_edit, {"number": 42, "title": "T"}),
+    (github_issue_set_status, {"number": 42, "status": "status-01:created"}),
     (github_subissue_add, {"parent_number": 42, "child_number": 43}),
     (github_subissue_list, {"parent_number": 42}),
     (github_subissue_remove, {"parent_number": 42, "child_number": 43}),
@@ -128,6 +130,7 @@ _TOOL_IDS = [
     "issue_comment",
     "issue_create",
     "issue_edit",
+    "issue_set_status",
     "subissue_add",
     "subissue_list",
     "subissue_remove",
@@ -311,11 +314,11 @@ def test_comment_failure_without_reference_is_unchanged(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_status_guard_points_at_reference_checkout(
+def test_status_guard_points_at_set_status_tool(
     mock_manager_cls: MagicMock,
     reference_projects: None,  # pylint: disable=unused-argument
 ) -> None:
-    """The status-* guard says whose checkout can apply the label."""
+    """The status-* guard points at github_issue_set_status and writes nothing."""
     mock_mgr = _make_manager()
     mock_manager_cls.return_value = mock_mgr
 
@@ -323,8 +326,10 @@ def test_status_guard_points_at_reference_checkout(
         title="T", labels=["status-01:created"], reference_name="sibling"
     )
 
-    assert "sibling" in result
-    assert "own checkout" in result
+    assert result == (
+        "Error: these tools do not modify status-* labels "
+        "(status-01:created). Use github_issue_set_status"
+    )
     mock_mgr.get_available_labels.assert_not_called()
     mock_mgr.create_issue.assert_not_called()
 
@@ -378,11 +383,11 @@ def test_create_failure_names_reference_project(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_edit_status_guard_points_at_reference_checkout(
+def test_edit_status_guard_points_at_set_status_tool(
     mock_manager_cls: MagicMock,
     reference_projects: None,  # pylint: disable=unused-argument
 ) -> None:
-    """The edit-side status-* guard says whose checkout can apply the label."""
+    """The edit-side status-* guard points at github_issue_set_status."""
     mock_mgr = _make_manager()
     mock_manager_cls.return_value = mock_mgr
 
@@ -390,8 +395,10 @@ def test_edit_status_guard_points_at_reference_checkout(
         number=42, add_labels=["status-04:in-progress"], reference_name="sibling"
     )
 
-    assert "sibling" in result
-    assert "own checkout" in result
+    assert result == (
+        "Error: these tools do not modify status-* labels "
+        "(status-04:in-progress). Use github_issue_set_status"
+    )
     mock_mgr.edit_issue.assert_not_called()
 
 

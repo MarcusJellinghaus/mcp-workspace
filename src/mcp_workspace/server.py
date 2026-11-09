@@ -85,9 +85,6 @@ _enforce_base_branch_format: bool = True
 # Per-file locks for concurrent edit safety
 _file_locks: dict[str, asyncio.Lock] = {}
 
-# Workflow status labels are owned by `mcp-coder gh-tool set-status`, not by these tools
-_STATUS_LABEL_PREFIX = "status-"
-
 
 def _ref_suffix(reference_name: str | None) -> str:
     """Return the clause naming a reference project, or "" for the workspace.
@@ -135,18 +132,14 @@ def _check_labels(
             caught: a failed lookup must be reported as itself by the calling
             tool, never rendered as "unknown label(s)".
     """  # noqa: DOC502  # Exception propagates from get_available_labels
-    offenders = [
-        n for n in (*add, *remove) if n.casefold().startswith(_STATUS_LABEL_PREFIX)
-    ]
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.issues.status import is_status_label
+
+    offenders = [n for n in (*add, *remove) if is_status_label(n)]
     if offenders:
-        # `set-status` operates on the current checkout, so a reference
-        # project's labels can only be advanced from that project's own clone.
-        advice = "Use: mcp-coder gh-tool set-status <label>"
-        if reference_name is not None:
-            advice += f" from the '{reference_name}' project's own checkout"
         return (
             "Error: these tools do not modify status-* labels "
-            f"({', '.join(offenders)}). {advice}"
+            f"({', '.join(offenders)}). Use github_issue_set_status"
         )
     if not add:
         return None
@@ -1387,8 +1380,7 @@ def github_issue_create(
 
     Targets the workspace repository, or a reference project's repository when
     reference_name is given. Workflow status labels (status-*) are rejected —
-    those are applied with `mcp-coder gh-tool set-status <label>` from the
-    target repository's own checkout. Other label names are validated against
+    use `github_issue_set_status`. Other label names are validated against
     the target repository's labels before writing, so a typo cannot silently
     create a new label. A malformed `### Base Branch` section (more than one
     line) is rejected before any write, unless the server was started with
@@ -1465,8 +1457,7 @@ def github_issue_edit(
     reference_name is given. Only the arguments you pass are changed. Label
     changes are additive and subtractive, never a replacement of the whole set.
     Workflow status labels (status-*) are rejected on the add and the remove
-    side — those are applied with `mcp-coder gh-tool set-status <label>` from
-    the target repository's own checkout. When `body` or `body_file` is
+    side — use `github_issue_set_status`. When `body` or `body_file` is
     passed, a malformed `### Base Branch` section (more than one line) is
     rejected before any write, unless the server was started with
     `--no-enforce-base-branch-format`.
@@ -1608,6 +1599,61 @@ def github_issue_edit(
         lines.append(f"Labels: {', '.join(issue['labels']) or '(none)'}")
         lines.append(f"Assignees: {', '.join(issue['assignees']) or '(none)'}")
         return "\n".join(lines)
+    except Exception as e:
+        return _tool_error(e)
+
+
+@mcp.tool()
+@log_function_call
+def github_issue_set_status(
+    number: int,
+    status: str,
+    from_status: str | None = None,
+    reference_name: str | None = None,
+    refresh_labels: bool = False,
+) -> str:
+    """Set the workflow status label of a real GitHub issue. This writes to GitHub.
+
+    Targets the workspace repository, or a reference project's repository when
+    reference_name is given — no local clone is needed. ``status`` and
+    ``from_status`` are full ``status-*`` label names that must already exist
+    in the target repository, matched case-insensitively; list them with
+    ``github_label_list(search="status-")``. Every other ``status-*`` label on
+    the issue is removed; other labels are kept. Pull requests are rejected;
+    closed issues are allowed. A status change can start workflow automation
+    in the target repository.
+
+    Valid status labels come from a disk cache shared across sessions, kept for
+    up to 24 h; pass ``refresh_labels=True`` to reload it when a newly created
+    label is reported as not found.
+
+    Args:
+        number: Issue number.
+        status: Target status label, e.g. "status-01:created".
+        from_status: Optional guard. When set, the status is changed only if
+            the issue's sole current status label is this one; otherwise
+            nothing is written.
+        reference_name: Optional reference project name. When set, the issue is
+            changed in that project's GitHub repository instead of the
+            workspace repository.
+        refresh_labels: Force a reload of the label cache from GitHub.
+
+    Returns:
+        The old and new status with the resulting labels, a no-op or guard
+        message, the available status labels when a label is not found, or
+        error message string.
+    """
+    # Lazy import: keeps PyGithub off the server startup import path
+    from mcp_workspace.github_operations.issues.status import set_issue_status
+
+    try:
+        return set_issue_status(
+            _issue_manager(reference_name),
+            number,
+            status,
+            from_status,
+            refresh_labels,
+        )
     except Exception as e:
         return _tool_error(e)
 

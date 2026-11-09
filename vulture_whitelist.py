@@ -49,6 +49,7 @@ _.github_search
 # GitHub write tools registered in server.py
 _.github_issue_create
 _.github_issue_edit
+_.github_issue_set_status
 _.github_issue_comment
 _.github_label_list
 _.github_pr_create
@@ -247,6 +248,9 @@ _._clear_cache
 _._no_read_max_lines
 # Fixture reached through pytest.mark.usefixtures("restore_read_max_lines")
 _.restore_read_max_lines
+# Named fixtures in issues/test_status.py (issue #388, pytest collection only)
+_._cache_write  # name="cache_write"
+_._cached_labels  # name="cached_labels"
 # BaseHTTPRequestHandler overrides in the local test HTTP server (issue #359, called by http.server)
 _.do_GET
 _.log_message

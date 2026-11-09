@@ -59,9 +59,9 @@ See [step_5.md](./steps/step_5.md)
 ### Step 6: `github_issue_set_status` MCP tool + `_check_labels` wording
 See [step_6.md](./steps/step_6.md)
 
-- [ ] Implementation: new `test_github_issue_set_status.py`, reference `_TOOL_CASES`/`_TOOL_IDS`, updated `set-status` assertions; add the tool, switch `_check_labels` to `is_status_label`, delete `_STATUS_LABEL_PREFIX`, update create/edit docstrings, vulture whitelist
-- [ ] Quality checks: pylint, pytest, mypy (plus vulture) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: new `test_github_issue_set_status.py`, reference `_TOOL_CASES`/`_TOOL_IDS`, updated `set-status` assertions; add the tool, switch `_check_labels` to `is_status_label`, delete `_STATUS_LABEL_PREFIX`, update create/edit docstrings, vulture whitelist
+- [x] Quality checks: pylint, pytest, mypy (plus vulture) — fix all issues
+- [x] Commit message prepared
 
 ### Step 7: Docs and `.claude/` config
 See [step_7.md](./steps/step_7.md)
