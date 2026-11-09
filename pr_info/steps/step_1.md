@@ -60,7 +60,11 @@ return CachedLabels(labels, _footer(fetched_at))
 ```
 
 `_valid_entry`: `fetched_at` must be a parseable str, and `labels` a list of
-dicts that each have a str `name`. Otherwise return None (treated as missing).
+dicts that each have all four `LabelData` fields (`name`, `color`,
+`description`, `url`) as str. Otherwise return None, which counts as a miss
+and triggers a refetch. The file is shared with mcp-coder, and the consumers
+index every field (`github_label_list` output and search filter, the
+`set_issue_status` invalid-status list), so a partial entry must never reach them.
 
 ## DATA
 
@@ -86,4 +90,6 @@ Footer strings (exact):
 - rate limit with no entry → raises `GitHubRateLimitError`, and no file is written
 - a 500 `GithubException` with an entry → raises, and the file is unchanged
 - a corrupt file or a version mismatch → treated as a miss
+- a cached label without `description` (or with a non-str field) → treated as
+  a miss: refetches and rewrites the file
 - github.com and GHE repos with the same owner/name use different files
