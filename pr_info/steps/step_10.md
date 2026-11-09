@@ -57,8 +57,16 @@
     `pytestmark` users and the `vulture_whitelist.py` entries `setup_server` / `pytestmark` if they
     become unused. Delete the `server` / `set_project_dir` imports.
   - Delete `tests/test_server_reference_tools.py` (setter tests, a listed exception).
-  - Delete the `TestSetEnforceBaseBranchFormat` setter test in `tests/test_server_enforce_base_branch_format.py`
-    (listed exception). Its `run_server` tests were already rewritten in step 2.
+  - `tests/test_server_enforce_base_branch_format.py`:
+    - Delete the `TestSetEnforceBaseBranchFormat` setter test (listed exception). Its `run_server`
+      tests were already rewritten in step 2.
+    - Remove `_check_base_branch` and `set_enforce_base_branch_format` from the `mcp_workspace.server`
+      import (line 15), so the file still collects once both are deleted from `server`.
+    - `TestCheckBaseBranch` (62–131) calls `_check_base_branch(ctx, body)` from
+      `mcp_workspace.toolset.github_write`, with `ctx = WorkspaceContext(tmp_path, {}, None, None, False, True)`.
+      The two flag-off tests (`test_invalid_ref_flag_off_is_none`, `test_flag_off_always_none`) pass
+      `False` as the last field instead of setting `server_module._enforce_base_branch_format`.
+      Delete its `_reset_global` fixture. Assertions unchanged.
 
 ## WHAT
 
