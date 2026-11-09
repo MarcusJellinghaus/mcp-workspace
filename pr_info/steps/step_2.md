@@ -26,6 +26,12 @@ If it does not, write one line to `pr_info/.blocked.txt` and stop.
   `github_label_list` must set
   `mock_mgr.repo_identifier = RepoIdentifier("owner", "repo")`. A MagicMock
   `cache_safe_name` would produce an invalid file name.
+- `tests/github_operations/issues/test_cache_io.py::test_get_cache_file_path_basic`:
+  once `cache_dir` is autouse at this level, `_get_cache_file_path` resolves
+  under `tmp_path`. Take the `cache_dir` fixture as a parameter and expect
+  `cache_dir / "coordinator_cache" / "github_com_owner_repo.issues.json"`, as
+  `caching/test_store.py:30` does, instead of the unpatched
+  `get_user_app_data_dir("mcp_coder")`. Drop that import if it becomes unused.
 
 ## WHAT
 

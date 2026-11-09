@@ -17,14 +17,16 @@ If it does not, write one line to `pr_info/.blocked.txt` and stop.
 
 - `src/mcp_workspace/server.py`
   - new tool `github_issue_set_status`, placed after `github_issue_edit`
-  - comment at `_STATUS_LABEL_PREFIX` (`:88`)
-  - `_check_labels` error message and comment (`:142-149`)
+  - delete `_STATUS_LABEL_PREFIX` and its comment (`:88-89`)
+  - `_check_labels`: status check via `is_status_label`, error message and comment (`:142-149`)
   - `github_issue_create` / `github_issue_edit` docstrings (`:1389-1391`, `:1467-1469`)
 - `vulture_whitelist.py`: add `_.github_issue_set_status`
 - `tests/github_operations/test_github_issue_set_status.py` (new)
-- `tests/github_operations/test_github_write_tools_reference.py`: add the tool
-  to the parametrized list near `:113-119`, and update the assertions that
-  expect the old `set-status` advice
+- `tests/github_operations/test_github_write_tools_reference.py`: add
+  `(github_issue_set_status, {"number": 42, "status": "status-01:created"})` to
+  `_TOOL_CASES` (`:112-120`) and a matching `"issue_set_status"` entry to
+  `_TOOL_IDS` (`:121-129`), and update the assertions that expect the old
+  `set-status` advice
 - any other test asserting the old `_check_labels` text (search for
   `gh-tool set-status` under `tests/`)
 
@@ -61,8 +63,10 @@ def github_issue_set_status(
 - `_check_labels` message: `Error: these tools do not modify status-* labels (<offenders>). Use github_issue_set_status`.
   Remove the reference-project "own checkout" clause and its comment.
   `reference_name` stays a parameter, because the unknown-label message still uses it.
-- The `:88` comment becomes: "Workflow status labels are owned by
-  `github_issue_set_status`, not by these tools".
+- `_check_labels` finds offenders with `is_status_label(n)`, lazily imported
+  from `mcp_workspace.github_operations.issues.status` inside the function.
+  Delete `_STATUS_LABEL_PREFIX` and its comment (`:88-89`), so the status-label
+  rule lives only in `issues/status.py`.
 - create/edit docstrings: "… are rejected — use `github_issue_set_status`."
 
 ## ALGORITHM

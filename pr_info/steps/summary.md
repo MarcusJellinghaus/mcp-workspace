@@ -50,6 +50,8 @@ which `github_label_list` also uses. The general write tools keep rejecting
     message, via one small shared helper `_rate_limit_message`.
   - `_check_labels` and the create/edit docstrings point to
     `github_issue_set_status`. `_check_labels` itself stays uncached.
+  - `_check_labels` uses `issues.status.is_status_label` (lazy import);
+    `_STATUS_LABEL_PREFIX` is deleted, so the rule lives in one place.
 - **Test isolation** — the autouse `cache_dir` fixture moves from
   `tests/github_operations/caching/conftest.py` up to
   `tests/github_operations/conftest.py`, so the tool tests never write to the
