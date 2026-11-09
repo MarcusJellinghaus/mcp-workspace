@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: `build_ci_error_details` attributes links, logs and headers to each job's own run — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: tests first (`test_single_run_output_exact` on unchanged code, fixture keys, 6 new multi-run/budget tests), then per-run logs, job URLs from `html_url`, per-run headers, event labels, `(label, step)` truncation list, budget fix in `build_ci_error_details`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests first (`test_single_run_output_exact` on unchanged code, fixture keys, 6 new multi-run/budget tests), then per-run logs, job URLs from `html_url`, per-run headers, event labels, `(label, step)` truncation list, budget fix in `build_ci_error_details`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

@@ -274,24 +274,21 @@ def build_ci_error_details(
     """
     run_data: Mapping[str, Any] = status_result.get("run", {})  # type: ignore[assignment]
     jobs_data: Sequence[Mapping[str, Any]] = status_result.get("jobs", [])  # type: ignore[assignment]
-    # Extract GitHub Actions run URL for user navigation
-    run_url = str(run_data.get("url", ""))
 
     # Get all failed jobs
     failed_jobs = [job for job in jobs_data if job.get("conclusion") == "failure"]
 
-    # Collect distinct run_ids from failed jobs, preserving order
-    failed_run_ids: list[int] = list(
-        dict.fromkeys(j["run_id"] for j in failed_jobs if j.get("run_id"))
-    )
+    # Distinct run keys in first-seen order (newest first); group jobs by run
+    run_keys: list[int] = list(dict.fromkeys(j.get("run_id") or 0 for j in failed_jobs))
+    failed_jobs.sort(key=lambda j: run_keys.index(j.get("run_id") or 0))
+    multi_run = len(run_keys) > 1
 
-    # Fetch logs for up to 3 failed run_ids
-    logs: dict[str, str] = {}
-    fetched_run_ids = failed_run_ids[:3]
+    # Fetch logs per run for up to 3 failed run_ids
+    logs_by_run: dict[int, dict[str, str]] = {}
+    fetched_run_ids = [rid for rid in run_keys if rid][:3]
     for rid in fetched_run_ids:
         try:
-            run_logs = ci_manager.get_run_logs(rid)
-            logs.update(run_logs)
+            logs_by_run[rid] = ci_manager.get_run_logs(rid)
         except Exception:  # pylint: disable=broad-exception-caught
             logger.warning("Failed to get logs for run %d", rid)
 
@@ -303,7 +300,7 @@ def build_ci_error_details(
     output_lines: list[str] = []
     lines_used = 0
     jobs_shown: list[str] = []
-    jobs_truncated: list[str] = []
+    jobs_truncated: list[tuple[str, str]] = []
 
     # Prepend jobs_fetch_warning if present
     jobs_fetch_warning = run_data.get("jobs_fetch_warning")
@@ -316,17 +313,16 @@ def build_ci_error_details(
     summary_placeholder_idx = len(output_lines)
     output_lines.append("")  # Placeholder for summary
     output_lines.append("")
-    lines_used += 2
-
-    # Add GitHub Actions run URL if available
-    if run_url:
-        output_lines.append(f"GitHub Actions: {run_url}")
-        output_lines.append("")
-        lines_used += 2
+    lines_used += 3  # The summary prints 3 lines
 
     # Section 2: Show logs for each failed job until we hit the limit
+    last_header_run: int | None = None
     for job in failed_jobs:
         job_name = str(job.get("name", "unknown"))
+        run_key = job.get("run_id") or 0
+        run_url = str(job.get("run_html_url") or "")
+        event = str(job.get("run_event") or "")
+        label = f"{job_name} ({event})" if multi_run else job_name
 
         # Find first failed step
         step_name = "unknown"
@@ -337,7 +333,9 @@ def build_ci_error_details(
                 step_number = int(str(step.get("number", 0)))
                 break
 
-        log_content = _find_log_content(logs, job_name, step_number, step_name)
+        log_content = _find_log_content(
+            logs_by_run.get(run_key, {}), job_name, step_number, step_name
+        )
 
         # Strip timestamps first so ##[group] markers are parseable
         if log_content:
@@ -350,8 +348,8 @@ def build_ci_error_details(
                 log_content = extracted
 
         # Calculate how many lines this job's section would take
-        job_id = job.get("id")
-        has_job_url = bool(run_url and job_id)
+        job_url = str(job.get("html_url") or "")
+        has_job_url = bool(job_url)
         job_header_lines = 4 if has_job_url else 3
 
         if log_content:
@@ -359,19 +357,23 @@ def build_ci_error_details(
         elif has_job_url:
             log_lines = [
                 "(logs not available locally)",
-                f"View on GitHub: {run_url}/job/{job_id}",
+                f"View on GitHub: {job_url}",
             ]
         else:
             log_lines = ["(logs not available)"]
 
+        # A run header precedes the first placed job of each run
+        needs_header = bool(run_url) and run_key != last_header_run
+        header_cost = 2 if needs_header else 0
+
         # Calculate remaining budget for this job
         remaining_budget = (
-            max_lines - lines_used - job_header_lines - 5
+            max_lines - lines_used - header_cost - job_header_lines - 5
         )  # Reserve 5 for footer
 
         if remaining_budget <= 10:
             # Not enough space for meaningful logs, add to truncated list
-            jobs_truncated.append(job_name)
+            jobs_truncated.append((label, step_name))
             continue
 
         # Truncate log if needed
@@ -386,10 +388,16 @@ def build_ci_error_details(
             log_content = "\n".join(truncated_log)
             log_lines = truncated_log
 
+        if needs_header:
+            event_suffix = f" ({event})" if multi_run else ""
+            output_lines.append(f"GitHub Actions: {run_url}{event_suffix}")
+            output_lines.append("")
+            last_header_run = run_key
+
         # Add job section
         output_lines.append(f"## Job: {job_name}")
         if has_job_url:
-            output_lines.append(f"View job: {run_url}/job/{job_id}")
+            output_lines.append(f"View job: {job_url}")
         output_lines.append(f"Failed step: {step_name}")
         output_lines.append("")
         if log_content:
@@ -398,29 +406,19 @@ def build_ci_error_details(
             output_lines.append("\n".join(log_lines))
         output_lines.append("")
 
-        lines_used += job_header_lines + len(log_lines) + 1
-        jobs_shown.append(job_name)
+        lines_used += header_cost + job_header_lines + len(log_lines) + 1
+        jobs_shown.append(label)
 
     # Section 3: List jobs that didn't fit
     if jobs_truncated:
         output_lines.append(
             "## Other failed jobs (logs omitted — raise max_log_lines to include them)"
         )
-        for trunc_job_name in jobs_truncated:
-            for job in failed_jobs:
-                if str(job.get("name")) == trunc_job_name:
-                    trunc_step_name = "unknown"
-                    for step in job.get("steps", []):
-                        if step.get("conclusion") == "failure":
-                            trunc_step_name = str(step.get("name", "unknown"))
-                            break
-                    output_lines.append(
-                        f'- {trunc_job_name}: step "{trunc_step_name}" failed'
-                    )
-                    break
+        for trunc_label, trunc_step_name in jobs_truncated:
+            output_lines.append(f'- {trunc_label}: step "{trunc_step_name}" failed')
 
     # Update summary placeholder
-    all_failed = jobs_shown + jobs_truncated
+    all_failed = jobs_shown + [trunc_label for trunc_label, _ in jobs_truncated]
     output_lines[summary_placeholder_idx] = (
         f"## CI Failure Summary\n"
         f"Failed jobs ({len(all_failed)}): {', '.join(all_failed)}"
