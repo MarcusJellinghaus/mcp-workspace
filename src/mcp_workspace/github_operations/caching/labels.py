@@ -79,7 +79,15 @@ def _valid_entry(data: dict[str, Any]) -> _Entry | None:
 
 
 def _footer(fetched_at: str, error: GitHubRateLimitError | None = None) -> str:
-    """Build the footer line, marking it stale after a rate-limited refresh."""
+    """Build the footer line, marking it stale after a rate-limited refresh.
+
+    Args:
+        fetched_at: Timestamp of the cached entry.
+        error: Rate-limit error from a failed refresh, if any.
+
+    Returns:
+        The footer naming when the labels were fetched.
+    """
     footer = f"Label cache last updated {fetched_at}"
     if error is None:
         return footer
