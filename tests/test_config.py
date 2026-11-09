@@ -12,6 +12,7 @@ from mcp_workspace.config import (
     get_enterprise_hosts,
     get_github_token,
     get_github_token_with_source,
+    get_read_max_lines,
     get_test_repo_url,
     get_traffic_log_dir,
     get_trusted_commenters,
@@ -322,6 +323,45 @@ class TestGetEnterpriseHosts:
             return_value=tmp_path,
         ):
             assert get_enterprise_hosts() == frozenset()
+
+
+class TestGetReadMaxLines:
+    """Tests for get_read_max_lines()."""
+
+    def _resolve(self, tmp_path: Path) -> int | None:
+        with patch(
+            "mcp_workspace.config.get_user_app_data_dir",
+            return_value=tmp_path,
+        ):
+            return get_read_max_lines()
+
+    def test_missing_file_returns_none(self, tmp_path: Path) -> None:
+        assert self._resolve(tmp_path) is None
+
+    def test_missing_key_returns_none(self, tmp_path: Path) -> None:
+        _write_config(tmp_path, '[mcp_workspace]\nother = "value"\n')
+        assert self._resolve(tmp_path) is None
+
+    def test_returns_configured_value(self, tmp_path: Path) -> None:
+        _write_config(tmp_path, "[mcp_workspace]\nread_max_lines = 500\n")
+        assert self._resolve(tmp_path) == 500
+
+    def test_zero_returned_as_is(self, tmp_path: Path) -> None:
+        _write_config(tmp_path, "[mcp_workspace]\nread_max_lines = 0\n")
+        assert self._resolve(tmp_path) == 0
+
+    @pytest.mark.parametrize(
+        "value",
+        ["-1", "true", '"500"', "1.5"],
+        ids=["negative", "bool", "string", "float"],
+    )
+    def test_invalid_value_returns_none_with_warning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture, value: str
+    ) -> None:
+        _write_config(tmp_path, f"[mcp_workspace]\nread_max_lines = {value}\n")
+        with caplog.at_level(logging.WARNING, logger="mcp_workspace.config"):
+            assert self._resolve(tmp_path) is None
+        assert any(r.levelno == logging.WARNING for r in caplog.records)
 
 
 class TestGetTrafficLogDir:

@@ -6,6 +6,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from mcp_workspace import server as server_module
+from mcp_workspace import server_reference_tools
+from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server import (
     _check_not_gitignored,
@@ -406,6 +409,22 @@ def test_read_file_forwards_line_range_params(
         start_line=5,
         end_line=10,
         with_line_numbers=True,
+        max_lines=DEFAULT_READ_MAX_LINES,
+    )
+
+
+def test_read_file_truncates_full_read_at_configured_limit(
+    project_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A full read beyond the configured limit is cut with a paging note."""
+    monkeypatch.setattr(server_module, "_read_max_lines", 3)
+    (project_dir / "five.txt").write_text("a\nb\nc\nd\ne\n")
+
+    content = read_file("five.txt")
+
+    assert content == (
+        "a\nb\nc\n"
+        "[truncated: showing lines 1–3 of 5; continue with start_line=4, end_line=5]"
     )
 
 
@@ -567,3 +586,38 @@ class TestRunServer:
                 # Verify that set_reference_projects was called with the correct arguments
                 mock_set_ref.assert_called_once_with(test_projects)
                 mock_run.assert_called_once()
+
+    @pytest.fixture
+    def restore_read_max_lines(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Restore both modules' _read_max_lines after the test."""
+        monkeypatch.setattr(
+            server_module, "_read_max_lines", server_module._read_max_lines
+        )
+        monkeypatch.setattr(
+            server_reference_tools,
+            "_read_max_lines",
+            server_reference_tools._read_max_lines,
+        )
+
+    @pytest.mark.usefixtures("restore_read_max_lines")
+    def test_run_server_sets_read_max_lines_without_reference_projects(
+        self, project_dir: Path
+    ) -> None:
+        """read_max_lines reaches both modules even with no reference projects."""
+        with patch("mcp_workspace.server.mcp.run"):
+            run_server(project_dir, read_max_lines=7)
+
+        assert server_module._read_max_lines == 7
+        assert server_reference_tools._read_max_lines == 7
+
+    @pytest.mark.usefixtures("restore_read_max_lines")
+    def test_run_server_defaults_read_max_lines(self, project_dir: Path) -> None:
+        """Without read_max_lines, both modules use DEFAULT_READ_MAX_LINES."""
+        server_module._read_max_lines = 1
+        server_reference_tools._read_max_lines = 1
+
+        with patch("mcp_workspace.server.mcp.run"):
+            run_server(project_dir)
+
+        assert server_module._read_max_lines == DEFAULT_READ_MAX_LINES
+        assert server_reference_tools._read_max_lines == DEFAULT_READ_MAX_LINES

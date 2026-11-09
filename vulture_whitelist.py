@@ -240,6 +240,10 @@ _._reset_repository_cache
 _._traffic_log_off
 # Autouse fixture in TestGetTrafficLogDir (issue #359, pytest collection only)
 _._clear_cache
+# Autouse fixture keeping tests from reading the real read_max_lines config (issue #380, pytest collection only)
+_._no_read_max_lines
+# Fixture reached through pytest.mark.usefixtures("restore_read_max_lines")
+_.restore_read_max_lines
 # BaseHTTPRequestHandler overrides in the local test HTTP server (issue #359, called by http.server)
 _.do_GET
 _.log_message

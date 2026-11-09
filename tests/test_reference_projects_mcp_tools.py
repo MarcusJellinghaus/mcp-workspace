@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
 from mcp_workspace.reference_projects import ReferenceProject
 
 
@@ -246,10 +247,14 @@ class TestReferenceProjectMCPTools:
                 )
 
     @pytest.mark.asyncio
-    async def test_read_reference_file_success(self) -> None:
+    async def test_read_reference_file_success(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test reading file from valid reference project."""
         import mcp_workspace.server_reference_tools as server_module
         from mcp_workspace.server_reference_tools import read_reference_file
+
+        monkeypatch.setattr(server_module, "_read_max_lines", DEFAULT_READ_MAX_LINES)
 
         # Set up test reference projects
         ref_path = Path("/tmp/test_project").resolve()
@@ -282,13 +287,18 @@ class TestReferenceProjectMCPTools:
                     start_line=None,
                     end_line=None,
                     with_line_numbers=None,
+                    max_lines=DEFAULT_READ_MAX_LINES,
                 )
 
     @pytest.mark.asyncio
-    async def test_read_reference_file_forwards_line_range_params(self) -> None:
+    async def test_read_reference_file_forwards_line_range_params(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that line-range params are forwarded to read_file_util."""
         import mcp_workspace.server_reference_tools as server_module
         from mcp_workspace.server_reference_tools import read_reference_file
+
+        monkeypatch.setattr(server_module, "_read_max_lines", DEFAULT_READ_MAX_LINES)
 
         ref_path = Path("/tmp/test_project").resolve()
         test_projects = {
@@ -321,7 +331,55 @@ class TestReferenceProjectMCPTools:
                     start_line=5,
                     end_line=10,
                     with_line_numbers=True,
+                    max_lines=DEFAULT_READ_MAX_LINES,
                 )
+
+    @pytest.mark.asyncio
+    async def test_read_reference_file_truncates_at_configured_limit(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A full read is cut at the limit set via set_reference_read_max_lines."""
+        import mcp_workspace.server_reference_tools as server_module
+        from mcp_workspace.server_reference_tools import (
+            read_reference_file,
+            set_reference_read_max_lines,
+        )
+
+        monkeypatch.setattr(server_module, "_read_max_lines", DEFAULT_READ_MAX_LINES)
+        ref = tmp_path / "ref"
+        ref.mkdir()
+        (ref / "five.txt").write_text(
+            "l1\nl2\nl3\nl4\nl5\n", encoding="utf-8", newline="\n"
+        )
+        server_module._reference_projects = {
+            "ref": ReferenceProject(name="ref", path=ref.resolve()),
+        }
+
+        set_reference_read_max_lines(3)
+        with patch(
+            "mcp_workspace.server_reference_tools.ensure_available",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
+            result = await read_reference_file("ref", "five.txt")
+
+        assert result == (
+            "l1\nl2\nl3\n"
+            "[truncated: showing lines 1–3 of 5; continue with start_line=4, end_line=5]"
+        )
+
+    def test_set_reference_read_max_lines_round_trip(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The setter stores the limit in module state."""
+        import mcp_workspace.server_reference_tools as server_module
+        from mcp_workspace.server_reference_tools import set_reference_read_max_lines
+
+        monkeypatch.setattr(server_module, "_read_max_lines", DEFAULT_READ_MAX_LINES)
+
+        set_reference_read_max_lines(42)
+
+        assert server_module._read_max_lines == 42
 
     @pytest.mark.asyncio
     async def test_read_reference_file_project_not_found(self) -> None:

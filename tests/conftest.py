@@ -90,6 +90,12 @@ def _empty_trusted_commenters(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _no_read_max_lines(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep tests from reading the real ``[mcp_workspace] read_max_lines``."""
+    monkeypatch.setattr("mcp_workspace.config.get_read_max_lines", lambda: None)
+
+
+@pytest.fixture(autouse=True)
 def _empty_enterprise_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep tests from reading the real ``[github] enterprise_hosts`` list."""
     monkeypatch.setattr("mcp_workspace.config.get_enterprise_hosts", frozenset)

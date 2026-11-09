@@ -99,6 +99,28 @@ def get_traffic_log_dir() -> Path | None:
     return get_user_app_data_dir("mcp_coder") / "logs" / "github_traffic"
 
 
+def get_read_max_lines() -> int | None:
+    """Read ``[mcp_workspace] read_max_lines`` from the user config file.
+
+    Returns:
+        The configured value (``0`` = no limit) or None if not set or invalid.
+    """
+    section = _load_config().get("mcp_workspace", {})
+    if not isinstance(section, dict):
+        return None
+    value: Any = section.get("read_max_lines")
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        logger.warning(
+            "Ignoring [%s] %s in config.toml: expected a non-negative integer",
+            "mcp_workspace",
+            "read_max_lines",
+        )
+        return None
+    return value
+
+
 def _read_config_value(section: str, key: str) -> str | None:
     """Read a value from the user config file.
 

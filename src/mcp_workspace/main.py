@@ -11,7 +11,7 @@ from typing import NoReturn
 # Import logging utilities
 from mcp_coder_utils.log_utils import setup_logging
 
-from mcp_workspace import __version__
+from mcp_workspace import __version__, config
 from mcp_workspace._ssl import ensure_truststore
 from mcp_workspace.reference_projects import ReferenceProject, detect_and_verify_url
 from mcp_workspace.traffic_log import set_traffic_log_context
@@ -102,6 +102,14 @@ def parse_args(
         default=None,
         help="Default line limit for check_file_size when max_lines is omitted "
         "(must be > 0; falls back to 600 if not set).",
+    )
+    parser.add_argument(
+        "--read-max-lines",
+        type=int,
+        default=None,
+        help="Maximum lines returned by a full read_file / read_reference_file "
+        "(0 = no limit; overrides [mcp_workspace] read_max_lines in config.toml; "
+        "defaults to 2000).",
     )
     parser.add_argument(
         "--fail-on-reviews",
@@ -391,6 +399,12 @@ def _main() -> None:
             f"--file-size-limit must be a positive integer: {args.file_size_limit}"
         )
 
+    # Validate read max lines (0 = no limit, so only negatives are rejected)
+    if args.read_max_lines is not None and args.read_max_lines < 0:
+        raise ValueError(
+            f"--read-max-lines must be a non-negative integer: {args.read_max_lines}"
+        )
+
     # Activate the OS trust store BEFORE any TLS handshake can occur. This is a
     # hard guarantee owned by the entry point (not left to client call sites):
     # it covers PyGithub AND the raw `requests` download path in
@@ -407,7 +421,15 @@ def _main() -> None:
         )
 
     # Import here to avoid circular imports (after logging is configured)
+    from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
     from mcp_workspace.server import run_server
+
+    # Resolve read max lines: CLI > config.toml > built-in default
+    read_max_lines: int | None = args.read_max_lines
+    if read_max_lines is None:
+        read_max_lines = config.get_read_max_lines()
+    if read_max_lines is None:
+        read_max_lines = DEFAULT_READ_MAX_LINES
 
     stdlogger.debug(
         "Starting MCP server: project_dir=%s, log_level=%s, log_file=%s",
@@ -421,6 +443,7 @@ def _main() -> None:
         project_dir,
         reference_projects=reference_projects,
         file_size_limit=args.file_size_limit,
+        read_max_lines=read_max_lines,
         fail_on_reviews=args.fail_on_reviews,
         enforce_base_branch_format=args.enforce_base_branch_format,
     )

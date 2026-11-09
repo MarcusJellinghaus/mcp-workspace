@@ -7,6 +7,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp_coder_utils.log_utils import log_function_call
 
+from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
 from mcp_workspace.file_tools import list_files as list_files_util
 from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools import search_files as search_files_util
@@ -17,6 +18,7 @@ from mcp_workspace.utils.url_credentials import scrub_credentials
 logger = logging.getLogger(__name__)
 
 _reference_projects: dict[str, ReferenceProject] = {}
+_read_max_lines: int | None = DEFAULT_READ_MAX_LINES
 
 
 @log_function_call
@@ -34,6 +36,18 @@ def set_reference_projects(reference_projects: dict[str, ReferenceProject]) -> N
     # Log each reference project
     for project_name, project in reference_projects.items():
         logger.info("Reference project '%s' set to: %s", project_name, project.path)
+
+
+@log_function_call
+def set_reference_read_max_lines(limit: int | None) -> None:
+    """Set the full-read line limit used by read_reference_file.
+
+    Args:
+        limit: Maximum lines returned by a full read; None or 0 means no limit
+    """
+    global _read_max_lines  # pylint: disable=global-statement
+    _read_max_lines = limit
+    logger.info("Reference read max lines set to: %s", limit)
 
 
 @log_function_call
@@ -148,7 +162,10 @@ async def read_reference_file(
             sliced reads, False for full reads.
 
     Returns:
-        The contents of the file as a string
+        The contents of the file as a string. A full read beyond the
+        configured limit (default 2000 lines) is cut, followed by a note
+        giving the next start_line/end_line; an explicit range is returned
+        in full.
     """
     ref_path = await get_reference_project_path(reference_name)
 
@@ -162,6 +179,7 @@ async def read_reference_file(
         start_line=start_line,
         end_line=end_line,
         with_line_numbers=with_line_numbers,
+        max_lines=_read_max_lines,
     )
 
 

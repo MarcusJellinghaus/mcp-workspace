@@ -45,7 +45,7 @@ The `git` tool checks its arguments separately. Paths must be relative and stay 
 ## Features
 
 - `list_directory`: List all files and directories in the project directory
-- `read_file`: Read a file, or a line slice via start_line/end_line.
+- `read_file`: Read a file, or a line slice via start_line/end_line. Full reads are cut at the configured limit (see `--read-max-lines`) with a note giving the next `start_line` / `end_line`; explicit ranges are returned in full.
 - `save_file`: Write a file, creating parent directories as needed.
 - `append_file`: Append content to the end of a file
 - `delete_this_file`: Delete a single specified file from the filesystem
@@ -54,7 +54,7 @@ The `git` tool checks its arguments separately. Paths must be relative and stay 
 - `move_file`: Move or rename files and directories (git-aware: uses git mv for tracked files, else filesystem move)
 - `get_reference_projects`: Discover available reference projects
 - `list_reference_directory`: List files in reference projects
-- `read_reference_file`: Read a reference-project file, or a line slice via start_line/end_line.
+- `read_reference_file`: Read a reference-project file, or a line slice via start_line/end_line. Full reads are cut at the same limit as `read_file`, with the same continuation note; explicit ranges are returned in full.
 - Cross-repo GitHub access: the GitHub issue, pull request, search and label read tools accept `reference_name`; issues can also be created, edited and commented on
 - `Structured Logging`: Comprehensive logging system with both human-readable and JSON formats
 
@@ -78,7 +78,7 @@ pip install -e .
 Once installed, you can use the `mcp-workspace` command directly:
 
 ```bash
-mcp-workspace --project-dir /path/to/project [--reference-project NAME=/path/to/reference]... [--log-level LEVEL] [--log-file PATH] [--file-size-limit N] [--fail-on-reviews] [--enforce-base-branch-format]
+mcp-workspace --project-dir /path/to/project [--reference-project NAME=/path/to/reference]... [--log-level LEVEL] [--log-file PATH] [--file-size-limit N] [--read-max-lines N] [--fail-on-reviews] [--enforce-base-branch-format]
 ```
 
 ### Command Line Arguments:
@@ -88,6 +88,7 @@ mcp-workspace --project-dir /path/to/project [--reference-project NAME=/path/to/
 - `--log-level`: (Optional) Set logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 - `--log-file`: (Optional) Path for structured JSON logs. If not specified, logs to mcp_workspace_{timestamp}.log in project_dir/logs/.
 - `--file-size-limit`: (Optional) Default line limit for `check_file_size` when `max_lines` is omitted; must be > 0. Falls back to 600 when not set.
+- `--read-max-lines`: (Optional) Maximum lines a full `read_file` / `read_reference_file` returns; `0` = no limit. Overrides `[mcp_workspace] read_max_lines` in `config.toml`. Defaults to 2000.
 - `--fail-on-reviews`: (Optional) Default for `check_branch_status`' review gate; the tool parameter overrides per call. Off unless set.
 - `--enforce-base-branch-format` / `--no-enforce-base-branch-format`: (Optional) Reject a malformed `### Base Branch` section (more than one line, or a value that is not a valid git branch name) when creating or editing an issue body, in `github_issue_create` and `github_issue_edit`. On by default.
 
@@ -115,6 +116,15 @@ trusted_commenters = ["dependabot[bot]"]
 traffic_log = true
 # traffic_log_dir = "C:/logs/github_traffic"
 ```
+
+### `[mcp_workspace]`
+
+```toml
+[mcp_workspace]
+read_max_lines = 2000
+```
+
+`read_max_lines` is read once at startup; `0` = no limit; invalid values are ignored with a warning; `--read-max-lines` wins.
 
 ### Commenter trust
 
