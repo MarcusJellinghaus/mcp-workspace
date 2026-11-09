@@ -126,7 +126,9 @@ def run_server(project_dir, reference_projects=None, file_size_limit=None,
     `mcp_workspace.file_tools`, `mcp_workspace.git_operations`, `mcp_workspace.github_operations`,
     `mcp_workspace.checks`, `mcp_workspace.reference_projects`, `mcp_workspace.config`,
     `mcp_workspace.utils`, `mcp_coder_utils.log_utils`, `mcp_coder_utils.tool_spec`.
-    - `utils` is needed later for `scrub_credentials`; drop any dependency tach reports as unused.
+    - Declare all of them now, although most are first used in steps 3–11 (`utils` for
+      `scrub_credentials`). `tach.toml` has `exact = false`, so unused declared dependencies
+      pass the tach check; later steps don't touch this list.
   - Add `[[modules]] path = "mcp_coder_utils.tool_spec"` in layer `utilities` with `depends_on = []`.
   - Add `mcp_workspace.toolset` and `mcp_coder_utils.tool_spec` to `depends_on` for `server` and for `tests`.
 - `tests/conftest.py`: add the `make_tools` / `tools` fixtures exactly as in the summary.

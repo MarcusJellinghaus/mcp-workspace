@@ -11,7 +11,7 @@
 ## WHERE
 
 - `src/mcp_workspace/toolset/checks.py` (new)
-- `src/mcp_workspace/toolset/__init__.py` (append `checks.register`; `_GROUPS` now has all 10 register functions)
+- `src/mcp_workspace/toolset/__init__.py` (append `checks.register`; `_GROUPS` now has all 9 register functions)
 - `src/mcp_workspace/server.py`:
   - Ends up containing only `_INSTRUCTIONS`, `FastMCPSink`, `create_server` and `run_server`.
   - Delete the legacy decorator, the legacy list and `_configure_legacy`, plus `_project_dir`,

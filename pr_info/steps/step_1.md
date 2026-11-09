@@ -55,8 +55,14 @@ assert sorted(current) == sorted(expected)          # same 31 names
 for name in expected: assert current[name] == expected[name], name
 ```
 
-`_strip`: for a dict, rebuild it without the keys `description` / `title`, recursing into values;
-for a list, recurse into each item; return anything else unchanged.
+`_strip`: for a dict, rebuild it without the schema-annotation keys `description` / `title`,
+recursing into values; for a list, recurse into each item; return anything else unchanged.
+Under a `properties` key the dict maps *parameter names* to schemas: keep every key there
+(a parameter may be named `title`, e.g. `github_issue_create`, `github_issue_edit`,
+`github_pr_create`) and strip only inside each parameter's schema.
+
+The test also asserts that the `title` parameter survived: `expected["github_issue_create"]["properties"]`
+contains `"title"` with its type (`"string"`), it has no default, and it is listed in `required`.
 
 ## DATA
 
