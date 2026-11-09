@@ -150,6 +150,8 @@ Run A = `.../runs/100`, event `push` (older). Run B = `.../runs/200`, event `pul
      `log from run 100` appears after A's header.
 4. `test_job_beyond_log_cap_has_correct_link`
    - Setup: 4 runs (ids 1-4), each with one failed job `test`, `html_url=f".../runs/{rid}/job/{rid}"`.
+     The jobs appear in `jobs` in the order run 1, 2, 3, 4, so run 4 falls past the `[:3]` fetch cap.
+     This deliberately differs from the newest-first order used for runs A/B above.
      `get_run_logs.side_effect = lambda rid: {"0_test.txt": f"log from run {rid}"}`, so runs 1-3
      have non-empty logs that match run 4's job name.
    - Assert:
