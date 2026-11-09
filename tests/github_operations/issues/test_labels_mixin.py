@@ -1,7 +1,7 @@
 """Unit tests for IssueManager label operations with mocked dependencies."""
 
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from github.GithubException import GithubException
@@ -193,6 +193,78 @@ class TestIssueManagerLabels:
         result = getattr(mock_issue_manager, method)(1, "bug")
 
         assert result["author_association"] == "CONTRIBUTOR"
+
+
+@pytest.mark.git_integration
+class TestGetIssueForStatus:
+    """Unit tests for IssueManager.get_issue_for_status."""
+
+    def _make_issue(self, number: int, state: str, labels: list[str]) -> MagicMock:
+        """Build a non-PR mock issue with the given state and labels."""
+        mock_issue = make_mock_issue(number)
+        mock_issue.pull_request = None
+        mock_issue.state = state
+        mock_issue.labels = []
+        for name in labels:
+            label = MagicMock()
+            label.name = name
+            mock_issue.labels.append(label)
+        mock_issue.html_url = f"https://github.com/test/repo/issues/{number}"
+        return mock_issue
+
+    def test_open_issue_returns_data(self, mock_issue_manager: IssueManager) -> None:
+        """An open issue comes back with its labels and state, fetched once."""
+        mock_issue = self._make_issue(5, "open", ["bug", "status-01:created"])
+        mock_issue_manager._repository.get_issue.return_value = mock_issue
+
+        result = mock_issue_manager.get_issue_for_status(5)
+
+        assert result["number"] == 5
+        assert result["state"] == "open"
+        assert result["labels"] == ["bug", "status-01:created"]
+        assert result["url"] == "https://github.com/test/repo/issues/5"
+        mock_issue_manager._repository.get_issue.assert_called_once_with(5)
+
+    def test_closed_issue_returned(self, mock_issue_manager: IssueManager) -> None:
+        """A closed issue is returned, not rejected."""
+        mock_issue = self._make_issue(6, "closed", [])
+        mock_issue_manager._repository.get_issue.return_value = mock_issue
+
+        result = mock_issue_manager.get_issue_for_status(6)
+
+        assert result["state"] == "closed"
+
+    def test_pull_request_rejected(self, mock_issue_manager: IssueManager) -> None:
+        """A pull request number raises ValueError."""
+        mock_issue = self._make_issue(7, "open", [])
+        mock_issue.pull_request = MagicMock()
+        mock_issue_manager._repository.get_issue.return_value = mock_issue
+
+        with pytest.raises(ValueError, match="is a pull request"):
+            mock_issue_manager.get_issue_for_status(7)
+
+    def test_not_found_propagates(self, mock_issue_manager: IssueManager) -> None:
+        """A 404 is not swallowed into an empty result."""
+        error = GithubException(404, {"message": "Not Found"}, None)
+        mock_issue_manager._repository.get_issue.side_effect = error
+
+        with pytest.raises(GithubException) as exc_info:
+            mock_issue_manager.get_issue_for_status(8)
+
+        assert exc_info.value is error
+
+    def test_invalid_issue_number(self, mock_issue_manager: IssueManager) -> None:
+        """Issue number 0 raises ValueError."""
+        with pytest.raises(ValueError, match="Issue number must be a positive integer"):
+            mock_issue_manager.get_issue_for_status(0)
+
+    def test_repository_unavailable_raises(
+        self, mock_issue_manager: IssueManager
+    ) -> None:
+        """An unavailable repository raises instead of returning empty data."""
+        with patch.object(IssueManager, "_get_repository", return_value=None):
+            with pytest.raises(ValueError, match="Could not access repository"):
+                mock_issue_manager.get_issue_for_status(1)
 
 
 @pytest.mark.git_integration

@@ -38,9 +38,9 @@ See [step_2.md](./steps/step_2.md)
 ### Step 3: `LabelsMixin.get_issue_for_status`
 See [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: tests in `test_labels_mixin.py`, then `get_issue_for_status` (no `_handle_github_errors`, PR rejection, repo-unavailable `ValueError`)
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests in `test_labels_mixin.py`, then `get_issue_for_status` (no `_handle_github_errors`, PR rejection, repo-unavailable `ValueError`)
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: `set_issue_labels_in_cache` (coordinator issue cache)
 See [step_4.md](./steps/step_4.md)
