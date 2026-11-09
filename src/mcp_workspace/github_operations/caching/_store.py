@@ -31,14 +31,14 @@ MAX_AGE = timedelta(hours=6)
 _REPLACE_RETRY_DELAY_SECONDS: float = 0.1
 
 
-def new_expiry(now: datetime) -> str:
-    """Return an ``expires_at`` string jittered within the last quarter of MAX_AGE.
+def new_expiry(now: datetime, max_age: timedelta = MAX_AGE) -> str:
+    """Return an ``expires_at`` string jittered within the last quarter of max_age.
 
     The jitter spreads rechecks of entries written in the same run over
     later runs.
     """
     jitter = random.uniform(0.75, 1.0)  # noqa: S311 -- not security  # nosec B311
-    return format_for_cache(now + MAX_AGE * jitter)
+    return format_for_cache(now + max_age * jitter)
 
 
 def is_expired(entry: Mapping[str, Any], now: datetime) -> bool:

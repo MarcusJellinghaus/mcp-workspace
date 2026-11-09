@@ -544,7 +544,7 @@ def test_github_issue_edit_rejects_status_label_on_add_side(
 
     assert result.startswith("Error:")
     assert "status-04:in-progress" in result
-    assert "set-status" in result
+    assert "github_issue_set_status" in result
     mock_mgr.edit_issue.assert_not_called()
 
 
@@ -560,7 +560,7 @@ def test_github_issue_edit_rejects_status_label_on_remove_side(
 
     assert result.startswith("Error:")
     assert "status-04:in-progress" in result
-    assert "set-status" in result
+    assert "github_issue_set_status" in result
     mock_mgr.edit_issue.assert_not_called()
 
 
@@ -575,7 +575,7 @@ def test_github_issue_edit_rejects_differently_cased_status_label(
     result = github_issue_edit(number=42, remove_labels=["Status-04:in-progress"])
 
     assert result.startswith("Error:")
-    assert "set-status" in result
+    assert "github_issue_set_status" in result
     mock_mgr.edit_issue.assert_not_called()
 
 

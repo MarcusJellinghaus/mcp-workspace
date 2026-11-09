@@ -44,7 +44,7 @@ GitHub tools:
 - `github_issue_view` fences text from untrusted authors in `<untrusted>` tags, and issue list and search tools mark their rows. These are labels for the agent, not enforcement. File content and git output carry no such label.
 - `github_pr_view` and `check_branch_status` withhold PR text from untrusted authors. See [Commenter trust](README.md#commenter-trust).
 - `reference_name` accepts only configured reference projects.
-- Issue tools refuse `status-*` labels.
+- General issue tools refuse `status-*` labels. Only `github_issue_set_status` changes them, and only to a label that already exists in the target repository.
 - The `/approve` workflow only acts on comments from `OWNER`, `MEMBER` or `COLLABORATOR`.
 
 ## Credentials
@@ -63,7 +63,7 @@ In scope are bypasses of the restrictions above, such as:
 - file tools reaching `.git` or the content of gitignored paths
 - the `git` tool changing anything beyond what `fetch` updates
 - getting untrusted text shown to the agent as trusted
-- changing an issue's status label through these tools, or promoting an issue without being trusted
+- changing an issue's status label through any tool other than `github_issue_set_status`, or promoting an issue without being trusted
 - credential handling
 
 Out of scope:

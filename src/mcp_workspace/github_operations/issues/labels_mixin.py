@@ -71,6 +71,38 @@ class LabelsMixin:
 
         return labels
 
+    # No @_handle_github_errors here: that decorator swallows every
+    # non-401/403 GithubException, so a 404 or 5xx would come back as an
+    # empty ``number == 0`` result instead of an error the caller can report.
+    @log_function_call
+    def get_issue_for_status(self: BaseGitHubManager, issue_number: int) -> IssueData:
+        """Fetch an issue for a status change, without the base-branch lookup.
+
+        Args:
+            issue_number: Issue number to fetch
+
+        Returns:
+            IssueData with the issue's current number, state, labels and url
+
+        Raises:
+            ValueError: If the issue number is invalid, the repository cannot
+                be accessed, or the number refers to a pull request.
+            IssueIdentityMismatchError: If GitHub returns an issue from another
+                repository (the issue was transferred) or with a different number.
+            GithubException: If the GitHub API call fails.
+        """  # noqa: DOC502  # IssueIdentityMismatchError/GithubException come from _get_issue_checked
+        validate_issue_number(issue_number)
+
+        repo = self._get_repository()
+        if repo is None:
+            raise ValueError("Could not access repository")
+
+        github_issue = self._get_issue_checked(repo, issue_number)
+        if github_issue.pull_request is not None:
+            raise ValueError(f"#{issue_number} is a pull request, not an issue")
+
+        return issue_to_data(github_issue)
+
     @log_function_call
     @_handle_github_errors(default_return=create_empty_issue_data())
     def add_labels(

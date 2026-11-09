@@ -14,6 +14,7 @@ from urllib3.exceptions import MaxRetryError, ResponseError
 from mcp_workspace import server
 from mcp_workspace.github_operations import CIResultsManager, clear_login_cache
 from mcp_workspace.github_operations._network import _reset_network_diagnostics_guard
+from mcp_workspace.github_operations.caching import _store
 from mcp_workspace.github_operations.issues import CacheData, IssueData, IssueManager
 from mcp_workspace.github_operations.issues import manager as manager_module
 from mcp_workspace.server import set_project_dir
@@ -48,6 +49,13 @@ def make_retry_error(status: int) -> RetryError:
     """Build the RetryError requests raises once GithubRetry gives up on `status`."""
     reason = ResponseError(ResponseError.SPECIFIC_ERROR.format(status_code=status))
     return RetryError(MaxRetryError(None, "/repos/o/r", reason))  # type: ignore[arg-type]
+
+
+@pytest.fixture(autouse=True)
+def cache_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Redirect the app-data dir to ``tmp_path`` so no test touches the real one."""
+    monkeypatch.setattr(_store, "get_user_app_data_dir", lambda _app: tmp_path)
+    return tmp_path
 
 
 @pytest.fixture(autouse=True)

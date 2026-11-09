@@ -152,7 +152,7 @@ def test_github_issue_create_rejects_status_label(
 
     assert result.startswith("Error:")
     assert "status-01:created" in result
-    assert "set-status" in result
+    assert "github_issue_set_status" in result
     mock_mgr.create_issue.assert_not_called()
     mock_mgr.get_available_labels.assert_not_called()
 
@@ -393,7 +393,7 @@ def test_github_issue_create_rejects_differently_cased_status_label(
     result = github_issue_create(title="Test issue", labels=["Status-01:created"])
 
     assert result.startswith("Error:")
-    assert "set-status" in result
+    assert "github_issue_set_status" in result
     mock_mgr.create_issue.assert_not_called()
     mock_mgr.get_available_labels.assert_not_called()
 

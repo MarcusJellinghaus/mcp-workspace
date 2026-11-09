@@ -54,6 +54,7 @@ If you can't name the gap, use the MCP tool. Exempt: the approved git/gh command
 | Search GitHub | `mcp__mcp-workspace__github_search` |
 | Create GitHub issue | `mcp__mcp-workspace__github_issue_create` |
 | Edit GitHub issue | `mcp__mcp-workspace__github_issue_edit` |
+| Set issue workflow status | `mcp__mcp-workspace__github_issue_set_status` |
 | Comment on GitHub issue | `mcp__mcp-workspace__github_issue_comment` |
 | Reply to inline PR review comment | `mcp__mcp-workspace__github_review_comment_reply` |
 | Resolve inline PR review thread | `mcp__mcp-workspace__github_review_thread_resolve` |
@@ -112,7 +113,7 @@ gh run view
 mcp-coder gh-tool set-status <label>
 ```
 
-**Status labels:** use `mcp-coder gh-tool set-status` to change issue workflow status — never use raw `gh issue edit` with label flags.
+**Status labels:** use `mcp__mcp-workspace__github_issue_set_status` to change issue workflow status (works for reference projects too). Skills that still call `mcp-coder gh-tool set-status` may keep using it. Never use raw `gh issue edit` with label flags.
 
 **Slash-prefixed `gh` arguments:** prefix with `MSYS_NO_PATHCONV=1` — Git Bash rewrites a leading `/` into a Windows path.
 

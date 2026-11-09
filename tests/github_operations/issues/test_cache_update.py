@@ -14,7 +14,133 @@ import pytest
 from mcp_workspace.github_operations.issues import (
     update_issue_labels_in_cache,
 )
+from mcp_workspace.github_operations.issues.cache_labels import (
+    set_issue_labels_in_cache,
+)
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
+
+_CACHE_LOGGER = "mcp_workspace.github_operations.issues.cache_labels"
+_CACHE_PATH_TARGET = f"{_CACHE_LOGGER}._get_cache_file_path"
+
+
+def _cached_issue(number: int, labels: list[str]) -> dict[str, object]:
+    """Build a minimal cached issue entry."""
+    return {
+        "number": number,
+        "state": "open",
+        "labels": labels,
+        "updated_at": "2025-01-03T09:00:00Z",
+        "url": f"https://github.com/test/repo/issues/{number}",
+        "title": f"Issue {number}",
+        "body": "Body",
+        "assignees": [],
+        "user": "testuser",
+        "created_at": "2025-01-03T08:00:00Z",
+        "locked": False,
+        "author_association": "OWNER",
+    }
+
+
+class TestSetIssueLabelsInCache:
+    """Tests for set_issue_labels_in_cache function."""
+
+    def test_replaces_labels_only(self, tmp_path: Path) -> None:
+        """The cached issue's labels are replaced; nothing else changes."""
+        cache_path = tmp_path / "test_cache.json"
+        other_issue = _cached_issue(456, ["status-05:plan-ready"])
+        initial_cache = {
+            "last_checked": "2025-01-03T10:30:00Z",
+            "issues": {
+                "123": _cached_issue(123, ["status-02:awaiting-planning", "bug"]),
+                "456": other_issue,
+            },
+            "cached_at": {"123": "2025-01-03T10:00:00Z"},
+        }
+        cache_path.write_text(json.dumps(initial_cache))
+
+        with patch(_CACHE_PATH_TARGET, return_value=cache_path):
+            set_issue_labels_in_cache(
+                RepoIdentifier.from_full_name("test/repo"),
+                123,
+                ["status-03:planning", "enhancement"],
+            )
+
+        updated_cache = json.loads(cache_path.read_text())
+        assert updated_cache["issues"]["123"]["labels"] == [
+            "status-03:planning",
+            "enhancement",
+        ]
+        assert updated_cache["issues"]["456"] == other_issue
+        assert updated_cache["last_checked"] == "2025-01-03T10:30:00Z"
+        assert updated_cache["cached_at"] == {"123": "2025-01-03T10:00:00Z"}
+
+    def test_missing_issue_logs_debug_and_does_not_save(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """An uncached issue is logged at debug level and the file is untouched."""
+        caplog.set_level(logging.DEBUG, logger=_CACHE_LOGGER)
+        cache_path = tmp_path / "test_cache.json"
+        initial_cache = {
+            "last_checked": "2025-01-03T10:30:00Z",
+            "issues": {"456": _cached_issue(456, ["bug"])},
+        }
+        cache_path.write_text(json.dumps(initial_cache))
+
+        with (
+            patch(_CACHE_PATH_TARGET, return_value=cache_path),
+            patch(f"{_CACHE_LOGGER}._save_cache_file") as mock_save,
+        ):
+            set_issue_labels_in_cache(
+                RepoIdentifier.from_full_name("test/repo"), 123, ["new-label"]
+            )
+
+        mock_save.assert_not_called()
+        assert json.loads(cache_path.read_text()) == initial_cache
+        debug_messages = [
+            r.message for r in caplog.records if r.levelno == logging.DEBUG
+        ]
+        assert any("#123" in msg for msg in debug_messages)
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+    def test_failed_save_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A failed save is logged as a warning and does not raise."""
+        caplog.set_level(logging.WARNING, logger=_CACHE_LOGGER)
+
+        with (
+            patch(_CACHE_PATH_TARGET, return_value=Path("/fake/cache.json")),
+            patch(
+                f"{_CACHE_LOGGER}._load_cache_file",
+                return_value={
+                    "last_checked": None,
+                    "issues": {"123": _cached_issue(123, ["old-label"])},
+                },
+            ),
+            patch(f"{_CACHE_LOGGER}._save_cache_file", return_value=False),
+        ):
+            set_issue_labels_in_cache(
+                RepoIdentifier.from_full_name("test/repo"), 123, ["new-label"]
+            )
+
+        warnings = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("#123" in msg for msg in warnings)
+
+    def test_load_error_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        """An exception while loading is caught and logged as a warning."""
+        caplog.set_level(logging.WARNING, logger=_CACHE_LOGGER)
+
+        with (
+            patch(_CACHE_PATH_TARGET, return_value=Path("/fake/cache.json")),
+            patch(
+                f"{_CACHE_LOGGER}._load_cache_file",
+                side_effect=Exception("Cache error"),
+            ),
+        ):
+            set_issue_labels_in_cache(
+                RepoIdentifier.from_full_name("test/repo"), 123, ["new-label"]
+            )
+
+        warnings = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("Cache error" in msg for msg in warnings)
 
 
 class TestCacheIssueUpdate:
@@ -49,7 +175,7 @@ class TestCacheIssueUpdate:
 
             # Mock _get_cache_file_path to return our test path
             with patch(
-                "mcp_workspace.github_operations.issues.cache._get_cache_file_path"
+                "mcp_workspace.github_operations.issues.cache_labels._get_cache_file_path"
             ) as mock_path:
                 mock_path.return_value = cache_path
 
@@ -97,7 +223,7 @@ class TestCacheIssueUpdate:
             cache_path.write_text(json.dumps(initial_cache))
 
             with patch(
-                "mcp_workspace.github_operations.issues.cache._get_cache_file_path"
+                "mcp_workspace.github_operations.issues.cache_labels._get_cache_file_path"
             ) as mock_path:
                 mock_path.return_value = cache_path
 
@@ -144,7 +270,7 @@ class TestCacheIssueUpdate:
             cache_path.write_text(json.dumps(initial_cache))
 
             with patch(
-                "mcp_workspace.github_operations.issues.cache._get_cache_file_path"
+                "mcp_workspace.github_operations.issues.cache_labels._get_cache_file_path"
             ) as mock_path:
                 mock_path.return_value = cache_path
 
@@ -168,7 +294,8 @@ class TestCacheIssueUpdate:
     ) -> None:
         """Test graceful handling when issue not found in cache."""
         caplog.set_level(
-            logging.WARNING, logger="mcp_workspace.github_operations.issues.cache"
+            logging.WARNING,
+            logger="mcp_workspace.github_operations.issues.cache_labels",
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -197,7 +324,7 @@ class TestCacheIssueUpdate:
             cache_path.write_text(json.dumps(initial_cache))
 
             with patch(
-                "mcp_workspace.github_operations.issues.cache._get_cache_file_path"
+                "mcp_workspace.github_operations.issues.cache_labels._get_cache_file_path"
             ) as mock_path:
                 mock_path.return_value = cache_path
 
@@ -222,7 +349,8 @@ class TestCacheIssueUpdate:
     ) -> None:
         """Test handling of corrupted cache file structure."""
         caplog.set_level(
-            logging.WARNING, logger="mcp_workspace.github_operations.issues.cache"
+            logging.WARNING,
+            logger="mcp_workspace.github_operations.issues.cache_labels",
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -233,7 +361,7 @@ class TestCacheIssueUpdate:
             cache_path.write_text(json.dumps(invalid_cache))
 
             with patch(
-                "mcp_workspace.github_operations.issues.cache._get_cache_file_path"
+                "mcp_workspace.github_operations.issues.cache_labels._get_cache_file_path"
             ) as mock_path:
                 mock_path.return_value = cache_path
 
@@ -256,18 +384,19 @@ class TestCacheIssueUpdate:
     ) -> None:
         """Test handling of file permission errors."""
         caplog.set_level(
-            logging.WARNING, logger="mcp_workspace.github_operations.issues.cache"
+            logging.WARNING,
+            logger="mcp_workspace.github_operations.issues.cache_labels",
         )
 
         with (
             patch(
-                "mcp_workspace.github_operations.issues.cache._get_cache_file_path"
+                "mcp_workspace.github_operations.issues.cache_labels._get_cache_file_path"
             ) as mock_path,
             patch(
-                "mcp_workspace.github_operations.issues.cache._load_cache_file"
+                "mcp_workspace.github_operations.issues.cache_labels._load_cache_file"
             ) as mock_load,
             patch(
-                "mcp_workspace.github_operations.issues.cache._save_cache_file"
+                "mcp_workspace.github_operations.issues.cache_labels._save_cache_file"
             ) as mock_save,
         ):
             mock_path.return_value = Path("/fake/cache.json")
@@ -310,7 +439,7 @@ class TestCacheIssueUpdate:
     ) -> None:
         """Test proper logging behavior during successful updates."""
         caplog.set_level(
-            logging.DEBUG, logger="mcp_workspace.github_operations.issues.cache"
+            logging.DEBUG, logger="mcp_workspace.github_operations.issues.cache_labels"
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -338,7 +467,7 @@ class TestCacheIssueUpdate:
             cache_path.write_text(json.dumps(initial_cache))
 
             with patch(
-                "mcp_workspace.github_operations.issues.cache._get_cache_file_path"
+                "mcp_workspace.github_operations.issues.cache_labels._get_cache_file_path"
             ) as mock_path:
                 mock_path.return_value = cache_path
 
@@ -401,7 +530,7 @@ class TestCacheUpdateIntegration:
 
             # Mock only the cache file path to point to our test cache
             with patch(
-                "mcp_workspace.github_operations.issues.cache._get_cache_file_path"
+                "mcp_workspace.github_operations.issues.cache_labels._get_cache_file_path"
             ) as mock_path:
                 mock_path.return_value = cache_path
 
@@ -463,7 +592,7 @@ class TestCacheUpdateIntegration:
             cache_path.write_text(json.dumps(initial_cache))
 
             with patch(
-                "mcp_workspace.github_operations.issues.cache._get_cache_file_path"
+                "mcp_workspace.github_operations.issues.cache_labels._get_cache_file_path"
             ) as mock_path:
                 mock_path.return_value = cache_path
 
@@ -497,15 +626,16 @@ class TestCacheUpdateIntegration:
     ) -> None:
         """Test that cache update failures don't interrupt dispatch workflow."""
         caplog.set_level(
-            logging.WARNING, logger="mcp_workspace.github_operations.issues.cache"
+            logging.WARNING,
+            logger="mcp_workspace.github_operations.issues.cache_labels",
         )
 
         with (
             patch(
-                "mcp_workspace.github_operations.issues.cache._get_cache_file_path"
+                "mcp_workspace.github_operations.issues.cache_labels._get_cache_file_path"
             ) as mock_path,
             patch(
-                "mcp_workspace.github_operations.issues.cache._load_cache_file",
+                "mcp_workspace.github_operations.issues.cache_labels._load_cache_file",
                 side_effect=Exception("Cache error"),
             ),
         ):
