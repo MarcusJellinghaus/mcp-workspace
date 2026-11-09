@@ -168,15 +168,22 @@ closed rather than removed.
 
 ### Test 4.1: Issue create → edit → comment → close
 
-1. `github_label_list()` — expect one line per label with name, `#color` and description
+1. `github_label_list()` — expect one line per label with name, `#color` and description, then a `Label cache last updated …` footer
 2. `github_label_list(search="bug")` — expect the filtered subset
 3. `github_issue_create(title="LLM test - safe to close", body="Created by tests/LLM_Test.md Section 4.")` — expect `Created issue #N — <url>`, then `Labels: (none)` and `Assignees: (none)`
 4. `github_issue_comment(number=<N from step 3>, body="Test comment.\nSecond line.")` — expect `Added comment to issue #N — <url>`
 5. `github_issue_edit(number=<N>, title="LLM test - edited", add_labels=["<a real label from step 1>"])` — expect `Updated issue #N`, then a `Labels:` line containing that label
 6. `github_issue_edit(number=<N>, remove_labels=["<a label NOT on the issue>"])` — expect success, not an error: the no-op removal is filtered out
-7. `github_issue_edit(number=<N>, add_labels=["status-01:created"])` — expect an error naming `mcp-coder gh-tool set-status`, and no change to the issue
+7. `github_issue_edit(number=<N>, add_labels=["status-01:created"])` — expect an error naming `github_issue_set_status`, and no change to the issue
 8. `github_issue_edit(number=<N>, add_labels=["definitely-not-a-real-label"])` — expect an error naming the unknown label
-9. `github_issue_edit(number=<N>, state="closed")` — expect `(state: closed)`
+9. `github_label_list(search="status-")` — expect the repo's status labels, then a `Label cache last updated …` footer
+10. `github_issue_set_status(number=<N>, status="2")` — expect `Label "2" not found. Available status labels:` with the list from step 9 and the footer; no change to the issue
+11. `github_issue_set_status(number=<N>, status="<a status label from step 9>")` — expect `Issue #N status: <none> → <that label>`, then a `Labels:` line containing it
+12. The same call again — expect `Issue #N already has status <that label>; nothing changed.`
+13. `github_issue_set_status(number=<N>, status="<another status label>", from_status="<a status label the issue does not have>")` — expect `Status of issue #N not changed: current status is <label from step 11>, …`, and no change to the issue
+14. `github_issue_set_status(number=<a PR number>, status="<a status label>")` — expect `#<PR number> is a pull request, not an issue`
+15. None of the tools can remove a status label, so the test issue keeps it; it is closed in the next step
+16. `github_issue_edit(number=<N>, state="closed")` — expect `(state: closed)`
 
 ### Test 4.1b: Issue body from a file (`body_file`)
 
@@ -196,12 +203,13 @@ closed rather than removed.
 2. `github_label_list(reference_name=<name>)` — expect that repo's labels, one per line
 3. `github_issue_create(title="LLM test - safe to close", body="Created by tests/LLM_Test.md Section 4.", reference_name=<name>)` — expect `Created issue #N — <url>`, with the URL pointing at the sibling repo
 4. `github_issue_comment(number=<N from step 3>, body="Test comment.", reference_name=<name>)` — expect `Added comment to issue #N — <url>`
-5. `github_issue_edit(number=<N>, add_labels=["status-01:created"], reference_name=<name>)` — expect an error naming `mcp-coder gh-tool set-status` and that project's own checkout, and no change to the issue
-6. `github_issue_create(title="LLM test child - safe to close", body="Created by tests/LLM_Test.md Section 4.", reference_name=<name>)` — expect `Created issue #C — <url>`; `#N` from step 3 is the parent
-7. `github_subissue_add(parent_number=<N>, child_number=<C>, reference_name=<name>)` — expect `Linked #C as a sub-issue of #N — <url>`, with the URL pointing at the sibling repo. One `reference_name` scopes both numbers; cross-repo linking is not supported
-8. `github_subissue_list(parent_number=<N>, reference_name=<name>)` — expect one line `#C  open  LLM test child - safe to close`
-9. `github_subissue_remove(parent_number=<N>, child_number=<C>, reference_name=<name>)` — expect `Unlinked #C from #N — <url>`
-10. `github_issue_edit(number=<N>, state="closed", reference_name=<name>)` and the same for `#C` — expect `(state: closed)` for both
+5. `github_issue_edit(number=<N>, add_labels=["status-01:created"], reference_name=<name>)` — expect an error naming `github_issue_set_status`, and no change to the issue
+6. `github_issue_set_status(number=<N>, status="<a status label of that repo>", reference_name=<name>)` — pick the label from `github_label_list(search="status-", reference_name=<name>)`; expect `Issue #N status: <none> → <that label>` and a `Labels:` line containing it, on the sibling repo's issue
+7. `github_issue_create(title="LLM test child - safe to close", body="Created by tests/LLM_Test.md Section 4.", reference_name=<name>)` — expect `Created issue #C — <url>`; `#N` from step 3 is the parent
+8. `github_subissue_add(parent_number=<N>, child_number=<C>, reference_name=<name>)` — expect `Linked #C as a sub-issue of #N — <url>`, with the URL pointing at the sibling repo. One `reference_name` scopes both numbers; cross-repo linking is not supported
+9. `github_subissue_list(parent_number=<N>, reference_name=<name>)` — expect one line `#C  open  LLM test child - safe to close`
+10. `github_subissue_remove(parent_number=<N>, child_number=<C>, reference_name=<name>)` — expect `Unlinked #C from #N — <url>`
+11. `github_issue_edit(number=<N>, state="closed", reference_name=<name>)` and the same for `#C` — expect `(state: closed)` for both
 
 ### Test 4.3: PR creation guards (no PR is created)
 

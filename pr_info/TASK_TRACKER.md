@@ -66,9 +66,9 @@ See [step_6.md](./steps/step_6.md)
 ### Step 7: Docs and `.claude/` config
 See [step_7.md](./steps/step_7.md)
 
-- [ ] Implementation: update `SECURITY.md`, `README.md`, `tests/LLM_Test.md`, `.claude/CLAUDE.md`, `.claude/settings.local.json`
-- [ ] Quality checks: pylint, pytest, mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: update `SECURITY.md`, `README.md`, `tests/LLM_Test.md`, `.claude/CLAUDE.md`, `.claude/settings.local.json`
+- [x] Quality checks: pylint, pytest, mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

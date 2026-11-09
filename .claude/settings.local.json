@@ -76,6 +76,7 @@
       "mcp__mcp-workspace__github_pr_view",
       "mcp__mcp-workspace__github_search",
       "mcp__mcp-workspace__github_label_list",
+      "mcp__mcp-workspace__github_issue_set_status",
       "mcp__mcp-tools-py__run_tach_check",
       "mcp__mcp-workspace__delete_directory",
       "mcp__mcp-tools-py__run_deptry_check"

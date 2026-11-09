@@ -55,7 +55,7 @@ The `git` tool checks its arguments separately. Paths must be relative and stay 
 - `get_reference_projects`: Discover available reference projects
 - `list_reference_directory`: List files in reference projects
 - `read_reference_file`: Read a reference-project file, or a line slice via start_line/end_line. Full reads are cut at the same limit as `read_file`, with the same continuation note; explicit ranges are returned in full.
-- Cross-repo GitHub access: the GitHub issue, pull request, search and label read tools accept `reference_name`; issues can also be created, edited and commented on
+- Cross-repo GitHub access: the GitHub issue, pull request, search and label read tools accept `reference_name`; issues can also be created, edited, commented on and have their workflow status changed
 - `Structured Logging`: Comprehensive logging system with both human-readable and JSON formats
 
 ## Installation
@@ -181,8 +181,9 @@ Files, one set per repository, in `<app-data>/mcp_coder/coordinator_cache/`:
 | `<owner_repo>.issues.json` | Issue cache |
 | `<owner_repo>.prs.json` | Open-PR snapshot and per-PR results |
 | `<owner_repo>.branches.json` | Issue → branch lookups |
+| `<owner_repo>.labels.json` | Repository labels, used by `github_label_list` and `github_issue_set_status` |
 
-All three are safe to delete; they are rebuilt on the next run. A corrupt or version-mismatched `.prs.json` / `.branches.json` is treated as empty.
+All four are safe to delete; they are rebuilt on the next run. A corrupt or version-mismatched `.prs.json` / `.branches.json` is treated as empty.
 
 ### Validity
 
@@ -190,6 +191,7 @@ All three are safe to delete; they are rebuilt on the next run. A corrupt or ver
 - A 6 h maximum age per entry is only a safety net; expiry is spread out so entries are rechecked a few at a time.
 - Not-final results are returned but never stored. Errors are never stored, except a 403/404 on code-scanning alerts (alerts could not be checked), which is stored as a skip.
 - On a rate limit, `GitHubRateLimitError` is raised (`message`, `reset_at`) and nothing is saved for that run.
+- The label cache has no fingerprint: it is kept for up to 24 h and reloaded only when missing, invalid or expired, or on `refresh_labels=True`. A rate-limited reload falls back to the existing entry and marks the footer stale.
 
 ### What is cached
 
@@ -212,7 +214,7 @@ A relabel bumps the issue's `updated_at` and so invalidates every entry for that
 - `fix_conflict` mergeability polling
 - CI wait loops in `check_branch_status` / `create_pr`
 - CI status for a branch without an open PR
-- All MCP server tools
+- All MCP server tools, except the label lists of `github_label_list` and `github_issue_set_status`
 
 ### Concurrency
 
@@ -379,9 +381,10 @@ The server exposes the following MCP tools:
 | `github_issue_list` | Lists GitHub issues with optional filters | "List the open issues assigned to me" |
 | `github_pr_view` | Shows a GitHub pull request with its reviews and comments | "Show me pull request 42" |
 | `github_search` | Searches issues and pull requests in one repository | "Find issues mentioning the reference cache" |
-| `github_label_list` | Lists the labels defined in a repository | "What labels does this repo use?" |
+| `github_label_list` | Lists the labels defined in a repository, from a 24 h label cache shared across sessions; output ends with a `Label cache last updated …` footer, and `refresh_labels=True` reloads the cache | "What labels does this repo use?" |
 | `github_issue_create` | Creates a GitHub issue; the body can come from a project file (`body_file`) | "Open an issue for the failing import check" |
 | `github_issue_edit` | Edits a GitHub issue's title, body or labels; the body can come from a project file (`body_file`) | "Retitle issue 12" |
+| `github_issue_set_status` | Sets an issue's workflow `status-*` label, replacing any other status label — see [Set Issue Status](#set-issue-status) | "Move issue 42 to status-05:plan-ready" |
 | `github_subissue_add` | Links an issue as a sub-issue of another; the reported count is approximate (use `github_subissue_list` for the exact set) | "Make issue 43 a sub-issue of 42" |
 | `github_subissue_list` | Lists an issue's sub-issues | "What are the sub-issues of issue 42?" |
 | `github_subissue_remove` | Unlinks a sub-issue from its parent; the reported count is approximate (use `github_subissue_list` for the exact set) | "Detach issue 43 from its parent" |
@@ -616,17 +619,38 @@ read_reference_file("config", "settings/production.yml")
 - "Permission denied" - for access issues
 
 #### Cross-Repo GitHub Access
-The GitHub tools that take an optional `reference_name` act on the workspace repository without it, and on the named reference project with it. Issues, pull requests, searches and labels can be read there; issues can also be created, edited and commented on.
+The GitHub tools that take an optional `reference_name` act on the workspace repository without it, and on the named reference project with it. Issues, pull requests, searches and labels can be read there; issues can also be created, edited, commented on and have their workflow status changed.
 
 **Features:**
 - The repository is resolved from the reference project's configured URL — no clone is performed, so a URL-only reference project works
 - Only names listed by `get_reference_projects()` are accepted; arbitrary `owner/repo` strings are not
 - Any GitHub tool without a `reference_name` parameter targets the workspace repository
-- Workflow `status-*` labels are rejected on both sides, for every repository, and `mcp-coder gh-tool set-status` acts on the current checkout — so a sibling repo's issue can only be advanced through its status workflow from that repo's own checkout
+- The general issue tools reject workflow `status-*` labels, for every repository; `github_issue_set_status` changes status on any configured repository, workspace or reference
+- A status change can start workflow automation in the target repository
 
 **Error Handling:** returned as `"Error: ..."` strings rather than raised:
 - `"Error: Reference project '<name>' not found"` - when the name is not a reference project
 - `"Error: Reference project '<name>' has no URL configured"` - when the reference project has no repository URL
+
+#### Set Issue Status
+Sets the workflow status label of a GitHub issue. This writes to GitHub.
+
+**Parameters:**
+- `number` (integer): Issue number
+- `status` (string): Target status label, e.g. `"status-05:plan-ready"`
+- `from_status` (string, optional): Guard — the status is changed only if the issue's sole current status label is this one; otherwise nothing is written and the actual status is reported
+- `reference_name` (string, optional): Reference project whose repository holds the issue; defaults to the workspace repository
+- `refresh_labels` (boolean, optional): Reload the label cache from GitHub before validating
+
+**Features:**
+- `status` and `from_status` must be full `status-*` label names that already exist in the target repository, matched case-insensitively. An unknown name returns `Label "<name>" not found` with the available status labels and the label cache footer; list them with `github_label_list(search="status-")`
+- Every other `status-*` label on the issue is removed; other labels are kept. Setting the status the issue already has is a no-op
+- Pull requests are rejected. Closed issues are allowed; the result notes that the issue is closed
+- Valid labels come from the shared 24 h label cache (see [GitHub caches](#github-caches)); pass `refresh_labels=True` when a newly created label is reported as not found
+- After a successful change, the issue's labels are also written to the coordinator issue cache (`<owner_repo>.issues.json`), so mcp-coder sees the new status without waiting for a refetch
+- No status label can be removed without setting another one
+
+**Returns:** The old and new status (`<none>` when there was none) with the resulting `Labels:` line, a no-op or guard message, or an `"Error: ..."` string
 
 #### Check File Size
 Reports files whose line count exceeds a threshold.
