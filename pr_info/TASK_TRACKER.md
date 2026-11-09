@@ -24,9 +24,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ### Step 1: Label disk cache — `new_expiry(max_age)` + `caching/labels.py`
 See [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: tests in `test_store.py` / new `test_labels.py`, then `new_expiry(now, max_age)` and `get_cached_labels` with `_valid_entry` and footers
-- [ ] Quality checks: pylint, pytest, mypy (plus lint-imports) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests in `test_store.py` / new `test_labels.py`, then `new_expiry(now, max_age)` and `get_cached_labels` with `_valid_entry` and footers
+- [x] Quality checks: pylint, pytest, mypy (plus lint-imports) — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `github_label_list` reads through the label cache
 See [step_2.md](./steps/step_2.md)

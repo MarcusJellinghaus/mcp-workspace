@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +13,7 @@ from mcp_workspace.github_operations.caching._store import (
     _save_cache_file,
     cache_file_path,
     load_json,
+    new_expiry,
 )
 from mcp_workspace.github_operations.issues import (
     _get_cache_file_path,
@@ -20,8 +21,24 @@ from mcp_workspace.github_operations.issues import (
 )
 from mcp_workspace.github_operations.issues import _save_cache_file as reexported
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
+from mcp_workspace.utils.timezone_utils import parse_iso_timestamp
 
 _REPO = RepoIdentifier("o", "r")
+_NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+
+
+class TestNewExpiry:
+    """Tests for new_expiry."""
+
+    def test_max_age_jitter_range(self) -> None:
+        for _ in range(50):
+            expires = parse_iso_timestamp(new_expiry(_NOW, timedelta(hours=24)))
+            assert _NOW + timedelta(hours=18) <= expires <= _NOW + timedelta(hours=24)
+
+    def test_default_jitter_range(self) -> None:
+        for _ in range(50):
+            expires = parse_iso_timestamp(new_expiry(_NOW))
+            assert _NOW + timedelta(hours=4.5) <= expires <= _NOW + timedelta(hours=6)
 
 
 class TestCacheFilePath:
