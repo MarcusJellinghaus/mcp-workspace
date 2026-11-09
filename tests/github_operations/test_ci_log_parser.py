@@ -268,6 +268,9 @@ class TestBuildCiErrorDetails:
                     "name": "test-job",
                     "id": 456,
                     "run_id": 123,
+                    "html_url": "https://github.com/org/repo/actions/runs/123/job/456",
+                    "run_html_url": "https://github.com/org/repo/actions/runs/123",
+                    "run_event": "push",
                     "steps": [
                         {"name": "Run tests", "number": 3, "conclusion": "failure"}
                     ],
@@ -293,6 +296,9 @@ class TestBuildCiErrorDetails:
                     "name": "test-job",
                     "id": 456,
                     "run_id": 123,
+                    "html_url": "https://github.com/org/repo/actions/runs/123/job/456",
+                    "run_html_url": "https://github.com/org/repo/actions/runs/123",
+                    "run_event": "push",
                     "steps": [
                         {"name": "Run tests", "number": 3, "conclusion": "failure"}
                     ],
@@ -305,6 +311,40 @@ class TestBuildCiErrorDetails:
         assert "Run tests" in result
         assert "## CI Failure Summary" in result
 
+    def test_single_run_output_exact(self) -> None:
+        """Output for one failed run has one header, no event tags."""
+        run_url = "https://github.com/org/repo/actions/runs/123"
+        ci_manager = MagicMock()
+        ci_manager.get_run_logs.return_value = {
+            "0_test-job.txt": "2024-01-15T10:30:45.1234567Z Error: test failed"
+        }
+        status = {
+            "run": {"url": run_url},
+            "jobs": [
+                {
+                    "conclusion": "failure",
+                    "name": "test-job",
+                    "id": 456,
+                    "run_id": 123,
+                    "html_url": f"{run_url}/job/456",
+                    "run_html_url": run_url,
+                    "run_event": "push",
+                    "steps": [
+                        {"name": "Run tests", "number": 3, "conclusion": "failure"}
+                    ],
+                }
+            ],
+        }
+        result = build_ci_error_details(ci_manager, status)
+        assert result == (
+            "## CI Failure Summary\nFailed jobs (1): test-job\n\n"
+            f"GitHub Actions: {run_url}\n\n"
+            "## Job: test-job\n"
+            f"View job: {run_url}/job/456\n"
+            "Failed step: Run tests\n\n"
+            "Error: test failed\n"
+        )
+
     def test_limits_run_ids_to_three(self) -> None:
         """Only fetches logs for up to 3 unique run IDs."""
         ci_manager = MagicMock()
@@ -315,6 +355,9 @@ class TestBuildCiErrorDetails:
                 "name": f"job-{i}",
                 "id": i + 100,
                 "run_id": i,
+                "html_url": f"https://example.com/runs/1/job/{i + 100}",
+                "run_html_url": "https://example.com/runs/1",
+                "run_event": "push",
                 "steps": [],
             }
             for i in range(5)
@@ -335,6 +378,9 @@ class TestBuildCiErrorDetails:
                     "name": "test-job",
                     "id": 456,
                     "run_id": 123,
+                    "html_url": "https://github.com/org/repo/actions/runs/123/job/456",
+                    "run_html_url": "https://github.com/org/repo/actions/runs/123",
+                    "run_event": "push",
                     "steps": [],
                 }
             ],
@@ -358,6 +404,9 @@ class TestBuildCiErrorDetails:
                     "name": "test-job",
                     "id": 456,
                     "run_id": 123,
+                    "html_url": "https://github.com/org/repo/actions/runs/123/job/456",
+                    "run_html_url": "https://github.com/org/repo/actions/runs/123",
+                    "run_event": "push",
                     "steps": [
                         {"name": "Run tests", "number": 3, "conclusion": "failure"}
                     ],
@@ -382,6 +431,9 @@ class TestBuildCiErrorDetails:
                     "name": "test-job",
                     "id": 456,
                     "run_id": 123,
+                    "html_url": "https://github.com/org/repo/actions/runs/123/job/456",
+                    "run_html_url": "https://github.com/org/repo/actions/runs/123",
+                    "run_event": "push",
                     "steps": [
                         {"name": "Run tests", "number": 3, "conclusion": "failure"}
                     ],
@@ -411,6 +463,9 @@ class TestBuildCiErrorDetails:
                     "name": "lint",
                     "id": 100,
                     "run_id": 789,
+                    "html_url": "https://github.com/org/repo/actions/runs/789/job/100",
+                    "run_html_url": "https://github.com/org/repo/actions/runs/789",
+                    "run_event": "push",
                     "steps": [],
                 }
             ],
@@ -429,6 +484,9 @@ class TestBuildCiErrorDetails:
                 "name": f"job-{i}",
                 "id": i + 100,
                 "run_id": 1,
+                "html_url": f"https://example.com/runs/1/job/{i + 100}",
+                "run_html_url": "https://example.com/runs/1",
+                "run_event": "push",
                 "steps": [{"name": "step", "number": 1, "conclusion": "failure"}],
             }
             for i in range(20)
@@ -446,3 +504,149 @@ class TestBuildCiErrorDetails:
             "## Other failed jobs (logs omitted — raise max_log_lines to include them)"
             in result
         )
+
+    @staticmethod
+    def _job(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        name: str,
+        job_id: int,
+        run_id: int,
+        run_url: str,
+        event: str,
+        conclusion: str = "failure",
+        step: str = "Run tests",
+    ) -> dict[str, object]:
+        """Build a job dict carrying its own run's URL and event."""
+        return {
+            "conclusion": conclusion,
+            "name": name,
+            "id": job_id,
+            "run_id": run_id,
+            "html_url": f"{run_url}/job/{job_id}",
+            "run_html_url": run_url,
+            "run_event": event,
+            "steps": [{"name": step, "number": 1, "conclusion": conclusion}],
+        }
+
+    RUN_A = "https://github.com/org/repo/actions/runs/100"
+    RUN_B = "https://github.com/org/repo/actions/runs/200"
+
+    def test_failed_job_in_older_run_links_to_its_run(self) -> None:
+        """A failed job in an older run links to that run, not the newest one."""
+        ci_manager = MagicMock()
+        ci_manager.get_run_logs.return_value = {}
+        status = {
+            "run": {"url": self.RUN_B},
+            "jobs": [
+                self._job("build", 2001, 200, self.RUN_B, "pull_request", "success"),
+                self._job("ruff", 1001, 100, self.RUN_A, "push"),
+            ],
+        }
+        result = build_ci_error_details(ci_manager, status)
+        assert result is not None
+        assert f"GitHub Actions: {self.RUN_A}\n" in result
+        assert "(push)" not in result
+        assert f"View job: {self.RUN_A}/job/1001" in result
+        assert self.RUN_B not in result
+
+    def test_failed_jobs_in_two_runs_grouped_by_run(self) -> None:
+        """Failed jobs in two runs each sit under their own run header."""
+        ci_manager = MagicMock()
+        ci_manager.get_run_logs.return_value = {}
+        status = {
+            "run": {"url": self.RUN_B},
+            "jobs": [
+                self._job("lint", 2001, 200, self.RUN_B, "pull_request"),
+                self._job("test", 1001, 100, self.RUN_A, "push"),
+            ],
+        }
+        result = build_ci_error_details(ci_manager, status)
+        assert result is not None
+        assert (
+            result.index(f"GitHub Actions: {self.RUN_B} (pull_request)")
+            < result.index("## Job: lint")
+            < result.index(f"GitHub Actions: {self.RUN_A} (push)")
+            < result.index("## Job: test")
+        )
+        assert "Failed jobs (2): lint (pull_request), test (push)" in result
+
+    def test_same_named_job_shows_own_run_log(self) -> None:
+        """A job name failing in two runs shows each run's own log."""
+        ci_manager = MagicMock()
+        ci_manager.get_run_logs.side_effect = lambda rid: {
+            "0_test.txt": f"log from run {rid}"
+        }
+        status = {
+            "run": {"url": self.RUN_B},
+            "jobs": [
+                self._job("test", 2001, 200, self.RUN_B, "pull_request"),
+                self._job("test", 1001, 100, self.RUN_A, "push"),
+            ],
+        }
+        result = build_ci_error_details(ci_manager, status)
+        assert result is not None
+        header_b = result.index(f"GitHub Actions: {self.RUN_B}")
+        header_a = result.index(f"GitHub Actions: {self.RUN_A}")
+        assert header_b < result.index("log from run 200") < header_a
+        assert result.index("log from run 100") > header_a
+
+    def test_job_beyond_log_cap_has_correct_link(self) -> None:
+        """A job in a run past the log-fetch cap links to its own run, with no log."""
+        base = "https://github.com/org/repo/actions/runs"
+        ci_manager = MagicMock()
+        ci_manager.get_run_logs.side_effect = lambda rid: {
+            "0_test.txt": f"log from run {rid}"
+        }
+        status = {
+            "run": {"url": f"{base}/1"},
+            "jobs": [
+                self._job("test", rid, rid, f"{base}/{rid}", "push")
+                for rid in range(1, 5)
+            ],
+        }
+        result = build_ci_error_details(ci_manager, status)
+        assert result is not None
+        assert ci_manager.get_run_logs.call_count == 3
+        header_4 = f"GitHub Actions: {base}/4 (push)"
+        assert header_4 in result
+        # Run 4's job is the last section, so its section runs to the end
+        run_4_text = result[result.index(header_4) :]
+        assert "## Other failed jobs" not in run_4_text
+        assert f"View on GitHub: {base}/4/job/4" in run_4_text
+        assert "(logs not available locally)" in run_4_text
+        assert "log from run" not in run_4_text
+
+    def test_same_named_jobs_in_other_failed_jobs_tagged_by_event(self) -> None:
+        """Same-named truncated jobs are listed once each, tagged by event."""
+        ci_manager = MagicMock()
+        ci_manager.get_run_logs.return_value = {}
+        status = {
+            "run": {"url": self.RUN_B},
+            "jobs": [
+                self._job("test", 2001, 200, self.RUN_B, "pull_request", step="Step B"),
+                self._job("test", 1001, 100, self.RUN_A, "push", step="Step A"),
+            ],
+        }
+        result = build_ci_error_details(ci_manager, status, max_lines=15)
+        assert result is not None
+        assert '- test (pull_request): step "Step B" failed' in result
+        assert '- test (push): step "Step A" failed' in result
+        assert "GitHub Actions:" not in result
+        assert "Failed jobs (2): test (pull_request), test (push)" in result
+
+    def test_run_header_charged_to_first_job_budget(self) -> None:
+        """The run header's lines count against the first placed job's budget."""
+        ci_manager = MagicMock()
+        ci_manager.get_run_logs.return_value = {}
+        status = {
+            "run": {"url": self.RUN_A},
+            "jobs": [self._job("test", 1001, 100, self.RUN_A, "push")],
+        }
+        too_small = build_ci_error_details(ci_manager, status, max_lines=24)
+        assert too_small is not None
+        assert '- test: step "Run tests" failed' in too_small
+        assert "GitHub Actions:" not in too_small
+
+        fits = build_ci_error_details(ci_manager, status, max_lines=25)
+        assert fits is not None
+        assert f"GitHub Actions: {self.RUN_A}" in fits
+        assert "## Job: test" in fits

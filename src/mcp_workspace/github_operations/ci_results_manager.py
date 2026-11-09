@@ -55,6 +55,9 @@ class JobData(TypedDict):
     started_at: str | None
     completed_at: str | None
     steps: list[StepData]
+    html_url: str  # job's own URL (WorkflowJob.html_url)
+    run_html_url: str  # URL of the run containing this job
+    run_event: str  # event of that run, e.g. "push", "pull_request"
 
 
 class RunData(TypedDict):
@@ -290,6 +293,9 @@ class CIResultsManager(BaseGitHubManager):
                                     for step in job.steps
                                 ],
                             ),
+                            "html_url": job.html_url,
+                            "run_html_url": run.html_url,
+                            "run_event": run.event,
                         }
                         all_jobs.append(job_data)
                 except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow exception type

@@ -159,6 +159,9 @@ _.workflow_path
 _.commit_sha
 _.jobs_fetch_warning
 _.issues
+# JobData TypedDict fields - accessed via .get() in ci_log_parser (issue #382)
+_.run_html_url
+_.run_event
 
 # PRFeedback TypedDict fields - accessed via subscript, vulture can't see usage
 _.resolved_thread_count
