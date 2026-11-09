@@ -149,11 +149,15 @@ Run A = `.../runs/100`, event `push` (older). Run B = `.../runs/200`, event `pul
    - Assert: `log from run 200` appears after B's header and before A's header, and
      `log from run 100` appears after A's header.
 4. `test_job_beyond_log_cap_has_correct_link`
-   - Setup: 4 runs (ids 1-4), each with one failed job `job-{rid}`, `html_url=f".../runs/{rid}/job/{rid}"`.
+   - Setup: 4 runs (ids 1-4), each with one failed job `test`, `html_url=f".../runs/{rid}/job/{rid}"`.
+     `get_run_logs.side_effect = lambda rid: {"0_test.txt": f"log from run {rid}"}`, so runs 1-3
+     have non-empty logs that match run 4's job name.
    - Assert:
      - `get_run_logs.call_count == 3`
      - the result has `GitHub Actions: .../runs/4 (push)`, `View on GitHub: .../runs/4/job/4`
        and `(logs not available locally)` in run 4's section
+     - run 4's section (from its `GitHub Actions:` header to the end of that job section)
+       contains no `log from run` text
 5. `test_same_named_jobs_in_other_failed_jobs_tagged_by_event`
    - Setup: job `test` fails in B at step `Step B` and in A at step `Step A`, `max_lines=15`.
    - Assert:
