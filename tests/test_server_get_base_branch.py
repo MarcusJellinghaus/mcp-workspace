@@ -5,7 +5,6 @@ A malformed Base Branch section on the linked issue is surfaced as an
 """
 
 import logging
-from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -13,8 +12,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from mcp_workspace.github_operations import IssueIdentityMismatchError
-from mcp_workspace.server import get_base_branch, set_project_dir
 from mcp_workspace.toolset._github_common import resolve_base_branch
+from tests.conftest import ToolMap
 from tests.github_operations._issue_test_helpers import (
     make_untrusted_issue,
     real_issue_manager,
@@ -34,13 +33,6 @@ def _issue(number: int = 42, **extra: Any) -> dict[str, Any]:
     data: dict[str, Any] = {"number": number, "base_branch": None}
     data.update(extra)
     return data
-
-
-@pytest.fixture(autouse=True)
-def setup_server(project_dir: Path) -> Generator[None, None, None]:
-    """Setup the server with the project directory."""
-    set_project_dir(project_dir)
-    yield
 
 
 class TestResolveBaseBranch:
@@ -166,7 +158,7 @@ class TestResolveBaseBranch:
 class TestGetBaseBranch:
     """Tests for the ``get_base_branch`` MCP tool."""
 
-    def test_malformed_returns_error_string(self) -> None:
+    def test_malformed_returns_error_string(self, tools: ToolMap) -> None:
         """A malformed Base Branch section is returned as an error string."""
         with (
             patch(PR_MANAGER),
@@ -177,12 +169,12 @@ class TestGetBaseBranch:
             mock_im_cls.return_value.get_issue.return_value = _issue(
                 base_branch_error=SENTENCE
             )
-            result = get_base_branch()
+            result = tools["get_base_branch"]()
 
         assert result == f"Error: issue #42: {SENTENCE}"
         mock_detect.assert_not_called()
 
-    def test_valid_returns_detected_branch(self) -> None:
+    def test_valid_returns_detected_branch(self, tools: ToolMap) -> None:
         """The detected base branch is returned as-is."""
         with (
             patch(PR_MANAGER),
@@ -193,34 +185,36 @@ class TestGetBaseBranch:
             mock_im_cls.return_value.get_issue.return_value = _issue(
                 base_branch="develop"
             )
-            result = get_base_branch()
+            result = tools["get_base_branch"]()
 
         assert result == "develop"
 
-    def test_detection_none_returns_main(self) -> None:
+    def test_detection_none_returns_main(self, tools: ToolMap) -> None:
         """Nothing detected → "main"."""
         with (
             patch(PR_MANAGER),
             patch(CURRENT_BRANCH, return_value="feature-branch"),
             patch(DETECT, return_value=None),
         ):
-            result = get_base_branch()
+            result = tools["get_base_branch"]()
 
         assert result == "main"
 
-    def test_no_current_branch_returns_main(self) -> None:
+    def test_no_current_branch_returns_main(self, tools: ToolMap) -> None:
         """Detached HEAD → "main" without detection."""
         with (
             patch(PR_MANAGER),
             patch(CURRENT_BRANCH, return_value=None),
             patch(DETECT) as mock_detect,
         ):
-            result = get_base_branch()
+            result = tools["get_base_branch"]()
 
         assert result == "main"
         mock_detect.assert_not_called()
 
-    def test_untrusted_malformed_section_is_not_an_error(self, tmp_path: Path) -> None:
+    def test_untrusted_malformed_section_is_not_an_error(
+        self, tmp_path: Path, tools: ToolMap
+    ) -> None:
         """A real IssueManager ignores an untrusted malformed section."""
         editor = (
             "mcp_workspace.github_operations.issues.base_branch_trust.fetch_body_editor"
@@ -236,7 +230,7 @@ class TestGetBaseBranch:
             manager._repository.get_issue.return_value = make_untrusted_issue(
                 42, "### Base Branch\n\nepic/x\nmore\n"
             )
-            result = get_base_branch()
+            result = tools["get_base_branch"]()
 
         assert not result.startswith("Error:")
         assert result == "main"

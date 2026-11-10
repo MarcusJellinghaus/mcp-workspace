@@ -11,7 +11,7 @@ from typing import Any, TypedDict, TypeVar
 import git
 import pytest
 
-from mcp_workspace import config, server
+from mcp_workspace import config
 from mcp_workspace.config import get_github_token, get_test_repo_url
 from mcp_workspace.github_operations import clear_repository_cache
 from mcp_workspace.toolset import tool_specs
@@ -89,23 +89,6 @@ def make_tools(project_dir: Path) -> Callable[..., ToolMap]:
 def tools(make_tools: Callable[..., ToolMap]) -> ToolMap:
     """Tools bound to the project_dir fixture with default settings."""
     return make_tools()
-
-
-# Module globals that create_server sets through _configure_legacy; temporary
-# until the last tool group moves into mcp_workspace.toolset.
-_LEGACY_GLOBALS = (
-    (server, "_project_dir"),
-    (server, "_file_size_limit"),
-    (server, "_fail_on_reviews"),
-)
-
-
-@pytest.fixture(autouse=True)
-def _restore_legacy_globals(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Undo the legacy settings create_server writes into module globals."""
-    for module, name in _LEGACY_GLOBALS:
-        if hasattr(module, name):
-            monkeypatch.setattr(module, name, getattr(module, name))
 
 
 @pytest.fixture(autouse=True)

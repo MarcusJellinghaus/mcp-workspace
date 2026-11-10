@@ -13,58 +13,9 @@ Run: vulture src tests vulture_whitelist.py --min-confidence 60
 """
 
 # =============================================================================
-# MCP Server Tool Handlers
+# Reference Projects
 # =============================================================================
-# These are registered dynamically by the MCP framework and called by clients.
-# They appear unused but are part of the public MCP tool API.
-
-# File operation tools registered in server.py
-_.list_directory
-_.read_file
-_.save_file
-_.append_file
-_.delete_this_file
-_.delete_directory
-_.move_file
-_.edit_file
-
-_.search_files
-
-# Reference project tools
-_.get_reference_projects
-_.list_reference_directory
-_.read_reference_file
-_.search_reference_files
 _.clear_clone_failure_cache
-
-# Git read-only operation tool registered in server.py
-_.git
-
-# GitHub read-only tools registered in server.py
-_.github_issue_view
-_.github_issue_list
-_.github_pr_view
-_.github_search
-
-# GitHub write tools registered in server.py
-_.github_issue_create
-_.github_issue_edit
-_.github_issue_set_status
-_.github_issue_comment
-_.github_label_list
-_.github_pr_create
-_.github_subissue_add
-_.github_subissue_list
-_.github_subissue_remove
-
-# Base branch detection tool
-_.get_base_branch
-
-# File size check tool
-_.check_file_size
-
-# Branch status check tool
-_.check_branch_status
 
 # =============================================================================
 # Public API Exports
@@ -84,7 +35,6 @@ _.temp_git_repo
 _.sample_file
 _.setup_and_cleanup
 _.setup_test_file
-_.setup_server
 
 # Module-level name pytest reads during collection to apply marks to every test
 # in the module. Never referenced by our own code.
@@ -199,8 +149,6 @@ _.mock_zip_content
 _.sample_issue
 _._patch_get_default_branch
 _._reset_activated_flag
-# Autouse fixture resetting server globals (referenced by pytest collection only)
-_._reset_globals
 # Autouse fixtures for network diagnostics (referenced by pytest collection only)
 _.reset_network_diagnostics_guard
 _._default_network_ok
@@ -208,8 +156,6 @@ _._default_network_ok
 _.reset_login_cache
 # Autouse fixtures for issue #236 review-gate tests (referenced by pytest collection only)
 _._github_token
-_._reset_global
-_._setup
 # Autouse fixture restoring root logger state in test_startup.py (pytest collection only)
 _._snapshot_logging
 # Fixtures for issue #321 base-branch tests, reached through their name= alias
@@ -245,8 +191,6 @@ _._traffic_log_off
 _._clear_cache
 # Autouse fixture keeping tests from reading the real read_max_lines config (issue #380, pytest collection only)
 _._no_read_max_lines
-# Autouse fixture undoing create_server's legacy global settings (issue #378, pytest collection only)
-_._restore_legacy_globals
 # Named fixtures in issues/test_status.py (issue #388, pytest collection only)
 _._cache_write  # name="cache_write"
 _._cached_labels  # name="cached_labels"

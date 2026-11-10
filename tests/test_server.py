@@ -1,6 +1,6 @@
 """Tests for the MCP server API endpoints."""
 
-from collections.abc import Callable, Generator
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,13 +10,7 @@ from mcp_coder_utils.tool_spec import tool_spec
 
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
 from mcp_workspace.reference_projects import ReferenceProject
-from mcp_workspace.server import (
-    FastMCPSink,
-    check_branch_status,
-    create_server,
-    run_server,
-    set_project_dir,
-)
+from mcp_workspace.server import FastMCPSink, create_server, run_server
 from mcp_workspace.toolset._context import WorkspaceContext, check_not_gitignored
 from tests.conftest import ToolMap
 
@@ -26,13 +20,6 @@ from tests.conftest import ToolMap
 TEST_DIR = Path("testdata/test_file_tools")
 TEST_FILE = TEST_DIR / "test_api_file.txt"
 TEST_CONTENT = "This is API test content."
-
-
-@pytest.fixture(autouse=True)
-def setup_server(project_dir: Path) -> Generator[None, None, None]:
-    """Setup the server with the project directory."""
-    set_project_dir(project_dir)
-    yield
 
 
 def setup_function() -> None:
@@ -489,12 +476,12 @@ class TestCheckBranchStatusTool:
         new_callable=AsyncMock,
     )
     async def test_check_branch_status_defaults(
-        self, mock_poll: AsyncMock, project_dir: Path
+        self, mock_poll: AsyncMock, project_dir: Path, tools: ToolMap
     ) -> None:
         """Default invocation forwards new defaults to async_poll_branch_status."""
         mock_poll.return_value = "report-text"
 
-        result = await check_branch_status()
+        result = await tools["check_branch_status"]()
 
         assert result == "report-text"
         mock_poll.assert_awaited_once_with(
@@ -511,12 +498,12 @@ class TestCheckBranchStatusTool:
         new_callable=AsyncMock,
     )
     async def test_check_branch_status_with_polling_params(
-        self, mock_poll: AsyncMock, project_dir: Path
+        self, mock_poll: AsyncMock, project_dir: Path, tools: ToolMap
     ) -> None:
         """Polling kwargs propagate to async_poll_branch_status."""
         mock_poll.return_value = "polled-report"
 
-        result = await check_branch_status(
+        result = await tools["check_branch_status"](
             max_log_lines=100,
             ci_timeout=180,
             pr_timeout=120,
@@ -530,19 +517,6 @@ class TestCheckBranchStatusTool:
             pr_timeout=120,
             fail_on_reviews=False,
         )
-
-    @pytest.mark.asyncio
-    async def test_check_branch_status_no_project_dir(self) -> None:
-        """check_branch_status raises ValueError when _project_dir is None."""
-        import mcp_workspace.server as srv
-
-        original = srv._project_dir
-        try:
-            srv._project_dir = None
-            with pytest.raises(ValueError, match="Project directory has not been set"):
-                await check_branch_status()
-        finally:
-            srv._project_dir = original
 
 
 # --- run_server tests ---

@@ -83,9 +83,9 @@ See [step_10.md](./steps/step_10.md)
 
 ### Step 11: Move group `workspace.checks`; remove the legacy machinery
 See [step_11.md](./steps/step_11.md)
-- [ ] Implementation: `toolset/checks.py`, remove `_legacy_tool`/`_configure_legacy`/`_project_dir`/`set_project_dir`, migrate tests
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `toolset/checks.py`, remove `_legacy_tool`/`_configure_legacy`/`_project_dir`/`set_project_dir`, migrate tests
+- [x] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
+- [x] Commit message prepared
 
 ### Step 12: Acceptance tests for the exported toolset
 See [step_12.md](./steps/step_12.md)

@@ -52,8 +52,8 @@ layers =
 # -----------------------------------------------------------------------------
 # Contract: MCP Library Isolation
 # -----------------------------------------------------------------------------
-# The 'mcp' package should only be imported by main.py and server.py.
-# File tools should remain MCP-agnostic for reusability.
+# The 'mcp' package should only be imported by server.py.
+# File tools and the toolset should remain MCP-agnostic for reusability.
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 # Contract: PyGithub Library Isolation

@@ -13,7 +13,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from mcp_workspace import server
 from mcp_workspace.file_tools import file_operations
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.toolset import tool_specs
@@ -51,12 +50,11 @@ def _paths(value: Any, keys: tuple[str, ...]) -> list[str]:
 
 
 @pytest.fixture
-def invariant_project(tmp_path: Path) -> Iterator[Path]:
+def invariant_project(tmp_path: Path) -> Path:
     """Temp project with nested targets for every guarded tool.
 
     All file contents are ASCII and backslash-free, so a stray content string
-    cannot produce a false failure. Sets the server's project dir — the MCP
-    tools read that module global — and restores it on teardown.
+    cannot produce a false failure.
     """
     (tmp_path / "a" / "b").mkdir(parents=True)
     (tmp_path / "a" / "b" / "c.txt").write_text("listed\n", encoding="utf-8")
@@ -76,11 +74,7 @@ def invariant_project(tmp_path: Path) -> Iterator[Path]:
     (tmp_path / ".large-files-allowlist").write_text(
         "stale/nested/entry.txt\n", encoding="utf-8"
     )
-
-    previous = server._project_dir
-    server.set_project_dir(tmp_path)
-    yield tmp_path
-    server._project_dir = previous
+    return tmp_path
 
 
 @pytest.fixture
@@ -197,7 +191,7 @@ def _call_check_file_size(project: Path, reference_name: str) -> Any:
     Returns:
         The `  - ` lines of the returned report.
     """
-    report = server.check_file_size(max_lines=0)
+    report = _tool(project, "check_file_size")(max_lines=0)
     return [line for line in report.splitlines() if line.startswith("  - ")]
 
 
