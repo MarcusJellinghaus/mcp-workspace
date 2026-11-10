@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pytest
 
-from mcp_workspace import server_reference_tools
 from mcp_workspace.toolset import tool_specs
 
 GLOB_DOC_PHRASES = [
@@ -23,16 +22,21 @@ GLOB_DOC_PHRASES = [
 ]
 
 
-def _search_files_text(project_dir: Path) -> str:
-    """Return the search_files description plus its glob field description."""
-    spec = next(s for s in tool_specs(project_dir) if s.name == "search_files")
+def _tool_text(project_dir: Path, name: str) -> str:
+    """Return a tool's description plus its glob field description."""
+    spec = next(s for s in tool_specs(project_dir) if s.name == name)
     glob_doc = spec.args_model.model_json_schema()["properties"]["glob"]["description"]
     return f"{spec.description}\n{glob_doc}"
 
 
+def _search_files_text(project_dir: Path) -> str:
+    """Return the search_files description plus its glob field description."""
+    return _tool_text(project_dir, "search_files")
+
+
 def _search_reference_files_text(project_dir: Path) -> str:
-    """Return the search_reference_files docstring."""
-    return server_reference_tools.search_reference_files.__doc__ or ""
+    """Return the search_reference_files description plus its glob field description."""
+    return _tool_text(project_dir, "search_reference_files")
 
 
 @pytest.mark.parametrize("phrase", GLOB_DOC_PHRASES)

@@ -9,7 +9,7 @@ from mcp_coder_utils.tool_spec import ToolCollector, ToolSink, ToolSpec
 
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
 from mcp_workspace.reference_projects import ReferenceProject
-from mcp_workspace.toolset import delete, move, read, write
+from mcp_workspace.toolset import delete, move, read, reference, write
 from mcp_workspace.toolset._context import WorkspaceContext
 
 __all__ = ["tool_specs"]
@@ -20,6 +20,7 @@ _GROUPS: tuple[Callable[[ToolSink, WorkspaceContext], None], ...] = (
     write.register,
     delete.register,
     move.register,
+    reference.register,
 )
 
 

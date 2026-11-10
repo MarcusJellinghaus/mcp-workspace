@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from mcp_workspace import server, server_reference_tools
+from mcp_workspace import server
 from mcp_workspace.file_tools import file_operations
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.toolset import tool_specs
@@ -84,19 +84,14 @@ def invariant_project(tmp_path: Path) -> Iterator[Path]:
 
 
 @pytest.fixture
-def reference_project(invariant_project: Path) -> Iterator[str]:
-    """Register invariant_project as a reference project; yield its name."""
-    previous = server_reference_tools._reference_projects
-    server_reference_tools._reference_projects = {
-        _REFERENCE_NAME: ReferenceProject(name=_REFERENCE_NAME, path=invariant_project)
-    }
+def reference_project() -> Iterator[str]:
+    """Yield the reference project name, with ensure_available stubbed out."""
     with patch(
-        "mcp_workspace.server_reference_tools.ensure_available",
+        "mcp_workspace.toolset.reference.ensure_available",
         new_callable=AsyncMock,
         return_value=None,
     ):
         yield _REFERENCE_NAME
-    server_reference_tools._reference_projects = previous
 
 
 def _tool(project: Path, name: str) -> Callable[..., Any]:
@@ -106,6 +101,21 @@ def _tool(project: Path, name: str) -> Callable[..., Any]:
         The tool function.
     """
     return {s.name: s.fn for s in tool_specs(project)}[name]
+
+
+def _reference_tool(
+    project: Path, reference_name: str, name: str
+) -> Callable[..., Any]:
+    """Return the named toolset tool with project registered as a reference.
+
+    Returns:
+        The tool function.
+    """
+    reference_projects = {
+        reference_name: ReferenceProject(name=reference_name, path=project)
+    }
+    specs = tool_specs(project, reference_projects=reference_projects)
+    return {s.name: s.fn for s in specs}[name]
 
 
 def _call_list_directory(project: Path, reference_name: str) -> Any:
@@ -130,7 +140,8 @@ def _call_list_reference_directory(project: Path, reference_name: str) -> Any:
     """Returns:
     The raw list_reference_directory result.
     """
-    return asyncio.run(server_reference_tools.list_reference_directory(reference_name))
+    tool = _reference_tool(project, reference_name, "list_reference_directory")
+    return asyncio.run(tool(reference_name))
 
 
 def _call_search_reference_files(project: Path, reference_name: str) -> Any:
@@ -139,9 +150,8 @@ def _call_search_reference_files(project: Path, reference_name: str) -> Any:
     Returns:
         The raw search_reference_files result.
     """
-    return asyncio.run(
-        server_reference_tools.search_reference_files(reference_name, glob="**/*.txt")
-    )
+    tool = _reference_tool(project, reference_name, "search_reference_files")
+    return asyncio.run(tool(reference_name, glob="**/*.txt"))
 
 
 def _call_delete_directory(project: Path, reference_name: str) -> Any:

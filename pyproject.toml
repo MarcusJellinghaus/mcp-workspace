@@ -144,6 +144,7 @@ ignore = [
 "src/mcp_workspace/file_tools/file_operations.py" = ["DOC502"]
 "src/mcp_workspace/git_operations/read_operations.py" = ["DOC502"]
 "src/mcp_workspace/server_reference_tools.py" = ["DOC502"]
+"src/mcp_workspace/toolset/reference.py" = ["DOC502"]
 "src/mcp_workspace/main.py" = ["DOC502"]
 "src/mcp_workspace/workflows/task_tracker.py" = ["DOC502"]
 # tools/: low-priority helper scripts that may move to an MCP server or be deleted;

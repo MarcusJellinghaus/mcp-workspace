@@ -47,6 +47,25 @@ def test_move_group_spec(tmp_path: Path) -> None:
     assert specs["move_file"].read_only is False
 
 
+@pytest.mark.parametrize(
+    ("name", "is_async"),
+    [
+        ("get_reference_projects", False),
+        ("read_reference_file", True),
+        ("list_reference_directory", True),
+        ("search_reference_files", True),
+    ],
+)
+def test_reference_group_specs(tmp_path: Path, name: str, is_async: bool) -> None:
+    """The workspace.reference tools are exported as read-only specs."""
+    specs = {s.name: s for s in tool_specs(tmp_path)}
+
+    assert name in specs
+    assert specs[name].group == "workspace.reference"
+    assert specs[name].read_only is True
+    assert inspect.iscoroutinefunction(specs[name].fn) is is_async
+
+
 def test_edit_file_spec_is_async(tmp_path: Path) -> None:
     """edit_file stays a coroutine function."""
     specs = {s.name: s for s in tool_specs(tmp_path)}

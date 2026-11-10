@@ -59,9 +59,9 @@ See [step_6.md](./steps/step_6.md)
 
 ### Step 7: Move group `workspace.reference` (4 reference tools)
 See [step_7.md](./steps/step_7.md)
-- [ ] Implementation: `toolset/reference.py`, remove unused legacy code, migrate tests
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `toolset/reference.py`, remove unused legacy code, migrate tests
+- [x] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
+- [x] Commit message prepared
 
 ### Step 8: Move group `workspace.git` (`git`)
 See [step_8.md](./steps/step_8.md)

@@ -72,7 +72,6 @@ depends_on = [
 path = "mcp_workspace.server_reference_tools"
 layer = "protocol"
 depends_on = [
-    { path = "mcp_workspace.file_tools" },
     { path = "mcp_workspace.reference_projects" },
     { path = "mcp_coder_utils.log_utils" },
 ]

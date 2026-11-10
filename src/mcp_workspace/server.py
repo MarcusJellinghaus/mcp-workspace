@@ -26,9 +26,7 @@ from mcp_workspace.server_reference_tools import (
     get_reference_project_path,
     get_reference_repo_url,
     set_reference_projects,
-    set_reference_read_max_lines,
 )
-from mcp_workspace.server_reference_tools import register as register_reference_tools
 from mcp_workspace.toolset import tool_specs
 
 if TYPE_CHECKING:
@@ -1888,7 +1886,6 @@ def _configure_legacy(project_dir: Path, settings: dict[str, Any]) -> None:
     """
     set_project_dir(project_dir)
     set_file_size_limit(settings.get("file_size_limit"))
-    set_reference_read_max_lines(settings.get("read_max_lines", DEFAULT_READ_MAX_LINES))
     set_fail_on_reviews(settings.get("fail_on_reviews", False))
     set_enforce_base_branch_format(settings.get("enforce_base_branch_format", True))
     set_reference_projects(settings.get("reference_projects") or {})
@@ -1911,7 +1908,6 @@ def create_server(project_dir: Path, **settings: Any) -> FastMCP:
     _configure_legacy(project_dir, settings)
     for fn in _LEGACY_TOOLS:
         mcp.add_tool(fn)
-    register_reference_tools(mcp)
     return mcp
 
 

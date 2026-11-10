@@ -97,7 +97,6 @@ forbidden_modules =
     mcp
 ignore_imports =
     mcp_workspace.server -> mcp
-    mcp_workspace.server_reference_tools -> mcp
 
 # -----------------------------------------------------------------------------
 # Contract: GitPython Library Isolation
