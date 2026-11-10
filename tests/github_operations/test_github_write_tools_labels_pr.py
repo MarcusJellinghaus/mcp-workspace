@@ -1,11 +1,10 @@
 """Tests for the label and pull-request MCP tools.
 
 Covers ``github_label_list`` (toolset/github_read.py) and ``github_pr_create``
-(server.py).
+(toolset/github_write.py).
 """
 
 from collections.abc import Callable, Generator
-from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -13,14 +12,6 @@ import pytest
 from github import GithubException
 
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
-from mcp_workspace.reference_projects import ReferenceProject
-from mcp_workspace.server import (
-    github_pr_create,
-    github_review_comment_reply,
-    github_review_thread_resolve,
-    set_project_dir,
-)
-from mcp_workspace.server_reference_tools import set_reference_projects
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
 from tests.conftest import ToolMap
 
@@ -31,29 +22,6 @@ from tests.conftest import ToolMap
 _REAL_VALIDATE_BRANCH_NAME: Callable[[Any, str], bool] = (
     PullRequestManager._validate_branch_name  # pylint: disable=protected-access
 )
-
-
-@pytest.fixture(autouse=True)
-def setup_server(project_dir: Path) -> Generator[None, None, None]:
-    """Setup the server with the project directory."""
-    set_project_dir(project_dir)
-    yield
-
-
-@pytest.fixture
-def reference_projects() -> Generator[None, None, None]:
-    """Configure a 'sibling' reference project with a GitHub URL."""
-    set_reference_projects(
-        {
-            "sibling": ReferenceProject(
-                name="sibling",
-                path=Path("/does/not/exist"),
-                url="https://github.com/owner/sibling",
-            )
-        }
-    )
-    yield
-    set_reference_projects({})
 
 
 def _label(
@@ -303,7 +271,7 @@ def _wire_manager(
     return manager
 
 
-@patch("mcp_workspace.server._resolve_base_branch")
+@patch("mcp_workspace.toolset.github_write.resolve_base_branch")
 @patch("mcp_workspace.git_operations.get_current_branch_name")
 @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
 class TestGithubPrCreate:
@@ -329,13 +297,14 @@ class TestGithubPrCreate:
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
         mock_resolve: MagicMock,
+        tools: ToolMap,
     ) -> None:
         """A valid request reports the new PR number and URL."""
         mock_current.return_value = "feature/x"
         mock_resolve.return_value = ("main", None)
         manager = _wire_manager(mock_manager_cls)
 
-        result = github_pr_create(title="Add feature", body="Body text")
+        result = tools["github_pr_create"](title="Add feature", body="Body text")
 
         assert result == "Created PR #7 — https://github.com/test/repo/pull/7"
         manager.create_pull_request.assert_called_once_with(
@@ -350,13 +319,14 @@ class TestGithubPrCreate:
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
         mock_resolve: MagicMock,
+        tools: ToolMap,
     ) -> None:
         """Without ``head`` the current branch is resolved and used."""
         mock_current.return_value = "feature/x"
         mock_resolve.return_value = ("main", None)
         manager = _wire_manager(mock_manager_cls)
 
-        github_pr_create(title="Add feature", base="develop")
+        tools["github_pr_create"](title="Add feature", base="develop")
 
         mock_current.assert_called_once()
         assert (
@@ -368,13 +338,14 @@ class TestGithubPrCreate:
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
         mock_resolve: MagicMock,
+        tools: ToolMap,
     ) -> None:
         """Without ``base`` the base is resolved for ``head`` and used."""
         mock_current.return_value = "feature/x"
         mock_resolve.return_value = ("main", None)
         manager = _wire_manager(mock_manager_cls)
 
-        github_pr_create(title="Add feature", head="feature/y")
+        tools["github_pr_create"](title="Add feature", head="feature/y")
 
         mock_resolve.assert_called_once()
         assert mock_resolve.call_args.args[1] == "feature/y"
@@ -385,11 +356,14 @@ class TestGithubPrCreate:
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
         mock_resolve: MagicMock,
+        tools: ToolMap,
     ) -> None:
         """Explicit branches are used verbatim; neither resolver is called."""
         manager = _wire_manager(mock_manager_cls)
 
-        result = github_pr_create(title="Add feature", head="feature/y", base="develop")
+        result = tools["github_pr_create"](
+            title="Add feature", head="feature/y", base="develop"
+        )
 
         assert result.startswith("Created PR #7")
         mock_current.assert_not_called()
@@ -408,11 +382,12 @@ class TestGithubPrCreate:
         mock_current: MagicMock,
         mock_resolve: MagicMock,
         title: str,
+        tools: ToolMap,
     ) -> None:
         """An empty or whitespace-only title errors without writing."""
         manager = _wire_manager(mock_manager_cls)
 
-        result = github_pr_create(title=title)
+        result = tools["github_pr_create"](title=title)
 
         assert result.startswith("Error:")
         manager.create_pull_request.assert_not_called()
@@ -422,13 +397,14 @@ class TestGithubPrCreate:
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
         mock_resolve: MagicMock,
+        tools: ToolMap,
     ) -> None:
         """A PR from a branch to itself errors and names the branch."""
         mock_current.return_value = "main"
         mock_resolve.return_value = ("main", None)
         manager = _wire_manager(mock_manager_cls)
 
-        result = github_pr_create(title="Add feature")
+        result = tools["github_pr_create"](title="Add feature")
 
         assert result.startswith("Error:")
         assert "main" in result
@@ -439,11 +415,14 @@ class TestGithubPrCreate:
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
         mock_resolve: MagicMock,
+        tools: ToolMap,
     ) -> None:
         """The library validator rejects a bad branch name before any write."""
         manager = _wire_manager(mock_manager_cls)
 
-        result = github_pr_create(title="Add feature", head="feat~1", base="main")
+        result = tools["github_pr_create"](
+            title="Add feature", head="feat~1", base="main"
+        )
 
         assert result.startswith("Error:")
         assert "feat~1" in result
@@ -456,11 +435,12 @@ class TestGithubPrCreate:
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
         mock_resolve: MagicMock,
+        tools: ToolMap,
     ) -> None:
         """The same validator also guards the base branch."""
         manager = _wire_manager(mock_manager_cls)
 
-        result = github_pr_create(
+        result = tools["github_pr_create"](
             title="Add feature", head="feature/y", base="bad.lock"
         )
 
@@ -475,11 +455,12 @@ class TestGithubPrCreate:
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
         mock_resolve: MagicMock,
+        tools: ToolMap,
     ) -> None:
         """Ordinary branch names survive the real rules, so the guard is not blanket."""
         manager = _wire_manager(mock_manager_cls)
 
-        result = github_pr_create(
+        result = tools["github_pr_create"](
             title="Add feature", head="feature/232-write-tools", base="main"
         )
 
@@ -492,13 +473,14 @@ class TestGithubPrCreate:
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
         mock_resolve: MagicMock,
+        tools: ToolMap,
     ) -> None:
         """An unresolvable current branch errors instead of guessing."""
         mock_current.return_value = None
         mock_resolve.return_value = ("main", None)
         manager = _wire_manager(mock_manager_cls)
 
-        result = github_pr_create(title="Add feature")
+        result = tools["github_pr_create"](title="Add feature")
 
         assert result.startswith("Error:")
         manager.create_pull_request.assert_not_called()
@@ -508,13 +490,14 @@ class TestGithubPrCreate:
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
         mock_resolve: MagicMock,
+        tools: ToolMap,
     ) -> None:
         """An unresolvable base branch errors instead of assuming 'main'."""
         mock_current.return_value = "feature/x"
         mock_resolve.return_value = (None, None)
         manager = _wire_manager(mock_manager_cls)
 
-        result = github_pr_create(title="Add feature")
+        result = tools["github_pr_create"](title="Add feature")
 
         assert result.startswith("Error:")
         manager.create_pull_request.assert_not_called()
@@ -524,13 +507,14 @@ class TestGithubPrCreate:
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
         mock_resolve: MagicMock,
+        tools: ToolMap,
     ) -> None:
         """The library's empty-dict failure sentinel reads as an error."""
         mock_current.return_value = "feature/x"
         mock_resolve.return_value = ("main", None)
         _wire_manager(mock_manager_cls, pr={})
 
-        result = github_pr_create(title="Add feature")
+        result = tools["github_pr_create"](title="Add feature")
 
         assert result.startswith("Error:")
         assert "Created PR" not in result
@@ -540,209 +524,11 @@ class TestGithubPrCreate:
         mock_manager_cls: MagicMock,
         mock_current: MagicMock,
         mock_resolve: MagicMock,
+        tools: ToolMap,
     ) -> None:
         """A ValueError from the manager constructor surfaces as an error string."""
         mock_manager_cls.side_effect = ValueError("project_dir is required")
 
-        result = github_pr_create(title="Add feature")
+        result = tools["github_pr_create"](title="Add feature")
 
         assert result == "Error: project_dir is required"
-
-
-# =============================================================================
-# github_review_comment_reply tests
-# =============================================================================
-
-
-def _comment_data(comment_id: int = 456) -> dict[str, Any]:
-    """Create a CommentData-shaped dict for testing."""
-    return {
-        "id": comment_id,
-        "body": "Thanks, fixed.",
-        "user": "testuser",
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2023-01-01T00:00:00Z",
-        "url": f"https://github.com/test/repo/pull/123#discussion_r{comment_id}",
-    }
-
-
-_EMPTY_COMMENT_DATA: dict[str, Any] = {
-    "id": 0,
-    "body": "",
-    "user": None,
-    "created_at": None,
-    "updated_at": None,
-    "url": "",
-}
-
-
-class TestGithubReviewCommentReply:
-    """Tests for the ``github_review_comment_reply`` MCP tool."""
-
-    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
-    def test_success_message_with_url(self, mock_manager_cls: MagicMock) -> None:
-        """A successful reply reports the comment ID, PR number, and URL."""
-        manager: MagicMock = mock_manager_cls.return_value
-        manager.reply_to_review_comment.return_value = _comment_data()
-
-        result = github_review_comment_reply(
-            pr_number=123, comment_id=456, body="Thanks, fixed."
-        )
-
-        assert result == (
-            "Replied to review comment 456 on PR #123 — "
-            "https://github.com/test/repo/pull/123#discussion_r456"
-        )
-        manager.reply_to_review_comment.assert_called_once_with(
-            123, 456, "Thanks, fixed."
-        )
-
-    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
-    def test_failure_id_zero_is_reported(self, mock_manager_cls: MagicMock) -> None:
-        """An empty CommentData (id=0) reads as an error, not success."""
-        manager: MagicMock = mock_manager_cls.return_value
-        manager.reply_to_review_comment.return_value = _EMPTY_COMMENT_DATA
-
-        result = github_review_comment_reply(
-            pr_number=123, comment_id=456, body="Thanks, fixed."
-        )
-
-        assert result == ("Error: failed to reply to review comment 456 on PR #123")
-
-    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
-    def test_exception_from_manager_is_reported(
-        self, mock_manager_cls: MagicMock
-    ) -> None:
-        """An arbitrary failure from the manager surfaces as an error string."""
-        manager: MagicMock = mock_manager_cls.return_value
-        manager.reply_to_review_comment.side_effect = RuntimeError("boom")
-
-        result = github_review_comment_reply(
-            pr_number=123, comment_id=456, body="Thanks, fixed."
-        )
-
-        assert result == "Error: boom"
-
-    def test_unknown_reference_name(self) -> None:
-        """An unknown reference name is reported once, without a suffix."""
-        with patch(
-            "mcp_workspace.github_operations.pr_manager.PullRequestManager"
-        ) as mock_manager_cls:
-            result = github_review_comment_reply(
-                pr_number=123,
-                comment_id=456,
-                body="Thanks, fixed.",
-                reference_name="nope",
-            )
-
-            assert result == "Error: Reference project 'nope' not found"
-            mock_manager_cls.assert_not_called()
-
-    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
-    def test_reference_project_failure_names_project(
-        self,
-        mock_manager_cls: MagicMock,
-        reference_projects: None,  # pylint: disable=unused-argument
-    ) -> None:
-        """A failure on a reference project's reply names that project."""
-        manager: MagicMock = mock_manager_cls.return_value
-        manager.reply_to_review_comment.return_value = _EMPTY_COMMENT_DATA
-
-        result = github_review_comment_reply(
-            pr_number=123,
-            comment_id=456,
-            body="Thanks, fixed.",
-            reference_name="sibling",
-        )
-
-        assert "sibling" in result
-        mock_manager_cls.assert_called_once_with(
-            repo_url="https://github.com/owner/sibling"
-        )
-
-
-# =============================================================================
-# github_review_thread_resolve tests
-# =============================================================================
-
-
-class TestGithubReviewThreadResolve:
-    """Tests for the ``github_review_thread_resolve`` MCP tool."""
-
-    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
-    def test_success_message(self, mock_manager_cls: MagicMock) -> None:
-        """A successful resolve reports the thread ID and PR number."""
-        manager: MagicMock = mock_manager_cls.return_value
-        manager.resolve_review_thread.return_value = True
-
-        result = github_review_thread_resolve(pr_number=123, thread_id="thread-abc")
-
-        assert result == "Resolved review thread thread-abc on PR #123"
-        manager.resolve_review_thread.assert_called_once_with(123, "thread-abc")
-
-    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
-    def test_failure_false_is_reported(self, mock_manager_cls: MagicMock) -> None:
-        """A False return reads as an error, not success."""
-        manager: MagicMock = mock_manager_cls.return_value
-        manager.resolve_review_thread.return_value = False
-
-        result = github_review_thread_resolve(pr_number=123, thread_id="thread-abc")
-
-        assert result == (
-            "Error: failed to resolve review thread thread-abc on PR #123"
-        )
-
-    @pytest.mark.parametrize(
-        "message",
-        [
-            "Review thread thread-abc not found",
-            "Review thread thread-abc does not belong to PR #123",
-            "Review thread thread-abc is already resolved",
-        ],
-    )
-    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
-    def test_value_error_from_manager_is_reported(
-        self, mock_manager_cls: MagicMock, message: str
-    ) -> None:
-        """Each of the three ValueError reasons surfaces as an error string."""
-        manager: MagicMock = mock_manager_cls.return_value
-        manager.resolve_review_thread.side_effect = ValueError(message)
-
-        result = github_review_thread_resolve(pr_number=123, thread_id="thread-abc")
-
-        assert result == f"Error: {message}"
-
-    def test_unknown_reference_name(self) -> None:
-        """An unknown reference name is reported once, without a suffix."""
-        with patch(
-            "mcp_workspace.github_operations.pr_manager.PullRequestManager"
-        ) as mock_manager_cls:
-            result = github_review_thread_resolve(
-                pr_number=123,
-                thread_id="thread-abc",
-                reference_name="nope",
-            )
-
-            assert result == "Error: Reference project 'nope' not found"
-            mock_manager_cls.assert_not_called()
-
-    @patch("mcp_workspace.github_operations.pr_manager.PullRequestManager")
-    def test_reference_project_failure_names_project(
-        self,
-        mock_manager_cls: MagicMock,
-        reference_projects: None,  # pylint: disable=unused-argument
-    ) -> None:
-        """A failure on a reference project's resolve names that project."""
-        manager: MagicMock = mock_manager_cls.return_value
-        manager.resolve_review_thread.return_value = False
-
-        result = github_review_thread_resolve(
-            pr_number=123,
-            thread_id="thread-abc",
-            reference_name="sibling",
-        )
-
-        assert "sibling" in result
-        mock_manager_cls.assert_called_once_with(
-            repo_url="https://github.com/owner/sibling"
-        )

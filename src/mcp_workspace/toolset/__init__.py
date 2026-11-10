@@ -13,6 +13,7 @@ from mcp_workspace.toolset import (
     delete,
     git,
     github_read,
+    github_write,
     move,
     read,
     reference,
@@ -31,6 +32,7 @@ _GROUPS: tuple[Callable[[ToolSink, WorkspaceContext], None], ...] = (
     reference.register,
     git.register,
     github_read.register,
+    github_write.register,
 )
 
 

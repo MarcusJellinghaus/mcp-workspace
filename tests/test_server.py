@@ -12,12 +12,12 @@ from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server import (
     FastMCPSink,
-    _check_not_gitignored,
     check_branch_status,
     create_server,
     run_server,
     set_project_dir,
 )
+from mcp_workspace.toolset._context import WorkspaceContext, check_not_gitignored
 from tests.conftest import ToolMap
 
 # Python path is now configured via pytest configuration in pyproject.toml
@@ -370,9 +370,10 @@ def test_check_not_gitignored_absolute_path_message_is_forward_slash(
     nested = gitignore_project / "sub" / "deeper"
     nested.mkdir(parents=True)
     (nested / "debug.log").write_text("log content")
+    ctx = WorkspaceContext(gitignore_project, {}, None, None, False, True)
 
     with pytest.raises(ValueError) as excinfo:
-        _check_not_gitignored(str(nested / "debug.log"))
+        check_not_gitignored(ctx, str(nested / "debug.log"))
 
     assert "File 'sub/deeper/debug.log' is excluded by .gitignore" in str(excinfo.value)
 

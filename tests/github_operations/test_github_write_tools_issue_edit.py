@@ -1,4 +1,4 @@
-"""Tests for the ``github_issue_edit`` MCP tool in server.py.
+"""Tests for the ``github_issue_edit`` tool in toolset/github_write.py.
 
 ``edit_issue`` has no transaction, so failure can reach the tool through two
 channels — the empty-``IssueData`` sentinel and a re-raised exception. Both must
@@ -7,13 +7,11 @@ that partially landed.
 """
 
 import time
-from collections.abc import Callable, Generator
+from collections.abc import Callable
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
-import pytest
 from github import GithubException
 
 from mcp_workspace.github_operations.base_manager import IssueIdentityMismatchError
@@ -22,15 +20,8 @@ from mcp_workspace.github_operations.issues.types import (
     IssueData,
     create_empty_issue_data,
 )
-from mcp_workspace.server import github_issue_edit, set_project_dir
+from tests.conftest import ToolMap
 from tests.github_operations.conftest import make_retry_error
-
-
-@pytest.fixture(autouse=True)
-def setup_server(project_dir: Path) -> Generator[None, None, None]:
-    """Setup the server with the project directory."""
-    set_project_dir(project_dir)
-    yield
 
 
 def _make_issue(
@@ -122,14 +113,16 @@ def _line_starting(result: str, prefix: str) -> str:
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_edit_happy_path(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_edit_happy_path(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """Reports the resulting issue, labels and assignees in three lines."""
     mock_manager_cls.return_value = _make_manager(
         issue=_make_issue(labels=["bug", "enhancement"], assignees=["alice"]),
         available_labels=[_label("bug"), _label("enhancement")],
     )
 
-    result = github_issue_edit(number=42, title="New title")
+    result = tools["github_issue_edit"](number=42, title="New title")
 
     assert result.splitlines() == [
         "Updated issue #42 — https://github.com/test/repo/issues/42 (state: open)",
@@ -141,18 +134,21 @@ def test_github_issue_edit_happy_path(mock_manager_cls: MagicMock) -> None:
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_empty_collections_render_none(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """Empty label and assignee sets render as '(none)', not as blanks."""
     mock_manager_cls.return_value = _make_manager(issue=_make_issue())
 
-    result = github_issue_edit(number=42, body="New body")
+    result = tools["github_issue_edit"](number=42, body="New body")
 
     assert "Labels: (none)" in result
     assert "Assignees: (none)" in result
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_edit_forwards_arguments(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_edit_forwards_arguments(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """Every requested argument reaches edit_issue."""
     mock_mgr = _make_manager(
         issue=_make_issue(state="closed", labels=["bug"], assignees=["alice"]),
@@ -160,7 +156,7 @@ def test_github_issue_edit_forwards_arguments(mock_manager_cls: MagicMock) -> No
     )
     mock_manager_cls.return_value = mock_mgr
 
-    github_issue_edit(
+    tools["github_issue_edit"](
         number=42,
         title="New title",
         body="New body",
@@ -188,6 +184,7 @@ def test_github_issue_edit_forwards_arguments(mock_manager_cls: MagicMock) -> No
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_sentinel_channel_warns_and_reports(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """A swallowed API error still reports the resulting state behind a warning."""
     mock_mgr = _make_manager()
@@ -195,7 +192,7 @@ def test_github_issue_edit_sentinel_channel_warns_and_reports(
     mock_mgr.get_issue.return_value = _make_issue(title="New title")
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="New title")
+    result = tools["github_issue_edit"](number=42, title="New title")
 
     assert result.startswith("Warning:")
     assert (
@@ -208,6 +205,7 @@ def test_github_issue_edit_sentinel_channel_warns_and_reports(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_exception_channel_warns_and_reports(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """A re-raised 403 mid-sequence is a partial write, never a bare error."""
     mock_mgr = _make_manager(available_labels=[_label("bug")])
@@ -221,7 +219,9 @@ def test_github_issue_edit_exception_channel_warns_and_reports(
     mock_mgr.get_issue.return_value = _make_issue(title="New title", labels=[])
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="New title", add_labels=["bug"])
+    result = tools["github_issue_edit"](
+        number=42, title="New title", add_labels=["bug"]
+    )
 
     assert result.startswith("Warning:")
     assert not result.startswith("Error:")
@@ -237,6 +237,7 @@ def test_github_issue_edit_exception_channel_warns_and_reports(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_value_error_channel_warns_and_reports(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """An IssueIdentityMismatchError from the closing refetch is a partial write."""
     mock_mgr = _make_manager()
@@ -249,7 +250,7 @@ def test_github_issue_edit_value_error_channel_warns_and_reports(
     mock_mgr.get_issue.return_value = _make_issue(title="New title")
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="New title")
+    result = tools["github_issue_edit"](number=42, title="New title")
 
     assert result.startswith("Warning:")
     assert "other/repo" in result
@@ -263,6 +264,7 @@ def test_github_issue_edit_value_error_channel_warns_and_reports(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_rate_limit_names_bucket_and_reset(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """A rate-limited repo lookup is reported as a rate limit, not as no access."""
     reset = int(time.time()) + 600
@@ -280,7 +282,7 @@ def test_github_issue_edit_rate_limit_names_bucket_and_reset(
     manager._cached_github_client = client
     mock_manager_cls.return_value = manager
 
-    result = github_issue_edit(number=42, title="New title")
+    result = tools["github_issue_edit"](number=42, title="New title")
 
     hhmm = f"{datetime.fromtimestamp(reset, tz=UTC):%H:%M}"
     assert "`core`" in result
@@ -291,6 +293,7 @@ def test_github_issue_edit_rate_limit_names_bucket_and_reset(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_retry_error_mid_sequence_warns_and_reports(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """Exhausted retries after a write landed is a partial write, not a crash."""
     mock_mgr = _make_manager()
@@ -300,7 +303,7 @@ def test_github_issue_edit_retry_error_mid_sequence_warns_and_reports(
     mock_mgr.get_issue.return_value = _make_issue(title="New title")
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="New title")
+    result = tools["github_issue_edit"](number=42, title="New title")
 
     assert result.startswith("Warning: edit partially failed")
     assert "retries exhausted" in result
@@ -309,6 +312,7 @@ def test_github_issue_edit_retry_error_mid_sequence_warns_and_reports(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_reports_only_requested_arguments(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """Arguments the caller never passed appear in neither Applied nor Not applied."""
     mock_mgr = _make_manager()
@@ -316,7 +320,7 @@ def test_github_issue_edit_reports_only_requested_arguments(
     mock_mgr.get_issue.return_value = _make_issue(title="New title")
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="New title")
+    result = tools["github_issue_edit"](number=42, title="New title")
 
     assert _line_starting(result, "Applied:") == "Applied: title"
     assert _line_starting(result, "Not applied:") == "Not applied: (none)"
@@ -329,6 +333,7 @@ def test_github_issue_edit_reports_only_requested_arguments(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_case_differing_label_counts_as_applied(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """A label that landed under the repository's casing is Applied, not missing.
 
@@ -343,7 +348,9 @@ def test_github_issue_edit_case_differing_label_counts_as_applied(
     mock_mgr.get_issue.return_value = _make_issue(labels=["bug"])
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, add_labels=["Bug"], remove_labels=["WontFix"])
+    result = tools["github_issue_edit"](
+        number=42, add_labels=["Bug"], remove_labels=["WontFix"]
+    )
 
     assert _line_starting(result, "Applied:") == "Applied: add_labels, remove_labels"
     assert _line_starting(result, "Not applied:") == "Not applied: (none)"
@@ -352,6 +359,7 @@ def test_github_issue_edit_case_differing_label_counts_as_applied(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_case_differing_assignee_counts_as_applied(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """An assignee that landed under GitHub's canonical casing is Applied.
 
@@ -364,7 +372,7 @@ def test_github_issue_edit_case_differing_assignee_counts_as_applied(
     mock_mgr.get_issue.return_value = _make_issue(assignees=["MarcusJellinghaus"])
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, add_assignees=["marcusjellinghaus"])
+    result = tools["github_issue_edit"](number=42, add_assignees=["marcusjellinghaus"])
 
     assert _line_starting(result, "Applied:") == "Applied: add_assignees"
     assert _line_starting(result, "Not applied:") == "Not applied: (none)"
@@ -373,6 +381,7 @@ def test_github_issue_edit_case_differing_assignee_counts_as_applied(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_body_differing_only_in_line_endings_is_applied(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """A body GitHub stored with normalised newlines still counts as Applied."""
     mock_mgr = _make_manager()
@@ -380,7 +389,7 @@ def test_github_issue_edit_body_differing_only_in_line_endings_is_applied(
     mock_mgr.get_issue.return_value = _make_issue(body="line one\nline two\n")
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, body="line one\r\nline two\r\n")
+    result = tools["github_issue_edit"](number=42, body="line one\r\nline two\r\n")
 
     assert _line_starting(result, "Applied:") == "Applied: body"
     assert _line_starting(result, "Not applied:") == "Not applied: (none)"
@@ -389,6 +398,7 @@ def test_github_issue_edit_body_differing_only_in_line_endings_is_applied(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_title_differing_only_in_whitespace_is_applied(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """A title stored without its surrounding whitespace still counts as Applied.
 
@@ -401,7 +411,7 @@ def test_github_issue_edit_title_differing_only_in_whitespace_is_applied(
     mock_mgr.get_issue.return_value = _make_issue(title="New title")
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="  New title  ")
+    result = tools["github_issue_edit"](number=42, title="  New title  ")
 
     assert _line_starting(result, "Applied:") == "Applied: title"
     assert _line_starting(result, "Not applied:") == "Not applied: (none)"
@@ -410,6 +420,7 @@ def test_github_issue_edit_title_differing_only_in_whitespace_is_applied(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_failure_before_any_write_does_not_claim_an_update(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """No write was logged, so the readable issue is current state, not an update.
 
@@ -421,7 +432,7 @@ def test_github_issue_edit_failure_before_any_write_does_not_claim_an_update(
     mock_mgr.get_issue.return_value = _make_issue(title="Old title", labels=["bug"])
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="New title")
+    result = tools["github_issue_edit"](number=42, title="New title")
 
     assert result.startswith("Error: edit of issue #42 failed")
     assert "no changes were made" in result
@@ -436,6 +447,7 @@ def test_github_issue_edit_failure_before_any_write_does_not_claim_an_update(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_unreadable_issue_reports_not_found(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """No write was logged and the issue is unreadable: the opening fetch 404ed.
 
@@ -447,7 +459,7 @@ def test_github_issue_edit_unreadable_issue_reports_not_found(
     mock_mgr.get_issue.return_value = create_empty_issue_data()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="New title")
+    result = tools["github_issue_edit"](number=42, title="New title")
 
     assert result.startswith("Error: issue #42 not found or not accessible")
     assert result.endswith("no changes were made")
@@ -457,6 +469,7 @@ def test_github_issue_edit_unreadable_issue_reports_not_found(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_swallowed_mid_sequence_failure_is_indeterminate(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """A logged write plus an unreadable refetch must not claim nothing changed.
 
@@ -471,7 +484,9 @@ def test_github_issue_edit_swallowed_mid_sequence_failure_is_indeterminate(
     mock_mgr.get_issue.return_value = create_empty_issue_data()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="New title", add_labels=["bug"])
+    result = tools["github_issue_edit"](
+        number=42, title="New title", add_labels=["bug"]
+    )
 
     assert result.startswith("Error:")
     assert "no changes were made" not in result
@@ -481,6 +496,7 @@ def test_github_issue_edit_swallowed_mid_sequence_failure_is_indeterminate(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_raised_failure_keeps_partial_write_wording(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """A re-raised error can arrive after a write landed, so stay non-committal."""
     mock_mgr = _make_manager()
@@ -493,7 +509,7 @@ def test_github_issue_edit_raised_failure_keeps_partial_write_wording(
     mock_mgr.get_issue.return_value = create_empty_issue_data()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="New title")
+    result = tools["github_issue_edit"](number=42, title="New title")
 
     assert result.startswith("Error:")
     assert "could not be re-read" in result
@@ -504,6 +520,7 @@ def test_github_issue_edit_raised_failure_keeps_partial_write_wording(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_failed_refetch_names_both_failures(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """A raising refetch is reported alongside the original failure reason."""
     mock_mgr = _make_manager()
@@ -518,7 +535,7 @@ def test_github_issue_edit_failed_refetch_names_both_failures(
     )
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="New title")
+    result = tools["github_issue_edit"](number=42, title="New title")
 
     assert result.startswith("Error:")
     assert "Warning" not in result
@@ -535,12 +552,13 @@ def test_github_issue_edit_failed_refetch_names_both_failures(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_rejects_status_label_on_add_side(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """A status-* label cannot be added through this tool."""
     mock_mgr = _make_manager()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, add_labels=["status-04:in-progress"])
+    result = tools["github_issue_edit"](number=42, add_labels=["status-04:in-progress"])
 
     assert result.startswith("Error:")
     assert "status-04:in-progress" in result
@@ -551,12 +569,15 @@ def test_github_issue_edit_rejects_status_label_on_add_side(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_rejects_status_label_on_remove_side(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """Removing a status-* label would leave zero — also rejected."""
     mock_mgr = _make_manager()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, remove_labels=["status-04:in-progress"])
+    result = tools["github_issue_edit"](
+        number=42, remove_labels=["status-04:in-progress"]
+    )
 
     assert result.startswith("Error:")
     assert "status-04:in-progress" in result
@@ -567,12 +588,15 @@ def test_github_issue_edit_rejects_status_label_on_remove_side(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_rejects_differently_cased_status_label(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """The remove side has no known-label check, so the guard must ignore case."""
     mock_mgr = _make_manager()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, remove_labels=["Status-04:in-progress"])
+    result = tools["github_issue_edit"](
+        number=42, remove_labels=["Status-04:in-progress"]
+    )
 
     assert result.startswith("Error:")
     assert "github_issue_set_status" in result
@@ -582,6 +606,7 @@ def test_github_issue_edit_rejects_differently_cased_status_label(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_accepts_differently_cased_label(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """GitHub label names are case-insensitive, so 'Bug' is a valid add."""
     mock_mgr = _make_manager(
@@ -589,7 +614,7 @@ def test_github_issue_edit_accepts_differently_cased_label(
     )
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, add_labels=["Bug"])
+    result = tools["github_issue_edit"](number=42, add_labels=["Bug"])
 
     assert result.startswith("Updated issue #42")
     assert mock_mgr.edit_issue.call_args.kwargs["add_labels"] == ["Bug"]
@@ -598,12 +623,13 @@ def test_github_issue_edit_accepts_differently_cased_label(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_rejects_unknown_add_label(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """A typo in an added label is rejected rather than creating the label."""
     mock_mgr = _make_manager(available_labels=[_label("bug")])
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, add_labels=["bugg"])
+    result = tools["github_issue_edit"](number=42, add_labels=["bugg"])
 
     assert result == "Error: unknown label(s): bugg"
     mock_mgr.edit_issue.assert_not_called()
@@ -612,6 +638,7 @@ def test_github_issue_edit_rejects_unknown_add_label(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_label_lookup_failure_is_not_unknown_label(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """A failed label lookup reports the API error, never 'unknown label'."""
     mock_mgr = _make_manager()
@@ -620,7 +647,7 @@ def test_github_issue_edit_label_lookup_failure_is_not_unknown_label(
     )
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, add_labels=["bug"])
+    result = tools["github_issue_edit"](number=42, add_labels=["bug"])
 
     assert result.startswith("Error:")
     assert "500" in result
@@ -631,12 +658,13 @@ def test_github_issue_edit_label_lookup_failure_is_not_unknown_label(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_remove_only_skips_label_lookup(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """With an empty add side there is nothing to validate — no API call."""
     mock_mgr = _make_manager(issue=_make_issue(labels=[]))
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, remove_labels=["wontfix"])
+    result = tools["github_issue_edit"](number=42, remove_labels=["wontfix"])
 
     assert result.startswith("Updated issue #42")
     mock_mgr.get_available_labels.assert_not_called()
@@ -648,12 +676,14 @@ def test_github_issue_edit_remove_only_skips_label_lookup(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_edit_resolves_me_assignee(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_edit_resolves_me_assignee(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """'@me' is resolved to the authenticated login before the write."""
     mock_mgr = _make_manager(issue=_make_issue(assignees=["marcus"]), login="marcus")
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, add_assignees=["@me"])
+    result = tools["github_issue_edit"](number=42, add_assignees=["@me"])
 
     assert result.startswith("Updated issue #42")
     assert mock_mgr.edit_issue.call_args.kwargs["add_assignees"] == ["marcus"]
@@ -662,12 +692,13 @@ def test_github_issue_edit_resolves_me_assignee(mock_manager_cls: MagicMock) -> 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_rejects_bad_state_before_writing(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """An invalid state is caught before any API call, so it is a plain error."""
     mock_mgr = _make_manager()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, state="bogus")
+    result = tools["github_issue_edit"](number=42, state="bogus")
 
     assert result.startswith("Error:")
     assert "Warning" not in result
@@ -677,12 +708,13 @@ def test_github_issue_edit_rejects_bad_state_before_writing(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_rejects_invalid_number_before_writing(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """An invalid issue number is caught before any API call."""
     mock_mgr = _make_manager()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=0, title="New title")
+    result = tools["github_issue_edit"](number=0, title="New title")
 
     assert result.startswith("Error:")
     assert "Warning" not in result
@@ -692,6 +724,7 @@ def test_github_issue_edit_rejects_invalid_number_before_writing(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_edit_rejects_empty_title_before_writing(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """GitHub rejects an empty title, so catch it before anything is written.
 
@@ -700,7 +733,7 @@ def test_github_issue_edit_rejects_empty_title_before_writing(
     mock_mgr = _make_manager()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="   ")
+    result = tools["github_issue_edit"](number=42, title="   ")
 
     assert result == "Error: Issue title cannot be empty"
     mock_mgr.edit_issue.assert_not_called()

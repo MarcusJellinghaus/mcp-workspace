@@ -61,19 +61,10 @@ depends_on = [
     { path = "mcp_workspace.github_operations" },
     { path = "mcp_workspace.checks" },
     { path = "mcp_workspace.reference_projects" },
-    { path = "mcp_workspace.server_reference_tools" },
     { path = "mcp_workspace.toolset" },
     { path = "mcp_workspace.config" },
     { path = "mcp_coder_utils.log_utils" },
     { path = "mcp_coder_utils.tool_spec" },
-]
-
-[[modules]]
-path = "mcp_workspace.server_reference_tools"
-layer = "protocol"
-depends_on = [
-    { path = "mcp_workspace.reference_projects" },
-    { path = "mcp_coder_utils.log_utils" },
 ]
 
 # =============================================================================
@@ -202,7 +193,6 @@ depends_on = [
     { path = "mcp_workspace" },
     { path = "mcp_workspace.main" },
     { path = "mcp_workspace.server" },
-    { path = "mcp_workspace.server_reference_tools" },
     { path = "mcp_workspace.file_tools" },
     { path = "mcp_workspace.git_operations" },
     { path = "mcp_workspace.github_operations" },

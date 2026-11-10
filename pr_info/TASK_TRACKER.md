@@ -77,9 +77,9 @@ See [step_9.md](./steps/step_9.md)
 
 ### Step 10: Move `workspace.github` write tools; delete `server_reference_tools.py`
 See [step_10.md](./steps/step_10.md)
-- [ ] Implementation: `toolset/github_write.py`, delete `server_reference_tools.py` and its setter tests, migrate tests
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `toolset/github_write.py`, delete `server_reference_tools.py` and its setter tests, migrate tests
+- [x] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
+- [x] Commit message prepared
 
 ### Step 11: Move group `workspace.checks`; remove the legacy machinery
 See [step_11.md](./steps/step_11.md)

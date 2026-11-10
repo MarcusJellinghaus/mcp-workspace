@@ -2,7 +2,8 @@
 
 import logging
 from collections.abc import Iterable
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from mcp_workspace.toolset._context import WorkspaceContext
 from mcp_workspace.toolset.reference import reference_repo_url
@@ -109,6 +110,56 @@ def linked_branches(
     except Exception:  # pylint: disable=broad-exception-caught
         logger.debug("Linked branch lookup failed", exc_info=True)
         return None
+
+
+def resolve_base_branch(
+    project_dir: Path, branch: str, pr_manager: Any
+) -> tuple[str | None, str | None]:
+    """Resolve the base branch for ``branch`` from its issue, PR, merge-base or default.
+
+    Args:
+        project_dir: Path to the git repository.
+        branch: Branch whose base is wanted.
+        pr_manager: PullRequestManager for the PR lookup, or None to skip it.
+
+    Returns:
+        (base, None) — base may be None when detection found nothing — or
+        (None, "Error: issue #N: <sentence>") when the issue's Base Branch section
+        is malformed. Never falls back past a malformed section.
+    """
+    # pylint: disable=redefined-outer-name  # pr_manager: kept for the callers
+    # Lazy imports: keep PyGithub/GitPython off the server startup import path
+    from mcp_workspace.git_operations.base_branch import detect_base_branch
+    from mcp_workspace.git_operations.branch_queries import (
+        extract_issue_number_from_branch,
+    )
+    from mcp_workspace.github_operations import IssueIdentityMismatchError
+    from mcp_workspace.github_operations.issues import IssueManager
+
+    issue_data = None
+    number = extract_issue_number_from_branch(branch)
+    if number is not None:
+        try:
+            fetched = IssueManager(project_dir=project_dir).get_issue(number)
+            issue_data = fetched if fetched.get("number", 0) > 0 else None
+        except IssueIdentityMismatchError as e:
+            # Must precede the broad catch: this is a ValueError subclass.
+            logger.warning("%s", e)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.debug("Issue fetch for base branch failed", exc_info=True)
+
+    if issue_data and issue_data.get("base_branch_error"):
+        return None, f"Error: issue #{number}: {issue_data['base_branch_error']}"
+
+    return (
+        detect_base_branch(
+            project_dir,
+            current_branch=branch,
+            issue_data=issue_data,
+            pr_manager=pr_manager,
+        ),
+        None,
+    )
 
 
 def repo_access_error(manager: "IssueManager") -> str:

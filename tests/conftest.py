@@ -11,7 +11,7 @@ from typing import Any, TypedDict, TypeVar
 import git
 import pytest
 
-from mcp_workspace import config, server, server_reference_tools
+from mcp_workspace import config, server
 from mcp_workspace.config import get_github_token, get_test_repo_url
 from mcp_workspace.github_operations import clear_repository_cache
 from mcp_workspace.toolset import tool_specs
@@ -97,8 +97,6 @@ _LEGACY_GLOBALS = (
     (server, "_project_dir"),
     (server, "_file_size_limit"),
     (server, "_fail_on_reviews"),
-    (server, "_enforce_base_branch_format"),
-    (server_reference_tools, "_reference_projects"),
 )
 
 

@@ -1,4 +1,4 @@
-"""Tests for the ``body_file`` parameter of the GitHub write MCP tools."""
+"""Tests for the ``body_file`` parameter of the GitHub write tools."""
 
 from collections.abc import Callable, Generator
 from pathlib import Path
@@ -8,23 +8,10 @@ import pytest
 
 from mcp_workspace.github_operations import GithubException
 from mcp_workspace.github_operations.issues.types import CommentData, IssueData
-from mcp_workspace.server import (
-    github_issue_comment,
-    github_issue_create,
-    github_issue_edit,
-    github_pr_create,
-    set_project_dir,
-)
+from tests.conftest import ToolMap
 
 PR_MANAGER = "mcp_workspace.github_operations.pr_manager.PullRequestManager"
 CURRENT_BRANCH = "mcp_workspace.git_operations.get_current_branch_name"
-
-
-@pytest.fixture(autouse=True)
-def setup_server(project_dir: Path) -> Generator[None, None, None]:
-    """Setup the server with the project directory."""
-    set_project_dir(project_dir)
-    yield
 
 
 def _make_issue(number: int = 42) -> IssueData:
@@ -47,12 +34,12 @@ def _make_issue(number: int = 42) -> IssueData:
 
 @pytest.fixture
 def mock_issue_manager() -> Generator[MagicMock, None, None]:
-    """Patch _issue_manager to return a mocked IssueManager."""
+    """Patch issue_manager to return a mocked IssueManager."""
     mock_mgr = MagicMock()
     mock_mgr.create_issue.return_value = _make_issue()
     mock_mgr.get_available_labels.return_value = []
     with patch(
-        "mcp_workspace.server._issue_manager", return_value=mock_mgr
+        "mcp_workspace.toolset.github_write.issue_manager", return_value=mock_mgr
     ) as mock_factory:
         yield mock_factory
 
@@ -64,7 +51,7 @@ def _sent_body(mock_factory: MagicMock) -> str:
 
 
 def test_create_body_file_sent_verbatim(
-    project_dir: Path, mock_issue_manager: MagicMock
+    project_dir: Path, mock_issue_manager: MagicMock, tools: ToolMap
 ) -> None:
     """A large non-ASCII CRLF file is sent byte for byte."""
     line = "äöü → ✓ `code` ``more``\r\n"
@@ -72,7 +59,7 @@ def test_create_body_file_sent_verbatim(
     assert len(content) >= 20_000
     (project_dir / "body.md").write_bytes(content)
 
-    result = github_issue_create(title="Test issue", body_file="body.md")
+    result = tools["github_issue_create"](title="Test issue", body_file="body.md")
 
     assert result.startswith("Created issue #42")
     sent = _sent_body(mock_issue_manager)
@@ -81,24 +68,26 @@ def test_create_body_file_sent_verbatim(
 
 
 def test_create_body_file_drops_bom(
-    project_dir: Path, mock_issue_manager: MagicMock
+    project_dir: Path, mock_issue_manager: MagicMock, tools: ToolMap
 ) -> None:
     """A leading UTF-8 BOM is not sent."""
     (project_dir / "body.md").write_bytes(b"\xef\xbb\xbfHello\r\n")
 
-    result = github_issue_create(title="Test issue", body_file="body.md")
+    result = tools["github_issue_create"](title="Test issue", body_file="body.md")
 
     assert result.startswith("Created issue #42")
     assert _sent_body(mock_issue_manager) == "Hello\r\n"
 
 
 def test_create_body_and_body_file_conflict(
-    project_dir: Path, mock_issue_manager: MagicMock
+    project_dir: Path, mock_issue_manager: MagicMock, tools: ToolMap
 ) -> None:
     """Passing both body and body_file is an error before any manager call."""
     (project_dir / "body.md").write_bytes(b"Hello")
 
-    result = github_issue_create(title="Test issue", body="x", body_file="body.md")
+    result = tools["github_issue_create"](
+        title="Test issue", body="x", body_file="body.md"
+    )
 
     assert result.startswith("Error:")
     assert "body" in result and "body_file" in result
@@ -139,32 +128,35 @@ def test_create_body_file_bad_path(
     project_dir: Path,
     mock_issue_manager: MagicMock,
     make_path: Callable[[Path], str],
+    tools: ToolMap,
 ) -> None:
     """An unusable body_file is an error before any manager call."""
     body_file = make_path(project_dir)
 
-    result = github_issue_create(title="Test issue", body_file=body_file)
+    result = tools["github_issue_create"](title="Test issue", body_file=body_file)
 
     assert result.startswith("Error:")
     mock_issue_manager.assert_not_called()
 
 
 def test_create_body_file_malformed_base_branch(
-    project_dir: Path, mock_issue_manager: MagicMock
+    project_dir: Path, mock_issue_manager: MagicMock, tools: ToolMap
 ) -> None:
     """The Base Branch check applies to the file text."""
     (project_dir / "body.md").write_bytes(b"### Base Branch\n\nline1\nline2\n")
 
-    result = github_issue_create(title="Test issue", body_file="body.md")
+    result = tools["github_issue_create"](title="Test issue", body_file="body.md")
 
     assert result.startswith("Error:")
     assert "line1" in result
     mock_issue_manager.return_value.create_issue.assert_not_called()
 
 
-def test_create_inline_body_unchanged(mock_issue_manager: MagicMock) -> None:
+def test_create_inline_body_unchanged(
+    mock_issue_manager: MagicMock, tools: ToolMap
+) -> None:
     """Without body_file, the inline body is passed through unchanged."""
-    result = github_issue_create(title="Test issue", body="Inline\r\nbody ")
+    result = tools["github_issue_create"](title="Test issue", body="Inline\r\nbody ")
 
     assert result.startswith("Created issue #42")
     assert _sent_body(mock_issue_manager) == "Inline\r\nbody "
@@ -186,12 +178,12 @@ def _edited_body(mock_factory: MagicMock) -> str:
 
 
 def test_edit_body_file_sent_verbatim(
-    project_dir: Path, mock_edit_manager: MagicMock
+    project_dir: Path, mock_edit_manager: MagicMock, tools: ToolMap
 ) -> None:
     """A CRLF file is sent byte for byte and the edit reports success."""
     (project_dir / "body.md").write_bytes(b"Line one\r\nLine two\r\n")
 
-    result = github_issue_edit(number=42, body_file="body.md")
+    result = tools["github_issue_edit"](number=42, body_file="body.md")
 
     assert result.startswith("Updated issue #")
     assert "Error" not in result and "Warning" not in result
@@ -199,12 +191,12 @@ def test_edit_body_file_sent_verbatim(
 
 
 def test_edit_empty_body_and_body_file_conflict(
-    project_dir: Path, mock_edit_manager: MagicMock
+    project_dir: Path, mock_edit_manager: MagicMock, tools: ToolMap
 ) -> None:
     """Even body="" conflicts with body_file on edit."""
     (project_dir / "body.md").write_bytes(b"Hello")
 
-    result = github_issue_edit(number=42, body="", body_file="body.md")
+    result = tools["github_issue_edit"](number=42, body="", body_file="body.md")
 
     assert result.startswith("Error:")
     assert "body" in result and "body_file" in result
@@ -212,12 +204,12 @@ def test_edit_empty_body_and_body_file_conflict(
 
 
 def test_edit_body_file_malformed_base_branch(
-    project_dir: Path, mock_edit_manager: MagicMock
+    project_dir: Path, mock_edit_manager: MagicMock, tools: ToolMap
 ) -> None:
     """The Base Branch check applies to the file text."""
     (project_dir / "body.md").write_bytes(b"### Base Branch\n\nline1\nline2\n")
 
-    result = github_issue_edit(number=42, body_file="body.md")
+    result = tools["github_issue_edit"](number=42, body_file="body.md")
 
     assert result.startswith("Error:")
     assert "line1" in result
@@ -225,7 +217,7 @@ def test_edit_body_file_malformed_base_branch(
 
 
 def test_edit_body_file_partial_failure_reports_body(
-    project_dir: Path, mock_edit_manager: MagicMock
+    project_dir: Path, mock_edit_manager: MagicMock, tools: ToolMap
 ) -> None:
     """On partial failure, the file body is reported as applied."""
     text = "Line one\r\nLine two\r\n"
@@ -243,14 +235,16 @@ def test_edit_body_file_partial_failure_reports_body(
     refetched["body"] = text
     mgr.get_issue.return_value = refetched
 
-    result = github_issue_edit(number=42, body_file="body.md")
+    result = tools["github_issue_edit"](number=42, body_file="body.md")
 
     assert "Applied: body" in result
 
 
-def test_edit_empty_inline_body_unchanged(mock_edit_manager: MagicMock) -> None:
+def test_edit_empty_inline_body_unchanged(
+    mock_edit_manager: MagicMock, tools: ToolMap
+) -> None:
     """Without body_file, body="" still reaches edit_issue as ""."""
-    result = github_issue_edit(number=42, body="")
+    result = tools["github_issue_edit"](number=42, body="")
 
     assert result.startswith("Updated issue #")
     assert _edited_body(mock_edit_manager) == ""
@@ -274,25 +268,25 @@ def mock_comment_manager(
 
 
 def test_comment_body_file_sent_verbatim(
-    project_dir: Path, mock_comment_manager: MagicMock
+    project_dir: Path, mock_comment_manager: MagicMock, tools: ToolMap
 ) -> None:
     """A non-ASCII CRLF file reaches add_comment as its text."""
     text = "äöü → ✓\r\nzweite Zeile\r\n"
     (project_dir / "body.md").write_bytes(text.encode("utf-8"))
 
-    result = github_issue_comment(number=42, body_file="body.md")
+    result = tools["github_issue_comment"](number=42, body_file="body.md")
 
     assert result.startswith("Added comment to issue #42")
     mock_comment_manager.return_value.add_comment.assert_called_once_with(42, text)
 
 
 def test_comment_body_and_body_file_conflict(
-    project_dir: Path, mock_comment_manager: MagicMock
+    project_dir: Path, mock_comment_manager: MagicMock, tools: ToolMap
 ) -> None:
     """Passing both body and body_file is an error before any manager call."""
     (project_dir / "body.md").write_bytes(b"Hello")
 
-    result = github_issue_comment(number=42, body="x", body_file="body.md")
+    result = tools["github_issue_comment"](number=42, body="x", body_file="body.md")
 
     assert result.startswith("Error:")
     assert "body" in result and "body_file" in result
@@ -301,21 +295,22 @@ def test_comment_body_and_body_file_conflict(
 
 def test_comment_neither_body_nor_body_file(
     mock_comment_manager: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """With no body source, the error wins over an invalid reference_name."""
-    result = github_issue_comment(number=42, reference_name="no-such-ref")
+    result = tools["github_issue_comment"](number=42, reference_name="no-such-ref")
 
     assert result == "Error: pass body or body_file"
     mock_comment_manager.assert_not_called()
 
 
 def test_comment_empty_body_file(
-    project_dir: Path, mock_comment_manager: MagicMock
+    project_dir: Path, mock_comment_manager: MagicMock, tools: ToolMap
 ) -> None:
     """An empty body_file names the file instead of the generic error."""
     (project_dir / "empty.md").write_bytes(b"")
 
-    result = github_issue_comment(number=42, body_file="empty.md")
+    result = tools["github_issue_comment"](number=42, body_file="empty.md")
 
     assert result == "Error: body_file 'empty.md' is empty"
     mock_comment_manager.assert_not_called()
@@ -336,13 +331,13 @@ def mock_pr_manager() -> Generator[MagicMock, None, None]:
 
 
 def test_pr_create_body_file_sent_verbatim(
-    project_dir: Path, mock_pr_manager: MagicMock
+    project_dir: Path, mock_pr_manager: MagicMock, tools: ToolMap
 ) -> None:
     """A CRLF file reaches create_pull_request as its exact text."""
     text = "Summary\r\n\r\n- äöü → ✓\r\n"
     (project_dir / "body.md").write_bytes(text.encode("utf-8"))
 
-    result = github_pr_create(
+    result = tools["github_pr_create"](
         title="T", head="feature/x", base="main", body_file="body.md"
     )
 
@@ -352,12 +347,12 @@ def test_pr_create_body_file_sent_verbatim(
 
 
 def test_pr_create_body_and_body_file_conflict(
-    project_dir: Path, mock_pr_manager: MagicMock
+    project_dir: Path, mock_pr_manager: MagicMock, tools: ToolMap
 ) -> None:
     """Passing both body and body_file is an error before any manager call."""
     (project_dir / "body.md").write_bytes(b"Hello")
 
-    result = github_pr_create(
+    result = tools["github_pr_create"](
         title="T", body="x", head="feature/x", base="main", body_file="body.md"
     )
 
@@ -366,9 +361,11 @@ def test_pr_create_body_and_body_file_conflict(
     mock_pr_manager.assert_not_called()
 
 
-def test_pr_create_body_file_missing(mock_pr_manager: MagicMock) -> None:
+def test_pr_create_body_file_missing(
+    mock_pr_manager: MagicMock, tools: ToolMap
+) -> None:
     """A missing body_file is an error before any manager call."""
-    result = github_pr_create(
+    result = tools["github_pr_create"](
         title="T", head="feature/x", base="main", body_file="missing.md"
     )
 

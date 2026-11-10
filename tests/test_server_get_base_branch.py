@@ -1,4 +1,4 @@
-"""Tests for ``_resolve_base_branch`` and the ``get_base_branch`` tool.
+"""Tests for ``resolve_base_branch`` and the ``get_base_branch`` tool.
 
 A malformed Base Branch section on the linked issue is surfaced as an
 ``Error: issue #N: …`` string and never falls back to PR/merge-base/default.
@@ -13,7 +13,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from mcp_workspace.github_operations import IssueIdentityMismatchError
-from mcp_workspace.server import _resolve_base_branch, get_base_branch, set_project_dir
+from mcp_workspace.server import get_base_branch, set_project_dir
+from mcp_workspace.toolset._github_common import resolve_base_branch
 from tests.github_operations._issue_test_helpers import (
     make_untrusted_issue,
     real_issue_manager,
@@ -43,7 +44,7 @@ def setup_server(project_dir: Path) -> Generator[None, None, None]:
 
 
 class TestResolveBaseBranch:
-    """Tests for the ``_resolve_base_branch`` helper."""
+    """Tests for the ``resolve_base_branch`` helper."""
 
     def test_malformed_issue_returns_error_without_detection(
         self, tmp_path: Path
@@ -57,7 +58,7 @@ class TestResolveBaseBranch:
             mock_im_cls.return_value.get_issue.return_value = _issue(
                 base_branch_error=SENTENCE
             )
-            result = _resolve_base_branch(tmp_path, BRANCH, pr_manager)
+            result = resolve_base_branch(tmp_path, BRANCH, pr_manager)
 
         assert result == (None, f"Error: issue #42: {SENTENCE}")
         mock_detect.assert_not_called()
@@ -72,7 +73,7 @@ class TestResolveBaseBranch:
             patch(DETECT, return_value="develop") as mock_detect,
         ):
             mock_im_cls.return_value.get_issue.return_value = fetched
-            result = _resolve_base_branch(tmp_path, BRANCH, pr_manager)
+            result = resolve_base_branch(tmp_path, BRANCH, pr_manager)
 
         assert result == ("develop", None)
         mock_detect.assert_called_once_with(
@@ -89,7 +90,7 @@ class TestResolveBaseBranch:
             patch(ISSUE_MANAGER) as mock_im_cls,
             patch(DETECT, return_value="main") as mock_detect,
         ):
-            result = _resolve_base_branch(tmp_path, "feature-branch", pr_manager)
+            result = resolve_base_branch(tmp_path, "feature-branch", pr_manager)
 
         assert result == ("main", None)
         mock_im_cls.assert_not_called()
@@ -106,7 +107,7 @@ class TestResolveBaseBranch:
             patch(ISSUE_MANAGER, side_effect=RuntimeError("no token")),
             patch(DETECT, return_value="main") as mock_detect,
         ):
-            result = _resolve_base_branch(tmp_path, BRANCH, None)
+            result = resolve_base_branch(tmp_path, BRANCH, None)
 
         assert result == ("main", None)
         assert mock_detect.call_args.kwargs["issue_data"] is None
@@ -118,12 +119,14 @@ class TestResolveBaseBranch:
         with (
             patch(ISSUE_MANAGER) as mock_im_cls,
             patch(DETECT, return_value="main") as mock_detect,
-            caplog.at_level(logging.WARNING, logger="mcp_workspace.server"),
+            caplog.at_level(
+                logging.WARNING, logger="mcp_workspace.toolset._github_common"
+            ),
         ):
             mock_im_cls.return_value.get_issue.side_effect = IssueIdentityMismatchError(
                 "issue #42 was transferred"
             )
-            result = _resolve_base_branch(tmp_path, BRANCH, None)
+            result = resolve_base_branch(tmp_path, BRANCH, None)
 
         assert result == ("main", None)
         assert mock_detect.call_args.kwargs["issue_data"] is None
@@ -138,7 +141,7 @@ class TestResolveBaseBranch:
             patch(DETECT, return_value="main") as mock_detect,
         ):
             mock_im_cls.return_value.get_issue.side_effect = RuntimeError("boom")
-            result = _resolve_base_branch(tmp_path, BRANCH, None)
+            result = resolve_base_branch(tmp_path, BRANCH, None)
 
         assert result == ("main", None)
         assert mock_detect.call_args.kwargs["issue_data"] is None
@@ -153,7 +156,7 @@ class TestResolveBaseBranch:
             mock_im_cls.return_value.get_issue.return_value = _issue(
                 number=0, base_branch_error=SENTENCE
             )
-            result = _resolve_base_branch(tmp_path, BRANCH, None)
+            result = resolve_base_branch(tmp_path, BRANCH, None)
 
         assert result == ("main", None)
         assert mock_detect.call_args.kwargs["issue_data"] is None
