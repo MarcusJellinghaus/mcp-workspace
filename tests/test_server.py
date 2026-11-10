@@ -16,7 +16,6 @@ from mcp_workspace.server import (
     check_branch_status,
     create_server,
     git,
-    move_file,
     run_server,
     set_project_dir,
 )
@@ -151,7 +150,7 @@ def test_append_file_not_found(tools: ToolMap) -> None:
         tools["append_file"](str(non_existent_file), "This should fail")
 
 
-def test_move_file(project_dir: Path) -> None:
+def test_move_file(project_dir: Path, tools: ToolMap) -> None:
     """Test the move_file tool."""
     # Create source file
     source_file = TEST_DIR / "source.txt"
@@ -169,7 +168,7 @@ def test_move_file(project_dir: Path) -> None:
         abs_dest.unlink()
 
     # Move the file
-    result = move_file(str(source_file), str(dest_file))
+    result = tools["move_file"](str(source_file), str(dest_file))
 
     assert result is True
     assert not abs_source.exists()
@@ -182,11 +181,11 @@ def test_move_file(project_dir: Path) -> None:
         abs_dest.unlink()
 
 
-def test_move_file_simplified_errors(project_dir: Path) -> None:
+def test_move_file_simplified_errors(project_dir: Path, tools: ToolMap) -> None:
     """Test that server endpoint returns simplified error messages."""
     # Test file not found
     with pytest.raises(FileNotFoundError) as exc_info:
-        move_file("nonexistent.txt", "dest.txt")
+        tools["move_file"]("nonexistent.txt", "dest.txt")
     assert str(exc_info.value) == "File not found"  # Simple message
 
     # Test destination exists
@@ -203,7 +202,7 @@ def test_move_file_simplified_errors(project_dir: Path) -> None:
         f.write("Existing")
 
     with pytest.raises(FileExistsError) as exc_info2:
-        move_file(str(source_file), str(dest_file))
+        tools["move_file"](str(source_file), str(dest_file))
     assert str(exc_info2.value) == "Destination already exists"  # Simple message
 
     # Clean up
@@ -213,39 +212,36 @@ def test_move_file_simplified_errors(project_dir: Path) -> None:
         abs_dest.unlink()
 
 
-@patch("mcp_workspace.server.move_file_util")
-def test_move_file_permission_error(mock_move: MagicMock, project_dir: Path) -> None:
+@patch("mcp_workspace.toolset.move.move_file_util")
+def test_move_file_permission_error(mock_move: MagicMock, tools: ToolMap) -> None:
     """Test permission error handling in move_file."""
     # Mock move_file_util to raise PermissionError
     mock_move.side_effect = PermissionError("Access denied to file: /some/path")
 
     with pytest.raises(PermissionError) as exc:
-        move_file("readonly.txt", "dest.txt")
+        tools["move_file"]("readonly.txt", "dest.txt")
     assert str(exc.value) == "Permission denied"  # Simple message
 
 
-@patch("mcp_workspace.server.move_file_util")
-def test_move_file_security_error(mock_move: MagicMock, project_dir: Path) -> None:
+@patch("mcp_workspace.toolset.move.move_file_util")
+def test_move_file_security_error(mock_move: MagicMock, tools: ToolMap) -> None:
     """Test security error handling in move_file."""
     # Mock move_file_util to raise ValueError with security message
     mock_move.side_effect = ValueError("Security: Path outside project directory")
 
     with pytest.raises(ValueError) as exc:
-        move_file("../outside.txt", "dest.txt")
+        tools["move_file"]("../outside.txt", "dest.txt")
     assert str(exc.value) == "Invalid path"  # Simple message
 
 
-@patch("mcp_workspace.server.move_file_util")
-def test_move_file_generic_error(mock_move: MagicMock, project_dir: Path) -> None:
+@patch("mcp_workspace.toolset.move.move_file_util")
+def test_move_file_generic_error(mock_move: MagicMock, tools: ToolMap) -> None:
     """Test generic error handling in move_file."""
-    # Import move_file here to avoid issues if not yet implemented
-    from mcp_workspace.server import move_file as move_file_fn
-
     # Mock move_file_util to raise a generic exception
     mock_move.side_effect = RuntimeError("Some complex internal error")
 
     with pytest.raises(RuntimeError) as exc:
-        move_file_fn("source.txt", "dest.txt")
+        tools["move_file"]("source.txt", "dest.txt")
     assert str(exc.value) == "Move operation failed"  # Simple message
 
 
@@ -313,18 +309,20 @@ def test_delete_directory_recursive_deletes_gitignored_children(
     assert not build_dir.exists()
 
 
-def test_move_file_gitignored_source(gitignore_project: Path) -> None:
+def test_move_file_gitignored_source(gitignore_project: Path, tools: ToolMap) -> None:
     """move_file with gitignored source raises ValueError."""
     (gitignore_project / "debug.log").write_text("content")
     with pytest.raises(ValueError, match="excluded by .gitignore"):
-        move_file("debug.log", "renamed.txt")
+        tools["move_file"]("debug.log", "renamed.txt")
 
 
-def test_move_file_gitignored_destination(gitignore_project: Path) -> None:
+def test_move_file_gitignored_destination(
+    gitignore_project: Path, tools: ToolMap
+) -> None:
     """move_file with gitignored destination raises ValueError."""
     (gitignore_project / "safe.txt").write_text("content")
     with pytest.raises(ValueError, match="excluded by .gitignore"):
-        move_file("safe.txt", "output.log")
+        tools["move_file"]("safe.txt", "output.log")
 
 
 def test_read_file_in_gitignored_directory(

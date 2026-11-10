@@ -20,7 +20,6 @@ from mcp_workspace.checks.file_sizes import (
     render_output,
 )
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES, normalize_path
-from mcp_workspace.file_tools import move_file as move_file_util
 from mcp_workspace.file_tools.directory_utils import check_path_not_gitignored
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server_reference_tools import (
@@ -394,67 +393,6 @@ def set_enforce_base_branch_format(value: bool) -> None:
     global _enforce_base_branch_format  # pylint: disable=global-statement
     _enforce_base_branch_format = value
     logger.info("Enforce base branch format set to: %s", value)
-
-
-@_legacy_tool
-@log_function_call
-def move_file(source_path: str, destination_path: str) -> bool:
-    """Move or rename a file or directory (git-aware, preserves history).
-
-    Git-aware: uses `git mv` for tracked files (preserving rename/history);
-    falls back to a plain filesystem move for untracked files or non-git repos.
-
-    Args:
-        source_path: Source file/directory path (relative to project)
-        destination_path: Destination path (relative to project)
-
-    Returns:
-        True if successful
-
-    Raises:
-        ValueError: If inputs are invalid
-        FileNotFoundError: If source doesn't exist
-        FileExistsError: If destination already exists
-        PermissionError: If permission is denied
-        RuntimeError: If the move operation fails for any other reason
-    """
-    # Validate inputs with simple error messages
-    if not source_path or not isinstance(source_path, str):
-        raise ValueError("Invalid source path")
-
-    if not destination_path or not isinstance(destination_path, str):
-        raise ValueError("Invalid destination path")
-
-    if _project_dir is None:
-        raise ValueError("Project directory not configured")
-
-    _check_not_gitignored(source_path)
-    _check_not_gitignored(destination_path)
-
-    try:
-        # Call the underlying function (all logic is handled internally)
-        result = move_file_util(source_path, destination_path, project_dir=_project_dir)
-
-        # Return simple boolean
-        return bool(result.get("success", False))
-
-    except FileNotFoundError as exc:
-        # Simplify error message for LLM
-        raise FileNotFoundError("File not found") from exc
-    except FileExistsError as exc:
-        # Simplify error message for LLM
-        raise FileExistsError("Destination already exists") from exc
-    except PermissionError as exc:
-        # Simplify error message for LLM
-        raise PermissionError("Permission denied") from exc
-    except ValueError as e:
-        # For security errors, simplify the message
-        if "Security" in str(e) or "outside" in str(e).lower():
-            raise ValueError("Invalid path") from e
-        raise ValueError("Invalid operation") from e
-    except Exception as e:
-        # Catch any other errors and simplify
-        raise RuntimeError("Move operation failed") from e
 
 
 @_legacy_tool

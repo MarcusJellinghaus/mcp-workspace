@@ -38,6 +38,15 @@ def test_delete_group_specs(tmp_path: Path, name: str) -> None:
     assert specs[name].read_only is False
 
 
+def test_move_group_spec(tmp_path: Path) -> None:
+    """move_file is exported as a writing spec."""
+    specs = {s.name: s for s in tool_specs(tmp_path)}
+
+    assert "move_file" in specs
+    assert specs["move_file"].group == "workspace.move"
+    assert specs["move_file"].read_only is False
+
+
 def test_edit_file_spec_is_async(tmp_path: Path) -> None:
     """edit_file stays a coroutine function."""
     specs = {s.name: s for s in tool_specs(tmp_path)}

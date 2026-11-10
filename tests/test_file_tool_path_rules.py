@@ -9,7 +9,6 @@ from typing import Any
 
 import pytest
 
-from mcp_workspace import server
 from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools.directory_utils import is_path_gitignored, list_files
 from mcp_workspace.file_tools.path_utils import normalize_path
@@ -42,8 +41,8 @@ FILE_TOOLS: dict[str, Callable[[ToolMap, str], Any]] = {
     "delete_directory": lambda t, p: t["delete_directory"](
         str(Path(p).parent), recursive=True
     ),
-    "move_file_source": lambda _t, p: server.move_file(p, "moved.txt"),
-    "move_file_destination": lambda _t, p: server.move_file("plain.txt", p + ".new"),
+    "move_file_source": lambda t, p: t["move_file"](p, "moved.txt"),
+    "move_file_destination": lambda t, p: t["move_file"]("plain.txt", p + ".new"),
     "list_directory": lambda t, p: t["list_directory"](str(Path(p).parent)),
 }
 
@@ -58,7 +57,7 @@ def _snapshot(directory: Path) -> dict[str, bytes]:
 
 
 @pytest.fixture
-def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def project(tmp_path: Path) -> Path:
     """Project with a git directory, a gitignored secret, and a plain file."""
     root = tmp_path / "project"
     (root / ".git" / "hooks").mkdir(parents=True)
@@ -68,7 +67,6 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (root / ".gitignore").write_text(".env\nsecret/\n*.log\n", encoding="utf-8")
     (root / ".env").write_text(SECRET_TEXT, encoding="utf-8")
     (root / "plain.txt").write_text("plain\n", encoding="utf-8")
-    monkeypatch.setattr(server, "_project_dir", root)
     return root
 
 
@@ -232,11 +230,11 @@ class TestGitFileAndNestedRepos:
             tools["delete_directory"]("vendor", recursive=True)
         assert (nested / "config").is_file()
 
-    def test_move_keeps_nested_repo(self, project: Path) -> None:
+    def test_move_keeps_nested_repo(self, project: Path, tools: ToolMap) -> None:
         nested = project / "vendor" / "lib" / ".git"
         nested.mkdir(parents=True)
         with pytest.raises(ValueError):
-            server.move_file("vendor", "elsewhere")
+            tools["move_file"]("vendor", "elsewhere")
         assert nested.is_dir()
 
     def test_directory_without_repo_still_deletes_and_moves(
@@ -244,7 +242,7 @@ class TestGitFileAndNestedRepos:
     ) -> None:
         (project / "old").mkdir()
         (project / "old" / "x.txt").write_text("x", encoding="utf-8")
-        assert server.move_file("old", "new") is True
+        assert tools["move_file"]("old", "new") is True
         tools["delete_directory"]("new", recursive=True)
         assert not (project / "new").exists()
 

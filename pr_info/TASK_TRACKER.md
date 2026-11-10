@@ -53,9 +53,9 @@ See [step_5.md](./steps/step_5.md)
 
 ### Step 6: Move group `workspace.move` (`move_file`)
 See [step_6.md](./steps/step_6.md)
-- [ ] Implementation: `toolset/move.py`, remove unused legacy code, migrate tests
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `toolset/move.py`, remove unused legacy code, migrate tests
+- [x] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
+- [x] Commit message prepared
 
 ### Step 7: Move group `workspace.reference` (4 reference tools)
 See [step_7.md](./steps/step_7.md)
