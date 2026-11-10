@@ -59,3 +59,17 @@ Supervisor-driven review of branch `378-export-workspace-tools-as-toolspec-s-fro
 - `test_server.py`: asserts the `Server settings: project_dir=...` line too.
 
 **Status**: committed
+
+## Round 4 — 2026-11-10
+**Findings**: none. `d0f0ae9`, `e98b8e7`, `f0628d8` verified correct; whole-diff pass over new code (`toolset/__init__.py`, `toolset/_context.py`, `server.py`) found no defects.
+**Decisions**: —
+**Changes**: none
+**Status**: no changes needed
+
+## Final Status
+- 4 rounds; code changes in rounds 1–3 (`d0f0ae9`, `e98b8e7`, `f0628d8`), round 4 clean.
+- vulture: clean. lint-imports: 9 contracts kept (MCP isolation: only `server -> mcp`).
+- GitHub CI green on `f0628d8`; no rebase needed.
+- **Open (environment, not code):** the local check venv (`MCP_CODER_VENV_PATH`) has an `mcp-coder-utils` without `tool_spec`, so pytest, pylint and mypy run only in CI. Needs a human to install a current `mcp-coder-utils` there.
+- **For the PR description:** startup-performance test threshold 2s → 3s and serial `performance` step (build-machine import time); `.claude/CLAUDE.md` performance-test edit needs mirroring in the shared-config source; MCP tool list order changed (names and schemas unchanged); 32 tools (issue table omits `github_issue_set_status`).
+- **Pre-existing, out of scope:** `list_directory` applies only the listed directory's `.gitignore`, not the root one (analytical, not probed) — same on `main`.
