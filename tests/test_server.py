@@ -583,7 +583,7 @@ class TestRunServer:
     def test_run_server_logs_reference_projects(
         self, project_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """run_server logs each reference project at INFO before starting."""
+        """run_server logs its settings and each reference project at INFO."""
         proj_path = Path("/path/to/proj1").resolve()
         test_projects = {"proj1": ReferenceProject(name="proj1", path=proj_path)}
 
@@ -592,6 +592,10 @@ class TestRunServer:
                 with caplog.at_level(logging.INFO, logger="mcp_workspace.server"):
                     run_server(project_dir, reference_projects=test_projects)
 
+        assert any(
+            m.startswith(f"Server settings: project_dir={project_dir},")
+            for m in caplog.messages
+        )
         assert f"Reference project 'proj1' set to: {proj_path}" in caplog.messages
 
 

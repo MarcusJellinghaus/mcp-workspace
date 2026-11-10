@@ -44,3 +44,18 @@ Supervisor-driven review of branch `378-export-workspace-tools-as-toolspec-s-fro
 - `tests/test_server.py`: `test_run_server_logs_reference_projects` (caplog). Not run locally (venv).
 
 **Status**: committed
+
+## Round 3 — 2026-11-10
+**Findings**:
+- `docs/LIBRARY_USE.md:53` — claims the entry point "activates the GitHub traffic log"; it only labels lines with the command name, the log follows `config.toml` for library callers too (low).
+- `docs/LIBRARY_USE.md:30` — `name` links to the README tool table, which lacks four tools (low).
+- `tests/test_server.py:583-595` — new logging test asserts only the reference-project line, not the settings line (low).
+- `e98b8e7` otherwise correct; other docs, `vulture_whitelist.py`, `.importlinter`, `tach.toml`, `pyproject.toml` accurate. CI green on `e98b8e7`. Local pytest/pylint/mypy still blocked only by the venv.
+
+**Decisions**: all three accepted — factual errors in a doc this branch adds, and a one-line assertion matching the commit's claim.
+
+**Changes**:
+- `LIBRARY_USE.md`: traffic-log wording corrected (verified against `main.py:354`, `_client.py:200`, `traffic_log.py:29,71`); `name` now links to the in-page `#groups` table.
+- `test_server.py`: asserts the `Server settings: project_dir=...` line too.
+
+**Status**: committed

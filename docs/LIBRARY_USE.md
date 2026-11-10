@@ -27,7 +27,7 @@ tools["read_file"].fn("README.md")
 
 ## `ToolSpec` fields
 
-- `name`: tool name, as in [Available Tools](../README.md#available-tools)
+- `name`: tool name, as in [Groups](#groups)
 - `description`: tool description
 - `fn`: the callable; sync or async
 - `args_model`: pydantic model of the parameters, with their descriptions
@@ -50,5 +50,5 @@ tools["read_file"].fn("README.md")
 
 ## TLS and global state
 
-- `tool_specs` has no global side effects. The `mcp-workspace` entry point activates the OS trust store (`truststore`) and the [GitHub traffic log](../README.md#github-traffic-log); library callers that enable `workspace.github` or `workspace.checks` must set up TLS themselves. `workspace.read` and `workspace.write` need no network.
+- `tool_specs` has no global side effects. The `mcp-workspace` entry point activates the OS trust store (`truststore`) and labels [GitHub traffic log](../README.md#github-traffic-log) lines with its command name. The traffic log itself follows `config.toml` for library callers too, with an empty command field. Library callers that enable `workspace.github` or `workspace.checks` must set up TLS themselves. `workspace.read` and `workspace.write` need no network.
 - Settings and file locks belong to one `tool_specs(...)` call; two calls never share them. Reference-project clone locks and clone-failure caches are process-global, keyed by reference name.
