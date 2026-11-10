@@ -106,5 +106,5 @@ See [step_14.md](./steps/step_14.md)
 - [x] Commit message prepared
 
 ## Pull Request
-- [ ] PR review: review full branch diff against `main`, address findings
+- [x] PR review: review full branch diff against `main`, address findings
 - [ ] PR summary prepared (title + description)
