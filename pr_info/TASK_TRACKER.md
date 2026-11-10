@@ -101,9 +101,9 @@ See [step_13.md](./steps/step_13.md)
 
 ### Step 14: Documentation
 See [step_14.md](./steps/step_14.md)
-- [ ] Implementation: README, ARCHITECTURE, CONTRIBUTING, tests/README, release notes
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: README, ARCHITECTURE, CONTRIBUTING, tests/README, release notes
+- [x] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 - [ ] PR review: review full branch diff against `main`, address findings

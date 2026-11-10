@@ -117,8 +117,9 @@ The project uses:
 mcp-workspace/
 ├── src/                    # Main source code
 │   ├── main.py            # Entry point and CLI
-│   ├── server.py          # MCP server implementation
+│   ├── server.py          # MCP server: builds FastMCP from toolset specs
 │   ├── log_utils.py       # Logging utilities
+│   ├── toolset/           # Tool definitions as ToolSpecs, one module per group
 │   └── file_tools/        # File operation tools
 ├── tests/                 # Test suite
 ├── tools/                 # Development utilities

@@ -1,5 +1,11 @@
 # Release notes
 
+## Next minor release — workspace tools as `ToolSpec`s (#378)
+
+- New `mcp_workspace.toolset.tool_specs(project_dir, *, reference_projects=None, read_max_lines=DEFAULT_READ_MAX_LINES, file_size_limit=None, fail_on_reviews=False, enforce_base_branch_format=True) -> tuple[ToolSpec, ...]`: every MCP tool as a framework-neutral `ToolSpec` (`mcp_coder_utils.tool_spec`), bound to `project_dir`, with `group` and `read_only`. Does not import `mcp`; each call has its own settings and file locks. See the README section "Library use (tool specs)", including the TLS note for library callers.
+- New `mcp_workspace.server.create_server(project_dir, **settings) -> FastMCP`: a fresh server per call, built from `tool_specs`. `run_server` uses it. The module-level `mcp` object and the `set_*` setters are removed, as is `server_reference_tools.py`.
+- MCP tool list unchanged: same names and input schemas. Parameter descriptions moved into the JSON schema, so tool descriptions no longer contain `Args:` sections.
+
 ## Next minor release — line limit for full reads (#380)
 
 - Full reads in `read_file` / `read_reference_file` are capped at 2000 lines by default, with a note giving the next `start_line` / `end_line`; explicit ranges are not capped. Set via `--read-max-lines` or `[mcp_workspace] read_max_lines` in `config.toml`; `0` disables.

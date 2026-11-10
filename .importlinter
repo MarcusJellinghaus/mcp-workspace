@@ -28,12 +28,13 @@ exclude_type_checking_imports = True
 # Contract: Layered Architecture
 # -----------------------------------------------------------------------------
 # Ensures dependencies flow in one direction:
-#   main -> server -> file_tools -> (no internal dependencies)
+#   main -> server -> toolset -> checks -> file_tools / ... -> utilities
 #
 # Why this matters:
 # - Prevents circular dependencies
 # - Keeps entry point (main) as thin orchestration layer
-# - Server focuses on MCP protocol, delegates to file_tools
+# - Server focuses on MCP protocol, registers the toolset's specs
+# - Toolset defines the tools MCP-free, delegates to file_tools and friends
 # - File tools are independent, reusable utilities
 # -----------------------------------------------------------------------------
 [importlinter:contract:layered_architecture]

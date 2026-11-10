@@ -20,10 +20,24 @@ tests/
 │   └── tests/                    # Nested test data
 │       └── testdata/             # Further nested test data
 │           └── test_file_tools/  # Test files for various tests
+├── toolset/                # Tests for src/toolset package
+│   ├── tool_schemas/             # Pinned input schema per tool (one JSON file each)
+│   ├── test_tool_schema_snapshot.py # MCP tool schemas match tool_schemas/
+│   ├── test_toolset.py           # Groups, isolation, defaults, args_model
+│   └── test_toolset_imports.py   # Subprocess checks: no mcp, lazy git/GitHub
 ├── test_log_utils.py       # Tests for log_utils.py
 ├── test_server.py          # Tests for server.py
 └── conftest.py             # Test configuration and fixtures
 ```
+
+## Calling tools in tests
+
+Tool tests call the tools through `tool_specs`, not through the MCP server. Two fixtures in `conftest.py` build them, bound to the `project_dir` fixture:
+
+- `tools`: `{name: fn}` with default settings, e.g. `tools["read_file"]("a.txt")`.
+- `make_tools(root=None, **settings)`: the same map with other settings or another root, e.g. `make_tools(read_max_lines=3)` or `make_tools(reference_projects={...})`.
+
+To patch a helper, patch the name in the toolset module that calls it, e.g. `mcp_workspace.toolset.read.read_file_util`.
 
 ## Testing Philosophy
 
