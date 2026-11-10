@@ -1,0 +1,11 @@
+{
+  "properties": {
+    "reference_name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "reference_name"
+  ],
+  "type": "object"
+}

@@ -12,6 +12,10 @@ The project follows a layered architecture pattern:
 ├──────────────────────────────────────────────────────┤
 │  MCP Server (server.py)                              │  ← Protocol implementation
 ├──────────────────────────────────────────────────────┤
+│  Toolset (toolset/)                                  │  ← Framework-neutral tool specs
+├──────────────────────────────────────────────────────┤
+│  checks/                                             │  ← Branch-status checks
+├──────────────────────────────────────────────────────┤
 │  file_tools/  │  git_operations/  │  github_operations/  │  ← Business logic
 ├──────────────────────────────────────────────────────┤
 │  config  │  constants  │  utils                      │  ← Utilities
@@ -25,7 +29,9 @@ The project follows a layered architecture pattern:
 | Layer | Purpose | Can Import From |
 |-------|---------|-----------------|
 | **Entry** | Application startup and initialization | All layers below |
-| **Protocol** | MCP server implementation and tool registration | Tools, Utilities |
+| **Protocol** | Builds a FastMCP server per call from `tool_specs` | Toolset, Tools, Utilities |
+| **Toolset** | Defines every tool as a `ToolSpec`, bound to one project directory | checks, Tools, Utilities |
+| **checks** | Branch-status checks | Tools, Utilities |
 | **Tools (upper)** | file_tools, github_operations | git_operations, Utilities |
 | **Tools (lower)** | git_operations | Utilities only |
 | **Utilities** | config, constants, utils | N/A (leaf modules) |
@@ -36,19 +42,19 @@ The project follows a layered architecture pattern:
 ### 1. Dependency Flow
 
 Dependencies flow **downward** only:
-- Entry → Protocol → Tools → Utilities
+- Entry → Protocol → Toolset → Tools → Utilities
 - Higher layers depend on lower layers
 - Lower layers never depend on higher layers
 - Prevents circular dependencies
 
 ### 2. MCP Isolation
 
-MCP protocol concerns are isolated to:
-- `main.py` - Server initialization
-- `server.py` - Tool registration and handlers
+MCP protocol concerns are isolated to `server.py`: `create_server` builds a fresh
+`FastMCP` and registers every spec from `toolset.tool_specs` through `FastMCPSink`.
+`main.py` parses arguments and calls `run_server`; it does not import `mcp`.
 
-File tools remain **MCP-agnostic** for:
-- Reusability in non-MCP contexts
+The toolset and file tools remain **MCP-agnostic** for:
+- Reusability in non-MCP contexts (see [LIBRARY_USE.md](LIBRARY_USE.md))
 - Easier testing
 - Clearer separation of concerns
 
@@ -58,7 +64,7 @@ External libraries are isolated to specific modules:
 
 | Library | Used By | Rationale |
 |---------|---------|-----------|
-| `mcp` | main.py, server.py | Protocol implementation only |
+| `mcp` | server.py | Protocol implementation only |
 | `git` (GitPython) | git_operations/ | Git functionality isolated |
 | `github` (PyGithub) | github_operations/ | GitHub API access isolated |
 | `requests` | github_operations/ | HTTP requests isolated |
@@ -74,16 +80,19 @@ PyGithub and GitPython together pull in ~200 extra module files.
 To keep startup fast, the heavy libraries are imported **lazily, inside the tool
 functions that need them**, rather than at module top level:
 
-- `server.py` imports `github_operations`, `git_operations`, and the
-  branch-status checks inside the relevant `@mcp.tool()` bodies and the private
-  helpers they call.
+- `toolset/` imports `github_operations`, `git_operations`, and the
+  branch-status checks inside the tool closures and the helpers they call, so
+  building the specs with `tool_specs(...)` loads neither library; they load
+  when a git/GitHub tool first runs.
 - `file_tools/file_operations.py` imports the git-move helpers inside `move_file`
   only, so the common read/write/edit/list/search path never loads GitPython.
 - `reference_projects.py` imports `clone_repo` inside `ensure_available`.
 
 **This is load-bearing, not incidental.** `tests/test_startup_performance.py`
 asserts that importing `mcp_workspace.server` does **not** eagerly import
-`github`/`git` and that a full process import stays under three seconds. Keep
+`github`/`git` and that a full process import stays under three seconds;
+`tests/toolset/test_toolset_imports.py` asserts that importing the toolset and
+calling `tool_specs(...)` loads neither, nor `mcp`. Keep
 new imports of these libraries inside function bodies, not at module top level.
 
 These lazy imports do not change the architecture graph: import-linter/tach (via

@@ -16,6 +16,7 @@ ignore_type_checking_imports = true
 # =============================================================================
 # entry       - Application entry point (main.py)
 # protocol    - MCP protocol implementation (server.py)
+# toolset     - Framework-neutral tool specs (mcp_workspace.toolset)
 # tools       - File operation tools
 # utilities   - Shared utilities (logging)
 # =============================================================================
@@ -23,6 +24,7 @@ ignore_type_checking_imports = true
 layers = [
     "entry",
     "protocol",
+    "toolset",
     "tools",
     "utilities"
 ]
@@ -55,22 +57,29 @@ path = "mcp_workspace.server"
 layer = "protocol"
 depends_on = [
     { path = "mcp_workspace.file_tools" },
+    { path = "mcp_workspace.reference_projects" },
+    { path = "mcp_workspace.toolset" },
+    { path = "mcp_coder_utils.log_utils" },
+    { path = "mcp_coder_utils.tool_spec" },
+]
+
+# =============================================================================
+# Toolset Layer - Framework-Neutral Tool Specs
+# =============================================================================
+
+[[modules]]
+path = "mcp_workspace.toolset"
+layer = "toolset"
+depends_on = [
+    { path = "mcp_workspace.file_tools" },
     { path = "mcp_workspace.git_operations" },
     { path = "mcp_workspace.github_operations" },
     { path = "mcp_workspace.checks" },
     { path = "mcp_workspace.reference_projects" },
-    { path = "mcp_workspace.server_reference_tools" },
     { path = "mcp_workspace.config" },
+    { path = "mcp_workspace.utils" },
     { path = "mcp_coder_utils.log_utils" },
-]
-
-[[modules]]
-path = "mcp_workspace.server_reference_tools"
-layer = "protocol"
-depends_on = [
-    { path = "mcp_workspace.file_tools" },
-    { path = "mcp_workspace.reference_projects" },
-    { path = "mcp_coder_utils.log_utils" },
+    { path = "mcp_coder_utils.tool_spec" },
 ]
 
 # =============================================================================
@@ -165,6 +174,11 @@ path = "mcp_coder_utils.log_utils"
 layer = "utilities"
 depends_on = []
 
+[[modules]]
+path = "mcp_coder_utils.tool_spec"
+layer = "utilities"
+depends_on = []
+
 # =============================================================================
 # Test Modules
 # =============================================================================
@@ -175,7 +189,6 @@ depends_on = [
     { path = "mcp_workspace" },
     { path = "mcp_workspace.main" },
     { path = "mcp_workspace.server" },
-    { path = "mcp_workspace.server_reference_tools" },
     { path = "mcp_workspace.file_tools" },
     { path = "mcp_workspace.git_operations" },
     { path = "mcp_workspace.github_operations" },
@@ -187,5 +200,7 @@ depends_on = [
     { path = "mcp_workspace.constants" },
     { path = "mcp_workspace.utils" },
     { path = "mcp_workspace._ssl" },
+    { path = "mcp_workspace.toolset" },
     { path = "mcp_coder_utils.log_utils" },
+    { path = "mcp_coder_utils.tool_spec" },
 ]

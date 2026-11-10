@@ -1,0 +1,34 @@
+{
+  "properties": {
+    "include_comments": {
+      "default": true,
+      "type": "boolean"
+    },
+    "include_linked_branches": {
+      "default": false,
+      "type": "boolean"
+    },
+    "max_lines": {
+      "default": 200,
+      "type": "integer"
+    },
+    "number": {
+      "type": "integer"
+    },
+    "reference_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "number"
+  ],
+  "type": "object"
+}

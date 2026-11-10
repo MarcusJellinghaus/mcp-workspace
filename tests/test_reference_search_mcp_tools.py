@@ -1,33 +1,30 @@
 """Tests for the search_reference_files MCP tool."""
 
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from mcp_workspace.reference_projects import ReferenceProject
+from tests.conftest import ToolMap
 
 
 class TestSearchReferenceFiles:
     """Test search_reference_files MCP tool."""
 
     @pytest.mark.asyncio
-    async def test_search_by_glob(self) -> None:
+    async def test_search_by_glob(self, make_tools: Callable[..., ToolMap]) -> None:
         """Test file search by glob pattern delegates to search_files_util."""
-        import mcp_workspace.server_reference_tools as server_module
-        from mcp_workspace.server_reference_tools import search_reference_files
-
         ref_path = Path("/tmp/test_project").resolve()
         test_projects = {
             "test_proj": ReferenceProject(name="test_proj", path=ref_path),
         }
-        server_module._reference_projects = test_projects
+        tools = make_tools(reference_projects=test_projects)
 
-        with patch(
-            "mcp_workspace.server_reference_tools.search_files_util"
-        ) as mock_search:
+        with patch("mcp_workspace.toolset.reference.search_files_util") as mock_search:
             with patch(
-                "mcp_workspace.server_reference_tools.ensure_available",
+                "mcp_workspace.toolset.reference.ensure_available",
                 new_callable=AsyncMock,
                 return_value=None,
             ):
@@ -38,7 +35,9 @@ class TestSearchReferenceFiles:
                     "truncated": False,
                 }
 
-                result = await search_reference_files("test_proj", glob="**/*.py")
+                result = await tools["search_reference_files"](
+                    "test_proj", glob="**/*.py"
+                )
 
                 assert result["mode"] == "file_search"
                 assert result["total_files"] == 2
@@ -52,22 +51,17 @@ class TestSearchReferenceFiles:
                 )
 
     @pytest.mark.asyncio
-    async def test_search_by_pattern(self) -> None:
+    async def test_search_by_pattern(self, make_tools: Callable[..., ToolMap]) -> None:
         """Test content search by regex pattern."""
-        import mcp_workspace.server_reference_tools as server_module
-        from mcp_workspace.server_reference_tools import search_reference_files
-
         ref_path = Path("/tmp/test_project").resolve()
         test_projects = {
             "test_proj": ReferenceProject(name="test_proj", path=ref_path),
         }
-        server_module._reference_projects = test_projects
+        tools = make_tools(reference_projects=test_projects)
 
-        with patch(
-            "mcp_workspace.server_reference_tools.search_files_util"
-        ) as mock_search:
+        with patch("mcp_workspace.toolset.reference.search_files_util") as mock_search:
             with patch(
-                "mcp_workspace.server_reference_tools.ensure_available",
+                "mcp_workspace.toolset.reference.ensure_available",
                 new_callable=AsyncMock,
                 return_value=None,
             ):
@@ -80,7 +74,9 @@ class TestSearchReferenceFiles:
                     "truncated": False,
                 }
 
-                result = await search_reference_files("test_proj", pattern="def foo")
+                result = await tools["search_reference_files"](
+                    "test_proj", pattern="def foo"
+                )
 
                 assert result["mode"] == "content_search"
                 assert result["total_matches"] == 1
@@ -94,22 +90,17 @@ class TestSearchReferenceFiles:
                 )
 
     @pytest.mark.asyncio
-    async def test_search_combined(self) -> None:
+    async def test_search_combined(self, make_tools: Callable[..., ToolMap]) -> None:
         """Test combined glob + pattern search."""
-        import mcp_workspace.server_reference_tools as server_module
-        from mcp_workspace.server_reference_tools import search_reference_files
-
         ref_path = Path("/tmp/test_project").resolve()
         test_projects = {
             "test_proj": ReferenceProject(name="test_proj", path=ref_path),
         }
-        server_module._reference_projects = test_projects
+        tools = make_tools(reference_projects=test_projects)
 
-        with patch(
-            "mcp_workspace.server_reference_tools.search_files_util"
-        ) as mock_search:
+        with patch("mcp_workspace.toolset.reference.search_files_util") as mock_search:
             with patch(
-                "mcp_workspace.server_reference_tools.ensure_available",
+                "mcp_workspace.toolset.reference.ensure_available",
                 new_callable=AsyncMock,
                 return_value=None,
             ):
@@ -120,7 +111,7 @@ class TestSearchReferenceFiles:
                     "truncated": False,
                 }
 
-                result = await search_reference_files(
+                result = await tools["search_reference_files"](
                     "test_proj", glob="**/*.py", pattern="import os"
                 )
 
@@ -135,33 +126,29 @@ class TestSearchReferenceFiles:
                 )
 
     @pytest.mark.asyncio
-    async def test_search_not_found_project(self) -> None:
+    async def test_search_not_found_project(
+        self, make_tools: Callable[..., ToolMap]
+    ) -> None:
         """Test error for non-existent reference project."""
-        import mcp_workspace.server_reference_tools as server_module
-        from mcp_workspace.server_reference_tools import search_reference_files
-
-        server_module._reference_projects = {}
+        tools = make_tools(reference_projects={})
 
         with pytest.raises(
             ValueError, match="Reference project 'nonexistent' not found"
         ):
-            await search_reference_files("nonexistent", glob="**/*.py")
+            await tools["search_reference_files"]("nonexistent", glob="**/*.py")
 
     @pytest.mark.asyncio
-    async def test_search_calls_ensure_available(self) -> None:
+    async def test_search_calls_ensure_available(
+        self, make_tools: Callable[..., ToolMap]
+    ) -> None:
         """Verify ensure_available is awaited before search."""
-        import mcp_workspace.server_reference_tools as server_module
-        from mcp_workspace.server_reference_tools import search_reference_files
-
         ref_path = Path("/tmp/test_project").resolve()
         proj = ReferenceProject(name="test_proj", path=ref_path)
-        server_module._reference_projects = {"test_proj": proj}
+        tools = make_tools(reference_projects={"test_proj": proj})
 
-        with patch(
-            "mcp_workspace.server_reference_tools.search_files_util"
-        ) as mock_search:
+        with patch("mcp_workspace.toolset.reference.search_files_util") as mock_search:
             with patch(
-                "mcp_workspace.server_reference_tools.ensure_available",
+                "mcp_workspace.toolset.reference.ensure_available",
                 new_callable=AsyncMock,
                 return_value=None,
             ) as mock_ensure:
@@ -172,6 +159,6 @@ class TestSearchReferenceFiles:
                     "truncated": False,
                 }
 
-                await search_reference_files("test_proj", glob="*.py")
+                await tools["search_reference_files"]("test_proj", glob="*.py")
 
                 mock_ensure.assert_awaited_once_with(proj)

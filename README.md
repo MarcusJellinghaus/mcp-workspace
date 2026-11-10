@@ -304,6 +304,10 @@ The server validates reference projects at startup:
 - Path access is restricted to the specified reference project directories
 - The same rejections described in [Path Confinement](#path-confinement) apply to reference-project paths
 
+## Library use (tool specs)
+
+The same tools the MCP server exposes are available to non-MCP callers (e.g. a LangChain agent) as framework-neutral `ToolSpec`s via `mcp_workspace.toolset.tool_specs`, without importing `mcp`. See [docs/LIBRARY_USE.md](docs/LIBRARY_USE.md) for arguments, `ToolSpec` fields, groups, and the TLS note for library callers.
+
 ## Integration Options
 
 This server can be integrated with different Claude interfaces. Each requires a specific configuration.

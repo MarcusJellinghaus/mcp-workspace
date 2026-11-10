@@ -1,7 +1,7 @@
-"""Tests for reference_name support in the GitHub write and label MCP tools."""
+"""Tests for reference_name support in the GitHub write and label tools."""
 
 import time
-from collections.abc import Callable, Generator
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -16,45 +16,27 @@ from mcp_workspace.github_operations.issues.types import (
     create_empty_issue_data,
 )
 from mcp_workspace.reference_projects import ReferenceProject
-from mcp_workspace.server import (
-    _api_error,
-    github_issue_comment,
-    github_issue_create,
-    github_issue_edit,
-    github_issue_set_status,
-    github_label_list,
-    github_subissue_add,
-    github_subissue_list,
-    github_subissue_remove,
-)
-from mcp_workspace.server_reference_tools import set_reference_projects
+from mcp_workspace.toolset._github_common import api_error
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
+from tests.conftest import ToolMap
 from tests.github_operations.conftest import make_retry_error
 
-pytestmark = pytest.mark.usefixtures("setup_server")
+# Two reference projects with paths that do not exist: a GitHub call must
+# resolve through the configured URL and never touch (or clone) a working tree.
+_REFERENCE_PROJECTS = {
+    "sibling": ReferenceProject(
+        name="sibling",
+        path=Path("/does/not/exist"),
+        url="https://github.com/owner/sibling",
+    ),
+    "nourl": ReferenceProject(name="nourl", path=Path("/does/not/exist/2"), url=None),
+}
 
 
 @pytest.fixture
-def reference_projects() -> Generator[None, None, None]:
-    """Configure two reference projects with paths that do not exist.
-
-    The paths are deliberately non-existent: a GitHub call must resolve through
-    the configured URL and never touch (or clone) a working tree.
-    """
-    set_reference_projects(
-        {
-            "sibling": ReferenceProject(
-                name="sibling",
-                path=Path("/does/not/exist"),
-                url="https://github.com/owner/sibling",
-            ),
-            "nourl": ReferenceProject(
-                name="nourl", path=Path("/does/not/exist/2"), url=None
-            ),
-        }
-    )
-    yield
-    set_reference_projects({})
+def ref_tools(make_tools: Callable[..., ToolMap]) -> ToolMap:
+    """Tools configured with the two reference projects."""
+    return make_tools(reference_projects=_REFERENCE_PROJECTS)
 
 
 def _make_comment(
@@ -115,15 +97,15 @@ def _make_manager() -> MagicMock:
     return mock_mgr
 
 
-_TOOL_CASES: list[tuple[Callable[..., str], dict[str, Any]]] = [
-    (github_label_list, {}),
-    (github_issue_comment, {"number": 42, "body": "hi"}),
-    (github_issue_create, {"title": "T"}),
-    (github_issue_edit, {"number": 42, "title": "T"}),
-    (github_issue_set_status, {"number": 42, "status": "status-01:created"}),
-    (github_subissue_add, {"parent_number": 42, "child_number": 43}),
-    (github_subissue_list, {"parent_number": 42}),
-    (github_subissue_remove, {"parent_number": 42, "child_number": 43}),
+_TOOL_CASES: list[tuple[str, dict[str, Any]]] = [
+    ("github_label_list", {}),
+    ("github_issue_comment", {"number": 42, "body": "hi"}),
+    ("github_issue_create", {"title": "T"}),
+    ("github_issue_edit", {"number": 42, "title": "T"}),
+    ("github_issue_set_status", {"number": 42, "status": "status-01:created"}),
+    ("github_subissue_add", {"parent_number": 42, "child_number": 43}),
+    ("github_subissue_list", {"parent_number": 42}),
+    ("github_subissue_remove", {"parent_number": 42, "child_number": 43}),
 ]
 _TOOL_IDS = [
     "label_list",
@@ -141,14 +123,14 @@ _TOOL_IDS = [
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_reference_name_uses_repo_url(
     mock_manager_cls: MagicMock,
-    tool: Callable[..., str],
+    tool: str,
     kwargs: dict[str, Any],
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
     """The tools construct IssueManager with the reference project's URL."""
     mock_manager_cls.return_value = _make_manager()
 
-    tool(**kwargs, reference_name="sibling")
+    ref_tools[tool](**kwargs, reference_name="sibling")
 
     assert mock_manager_cls.call_args.kwargs == {
         "repo_url": "https://github.com/owner/sibling"
@@ -159,14 +141,15 @@ def test_reference_name_uses_repo_url(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_no_reference_name_uses_project_dir(
     mock_manager_cls: MagicMock,
-    tool: Callable[..., str],
+    tool: str,
     kwargs: dict[str, Any],
     project_dir: Path,
+    ref_tools: ToolMap,
 ) -> None:
     """Without reference_name the workspace project_dir is used, unchanged."""
     mock_manager_cls.return_value = _make_manager()
 
-    tool(**kwargs)
+    ref_tools[tool](**kwargs)
 
     assert mock_manager_cls.call_args.kwargs == {"project_dir": project_dir}
 
@@ -175,12 +158,12 @@ def test_no_reference_name_uses_project_dir(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_unknown_reference_name_returns_error(
     mock_manager_cls: MagicMock,
-    tool: Callable[..., str],
+    tool: str,
     kwargs: dict[str, Any],
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
     """An unknown reference name is returned as an error string, not raised."""
-    result = tool(**kwargs, reference_name="nope")
+    result = ref_tools[tool](**kwargs, reference_name="nope")
 
     assert result == "Error: Reference project 'nope' not found"
     mock_manager_cls.assert_not_called()
@@ -189,26 +172,26 @@ def test_unknown_reference_name_returns_error(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_reference_project_without_url_returns_error(
     mock_manager_cls: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
     """A reference project with no configured URL yields an error string."""
-    result = github_label_list(reference_name="nourl")
+    result = ref_tools["github_label_list"](reference_name="nourl")
 
     assert result == "Error: Reference project 'nourl' has no URL configured"
     mock_manager_cls.assert_not_called()
 
 
-@patch("mcp_workspace.server_reference_tools.ensure_available")
+@patch("mcp_workspace.toolset.reference.ensure_available")
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_reference_access_does_not_clone(
     mock_manager_cls: MagicMock,
     mock_ensure_available: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
     """Targeting a reference project never clones its working tree."""
     mock_manager_cls.return_value = _make_manager()
 
-    github_label_list(reference_name="sibling")
+    ref_tools["github_label_list"](reference_name="sibling")
 
     mock_ensure_available.assert_not_called()
 
@@ -216,14 +199,14 @@ def test_reference_access_does_not_clone(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_no_labels_names_reference_project(
     mock_manager_cls: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
     """An empty cross-repo label set says which repository was queried."""
     mock_mgr = _make_manager()
     mock_mgr.get_available_labels.return_value = []
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_label_list(reference_name="sibling")
+    result = ref_tools["github_label_list"](reference_name="sibling")
 
     body, footer = result.rsplit("\n", 1)
     assert body == "No labels found in reference project 'sibling'."
@@ -233,7 +216,7 @@ def test_no_labels_names_reference_project(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_label_list_rate_limit_names_bucket(
     mock_manager_cls: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
     """A rate-limited read tool reply names the exhausted bucket."""
     mock_mgr = _make_manager()
@@ -248,7 +231,7 @@ def test_label_list_rate_limit_names_bucket(
     )
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_label_list(reference_name="sibling")
+    result = ref_tools["github_label_list"](reference_name="sibling")
 
     assert "`core`" in result
     assert not result.startswith("Error:")
@@ -258,7 +241,7 @@ def test_api_error_renders_cache_rate_limit_with_suffix() -> None:
     """A GitHubRateLimitError renders as its bare message plus the suffix."""
     exc = GitHubRateLimitError("GitHub rate limit: `core` exhausted")
 
-    result = _api_error(exc, "sibling")
+    result = api_error(exc, "sibling")
 
     assert result == (
         "GitHub rate limit: `core` exhausted in reference project 'sibling'"
@@ -268,14 +251,16 @@ def test_api_error_renders_cache_rate_limit_with_suffix() -> None:
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_subissue_rate_limit_names_reference_project(
     mock_manager_cls: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
-    """A rate limit through _api_error keeps the reference-project suffix."""
+    """A rate limit through api_error keeps the reference-project suffix."""
     mock_mgr = _make_manager()
     mock_mgr.list_sub_issues.side_effect = make_retry_error(403)
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_subissue_list(parent_number=42, reference_name="sibling")
+    result = ref_tools["github_subissue_list"](
+        parent_number=42, reference_name="sibling"
+    )
 
     assert result == (
         "GitHub rate limit: retries exhausted in reference project 'sibling'"
@@ -285,14 +270,16 @@ def test_subissue_rate_limit_names_reference_project(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_comment_failure_names_reference_project(
     mock_manager_cls: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
     """A failed cross-repo comment says which reference project it targeted."""
     mock_mgr = _make_manager()
     mock_mgr.add_comment.return_value = _make_comment(comment_id=0)
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_comment(number=42, body="hi", reference_name="sibling")
+    result = ref_tools["github_issue_comment"](
+        number=42, body="hi", reference_name="sibling"
+    )
 
     assert result == (
         "Error: failed to add comment to issue #42 in reference project 'sibling'"
@@ -302,13 +289,14 @@ def test_comment_failure_names_reference_project(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_comment_failure_without_reference_is_unchanged(
     mock_manager_cls: MagicMock,
+    ref_tools: ToolMap,
 ) -> None:
     """The workspace failure message stays byte-identical to today's."""
     mock_mgr = _make_manager()
     mock_mgr.add_comment.return_value = _make_comment(comment_id=0)
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_comment(number=42, body="hi")
+    result = ref_tools["github_issue_comment"](number=42, body="hi")
 
     assert result == "Error: failed to add comment to issue #42"
 
@@ -316,13 +304,13 @@ def test_comment_failure_without_reference_is_unchanged(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_status_guard_points_at_set_status_tool(
     mock_manager_cls: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
     """The status-* guard points at github_issue_set_status and writes nothing."""
     mock_mgr = _make_manager()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_create(
+    result = ref_tools["github_issue_create"](
         title="T", labels=["status-01:created"], reference_name="sibling"
     )
 
@@ -350,7 +338,7 @@ def test_unknown_label_names_reference_project(
     mock_manager_cls: MagicMock,
     labels: list[str],
     expected: str,
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
     """Unknown labels name the reference project before the label list.
 
@@ -359,7 +347,9 @@ def test_unknown_label_names_reference_project(
     """
     mock_manager_cls.return_value = _make_manager()
 
-    result = github_issue_create(title="T", labels=labels, reference_name="sibling")
+    result = ref_tools["github_issue_create"](
+        title="T", labels=labels, reference_name="sibling"
+    )
 
     assert result == expected
 
@@ -367,14 +357,14 @@ def test_unknown_label_names_reference_project(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_create_failure_names_reference_project(
     mock_manager_cls: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
     """A swallowed cross-repo creation failure names the target project."""
     mock_mgr = _make_manager()
     mock_mgr.create_issue.return_value = create_empty_issue_data()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_create(title="T", reference_name="sibling")
+    result = ref_tools["github_issue_create"](title="T", reference_name="sibling")
 
     assert result == (
         "Error: issue creation failed - no issue was created "
@@ -385,13 +375,13 @@ def test_create_failure_names_reference_project(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_edit_status_guard_points_at_set_status_tool(
     mock_manager_cls: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
     """The edit-side status-* guard points at github_issue_set_status."""
     mock_mgr = _make_manager()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(
+    result = ref_tools["github_issue_edit"](
         number=42, add_labels=["status-04:in-progress"], reference_name="sibling"
     )
 
@@ -405,10 +395,10 @@ def test_edit_status_guard_points_at_set_status_tool(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_edit_invalid_number_does_not_resolve_reference(
     mock_manager_cls: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
     """Argument validation runs before the reference project is resolved."""
-    result = github_issue_edit(number=0, reference_name="nope")
+    result = ref_tools["github_issue_edit"](number=0, reference_name="nope")
 
     assert result == "Error: invalid issue number: 0"
     mock_manager_cls.assert_not_called()
@@ -417,7 +407,7 @@ def test_edit_invalid_number_does_not_resolve_reference(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_edit_not_found_names_reference_project(
     mock_manager_cls: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
     """The nothing-was-written sentinel names the target project.
 
@@ -429,7 +419,9 @@ def test_edit_not_found_names_reference_project(
     mock_mgr.get_issue.return_value = create_empty_issue_data()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="T", reference_name="sibling")
+    result = ref_tools["github_issue_edit"](
+        number=42, title="T", reference_name="sibling"
+    )
 
     assert result == (
         "Error: issue #42 not found or not accessible in reference project "
@@ -446,7 +438,7 @@ def _recording_edit(*_args: Any, **kwargs: Any) -> IssueData:
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_edit_indeterminate_names_reference_project(
     mock_manager_cls: MagicMock,
-    reference_projects: None,  # pylint: disable=unused-argument
+    ref_tools: ToolMap,
 ) -> None:
     """The may-or-may-not-have-landed sentinel names the target project.
 
@@ -458,7 +450,9 @@ def test_edit_indeterminate_names_reference_project(
     mock_mgr.get_issue.return_value = create_empty_issue_data()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="T", reference_name="sibling")
+    result = ref_tools["github_issue_edit"](
+        number=42, title="T", reference_name="sibling"
+    )
 
     assert result == (
         "Error: edit of issue #42 failed in reference project 'sibling' "
@@ -470,6 +464,7 @@ def test_edit_indeterminate_names_reference_project(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_edit_indeterminate_without_reference_is_unchanged(
     mock_manager_cls: MagicMock,
+    ref_tools: ToolMap,
 ) -> None:
     """The workspace variant of that sentinel stays byte-identical to today's."""
     mock_mgr = _make_manager()
@@ -477,7 +472,7 @@ def test_edit_indeterminate_without_reference_is_unchanged(
     mock_mgr.get_issue.return_value = create_empty_issue_data()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="T")
+    result = ref_tools["github_issue_edit"](number=42, title="T")
 
     assert result == (
         "Error: edit of issue #42 failed (swallowed API error) and the issue "
@@ -489,6 +484,7 @@ def test_edit_indeterminate_without_reference_is_unchanged(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_edit_not_found_without_reference_is_unchanged(
     mock_manager_cls: MagicMock,
+    ref_tools: ToolMap,
 ) -> None:
     """The workspace sentinel stays byte-identical to today's."""
     mock_mgr = _make_manager()
@@ -496,7 +492,7 @@ def test_edit_not_found_without_reference_is_unchanged(
     mock_mgr.get_issue.return_value = create_empty_issue_data()
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_edit(number=42, title="T")
+    result = ref_tools["github_issue_edit"](number=42, title="T")
 
     assert result == (
         "Error: issue #42 not found or not accessible "

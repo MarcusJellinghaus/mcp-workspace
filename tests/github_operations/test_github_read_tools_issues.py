@@ -1,4 +1,4 @@
-"""Tests for the GitHub issue read-only MCP tools in server.py."""
+"""Tests for the GitHub issue read-only tools in toolset/github_read.py."""
 
 from datetime import datetime
 from pathlib import Path
@@ -8,13 +8,10 @@ import pytest
 
 from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.github_operations.issues.types import IssueData
-from mcp_workspace.server import github_issue_list, github_issue_view
+from tests.conftest import ToolMap
 
 from ._github_read_tools_helpers import make_comment as _make_comment
 from ._github_read_tools_helpers import make_issue as _make_issue
-
-pytestmark = pytest.mark.usefixtures("setup_server")
-
 
 # =============================================================================
 # github_issue_view tests
@@ -22,7 +19,7 @@ pytestmark = pytest.mark.usefixtures("setup_server")
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_view_basic(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_view_basic(mock_manager_cls: MagicMock, tools: ToolMap) -> None:
     """Returns formatted text with title, state, body."""
     issue = _make_issue()
     mock_mgr = MagicMock()
@@ -30,7 +27,7 @@ def test_github_issue_view_basic(mock_manager_cls: MagicMock) -> None:
     mock_mgr.get_comments.return_value = []
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_view(number=42)
+    result = tools["github_issue_view"](number=42)
 
     assert "#42" in result
     assert "Test issue" in result
@@ -40,7 +37,9 @@ def test_github_issue_view_basic(mock_manager_cls: MagicMock) -> None:
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_view_with_comments(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_view_with_comments(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """Comments included when include_comments=True."""
     issue = _make_issue()
     comments = [_make_comment(body="Great work!")]
@@ -49,7 +48,7 @@ def test_github_issue_view_with_comments(mock_manager_cls: MagicMock) -> None:
     mock_mgr.get_comments.return_value = comments
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_view(number=42, include_comments=True)
+    result = tools["github_issue_view"](number=42, include_comments=True)
 
     assert "Great work!" in result
     assert "Comments" in result
@@ -57,21 +56,25 @@ def test_github_issue_view_with_comments(mock_manager_cls: MagicMock) -> None:
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_view_without_comments(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_view_without_comments(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """No comments when include_comments=False."""
     issue = _make_issue()
     mock_mgr = MagicMock()
     mock_mgr.get_issue.return_value = issue
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_view(number=42, include_comments=False)
+    result = tools["github_issue_view"](number=42, include_comments=False)
 
     assert "Test issue" in result
     mock_mgr.get_comments.assert_not_called()
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_view_not_found(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_view_not_found(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """Returns error text when issue number=0 (empty IssueData)."""
     empty_issue = IssueData(
         number=0,
@@ -92,14 +95,14 @@ def test_github_issue_view_not_found(mock_manager_cls: MagicMock) -> None:
     mock_mgr._get_repository.return_value.full_name = "owner/repo"
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_view(number=999)
+    result = tools["github_issue_view"](number=999)
 
     assert result == "Error: Issue #999 not found in owner/repo"
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_not_found_repo_unreachable(
-    mock_manager_cls: MagicMock,
+    mock_manager_cls: MagicMock, tools: ToolMap
 ) -> None:
     """An inaccessible repository names the API base URL, not a missing issue."""
     mock_mgr = MagicMock()
@@ -121,7 +124,7 @@ def test_github_issue_view_not_found_repo_unreachable(
     mock_mgr.repo_identifier.api_base_url = "https://gitlab.com/api/v3"
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_view(number=999)
+    result = tools["github_issue_view"](number=999)
 
     assert (
         result == "Error: Could not access repository (tried https://gitlab.com/api/v3)"
@@ -129,7 +132,9 @@ def test_github_issue_view_not_found_repo_unreachable(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_view_transferred(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_view_transferred(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """A transferred issue renders the transfer target with one Error: prefix."""
     mock_mgr = MagicMock()
     mock_mgr.get_issue.side_effect = IssueIdentityMismatchError(
@@ -138,7 +143,7 @@ def test_github_issue_view_transferred(mock_manager_cls: MagicMock) -> None:
     )
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_view(number=72)
+    result = tools["github_issue_view"](number=72)
 
     assert result == (
         "Error: Issue #72 was transferred to "
@@ -150,7 +155,7 @@ def test_github_issue_view_transferred(mock_manager_cls: MagicMock) -> None:
 @patch("mcp_workspace.github_operations.issues.IssueBranchManager")
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_linked_branches_off(
-    mock_manager_cls: MagicMock, mock_branch_cls: MagicMock
+    mock_manager_cls: MagicMock, mock_branch_cls: MagicMock, tools: ToolMap
 ) -> None:
     """By default no lookup is made and no Linked branches line is rendered."""
     mock_mgr = MagicMock()
@@ -158,7 +163,7 @@ def test_github_issue_view_linked_branches_off(
     mock_mgr.get_comments.return_value = []
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_view(number=42)
+    result = tools["github_issue_view"](number=42)
 
     mock_branch_cls.assert_not_called()
     assert "Linked branches" not in result
@@ -167,7 +172,10 @@ def test_github_issue_view_linked_branches_off(
 @patch("mcp_workspace.github_operations.issues.IssueBranchManager")
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_linked_branches_on(
-    mock_manager_cls: MagicMock, mock_branch_cls: MagicMock, project_dir: Path
+    mock_manager_cls: MagicMock,
+    mock_branch_cls: MagicMock,
+    project_dir: Path,
+    tools: ToolMap,
 ) -> None:
     """The flag looks up linked branches in the workspace repo and renders them."""
     mock_mgr = MagicMock()
@@ -177,7 +185,7 @@ def test_github_issue_view_linked_branches_on(
     mock_branch_mgr = mock_branch_cls.return_value
     mock_branch_mgr.get_linked_branches_or_none.return_value = ["42-fix"]
 
-    result = github_issue_view(number=42, include_linked_branches=True)
+    result = tools["github_issue_view"](number=42, include_linked_branches=True)
 
     assert "Linked branches: 42-fix" in result
     assert mock_branch_cls.call_args.kwargs == {"project_dir": project_dir}
@@ -191,7 +199,10 @@ def test_github_issue_view_linked_branches_on(
 @patch("mcp_workspace.github_operations.issues.IssueBranchManager")
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_linked_branches_failure(
-    mock_manager_cls: MagicMock, mock_branch_cls: MagicMock, failure: str
+    mock_manager_cls: MagicMock,
+    mock_branch_cls: MagicMock,
+    failure: str,
+    tools: ToolMap,
 ) -> None:
     """A failed lookup renders an unknown line instead of failing the view."""
     mock_mgr = MagicMock()
@@ -206,7 +217,7 @@ def test_github_issue_view_linked_branches_failure(
     else:
         mock_branch_cls.side_effect = ValueError("no token")
 
-    result = github_issue_view(number=42, include_linked_branches=True)
+    result = tools["github_issue_view"](number=42, include_linked_branches=True)
 
     assert result.startswith("# #42")
     assert "Linked branches: unknown (lookup failed)" in result
@@ -216,7 +227,7 @@ def test_github_issue_view_linked_branches_failure(
 @patch("mcp_workspace.github_operations.issues.IssueBranchManager")
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_not_found_skips_linked_branches(
-    mock_manager_cls: MagicMock, mock_branch_cls: MagicMock
+    mock_manager_cls: MagicMock, mock_branch_cls: MagicMock, tools: ToolMap
 ) -> None:
     """A missing issue returns the not-found error without a branch lookup."""
     mock_mgr = MagicMock()
@@ -237,7 +248,7 @@ def test_github_issue_view_not_found_skips_linked_branches(
     mock_mgr._get_repository.return_value.full_name = "owner/repo"
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_view(number=999, include_linked_branches=True)
+    result = tools["github_issue_view"](number=999, include_linked_branches=True)
 
     assert result == "Error: Issue #999 not found in owner/repo"
     mock_branch_cls.assert_not_called()
@@ -253,7 +264,7 @@ def _untrusted_issue() -> IssueData:
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_fence_id_differs_per_call(
-    mock_manager_cls: MagicMock,
+    mock_manager_cls: MagicMock, tools: ToolMap
 ) -> None:
     """Each call fences with a fresh random id."""
     mock_mgr = MagicMock()
@@ -262,8 +273,8 @@ def test_github_issue_view_fence_id_differs_per_call(
     mock_manager_cls.return_value = mock_mgr
 
     with patch("secrets.token_hex", side_effect=["a" * 16, "b" * 16]) as token_hex:
-        first = github_issue_view(number=42)
-        second = github_issue_view(number=42)
+        first = tools["github_issue_view"](number=42)
+        second = tools["github_issue_view"](number=42)
 
     assert token_hex.call_args_list[0].args == (8,)
     assert f'</untrusted id="{"a" * 16}">' in first
@@ -271,15 +282,17 @@ def test_github_issue_view_fence_id_differs_per_call(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_view_real_fence_ids_differ(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_view_real_fence_ids_differ(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """Unpatched, two calls produce different fence ids."""
     mock_mgr = MagicMock()
     mock_mgr.get_issue.return_value = _untrusted_issue()
     mock_mgr.get_comments.return_value = []
     mock_manager_cls.return_value = mock_mgr
 
-    first = github_issue_view(number=42)
-    second = github_issue_view(number=42)
+    first = tools["github_issue_view"](number=42)
+    second = tools["github_issue_view"](number=42)
 
     assert "</untrusted id=" in first
     assert first != second
@@ -287,7 +300,7 @@ def test_github_issue_view_real_fence_ids_differ(mock_manager_cls: MagicMock) ->
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_allowlist_not_read_when_all_trusted(
-    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch, tools: ToolMap
 ) -> None:
     """Every author is OWNER, so the allowlist is never read."""
     allowlist = MagicMock(return_value=frozenset())
@@ -297,7 +310,7 @@ def test_github_issue_view_allowlist_not_read_when_all_trusted(
     mock_mgr.get_comments.return_value = [_make_comment()]
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_view(number=42)
+    result = tools["github_issue_view"](number=42)
 
     allowlist.assert_not_called()
     assert "<untrusted" not in result
@@ -305,7 +318,7 @@ def test_github_issue_view_allowlist_not_read_when_all_trusted(
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_view_allowlist_read_once_when_untrusted(
-    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch, tools: ToolMap
 ) -> None:
     """An untrusted role triggers one allowlist read, which is applied."""
     allowlist = MagicMock(return_value=frozenset({"carol"}))
@@ -318,7 +331,7 @@ def test_github_issue_view_allowlist_read_once_when_untrusted(
     ]
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_view(number=42)
+    result = tools["github_issue_view"](number=42)
 
     allowlist.assert_called_once_with()
     assert result.count("<untrusted ") == 1
@@ -327,11 +340,11 @@ def test_github_issue_view_allowlist_read_once_when_untrusted(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_view_error(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_view_error(mock_manager_cls: MagicMock, tools: ToolMap) -> None:
     """Returns 'Error: ...' on exception."""
     mock_manager_cls.side_effect = RuntimeError("connection failed")
 
-    result = github_issue_view(number=42)
+    result = tools["github_issue_view"](number=42)
 
     assert result == "Error: connection failed"
 
@@ -342,7 +355,7 @@ def test_github_issue_view_error(mock_manager_cls: MagicMock) -> None:
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_list_basic(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_list_basic(mock_manager_cls: MagicMock, tools: ToolMap) -> None:
     """Returns compact summary lines."""
     issues = [
         _make_issue(number=1, title="First"),
@@ -352,7 +365,7 @@ def test_github_issue_list_basic(mock_manager_cls: MagicMock) -> None:
     mock_mgr.list_issues.return_value = issues
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_list()
+    result = tools["github_issue_list"]()
 
     assert "#1" in result
     assert "First" in result
@@ -361,20 +374,22 @@ def test_github_issue_list_basic(mock_manager_cls: MagicMock) -> None:
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_list_empty(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_list_empty(mock_manager_cls: MagicMock, tools: ToolMap) -> None:
     """An empty result names the repository that was searched."""
     mock_mgr = MagicMock()
     mock_mgr.list_issues.return_value = []
     mock_mgr._get_repository.return_value.full_name = "owner/repo"
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_list()
+    result = tools["github_issue_list"]()
 
     assert result == "No issues found in owner/repo."
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_list_empty_repo_unreachable(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_list_empty_repo_unreachable(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """An inaccessible repository names the API base URL, not an empty result."""
     mock_mgr = MagicMock()
     mock_mgr.list_issues.return_value = []
@@ -382,7 +397,7 @@ def test_github_issue_list_empty_repo_unreachable(mock_manager_cls: MagicMock) -
     mock_mgr.repo_identifier.api_base_url = "https://gitlab.com/api/v3"
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_list()
+    result = tools["github_issue_list"]()
 
     assert (
         result == "Error: Could not access repository (tried https://gitlab.com/api/v3)"
@@ -390,13 +405,15 @@ def test_github_issue_list_empty_repo_unreachable(mock_manager_cls: MagicMock) -
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_list_with_filters(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_list_with_filters(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """Verifies labels/assignee/since passed through to manager."""
     mock_mgr = MagicMock()
     mock_mgr.list_issues.return_value = []
     mock_manager_cls.return_value = mock_mgr
 
-    github_issue_list(
+    tools["github_issue_list"](
         state="closed",
         labels=["bug", "urgent"],
         assignee="alice",
@@ -414,14 +431,16 @@ def test_github_issue_list_with_filters(mock_manager_cls: MagicMock) -> None:
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_list_notice_when_more_exist(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_list_notice_when_more_exist(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """The surplus over-fetched item triggers the truncation notice."""
     issues = [_make_issue(number=i, title=f"Issue {i}") for i in range(4)]
     mock_mgr = MagicMock()
     mock_mgr.list_issues.return_value = issues
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_list(max_results=3)
+    result = tools["github_issue_list"](max_results=3)
 
     assert "showing 3 of 4+ results" in result
     issue_lines = [line for line in result.splitlines() if line.startswith("#")]
@@ -431,14 +450,14 @@ def test_github_issue_list_notice_when_more_exist(mock_manager_cls: MagicMock) -
 @pytest.mark.parametrize("max_results", [0, -1])
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_list_non_positive_max_results(
-    mock_manager_cls: MagicMock, max_results: int
+    mock_manager_cls: MagicMock, max_results: int, tools: ToolMap
 ) -> None:
     """A zero or negative cap lists nothing and never reports a negative count."""
     mock_mgr = MagicMock()
     mock_mgr.list_issues.return_value = [_make_issue(number=1, title="First")]
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_list(max_results=max_results)
+    result = tools["github_issue_list"](max_results=max_results)
 
     assert mock_mgr.list_issues.call_args.kwargs["max_results"] == 1
     # The over-fetch found an issue, so the notice must not claim none exist.
@@ -451,7 +470,7 @@ def test_github_issue_list_non_positive_max_results(
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_list_untrusted_prefix(
-    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch, tools: ToolMap
 ) -> None:
     """An untrusted issue is prefixed end to end; the allowlist is applied."""
     allowlist = MagicMock(return_value=frozenset({"carol"}))
@@ -466,7 +485,7 @@ def test_github_issue_list_untrusted_prefix(
     mock_mgr.list_issues.return_value = [untrusted, allowlisted, _make_issue(7, "Ok")]
     mock_manager_cls.return_value = mock_mgr
 
-    result = github_issue_list()
+    result = tools["github_issue_list"]()
 
     assert result.splitlines() == [
         "#412 [open] [untrusted @abc] Fix login  x",
@@ -478,7 +497,7 @@ def test_github_issue_list_untrusted_prefix(
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_issue_list_all_trusted_skips_allowlist(
-    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch, tools: ToolMap
 ) -> None:
     """Every author is OWNER, so the allowlist is never read."""
     allowlist = MagicMock(return_value=frozenset())
@@ -487,15 +506,15 @@ def test_github_issue_list_all_trusted_skips_allowlist(
     mock_mgr.list_issues.return_value = [_make_issue(number=1, title="First")]
     mock_manager_cls.return_value = mock_mgr
 
-    assert github_issue_list() == "#1 [open] First  bug"
+    assert tools["github_issue_list"]() == "#1 [open] First  bug"
     allowlist.assert_not_called()
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_issue_list_error(mock_manager_cls: MagicMock) -> None:
+def test_github_issue_list_error(mock_manager_cls: MagicMock, tools: ToolMap) -> None:
     """Returns 'Error: ...' on exception."""
     mock_manager_cls.side_effect = RuntimeError("API down")
 
-    result = github_issue_list()
+    result = tools["github_issue_list"]()
 
     assert result == "Error: API down"

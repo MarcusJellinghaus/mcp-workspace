@@ -1,0 +1,26 @@
+{
+  "properties": {
+    "child_number": {
+      "type": "integer"
+    },
+    "parent_number": {
+      "type": "integer"
+    },
+    "reference_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "parent_number",
+    "child_number"
+  ],
+  "type": "object"
+}

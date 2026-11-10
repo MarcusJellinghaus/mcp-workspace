@@ -1,0 +1,15 @@
+{
+  "properties": {
+    "destination_path": {
+      "type": "string"
+    },
+    "source_path": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_path",
+    "destination_path"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,30 @@
+{
+  "properties": {
+    "include_comments": {
+      "default": false,
+      "type": "boolean"
+    },
+    "max_lines": {
+      "default": 200,
+      "type": "integer"
+    },
+    "number": {
+      "type": "integer"
+    },
+    "reference_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "number"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,23 @@
+{
+  "properties": {
+    "file_path": {
+      "type": "string"
+    },
+    "new_string": {
+      "type": "string"
+    },
+    "old_string": {
+      "type": "string"
+    },
+    "replace_all": {
+      "default": false,
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "file_path",
+    "old_string",
+    "new_string"
+  ],
+  "type": "object"
+}

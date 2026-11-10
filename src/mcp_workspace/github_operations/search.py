@@ -1,8 +1,9 @@
 """GitHub issue-search query construction and argument validation.
 
 Two-phase by design: from_arguments validates without needing a repository,
-to_query assembles once the repository is known. The handler in server.py can
-therefore reject bad input before paying for a network round-trip.
+to_query assembles once the repository is known. The github_search tool in
+toolset/github_read.py can therefore reject bad input before paying for a
+network round-trip.
 """
 
 import re

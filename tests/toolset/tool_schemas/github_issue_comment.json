@@ -1,0 +1,37 @@
+{
+  "properties": {
+    "body": {
+      "default": "",
+      "type": "string"
+    },
+    "body_file": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "number": {
+      "type": "integer"
+    },
+    "reference_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "number"
+  ],
+  "type": "object"
+}

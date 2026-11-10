@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mcp_workspace.server import edit_file, save_file, set_project_dir
+from tests.conftest import ToolMap
 
 # Test constants
 TEST_DIR = Path("testdata/test_file_tools")
@@ -25,8 +25,6 @@ def setup_test_file(project_dir: Path) -> Generator[None, None, None]:
     test_dir_path = project_dir / TEST_DIR
     test_dir_path.mkdir(parents=True, exist_ok=True)
 
-    set_project_dir(project_dir)
-
     yield
 
     # Teardown
@@ -37,11 +35,11 @@ def setup_test_file(project_dir: Path) -> Generator[None, None, None]:
 
 
 @pytest.mark.asyncio
-async def test_basic_edit_via_server(project_dir: Path) -> None:
+async def test_basic_edit_via_server(project_dir: Path, tools: ToolMap) -> None:
     """Basic edit via server tool returns diff string."""
-    save_file(str(TEST_FILE), TEST_CONTENT)
+    tools["save_file"](str(TEST_FILE), TEST_CONTENT)
 
-    result = await edit_file(
+    result = await tools["edit_file"](
         file_path=str(TEST_FILE),
         old_string="Line 4 to be edited.",
         new_string="Line 4 has been modified.",
@@ -58,12 +56,14 @@ async def test_basic_edit_via_server(project_dir: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_text_not_found_raises_value_error(project_dir: Path) -> None:
+async def test_text_not_found_raises_value_error(
+    project_dir: Path, tools: ToolMap
+) -> None:
     """Text not found raises ValueError."""
-    save_file(str(TEST_FILE), TEST_CONTENT)
+    tools["save_file"](str(TEST_FILE), TEST_CONTENT)
 
     with pytest.raises(ValueError, match="Text not found"):
-        await edit_file(
+        await tools["edit_file"](
             file_path=str(TEST_FILE),
             old_string="This text does not exist.",
             new_string="Should not appear.",
@@ -71,12 +71,12 @@ async def test_text_not_found_raises_value_error(project_dir: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_replace_all_via_server(project_dir: Path) -> None:
+async def test_replace_all_via_server(project_dir: Path, tools: ToolMap) -> None:
     """replace_all=True replaces all occurrences."""
     repeated_content = "aaa bbb aaa ccc aaa"
-    save_file(str(TEST_FILE), repeated_content)
+    tools["save_file"](str(TEST_FILE), repeated_content)
 
-    result = await edit_file(
+    result = await tools["edit_file"](
         file_path=str(TEST_FILE),
         old_string="aaa",
         new_string="zzz",
@@ -89,11 +89,13 @@ async def test_replace_all_via_server(project_dir: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_empty_old_string_inserts_at_beginning(project_dir: Path) -> None:
+async def test_empty_old_string_inserts_at_beginning(
+    project_dir: Path, tools: ToolMap
+) -> None:
     """Empty old_string inserts new_string at beginning of file."""
-    save_file(str(TEST_FILE), TEST_CONTENT)
+    tools["save_file"](str(TEST_FILE), TEST_CONTENT)
 
-    result = await edit_file(
+    result = await tools["edit_file"](
         file_path=str(TEST_FILE),
         old_string="",
         new_string="# Header\n",
@@ -105,7 +107,9 @@ async def test_empty_old_string_inserts_at_beginning(project_dir: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_gitignore_check_rejects_ignored_files(project_dir: Path) -> None:
+async def test_gitignore_check_rejects_ignored_files(
+    project_dir: Path, tools: ToolMap
+) -> None:
     """Gitignored files are rejected."""
     # Create a .gitignore that excludes .log files
     (project_dir / ".gitignore").write_text("*.log\n", encoding="utf-8")
@@ -113,7 +117,7 @@ async def test_gitignore_check_rejects_ignored_files(project_dir: Path) -> None:
     log_file.write_text("some log content", encoding="utf-8")
 
     with pytest.raises(ValueError, match="excluded by .gitignore"):
-        await edit_file(
+        await tools["edit_file"](
             file_path="debug.log",
             old_string="some",
             new_string="other",
@@ -124,13 +128,15 @@ async def test_gitignore_check_rejects_ignored_files(project_dir: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_locking_serializes_same_file_edits(project_dir: Path) -> None:
+async def test_locking_serializes_same_file_edits(
+    project_dir: Path, tools: ToolMap
+) -> None:
     """Two concurrent async edits to same file both succeed (no lost writes)."""
     lock_file = TEST_DIR / "lock_test_a.txt"
-    save_file(str(lock_file), "line_a\nline_b\n")
+    tools["save_file"](str(lock_file), "line_a\nline_b\n")
 
     async def edit_a() -> None:
-        result: str = await edit_file(
+        result: str = await tools["edit_file"](
             file_path=str(lock_file),
             old_string="line_a",
             new_string="LINE_A",
@@ -138,7 +144,7 @@ async def test_locking_serializes_same_file_edits(project_dir: Path) -> None:
         assert isinstance(result, str)
 
     async def edit_b() -> None:
-        result: str = await edit_file(
+        result: str = await tools["edit_file"](
             file_path=str(lock_file),
             old_string="line_b",
             new_string="LINE_B",
@@ -153,15 +159,15 @@ async def test_locking_serializes_same_file_edits(project_dir: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_different_files_not_blocked(project_dir: Path) -> None:
+async def test_different_files_not_blocked(project_dir: Path, tools: ToolMap) -> None:
     """Concurrent edits to different files don't interfere."""
     file_a = TEST_DIR / "lock_test_a.txt"
     file_b = TEST_DIR / "lock_test_b.txt"
-    save_file(str(file_a), "content_a\n")
-    save_file(str(file_b), "content_b\n")
+    tools["save_file"](str(file_a), "content_a\n")
+    tools["save_file"](str(file_b), "content_b\n")
 
     async def edit_a() -> None:
-        result: str = await edit_file(
+        result: str = await tools["edit_file"](
             file_path=str(file_a),
             old_string="content_a",
             new_string="CONTENT_A",
@@ -169,7 +175,7 @@ async def test_different_files_not_blocked(project_dir: Path) -> None:
         assert isinstance(result, str)
 
     async def edit_b() -> None:
-        result: str = await edit_file(
+        result: str = await tools["edit_file"](
             file_path=str(file_b),
             old_string="content_b",
             new_string="CONTENT_B",

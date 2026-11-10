@@ -1,6 +1,10 @@
-"""Tests for the ``github_subissue_add/_list/_remove`` MCP tools in server.py."""
+"""Tests for the ``github_subissue_add/_list/_remove`` tools.
 
-from collections.abc import Callable, Generator
+``github_subissue_list`` lives in toolset/github_read.py; add and remove in
+toolset/github_write.py.
+"""
+
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -11,13 +15,7 @@ from mcp_workspace.github_operations.base_manager import IssueIdentityMismatchEr
 from mcp_workspace.github_operations.issues import IssueManager
 from mcp_workspace.github_operations.issues.sub_issues_mixin import SubIssueLink
 from mcp_workspace.reference_projects import ReferenceProject
-from mcp_workspace.server import (
-    github_subissue_add,
-    github_subissue_list,
-    github_subissue_remove,
-    set_project_dir,
-)
-from mcp_workspace.server_reference_tools import set_reference_projects
+from tests.conftest import ToolMap
 
 from ._issue_test_helpers import make_mock_issue
 from .conftest import make_retry_error
@@ -28,18 +26,11 @@ _DUPLICATE = (
 )
 
 
-@pytest.fixture(autouse=True)
-def setup_server(project_dir: Path) -> Generator[None, None, None]:
-    """Setup the server with the project directory."""
-    set_project_dir(project_dir)
-    yield
-
-
 @pytest.fixture
-def reference_projects() -> Generator[None, None, None]:
-    """Configure a 'sibling' reference project with a GitHub URL."""
-    set_reference_projects(
-        {
+def ref_tools(make_tools: Callable[..., ToolMap]) -> ToolMap:
+    """Tools configured with a 'sibling' reference project with a GitHub URL."""
+    return make_tools(
+        reference_projects={
             "sibling": ReferenceProject(
                 name="sibling",
                 path=Path("/does/not/exist"),
@@ -47,8 +38,6 @@ def reference_projects() -> Generator[None, None, None]:
             )
         }
     )
-    yield
-    set_reference_projects({})
 
 
 def _make_parent(total: int | None = 2) -> SubIssueLink:
@@ -89,11 +78,11 @@ class TestSubissueAdd:
     """Tests for github_subissue_add."""
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_success_with_summary(self, mock_cls: MagicMock) -> None:
+    def test_success_with_summary(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """The success line reports the parent URL and sub-issue count."""
         mock_cls.return_value.add_sub_issue.return_value = _make_parent(total=2)
 
-        result = github_subissue_add(parent_number=3, child_number=7)
+        result = tools["github_subissue_add"](parent_number=3, child_number=7)
 
         assert result == (
             f"Linked #7 as a sub-issue of #3 — {_URL} (~2 sub-issues, may lag)"
@@ -101,11 +90,11 @@ class TestSubissueAdd:
         mock_cls.return_value.add_sub_issue.assert_called_once_with(3, 7)
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_success_without_summary(self, mock_cls: MagicMock) -> None:
+    def test_success_without_summary(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """An unknown count omits the parenthetical instead of inventing 0."""
         mock_cls.return_value.add_sub_issue.return_value = _make_parent(total=None)
 
-        result = github_subissue_add(parent_number=3, child_number=7)
+        result = tools["github_subissue_add"](parent_number=3, child_number=7)
 
         assert result == f"Linked #7 as a sub-issue of #3 — {_URL}"
         assert "sub-issues" not in result
@@ -115,28 +104,28 @@ class TestSubissueAdd:
     )
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_invalid_number(
-        self, mock_cls: MagicMock, parent: int, child: int, bad: int
+        self, mock_cls: MagicMock, parent: int, child: int, bad: int, tools: ToolMap
     ) -> None:
         """A non-positive number is rejected before any write."""
-        result = github_subissue_add(parent_number=parent, child_number=child)
+        result = tools["github_subissue_add"](parent_number=parent, child_number=child)
 
         assert result == f"Error: invalid issue number: {bad}"
         mock_cls.return_value.add_sub_issue.assert_not_called()
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_self_link(self, mock_cls: MagicMock) -> None:
+    def test_self_link(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """An issue cannot be linked under itself."""
-        result = github_subissue_add(parent_number=3, child_number=3)
+        result = tools["github_subissue_add"](parent_number=3, child_number=3)
 
         assert result == "Error: an issue cannot be its own sub-issue"
         mock_cls.return_value.add_sub_issue.assert_not_called()
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_repository_inaccessible(self, mock_cls: MagicMock) -> None:
+    def test_repository_inaccessible(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """A None from the mixin renders the repository access error."""
         mock_cls.return_value.add_sub_issue.return_value = None
 
-        result = github_subissue_add(parent_number=3, child_number=7)
+        result = tools["github_subissue_add"](parent_number=3, child_number=7)
 
         assert result.startswith("Error: Could not access repository")
 
@@ -147,14 +136,14 @@ class TestSubissueAdd:
     )
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_github_error_message(
-        self, mock_cls: MagicMock, status: int, message: str
+        self, mock_cls: MagicMock, status: int, message: str, tools: ToolMap
     ) -> None:
         """GitHub's message is surfaced verbatim."""
         mock_cls.return_value.add_sub_issue.side_effect = GithubException(
             status, {"message": message}
         )
 
-        result = github_subissue_add(parent_number=3, child_number=7)
+        result = tools["github_subissue_add"](parent_number=3, child_number=7)
 
         assert result == f"Error: {message}"
 
@@ -163,43 +152,45 @@ class TestSubissueAdd:
     )
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_github_error_without_message(
-        self, mock_cls: MagicMock, data: object
+        self, mock_cls: MagicMock, data: object, tools: ToolMap
     ) -> None:
         """Data that is not a dict with a message falls back to str(exc)."""
         exc = GithubException(500, data)
         mock_cls.return_value.add_sub_issue.side_effect = exc
 
-        result = github_subissue_add(parent_number=3, child_number=7)
+        result = tools["github_subissue_add"](parent_number=3, child_number=7)
 
         assert result == f"Error: {exc}"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_retry_error_is_reported_as_rate_limit(self, mock_cls: MagicMock) -> None:
+    def test_retry_error_is_reported_as_rate_limit(
+        self, mock_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """Exhausted retries read as a rate limit, not as no repository access."""
         mock_cls.return_value = _retry_exhausted_manager()
 
-        result = github_subissue_add(parent_number=3, child_number=7)
+        result = tools["github_subissue_add"](parent_number=3, child_number=7)
 
         assert result == "GitHub rate limit: retries exhausted"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_pull_request_guard(self, mock_cls: MagicMock) -> None:
+    def test_pull_request_guard(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """The mixin's pull-request ValueError is rendered as an error string."""
         mock_cls.return_value.add_sub_issue.side_effect = ValueError(
             "#7 is a pull request, not an issue"
         )
 
-        result = github_subissue_add(parent_number=3, child_number=7)
+        result = tools["github_subissue_add"](parent_number=3, child_number=7)
 
         assert result == "Error: #7 is a pull request, not an issue"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_identity_mismatch(self, mock_cls: MagicMock) -> None:
+    def test_identity_mismatch(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """A transferred-issue mismatch is rendered, never raised."""
         exc = IssueIdentityMismatchError("issue #7 was transferred")
         mock_cls.return_value.add_sub_issue.side_effect = exc
 
-        result = github_subissue_add(parent_number=3, child_number=7)
+        result = tools["github_subissue_add"](parent_number=3, child_number=7)
 
         assert result == f"Error: {exc}"
 
@@ -207,23 +198,23 @@ class TestSubissueAdd:
     def test_error_names_reference_project(
         self,
         mock_cls: MagicMock,
-        reference_projects: None,  # pylint: disable=unused-argument
+        ref_tools: ToolMap,
     ) -> None:
         """An error in a reference project names that project."""
         mock_cls.return_value.add_sub_issue.side_effect = GithubException(
             404, {"message": "Not Found"}
         )
 
-        result = github_subissue_add(
+        result = ref_tools["github_subissue_add"](
             parent_number=3, child_number=7, reference_name="sibling"
         )
 
         assert result == "Error: Not Found in reference project 'sibling'"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_unknown_reference_name(self, mock_cls: MagicMock) -> None:
+    def test_unknown_reference_name(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """An unknown reference name is reported once, without a suffix."""
-        result = github_subissue_add(
+        result = tools["github_subissue_add"](
             parent_number=3, child_number=7, reference_name="nope"
         )
 
@@ -235,49 +226,51 @@ class TestSubissueRemove:
     """Tests for github_subissue_remove."""
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_success_with_summary(self, mock_cls: MagicMock) -> None:
+    def test_success_with_summary(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """The success line reports the parent URL and sub-issue count."""
         mock_cls.return_value.remove_sub_issue.return_value = _make_parent(total=1)
 
-        result = github_subissue_remove(parent_number=3, child_number=7)
+        result = tools["github_subissue_remove"](parent_number=3, child_number=7)
 
         assert result == f"Unlinked #7 from #3 — {_URL} (~1 sub-issues, may lag)"
         mock_cls.return_value.remove_sub_issue.assert_called_once_with(3, 7)
         mock_cls.return_value.add_sub_issue.assert_not_called()
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_success_without_summary(self, mock_cls: MagicMock) -> None:
+    def test_success_without_summary(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """An unknown count omits the parenthetical."""
         mock_cls.return_value.remove_sub_issue.return_value = _make_parent(total=None)
 
-        result = github_subissue_remove(parent_number=3, child_number=7)
+        result = tools["github_subissue_remove"](parent_number=3, child_number=7)
 
         assert result == f"Unlinked #7 from #3 — {_URL}"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_self_link(self, mock_cls: MagicMock) -> None:
+    def test_self_link(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """An issue cannot be unlinked from itself."""
-        result = github_subissue_remove(parent_number=3, child_number=3)
+        result = tools["github_subissue_remove"](parent_number=3, child_number=3)
 
         assert result == "Error: an issue cannot be its own sub-issue"
         mock_cls.return_value.remove_sub_issue.assert_not_called()
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_invalid_number(self, mock_cls: MagicMock) -> None:
+    def test_invalid_number(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """A non-positive number is rejected before any write."""
-        result = github_subissue_remove(parent_number=3, child_number=0)
+        result = tools["github_subissue_remove"](parent_number=3, child_number=0)
 
         assert result == "Error: invalid issue number: 0"
         mock_cls.return_value.remove_sub_issue.assert_not_called()
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_unlinked_child_is_an_error(self, mock_cls: MagicMock) -> None:
+    def test_unlinked_child_is_an_error(
+        self, mock_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """Removing a child that is not linked is an error, not a silent no-op."""
         mock_cls.return_value.remove_sub_issue.side_effect = GithubException(
             404, {"message": "Not Found"}
         )
 
-        result = github_subissue_remove(parent_number=3, child_number=7)
+        result = tools["github_subissue_remove"](parent_number=3, child_number=7)
 
         assert result == "Error: Not Found"
 
@@ -286,8 +279,8 @@ class TestSubissueRemove:
 @pytest.mark.parametrize(
     ("tool", "expected"),
     [
-        (github_subissue_add, f"Linked #7 as a sub-issue of #3 — {_URL}"),
-        (github_subissue_remove, f"Unlinked #7 from #3 — {_URL}"),
+        ("github_subissue_add", f"Linked #7 as a sub-issue of #3 — {_URL}"),
+        ("github_subissue_remove", f"Unlinked #7 from #3 — {_URL}"),
     ],
     ids=["add", "remove"],
 )
@@ -301,9 +294,10 @@ class TestSubissueRemove:
 )
 def test_failed_refetch_after_write_reports_success(
     mock_issue_manager: IssueManager,
-    tool: Callable[..., str],
+    tool: str,
     expected: str,
     refetch_error: Exception,
+    tools: ToolMap,
 ) -> None:
     """A write that landed is reported as success, without the count."""
     parent = make_mock_issue(3)
@@ -321,7 +315,7 @@ def test_failed_refetch_after_write_reports_success(
         "mcp_workspace.github_operations.issues.IssueManager",
         return_value=mock_issue_manager,
     ):
-        result = tool(parent_number=3, child_number=7)
+        result = tools[tool](parent_number=3, child_number=7)
 
     assert result == expected
 
@@ -330,19 +324,21 @@ class TestSubissueList:
     """Tests for github_subissue_list."""
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_lists_children_in_order(self, mock_cls: MagicMock) -> None:
+    def test_lists_children_in_order(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """Each child renders as one line, in API order."""
         mock_cls.return_value.list_sub_issues.return_value = [
             _make_child(7, "open", "First"),
             _make_child(9, "closed", "Second"),
         ]
 
-        result = github_subissue_list(parent_number=3)
+        result = tools["github_subissue_list"](parent_number=3)
 
         assert result == "#7  open  First\n#9  closed  Second"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_untrusted_children_are_prefixed(self, mock_cls: MagicMock) -> None:
+    def test_untrusted_children_are_prefixed(
+        self, mock_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """Untrusted children get the prefix, a ghost renders as @ghost."""
         mock_cls.return_value.list_sub_issues.return_value = [
             _make_child(7, "open", "First", login="abc", author_association="NONE"),
@@ -350,7 +346,7 @@ class TestSubissueList:
             _make_child(9, "closed", "Gone", login=None, author_association="NONE"),
         ]
 
-        result = github_subissue_list(parent_number=3)
+        result = tools["github_subissue_list"](parent_number=3)
 
         assert result.splitlines() == [
             "#7  open  [untrusted @abc] First",
@@ -360,7 +356,7 @@ class TestSubissueList:
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_allowlisted_child_has_no_prefix(
-        self, mock_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+        self, mock_cls: MagicMock, monkeypatch: pytest.MonkeyPatch, tools: ToolMap
     ) -> None:
         """An allowlisted login is trusted whatever its role."""
         monkeypatch.setattr(
@@ -371,46 +367,48 @@ class TestSubissueList:
             _make_child(7, "open", "First", login="abc", author_association="NONE"),
         ]
 
-        assert github_subissue_list(parent_number=3) == "#7  open  First"
+        assert tools["github_subissue_list"](parent_number=3) == "#7  open  First"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_no_children(self, mock_cls: MagicMock) -> None:
+    def test_no_children(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """An empty list is reported explicitly."""
         mock_cls.return_value.list_sub_issues.return_value = []
 
-        assert github_subissue_list(parent_number=3) == "No sub-issues."
+        assert tools["github_subissue_list"](parent_number=3) == "No sub-issues."
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_repository_inaccessible(self, mock_cls: MagicMock) -> None:
+    def test_repository_inaccessible(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """A None from the mixin renders the repository access error."""
         mock_cls.return_value.list_sub_issues.return_value = None
 
-        result = github_subissue_list(parent_number=3)
+        result = tools["github_subissue_list"](parent_number=3)
 
         assert result.startswith("Error: Could not access repository")
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_retry_error_is_reported_as_rate_limit(self, mock_cls: MagicMock) -> None:
+    def test_retry_error_is_reported_as_rate_limit(
+        self, mock_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """Exhausted retries read as a rate limit, not as no repository access."""
         mock_cls.return_value = _retry_exhausted_manager()
 
-        result = github_subissue_list(parent_number=3)
+        result = tools["github_subissue_list"](parent_number=3)
 
         assert result == "GitHub rate limit: retries exhausted"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_invalid_number(self, mock_cls: MagicMock) -> None:
+    def test_invalid_number(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """A non-positive number is rejected before the manager is built."""
-        result = github_subissue_list(parent_number=0)
+        result = tools["github_subissue_list"](parent_number=0)
 
         assert result == "Error: invalid issue number: 0"
         mock_cls.assert_not_called()
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_forwards_max_results(self, mock_cls: MagicMock) -> None:
+    def test_forwards_max_results(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """max_results is passed through to the mixin untouched."""
         mock_cls.return_value.list_sub_issues.return_value = []
 
-        github_subissue_list(parent_number=3, max_results=5)
+        tools["github_subissue_list"](parent_number=3, max_results=5)
 
         mock_cls.return_value.list_sub_issues.assert_called_once_with(3, max_results=5)

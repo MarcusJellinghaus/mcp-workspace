@@ -1,5 +1,6 @@
 """Credentials embedded in remote URLs never reach tool output, errors or logs."""
 
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import patch
 
@@ -7,11 +8,11 @@ import pytest
 from git import Repo
 from git.exc import GitCommandError
 
-from mcp_workspace import server_reference_tools
 from mcp_workspace.git_operations.read_operations import git
 from mcp_workspace.github_operations.base_manager import BaseGitHubManager
 from mcp_workspace.reference_projects import ReferenceProject, verify_url_match
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
+from tests.conftest import ToolMap
 
 SECRET = "ghp_secret123"
 URL = f"https://user:{SECRET}@github.com/owner/repo.git"
@@ -97,17 +98,15 @@ def test_reference_project_repr_scrubbed(tmp_path: Path) -> None:
 
 
 def test_get_reference_projects_scrubbed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, make_tools: Callable[..., ToolMap]
 ) -> None:
-    monkeypatch.setattr(
-        server_reference_tools,
-        "_reference_projects",
-        {
+    tools = make_tools(
+        reference_projects={
             "p": ReferenceProject(name="p", path=tmp_path, url=URL),
             "q": ReferenceProject(name="q", path=tmp_path),
-        },
+        }
     )
-    result = server_reference_tools.get_reference_projects()
+    result = tools["get_reference_projects"]()
     assert SECRET not in str(result)
     assert result["projects"][0]["url"] == "https://github.com/owner/repo.git"
     assert result["projects"][1]["url"] is None

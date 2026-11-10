@@ -82,6 +82,8 @@ All checks must pass before proceeding.
 
 **Pytest:** always use `extra_args: ["-n", "auto"]` for parallel execution.
 
+**Performance tests** skip themselves under xdist. Run them as a second, serial pytest call: `run_pytest_check(markers=["performance"], extra_args=["-n", "0"])`.
+
 When debugging test failures, add `"-v", "-s", "--tb=short"` to extra_args.
 
 ## Scratch probes

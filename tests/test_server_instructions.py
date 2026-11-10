@@ -1,13 +1,14 @@
 """Tests for the server-level MCP instructions text."""
 
 import re
+from pathlib import Path
 
-from mcp_workspace.server import mcp
+from mcp_workspace.server import create_server
 
 
-def test_server_instructions_describe_reference_projects() -> None:
+def test_server_instructions_describe_reference_projects(tmp_path: Path) -> None:
     """Server instructions advertise reference projects without naming tools or paths."""
-    text = mcp.instructions
+    text = create_server(tmp_path).instructions
     assert text is not None
     assert "reference project" in text.lower()
     # Only git() and get_reference_projects() may be named; no tool roster

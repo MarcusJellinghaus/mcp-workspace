@@ -6,11 +6,12 @@ dict as structured output, while `typing.Dict[str, Any]` wraps it in
 unwrapped shape is pinned here.
 """
 
+from pathlib import Path
+
 import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
-from mcp_workspace import server_reference_tools
-from mcp_workspace.server import mcp
+from mcp_workspace.server import create_server
 
 DICT_RETURNING_TOOLS = [
     "search_files",
@@ -21,7 +22,8 @@ DICT_RETURNING_TOOLS = [
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("tool_name", DICT_RETURNING_TOOLS)
-async def test_output_schema_is_unwrapped(tool_name: str) -> None:
+async def test_output_schema_is_unwrapped(tool_name: str, tmp_path: Path) -> None:
+    mcp = create_server(tmp_path)
     tools = {tool.name: tool for tool in await mcp.list_tools()}
 
     schema = tools[tool_name].outputSchema
@@ -33,10 +35,8 @@ async def test_output_schema_is_unwrapped(tool_name: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_structured_content_is_unwrapped(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(server_reference_tools, "_reference_projects", {})
+async def test_structured_content_is_unwrapped(tmp_path: Path) -> None:
+    mcp = create_server(tmp_path)
 
     async with create_connected_server_and_client_session(mcp) as session:
         result = await session.call_tool("get_reference_projects", {})

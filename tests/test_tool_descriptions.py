@@ -5,11 +5,12 @@ who expect shell globbing. The descriptions have drifted once already, so the
 key phrases are pinned here.
 """
 
-from typing import Any
+from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 
-from mcp_workspace import server, server_reference_tools
+from mcp_workspace.toolset import tool_specs
 
 GLOB_DOC_PHRASES = [
     "gitignore",
@@ -21,11 +22,30 @@ GLOB_DOC_PHRASES = [
 ]
 
 
+def _tool_text(project_dir: Path, name: str) -> str:
+    """Return a tool's description plus its glob field description."""
+    spec = next(s for s in tool_specs(project_dir) if s.name == name)
+    glob_doc = spec.args_model.model_json_schema()["properties"]["glob"]["description"]
+    return f"{spec.description}\n{glob_doc}"
+
+
+def _search_files_text(project_dir: Path) -> str:
+    """Return the search_files description plus its glob field description."""
+    return _tool_text(project_dir, "search_files")
+
+
+def _search_reference_files_text(project_dir: Path) -> str:
+    """Return the search_reference_files description plus its glob field description."""
+    return _tool_text(project_dir, "search_reference_files")
+
+
 @pytest.mark.parametrize("phrase", GLOB_DOC_PHRASES)
 @pytest.mark.parametrize(
-    "func",
-    [server.search_files, server_reference_tools.search_reference_files],
+    "get_text",
+    [_search_files_text, _search_reference_files_text],
     ids=["search_files", "search_reference_files"],
 )
-def test_tool_description_documents_glob_semantics(func: Any, phrase: str) -> None:
-    assert phrase in (func.__doc__ or "").lower()
+def test_tool_description_documents_glob_semantics(
+    get_text: Callable[[Path], str], phrase: str, tmp_path: Path
+) -> None:
+    assert phrase in get_text(tmp_path).lower()

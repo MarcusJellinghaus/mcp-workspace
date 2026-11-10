@@ -4,9 +4,9 @@ import contextlib
 import os
 import shutil
 import tempfile
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import TypedDict, TypeVar
+from typing import Any, TypedDict, TypeVar
 
 import git
 import pytest
@@ -14,6 +14,9 @@ import pytest
 from mcp_workspace import config
 from mcp_workspace.config import get_github_token, get_test_repo_url
 from mcp_workspace.github_operations import clear_repository_cache
+from mcp_workspace.toolset import tool_specs
+
+ToolMap = dict[str, Callable[..., Any]]
 
 # Python path is now configured via pytest configuration in pyproject.toml
 
@@ -70,6 +73,22 @@ def project_dir(tmp_path: Path) -> Path:
     (tmp_path / TEST_DIR).mkdir(parents=True, exist_ok=True)
 
     return tmp_path
+
+
+@pytest.fixture
+def make_tools(project_dir: Path) -> Callable[..., ToolMap]:
+    """Build tools via tool_specs; returns {name: fn}."""
+
+    def _make(root: Path | None = None, **settings: Any) -> ToolMap:
+        return {s.name: s.fn for s in tool_specs(root or project_dir, **settings)}
+
+    return _make
+
+
+@pytest.fixture
+def tools(make_tools: Callable[..., ToolMap]) -> ToolMap:
+    """Tools bound to the project_dir fixture with default settings."""
+    return make_tools()
 
 
 @pytest.fixture(autouse=True)

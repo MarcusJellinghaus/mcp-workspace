@@ -28,12 +28,13 @@ exclude_type_checking_imports = True
 # Contract: Layered Architecture
 # -----------------------------------------------------------------------------
 # Ensures dependencies flow in one direction:
-#   main -> server -> file_tools -> (no internal dependencies)
+#   main -> server -> toolset -> checks -> file_tools / ... -> utilities
 #
 # Why this matters:
 # - Prevents circular dependencies
 # - Keeps entry point (main) as thin orchestration layer
-# - Server focuses on MCP protocol, delegates to file_tools
+# - Server focuses on MCP protocol, registers the toolset's specs
+# - Toolset defines the tools MCP-free, delegates to file_tools and friends
 # - File tools are independent, reusable utilities
 # -----------------------------------------------------------------------------
 [importlinter:contract:layered_architecture]
@@ -42,7 +43,7 @@ type = layers
 layers =
     mcp_workspace.main
     mcp_workspace.server
-    mcp_workspace.server_reference_tools
+    mcp_workspace.toolset
     mcp_workspace.checks
     mcp_workspace.file_tools | mcp_workspace.github_operations | mcp_workspace.reference_projects
     mcp_workspace.git_operations | mcp_workspace.workflows
@@ -52,8 +53,8 @@ layers =
 # -----------------------------------------------------------------------------
 # Contract: MCP Library Isolation
 # -----------------------------------------------------------------------------
-# The 'mcp' package should only be imported by main.py and server.py.
-# File tools should remain MCP-agnostic for reusability.
+# The 'mcp' package should only be imported by server.py.
+# File tools and the toolset should remain MCP-agnostic for reusability.
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 # Contract: PyGithub Library Isolation
@@ -96,7 +97,6 @@ forbidden_modules =
     mcp
 ignore_imports =
     mcp_workspace.server -> mcp
-    mcp_workspace.server_reference_tools -> mcp
 
 # -----------------------------------------------------------------------------
 # Contract: GitPython Library Isolation

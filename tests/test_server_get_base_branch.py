@@ -1,11 +1,10 @@
-"""Tests for ``_resolve_base_branch`` and the ``get_base_branch`` tool.
+"""Tests for ``resolve_base_branch`` and the ``get_base_branch`` tool.
 
 A malformed Base Branch section on the linked issue is surfaced as an
 ``Error: issue #N: …`` string and never falls back to PR/merge-base/default.
 """
 
 import logging
-from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -13,7 +12,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from mcp_workspace.github_operations import IssueIdentityMismatchError
-from mcp_workspace.server import _resolve_base_branch, get_base_branch, set_project_dir
+from mcp_workspace.toolset._github_common import resolve_base_branch
+from tests.conftest import ToolMap
 from tests.github_operations._issue_test_helpers import (
     make_untrusted_issue,
     real_issue_manager,
@@ -35,15 +35,8 @@ def _issue(number: int = 42, **extra: Any) -> dict[str, Any]:
     return data
 
 
-@pytest.fixture(autouse=True)
-def setup_server(project_dir: Path) -> Generator[None, None, None]:
-    """Setup the server with the project directory."""
-    set_project_dir(project_dir)
-    yield
-
-
 class TestResolveBaseBranch:
-    """Tests for the ``_resolve_base_branch`` helper."""
+    """Tests for the ``resolve_base_branch`` helper."""
 
     def test_malformed_issue_returns_error_without_detection(
         self, tmp_path: Path
@@ -57,7 +50,7 @@ class TestResolveBaseBranch:
             mock_im_cls.return_value.get_issue.return_value = _issue(
                 base_branch_error=SENTENCE
             )
-            result = _resolve_base_branch(tmp_path, BRANCH, pr_manager)
+            result = resolve_base_branch(tmp_path, BRANCH, pr_manager)
 
         assert result == (None, f"Error: issue #42: {SENTENCE}")
         mock_detect.assert_not_called()
@@ -72,7 +65,7 @@ class TestResolveBaseBranch:
             patch(DETECT, return_value="develop") as mock_detect,
         ):
             mock_im_cls.return_value.get_issue.return_value = fetched
-            result = _resolve_base_branch(tmp_path, BRANCH, pr_manager)
+            result = resolve_base_branch(tmp_path, BRANCH, pr_manager)
 
         assert result == ("develop", None)
         mock_detect.assert_called_once_with(
@@ -89,7 +82,7 @@ class TestResolveBaseBranch:
             patch(ISSUE_MANAGER) as mock_im_cls,
             patch(DETECT, return_value="main") as mock_detect,
         ):
-            result = _resolve_base_branch(tmp_path, "feature-branch", pr_manager)
+            result = resolve_base_branch(tmp_path, "feature-branch", pr_manager)
 
         assert result == ("main", None)
         mock_im_cls.assert_not_called()
@@ -106,7 +99,7 @@ class TestResolveBaseBranch:
             patch(ISSUE_MANAGER, side_effect=RuntimeError("no token")),
             patch(DETECT, return_value="main") as mock_detect,
         ):
-            result = _resolve_base_branch(tmp_path, BRANCH, None)
+            result = resolve_base_branch(tmp_path, BRANCH, None)
 
         assert result == ("main", None)
         assert mock_detect.call_args.kwargs["issue_data"] is None
@@ -118,12 +111,14 @@ class TestResolveBaseBranch:
         with (
             patch(ISSUE_MANAGER) as mock_im_cls,
             patch(DETECT, return_value="main") as mock_detect,
-            caplog.at_level(logging.WARNING, logger="mcp_workspace.server"),
+            caplog.at_level(
+                logging.WARNING, logger="mcp_workspace.toolset._github_common"
+            ),
         ):
             mock_im_cls.return_value.get_issue.side_effect = IssueIdentityMismatchError(
                 "issue #42 was transferred"
             )
-            result = _resolve_base_branch(tmp_path, BRANCH, None)
+            result = resolve_base_branch(tmp_path, BRANCH, None)
 
         assert result == ("main", None)
         assert mock_detect.call_args.kwargs["issue_data"] is None
@@ -138,7 +133,7 @@ class TestResolveBaseBranch:
             patch(DETECT, return_value="main") as mock_detect,
         ):
             mock_im_cls.return_value.get_issue.side_effect = RuntimeError("boom")
-            result = _resolve_base_branch(tmp_path, BRANCH, None)
+            result = resolve_base_branch(tmp_path, BRANCH, None)
 
         assert result == ("main", None)
         assert mock_detect.call_args.kwargs["issue_data"] is None
@@ -153,7 +148,7 @@ class TestResolveBaseBranch:
             mock_im_cls.return_value.get_issue.return_value = _issue(
                 number=0, base_branch_error=SENTENCE
             )
-            result = _resolve_base_branch(tmp_path, BRANCH, None)
+            result = resolve_base_branch(tmp_path, BRANCH, None)
 
         assert result == ("main", None)
         assert mock_detect.call_args.kwargs["issue_data"] is None
@@ -163,7 +158,7 @@ class TestResolveBaseBranch:
 class TestGetBaseBranch:
     """Tests for the ``get_base_branch`` MCP tool."""
 
-    def test_malformed_returns_error_string(self) -> None:
+    def test_malformed_returns_error_string(self, tools: ToolMap) -> None:
         """A malformed Base Branch section is returned as an error string."""
         with (
             patch(PR_MANAGER),
@@ -174,12 +169,12 @@ class TestGetBaseBranch:
             mock_im_cls.return_value.get_issue.return_value = _issue(
                 base_branch_error=SENTENCE
             )
-            result = get_base_branch()
+            result = tools["get_base_branch"]()
 
         assert result == f"Error: issue #42: {SENTENCE}"
         mock_detect.assert_not_called()
 
-    def test_valid_returns_detected_branch(self) -> None:
+    def test_valid_returns_detected_branch(self, tools: ToolMap) -> None:
         """The detected base branch is returned as-is."""
         with (
             patch(PR_MANAGER),
@@ -190,34 +185,36 @@ class TestGetBaseBranch:
             mock_im_cls.return_value.get_issue.return_value = _issue(
                 base_branch="develop"
             )
-            result = get_base_branch()
+            result = tools["get_base_branch"]()
 
         assert result == "develop"
 
-    def test_detection_none_returns_main(self) -> None:
+    def test_detection_none_returns_main(self, tools: ToolMap) -> None:
         """Nothing detected → "main"."""
         with (
             patch(PR_MANAGER),
             patch(CURRENT_BRANCH, return_value="feature-branch"),
             patch(DETECT, return_value=None),
         ):
-            result = get_base_branch()
+            result = tools["get_base_branch"]()
 
         assert result == "main"
 
-    def test_no_current_branch_returns_main(self) -> None:
+    def test_no_current_branch_returns_main(self, tools: ToolMap) -> None:
         """Detached HEAD → "main" without detection."""
         with (
             patch(PR_MANAGER),
             patch(CURRENT_BRANCH, return_value=None),
             patch(DETECT) as mock_detect,
         ):
-            result = get_base_branch()
+            result = tools["get_base_branch"]()
 
         assert result == "main"
         mock_detect.assert_not_called()
 
-    def test_untrusted_malformed_section_is_not_an_error(self, tmp_path: Path) -> None:
+    def test_untrusted_malformed_section_is_not_an_error(
+        self, tmp_path: Path, tools: ToolMap
+    ) -> None:
         """A real IssueManager ignores an untrusted malformed section."""
         editor = (
             "mcp_workspace.github_operations.issues.base_branch_trust.fetch_body_editor"
@@ -233,7 +230,7 @@ class TestGetBaseBranch:
             manager._repository.get_issue.return_value = make_untrusted_issue(
                 42, "### Base Branch\n\nepic/x\nmore\n"
             )
-            result = get_base_branch()
+            result = tools["get_base_branch"]()
 
         assert not result.startswith("Error:")
         assert result == "main"
