@@ -168,7 +168,9 @@ def _call_edit_file(project: Path, reference_name: str) -> Any:
     Returns:
         The `---`/`+++` lines of the returned diff.
     """
-    diff = asyncio.run(server.edit_file("edit/nested/target.txt", "before", "after"))
+    diff = asyncio.run(
+        _tool(project, "edit_file")("edit/nested/target.txt", "before", "after")
+    )
     return [
         line
         for line in diff.splitlines()

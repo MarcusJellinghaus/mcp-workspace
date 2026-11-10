@@ -20,12 +20,9 @@ from mcp_workspace.checks.file_sizes import (
     render_output,
 )
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES, normalize_path
-from mcp_workspace.file_tools import append_file as append_file_util
 from mcp_workspace.file_tools import delete_directory as delete_directory_util
 from mcp_workspace.file_tools import delete_file as delete_file_util
-from mcp_workspace.file_tools import edit_file as edit_file_util
 from mcp_workspace.file_tools import move_file as move_file_util
-from mcp_workspace.file_tools import save_file as save_file_util
 from mcp_workspace.file_tools.directory_utils import check_path_not_gitignored
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server_reference_tools import (
@@ -88,9 +85,6 @@ _fail_on_reviews: bool = False
 # Server-wide default for rejecting a malformed Base Branch section
 # (set via --enforce-base-branch-format / --no-enforce-base-branch-format)
 _enforce_base_branch_format: bool = True
-
-# Per-file locks for concurrent edit safety
-_file_locks: dict[str, asyncio.Lock] = {}
 
 
 def _ref_suffix(reference_name: str | None) -> str:
@@ -406,90 +400,6 @@ def set_enforce_base_branch_format(value: bool) -> None:
 
 @_legacy_tool
 @log_function_call
-def save_file(file_path: str, content: str) -> bool:
-    """Write a file, creating parent directories as needed.
-
-    Auto-creates parent directories if they do not exist.
-
-    Args:
-        file_path: Path to the file to write to (relative to project directory)
-        content: Content to write to the file
-
-    Returns:
-        True if the file was written successfully
-
-    Raises:
-        ValueError: If file_path is not a non-empty string, content is
-            not a string, or the project directory has not been set.
-    """
-    if not file_path or not isinstance(file_path, str):
-        logger.error("Invalid file path parameter: %s", file_path)
-        raise ValueError(f"File path must be a non-empty string, got {type(file_path)}")
-
-    if content is None:  # defense-in-depth for direct callers
-        logger.warning("Content is None, treating as empty string")  # type: ignore[unreachable]
-        content = ""
-    elif not isinstance(content, str):
-        logger.error("Invalid content type: %s", type(content))  # type: ignore[unreachable]
-        raise ValueError(f"Content must be a string, got {type(content)}")
-
-    if _project_dir is None:
-        raise ValueError("Project directory has not been set")
-
-    _check_not_gitignored(file_path)
-
-    logger.info("Writing to file: %s", file_path)
-    try:
-        success = save_file_util(file_path, content, project_dir=_project_dir)
-        return success
-    except Exception as e:
-        logger.error("Error writing to file: %s", str(e))
-        raise
-
-
-@_legacy_tool
-@log_function_call
-def append_file(file_path: str, content: str) -> bool:
-    """Append content to the end of a file.
-
-    Args:
-        file_path: Path to the file to append to (relative to project directory)
-        content: Content to append to the file
-
-    Returns:
-        True if the content was appended successfully
-
-    Raises:
-        ValueError: If file_path is not a non-empty string, content is
-            not a string, or the project directory has not been set.
-    """
-    if not file_path or not isinstance(file_path, str):
-        logger.error("Invalid file path parameter: %s", file_path)
-        raise ValueError(f"File path must be a non-empty string, got {type(file_path)}")
-
-    if content is None:  # defense-in-depth for direct callers
-        logger.warning("Content is None, treating as empty string")  # type: ignore[unreachable]
-        content = ""
-    elif not isinstance(content, str):
-        logger.error("Invalid content type: %s", type(content))  # type: ignore[unreachable]
-        raise ValueError(f"Content must be a string, got {type(content)}")
-
-    if _project_dir is None:
-        raise ValueError("Project directory has not been set")
-
-    _check_not_gitignored(file_path)
-
-    logger.info("Appending to file: %s", file_path)
-    try:
-        success = append_file_util(file_path, content, project_dir=_project_dir)
-        return success
-    except Exception as e:
-        logger.error("Error appending to file: %s", str(e))
-        raise
-
-
-@_legacy_tool
-@log_function_call
 def delete_this_file(file_path: str) -> bool:
     """Delete a specified file from the filesystem.
 
@@ -630,51 +540,6 @@ def move_file(source_path: str, destination_path: str) -> bool:
     except Exception as e:
         # Catch any other errors and simplify
         raise RuntimeError("Move operation failed") from e
-
-
-@_legacy_tool
-@log_function_call
-async def edit_file(
-    file_path: str,
-    old_string: str,
-    new_string: str,
-    replace_all: bool = False,
-) -> str:
-    """Edit a file by exact string match; replace_all for multiple matches.
-
-    Finds old_string in the file and replaces it with new_string.
-    Empty old_string inserts new_string at the beginning of the file.
-    Raises ValueError if old_string matches multiple locations
-    (use replace_all=True to replace all).
-
-    Args:
-        file_path: Path to the file to edit (relative to project directory)
-        old_string: Exact text to find and replace
-        new_string: Replacement text
-        replace_all: Replace all occurrences instead of requiring unique match
-
-    Returns:
-        Git-style unified diff showing the changes, or a message
-        if the edit was already applied.
-
-    Raises:
-        ValueError: If file_path is not a non-empty string or the
-            project directory has not been set.
-    """
-    if not file_path or not isinstance(file_path, str):
-        raise ValueError(f"File path must be a non-empty string, got {type(file_path)}")
-
-    if _project_dir is None:
-        raise ValueError("Project directory has not been set")
-
-    _check_not_gitignored(file_path)
-
-    abs_path = str((_project_dir / file_path).resolve())
-    lock = _file_locks.setdefault(abs_path, asyncio.Lock())
-    async with lock:
-        return edit_file_util(
-            file_path, old_string, new_string, replace_all, _project_dir
-        )
 
 
 @_legacy_tool

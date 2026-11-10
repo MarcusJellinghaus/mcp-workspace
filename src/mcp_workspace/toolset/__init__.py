@@ -9,13 +9,16 @@ from mcp_coder_utils.tool_spec import ToolCollector, ToolSink, ToolSpec
 
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
 from mcp_workspace.reference_projects import ReferenceProject
-from mcp_workspace.toolset import read
+from mcp_workspace.toolset import read, write
 from mcp_workspace.toolset._context import WorkspaceContext
 
 __all__ = ["tool_specs"]
 
 # Each group's register(sink, ctx); groups are appended as they move here.
-_GROUPS: tuple[Callable[[ToolSink, WorkspaceContext], None], ...] = (read.register,)
+_GROUPS: tuple[Callable[[ToolSink, WorkspaceContext], None], ...] = (
+    read.register,
+    write.register,
+)
 
 
 def tool_specs(

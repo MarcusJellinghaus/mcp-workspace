@@ -35,9 +35,9 @@ GIT_DIR_SPELLINGS = [
 # Each entry calls one workspace file tool with a path it must refuse.
 FILE_TOOLS: dict[str, Callable[[ToolMap, str], Any]] = {
     "read_file": lambda t, p: t["read_file"](p),
-    "save_file": lambda _t, p: server.save_file(p, "changed"),
-    "append_file": lambda _t, p: server.append_file(p, "changed"),
-    "edit_file": lambda _t, p: asyncio.run(server.edit_file(p, "core", "changed")),
+    "save_file": lambda t, p: t["save_file"](p, "changed"),
+    "append_file": lambda t, p: t["append_file"](p, "changed"),
+    "edit_file": lambda t, p: asyncio.run(t["edit_file"](p, "core", "changed")),
     "delete_this_file": lambda _t, p: server.delete_this_file(p),
     "delete_directory": lambda _t, p: server.delete_directory(
         str(Path(p).parent), recursive=True
@@ -260,14 +260,16 @@ class TestFilesystemAliases:
         with pytest.raises(ValueError):
             tools["read_file"](f"{alias}/config")
         with pytest.raises(ValueError):
-            server.append_file(f"{alias}/config", "changed")
+            tools["append_file"](f"{alias}/config", "changed")
         assert _snapshot(project) == before
 
-    def test_short_name_below_git_dir_for_new_file(self, project: Path) -> None:
+    def test_short_name_below_git_dir_for_new_file(
+        self, project: Path, tools: ToolMap
+    ) -> None:
         if not (project / "GIT~1").is_dir():
             pytest.skip("no short name for .git on this filesystem")
         with pytest.raises(ValueError):
-            server.save_file("GIT~1/hooks/new-file", "changed")
+            tools["save_file"]("GIT~1/hooks/new-file", "changed")
         assert not (project / ".git" / "hooks" / "new-file").exists()
 
 
@@ -280,7 +282,7 @@ class TestLinksIntoProtectedPaths:
         with pytest.raises(ValueError):
             tools["read_file"]("gitlink/config")
         with pytest.raises(ValueError):
-            server.save_file("gitlink/hooks/new-file", "changed")
+            tools["save_file"]("gitlink/hooks/new-file", "changed")
         assert _snapshot(project / ".git") == before
 
     def test_directory_link_to_gitignored_dir(
@@ -354,7 +356,7 @@ class TestGitignoreSpelling:
         with pytest.raises(ValueError, match="excluded by .gitignore"):
             tools["read_file"](path)
         with pytest.raises(ValueError, match="excluded by .gitignore"):
-            server.save_file(path, "changed")
+            tools["save_file"](path, "changed")
         assert _snapshot(project) == before
 
     @pytest.mark.skipif(sys.platform != "win32", reason="Windows name matching")

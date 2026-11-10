@@ -13,16 +13,13 @@ from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server import (
     FastMCPSink,
     _check_not_gitignored,
-    append_file,
     check_branch_status,
     create_server,
     delete_directory,
     delete_this_file,
-    edit_file,
     git,
     move_file,
     run_server,
-    save_file,
     set_project_dir,
 )
 from tests.conftest import ToolMap
@@ -55,9 +52,9 @@ def teardown_function() -> None:
         TEST_FILE.unlink()
 
 
-def test_save_file(project_dir: Path) -> None:
+def test_save_file(project_dir: Path, tools: ToolMap) -> None:
     """Test the save_file tool."""
-    result = save_file(str(TEST_FILE), TEST_CONTENT)
+    result = tools["save_file"](str(TEST_FILE), TEST_CONTENT)
 
     # Create absolute path for verification
     abs_file_path = project_dir / TEST_FILE
@@ -96,7 +93,7 @@ def test_read_file_not_found(tools: ToolMap) -> None:
         tools["read_file"](str(non_existent_file))
 
 
-def test_append_file(project_dir: Path) -> None:
+def test_append_file(project_dir: Path, tools: ToolMap) -> None:
     """Test the append_file tool."""
     # Create absolute path for test file
     abs_file_path = project_dir / TEST_FILE
@@ -108,7 +105,7 @@ def test_append_file(project_dir: Path) -> None:
 
     # Append content to the file
     append_content = "Appended content."
-    result = append_file(str(TEST_FILE), append_content)
+    result = tools["append_file"](str(TEST_FILE), append_content)
 
     # Verify the file was updated
     assert result is True
@@ -121,7 +118,7 @@ def test_append_file(project_dir: Path) -> None:
     assert content == expected_content
 
 
-def test_append_file_empty(project_dir: Path) -> None:
+def test_append_file_empty(project_dir: Path, tools: ToolMap) -> None:
     """Test appending to an empty file."""
     # Create the empty file
     empty_file = TEST_DIR / "empty_file.txt"
@@ -131,7 +128,7 @@ def test_append_file_empty(project_dir: Path) -> None:
 
     # Append content to the empty file
     append_content = "Content added to empty file."
-    result = append_file(str(empty_file), append_content)
+    result = tools["append_file"](str(empty_file), append_content)
 
     # Verify the file was updated
     assert result is True
@@ -143,7 +140,7 @@ def test_append_file_empty(project_dir: Path) -> None:
     assert content == append_content
 
 
-def test_append_file_not_found() -> None:
+def test_append_file_not_found(tools: ToolMap) -> None:
     """Test appending to a file that doesn't exist."""
     non_existent_file = TEST_DIR / "non_existent_append.txt"
 
@@ -153,7 +150,7 @@ def test_append_file_not_found() -> None:
 
     # Test appending to a non-existent file
     with pytest.raises(FileNotFoundError):
-        append_file(str(non_existent_file), "This should fail")
+        tools["append_file"](str(non_existent_file), "This should fail")
 
 
 def test_move_file(project_dir: Path) -> None:
@@ -271,24 +268,24 @@ def test_read_file_gitignored(gitignore_project: Path, tools: ToolMap) -> None:
         tools["read_file"]("debug.log")
 
 
-def test_save_file_gitignored(gitignore_project: Path) -> None:
+def test_save_file_gitignored(gitignore_project: Path, tools: ToolMap) -> None:
     """save_file to gitignored path raises ValueError."""
     with pytest.raises(ValueError, match="excluded by .gitignore"):
-        save_file("output.log", "content")
+        tools["save_file"]("output.log", "content")
 
 
 @pytest.mark.asyncio
-async def test_edit_file_gitignored(gitignore_project: Path) -> None:
+async def test_edit_file_gitignored(gitignore_project: Path, tools: ToolMap) -> None:
     """edit_file on gitignored file raises ValueError."""
     with pytest.raises(ValueError, match="excluded by .gitignore"):
-        await edit_file("debug.log", old_string="a", new_string="b")
+        await tools["edit_file"]("debug.log", old_string="a", new_string="b")
 
 
-def test_append_file_gitignored(gitignore_project: Path) -> None:
+def test_append_file_gitignored(gitignore_project: Path, tools: ToolMap) -> None:
     """append_file to gitignored file raises ValueError."""
     (gitignore_project / "debug.log").write_text("existing")
     with pytest.raises(ValueError, match="excluded by .gitignore"):
-        append_file("debug.log", "more")
+        tools["append_file"]("debug.log", "more")
 
 
 def test_delete_file_gitignored(gitignore_project: Path) -> None:
@@ -352,10 +349,10 @@ def test_read_file_git_config(gitignore_project: Path, tools: ToolMap) -> None:
         tools["read_file"](".git/config")
 
 
-def test_save_file_git_hooks(gitignore_project: Path) -> None:
+def test_save_file_git_hooks(gitignore_project: Path, tools: ToolMap) -> None:
     """save_file to .git/hooks/ is blocked."""
     with pytest.raises(ValueError, match="excluded by .gitignore"):
-        save_file(".git/hooks/pre-commit", "#!/bin/sh")
+        tools["save_file"](".git/hooks/pre-commit", "#!/bin/sh")
 
 
 def test_read_file_not_gitignored(gitignore_project: Path, tools: ToolMap) -> None:
@@ -365,9 +362,9 @@ def test_read_file_not_gitignored(gitignore_project: Path, tools: ToolMap) -> No
     assert content == "hello"
 
 
-def test_save_file_not_gitignored(gitignore_project: Path) -> None:
+def test_save_file_not_gitignored(gitignore_project: Path, tools: ToolMap) -> None:
     """Non-gitignored save works normally."""
-    result = save_file("readme.txt", "hello")
+    result = tools["save_file"]("readme.txt", "hello")
     assert result is True
 
 
@@ -435,9 +432,9 @@ def test_read_file_truncates_full_read_at_configured_limit(
 # --- Content type rejection tests ---
 
 
-@pytest.mark.parametrize("func", [save_file, append_file])
+@pytest.mark.parametrize("name", ["save_file", "append_file"])
 def test_rejects_non_string_content(
-    func: Callable[..., bool], project_dir: Path
+    name: str, project_dir: Path, tools: ToolMap
 ) -> None:
     """save_file and append_file reject non-string content with ValueError."""
     # Create a file for append_file to target
@@ -446,7 +443,7 @@ def test_rejects_non_string_content(
     target.write_text("existing")
 
     with pytest.raises(ValueError, match="Content must be a string"):
-        func(str(TEST_DIR / "type_test.txt"), {"key": "value"})
+        tools[name](str(TEST_DIR / "type_test.txt"), {"key": "value"})
 
 
 # --- Git read-only operation tool tests ---

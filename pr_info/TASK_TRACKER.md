@@ -41,9 +41,9 @@ See [step_3.md](./steps/step_3.md)
 
 ### Step 4: Move group `workspace.write` (`save_file`, `edit_file`, `append_file`)
 See [step_4.md](./steps/step_4.md)
-- [ ] Implementation: `toolset/write.py`, remove unused legacy code, migrate tests
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `toolset/write.py`, remove unused legacy code, migrate tests
+- [x] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
+- [x] Commit message prepared
 
 ### Step 5: Move group `workspace.delete` (`delete_this_file`, `delete_directory`)
 See [step_5.md](./steps/step_5.md)

@@ -66,10 +66,6 @@ _.check_file_size
 # Branch status check tool
 _.check_branch_status
 
-# WorkspaceContext members for the toolset groups (issue #378); first used as
-# the groups move into mcp_workspace.toolset
-_.file_locks
-
 # =============================================================================
 # Public API Exports
 # =============================================================================
