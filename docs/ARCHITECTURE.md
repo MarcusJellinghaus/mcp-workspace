@@ -54,7 +54,7 @@ MCP protocol concerns are isolated to `server.py`: `create_server` builds a fres
 `main.py` parses arguments and calls `run_server`; it does not import `mcp`.
 
 The toolset and file tools remain **MCP-agnostic** for:
-- Reusability in non-MCP contexts
+- Reusability in non-MCP contexts (see [LIBRARY_USE.md](LIBRARY_USE.md))
 - Easier testing
 - Clearer separation of concerns
 
