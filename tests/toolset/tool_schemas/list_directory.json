@@ -1,0 +1,13 @@
+{
+  "properties": {
+    "dirs_only": {
+      "default": false,
+      "type": "boolean"
+    },
+    "path": {
+      "default": ".",
+      "type": "string"
+    }
+  },
+  "type": "object"
+}

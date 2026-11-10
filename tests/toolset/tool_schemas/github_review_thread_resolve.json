@@ -1,0 +1,26 @@
+{
+  "properties": {
+    "pr_number": {
+      "type": "integer"
+    },
+    "reference_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "thread_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "pr_number",
+    "thread_id"
+  ],
+  "type": "object"
+}

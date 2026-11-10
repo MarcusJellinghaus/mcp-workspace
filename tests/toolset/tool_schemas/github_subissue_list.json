@@ -1,0 +1,26 @@
+{
+  "properties": {
+    "max_results": {
+      "default": 30,
+      "type": "integer"
+    },
+    "parent_number": {
+      "type": "integer"
+    },
+    "reference_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "parent_number"
+  ],
+  "type": "object"
+}

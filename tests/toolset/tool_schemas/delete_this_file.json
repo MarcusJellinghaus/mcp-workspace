@@ -1,0 +1,11 @@
+{
+  "properties": {
+    "file_path": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "file_path"
+  ],
+  "type": "object"
+}

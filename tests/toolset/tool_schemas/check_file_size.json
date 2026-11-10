@@ -1,0 +1,20 @@
+{
+  "properties": {
+    "max_lines": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "show_allowlisted": {
+      "default": false,
+      "type": "boolean"
+    }
+  },
+  "type": "object"
+}

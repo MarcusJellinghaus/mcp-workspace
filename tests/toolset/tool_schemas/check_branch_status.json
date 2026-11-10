@@ -1,0 +1,28 @@
+{
+  "properties": {
+    "ci_timeout": {
+      "default": 300,
+      "type": "integer"
+    },
+    "fail_on_reviews": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "max_log_lines": {
+      "default": 300,
+      "type": "integer"
+    },
+    "pr_timeout": {
+      "default": 0,
+      "type": "integer"
+    }
+  },
+  "type": "object"
+}

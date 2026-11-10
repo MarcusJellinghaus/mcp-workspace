@@ -1,0 +1,45 @@
+{
+  "properties": {
+    "context_lines": {
+      "default": 0,
+      "type": "integer"
+    },
+    "glob": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "max_result_lines": {
+      "default": 200,
+      "type": "integer"
+    },
+    "max_results": {
+      "default": 50,
+      "type": "integer"
+    },
+    "pattern": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "reference_name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "reference_name"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,15 @@
+{
+  "properties": {
+    "dir_path": {
+      "type": "string"
+    },
+    "recursive": {
+      "default": false,
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "dir_path"
+  ],
+  "type": "object"
+}

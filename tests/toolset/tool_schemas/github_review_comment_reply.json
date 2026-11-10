@@ -1,0 +1,30 @@
+{
+  "properties": {
+    "body": {
+      "type": "string"
+    },
+    "comment_id": {
+      "type": "integer"
+    },
+    "pr_number": {
+      "type": "integer"
+    },
+    "reference_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "pr_number",
+    "comment_id",
+    "body"
+  ],
+  "type": "object"
+}

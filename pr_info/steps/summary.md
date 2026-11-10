@@ -131,7 +131,7 @@ src/mcp_workspace/toolset/github_read.py     workspace.github (read-only)
 src/mcp_workspace/toolset/github_write.py    workspace.github (write)
 src/mcp_workspace/toolset/checks.py          workspace.checks
 tests/toolset/__init__.py
-tests/toolset/tool_schema_snapshot.json      captured in step 1
+tests/toolset/tool_schemas/<tool>.json       one per tool, captured in step 1
 tests/toolset/test_tool_schema_snapshot.py
 tests/toolset/test_toolset.py                acceptance tests (step 12)
 tests/toolset/test_toolset_imports.py        subprocess sys.modules tests (step 13)

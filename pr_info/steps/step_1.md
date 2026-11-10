@@ -15,13 +15,16 @@ must be taken *before* any tool moves.
 ## WHERE
 
 - `tests/toolset/__init__.py` (empty, new package)
-- `tests/toolset/tool_schema_snapshot.json` (new, generated once)
+- `tests/toolset/tool_schemas/<tool name>.json` (new, one file per tool, generated once)
 - `tests/toolset/test_tool_schema_snapshot.py` (new)
 
 ## WHAT
 
 ```python
-SNAPSHOT = Path(__file__).with_name("tool_schema_snapshot.json")
+SNAPSHOT_DIR = Path(__file__).with_name("tool_schemas")
+
+def _snapshot() -> dict[str, Any]:
+    """{tool name: stripped inputSchema} from one JSON file per tool."""
 
 def _strip(node: Any) -> Any:
     """Drop 'description' and 'title' keys recursively."""
@@ -50,8 +53,8 @@ async def test_tool_schemas_match_snapshot() -> None: ...
 ```
 tools = await mcp.list_tools()
 current = {t.name: _strip(t.inputSchema) for t in tools}
-expected = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
-assert sorted(current) == sorted(expected)          # same 31 names
+expected = _snapshot()                              # {file stem: parsed JSON}
+assert sorted(current) == sorted(expected)          # same 32 names
 for name in expected: assert current[name] == expected[name], name
 ```
 
@@ -66,8 +69,8 @@ contains `"title"` with its type (`"string"`), it has no default, and it is list
 
 ## DATA
 
-`tool_schema_snapshot.json`: `{ "<tool name>": { "type": "object", "properties": {...}, "required": [...] }, ... }`
-with 31 entries.
+`tool_schemas/<tool name>.json`: `{ "type": "object", "properties": {...}, "required": [...] }`,
+one file per tool (32 files). One file per tool keeps each under the 750-line file-size limit.
 
 ## Checks
 

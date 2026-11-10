@@ -14,7 +14,7 @@ import pytest
 
 from mcp_workspace.server import mcp
 
-SNAPSHOT = Path(__file__).with_name("tool_schema_snapshot.json")
+SNAPSHOT_DIR = Path(__file__).with_name("tool_schemas")
 
 _ANNOTATION_KEYS = {"description", "title"}
 
@@ -35,6 +35,14 @@ def _strip(node: Any) -> Any:
     return node
 
 
+def _snapshot() -> dict[str, Any]:
+    """{tool name: stripped inputSchema} from one JSON file per tool."""
+    return {
+        path.stem: json.loads(path.read_text(encoding="utf-8"))
+        for path in SNAPSHOT_DIR.glob("*.json")
+    }
+
+
 async def _current_schemas() -> dict[str, Any]:
     """{tool name: stripped inputSchema} from the live server."""
     tools = await mcp.list_tools()
@@ -44,7 +52,7 @@ async def _current_schemas() -> dict[str, Any]:
 @pytest.mark.asyncio
 async def test_tool_schemas_match_snapshot() -> None:
     current = await _current_schemas()
-    expected = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
+    expected = _snapshot()
 
     assert sorted(current) == sorted(expected)
     for name in expected:
@@ -52,8 +60,7 @@ async def test_tool_schemas_match_snapshot() -> None:
 
 
 def test_snapshot_keeps_title_parameter() -> None:
-    expected = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
-    schema = expected["github_issue_create"]
+    schema = _snapshot()["github_issue_create"]
 
     title = schema["properties"]["title"]
     assert title["type"] == "string"
