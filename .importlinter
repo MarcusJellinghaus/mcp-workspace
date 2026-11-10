@@ -43,6 +43,7 @@ layers =
     mcp_workspace.main
     mcp_workspace.server
     mcp_workspace.server_reference_tools
+    mcp_workspace.toolset
     mcp_workspace.checks
     mcp_workspace.file_tools | mcp_workspace.github_operations | mcp_workspace.reference_projects
     mcp_workspace.git_operations | mcp_workspace.workflows

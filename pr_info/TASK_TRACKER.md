@@ -29,9 +29,9 @@ See [step_1.md](./steps/step_1.md)
 
 ### Step 2: `toolset` skeleton, `create_server`, `FastMCPSink`, test fixtures
 See [step_2.md](./steps/step_2.md)
-- [ ] Implementation: `tool_specs`/`WorkspaceContext`, `create_server` + `FastMCPSink`, `_legacy_tool`/`_configure_legacy`, `make_tools`/`tools` fixtures, contracts (tests + production code)
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `tool_specs`/`WorkspaceContext`, `create_server` + `FastMCPSink`, `_legacy_tool`/`_configure_legacy`, `make_tools`/`tools` fixtures, contracts (tests + production code)
+- [x] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: Move group `workspace.read` (`read_file`, `list_directory`, `search_files`)
 See [step_3.md](./steps/step_3.md)

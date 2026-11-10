@@ -37,25 +37,28 @@ class TestSetFailOnReviews:
 
 
 class TestRunServerFailOnReviews:
-    """Test that run_server threads fail_on_reviews to set_fail_on_reviews."""
+    """Test that run_server threads fail_on_reviews to tool_specs."""
 
-    def test_run_server_threads_fail_on_reviews(self) -> None:
-        """run_server passes fail_on_reviews through to the setter."""
-        with patch("mcp_workspace.server.mcp.run"):
-            with patch("mcp_workspace.server.set_project_dir"):
-                with patch("mcp_workspace.server.set_fail_on_reviews") as mock_setter:
-                    run_server(Path("/test/project"), fail_on_reviews=True)
+    def test_run_server_threads_fail_on_reviews(self, tmp_path: Path) -> None:
+        """run_server passes fail_on_reviews through to tool_specs."""
+        with patch("mcp_workspace.server.FastMCP.run"):
+            with patch(
+                "mcp_workspace.server.tool_specs", return_value=()
+            ) as mock_specs:
+                run_server(tmp_path, fail_on_reviews=True)
 
-        mock_setter.assert_called_once_with(True)
+        assert mock_specs.call_args.args == (tmp_path,)
+        assert mock_specs.call_args.kwargs["fail_on_reviews"] is True
 
-    def test_run_server_default_is_false(self) -> None:
+    def test_run_server_default_is_false(self, tmp_path: Path) -> None:
         """run_server defaults fail_on_reviews to False when omitted."""
-        with patch("mcp_workspace.server.mcp.run"):
-            with patch("mcp_workspace.server.set_project_dir"):
-                with patch("mcp_workspace.server.set_fail_on_reviews") as mock_setter:
-                    run_server(Path("/test/project"))
+        with patch("mcp_workspace.server.FastMCP.run"):
+            with patch(
+                "mcp_workspace.server.tool_specs", return_value=()
+            ) as mock_specs:
+                run_server(tmp_path)
 
-        mock_setter.assert_called_once_with(False)
+        assert mock_specs.call_args.kwargs["fail_on_reviews"] is False
 
 
 class TestCheckBranchStatusTriState:

@@ -34,29 +34,30 @@ class TestSetEnforceBaseBranchFormat:
 
 
 class TestRunServerEnforceBaseBranchFormat:
-    """Test that run_server threads enforce_base_branch_format to its setter."""
+    """Test that run_server threads enforce_base_branch_format to tool_specs."""
 
-    def test_run_server_threads_enforce_base_branch_format(self) -> None:
-        """run_server passes enforce_base_branch_format through to the setter."""
-        with patch("mcp_workspace.server.mcp.run"):
-            with patch("mcp_workspace.server.set_project_dir"):
-                with patch(
-                    "mcp_workspace.server.set_enforce_base_branch_format"
-                ) as mock_setter:
-                    run_server(Path("/test/project"), enforce_base_branch_format=False)
+    def test_run_server_threads_enforce_base_branch_format(
+        self, tmp_path: Path
+    ) -> None:
+        """run_server passes enforce_base_branch_format through to tool_specs."""
+        with patch("mcp_workspace.server.FastMCP.run"):
+            with patch(
+                "mcp_workspace.server.tool_specs", return_value=()
+            ) as mock_specs:
+                run_server(tmp_path, enforce_base_branch_format=False)
 
-        mock_setter.assert_called_once_with(False)
+        assert mock_specs.call_args.args == (tmp_path,)
+        assert mock_specs.call_args.kwargs["enforce_base_branch_format"] is False
 
-    def test_run_server_default_is_true(self) -> None:
+    def test_run_server_default_is_true(self, tmp_path: Path) -> None:
         """run_server defaults enforce_base_branch_format to True when omitted."""
-        with patch("mcp_workspace.server.mcp.run"):
-            with patch("mcp_workspace.server.set_project_dir"):
-                with patch(
-                    "mcp_workspace.server.set_enforce_base_branch_format"
-                ) as mock_setter:
-                    run_server(Path("/test/project"))
+        with patch("mcp_workspace.server.FastMCP.run"):
+            with patch(
+                "mcp_workspace.server.tool_specs", return_value=()
+            ) as mock_specs:
+                run_server(tmp_path)
 
-        mock_setter.assert_called_once_with(True)
+        assert mock_specs.call_args.kwargs["enforce_base_branch_format"] is True
 
 
 class TestCheckBaseBranch:

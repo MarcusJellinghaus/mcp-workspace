@@ -3,14 +3,15 @@
 import asyncio
 import logging
 import secrets
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import datetime
 from itertools import islice
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from mcp.server.fastmcp import FastMCP
 from mcp_coder_utils.log_utils import log_function_call
+from mcp_coder_utils.tool_spec import ToolSpec
 
 from mcp_workspace.checks.file_sizes import (
     check_file_sizes,
@@ -41,6 +42,7 @@ from mcp_workspace.server_reference_tools import (
     set_reference_read_max_lines,
 )
 from mcp_workspace.server_reference_tools import register as register_reference_tools
+from mcp_workspace.toolset import tool_specs
 
 if TYPE_CHECKING:
     # Type-only: does not execute, so PyGithub stays off the startup import path
@@ -50,21 +52,36 @@ if TYPE_CHECKING:
 # Initialize loggers
 logger = logging.getLogger(__name__)
 
-# Create a FastMCP server instance
-mcp = FastMCP(
-    "File System Service",
-    instructions=(
-        "This server provides file operations in one workspace directory. It "
-        "also exposes reference projects: sibling codebases configured at "
-        "startup, whose files are readable and searchable read-only. Most are "
-        "local checkouts of GitHub repositories, so their history is available "
-        "through git() and their GitHub issues and pull requests are reachable, "
-        "with issues writable. Answer questions about another repo from its "
-        "reference project instead of asking the user; call get_reference_projects() "
-        "for the names, then pass one as reference_name."
-    ),
+_INSTRUCTIONS = (
+    "This server provides file operations in one workspace directory. It "
+    "also exposes reference projects: sibling codebases configured at "
+    "startup, whose files are readable and searchable read-only. Most are "
+    "local checkouts of GitHub repositories, so their history is available "
+    "through git() and their GitHub issues and pull requests are reachable, "
+    "with issues writable. Answer questions about another repo from its "
+    "reference project instead of asking the user; call get_reference_projects() "
+    "for the names, then pass one as reference_name."
 )
-register_reference_tools(mcp)
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+# Tools not yet moved into mcp_workspace.toolset; create_server adds them.
+# Temporary: removed once the last group has moved.
+_LEGACY_TOOLS: list[Callable[..., Any]] = []
+
+
+def _legacy_tool(fn: F) -> F:
+    """Mark fn as a legacy tool for create_server.
+
+    Args:
+        fn: The tool function.
+
+    Returns:
+        fn, unchanged.
+    """
+    _LEGACY_TOOLS.append(fn)
+    return fn
+
 
 # Store the project directory as a module-level variable
 _project_dir: Path | None = None
@@ -409,7 +426,7 @@ def set_enforce_base_branch_format(value: bool) -> None:
     logger.info("Enforce base branch format set to: %s", value)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def search_files(
     glob: str | None = None,
@@ -471,7 +488,7 @@ def search_files(
     )
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def list_directory(path: str = ".", dirs_only: bool = False) -> list[str]:
     """List files and directories in the project directory.
@@ -520,7 +537,7 @@ def list_directory(path: str = ".", dirs_only: bool = False) -> list[str]:
         raise
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def read_file(
     file_path: str,
@@ -572,7 +589,7 @@ def read_file(
         raise
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def save_file(file_path: str, content: str) -> bool:
     """Write a file, creating parent directories as needed.
@@ -615,7 +632,7 @@ def save_file(file_path: str, content: str) -> bool:
         raise
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def append_file(file_path: str, content: str) -> bool:
     """Append content to the end of a file.
@@ -656,7 +673,7 @@ def append_file(file_path: str, content: str) -> bool:
         raise
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def delete_this_file(file_path: str) -> bool:
     """Delete a specified file from the filesystem.
@@ -695,7 +712,7 @@ def delete_this_file(file_path: str) -> bool:
         raise
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def delete_directory(dir_path: str, recursive: bool = False) -> list[str]:
     """Delete a directory (empty by default; recursive=True for non-empty).
@@ -739,7 +756,7 @@ def delete_directory(dir_path: str, recursive: bool = False) -> list[str]:
         raise
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def move_file(source_path: str, destination_path: str) -> bool:
     """Move or rename a file or directory (git-aware, preserves history).
@@ -800,7 +817,7 @@ def move_file(source_path: str, destination_path: str) -> bool:
         raise RuntimeError("Move operation failed") from e
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 async def edit_file(
     file_path: str,
@@ -845,7 +862,7 @@ async def edit_file(
         )
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 async def git(
     command: str,
@@ -1025,7 +1042,7 @@ def _allowlist_for(associations: Iterable[str | None]) -> frozenset[str]:
     return config.get_trusted_commenters()
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_issue_view(
     number: int,
@@ -1087,7 +1104,7 @@ def github_issue_view(
         return _tool_error(e)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_issue_list(
     state: str = "open",
@@ -1145,7 +1162,7 @@ def github_issue_list(
         return _tool_error(e)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_pr_view(
     number: int,
@@ -1246,7 +1263,7 @@ def github_pr_view(
         return _tool_error(e)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_search(
     query: str,
@@ -1366,7 +1383,7 @@ def github_search(
         return _tool_error(e)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_issue_create(
     title: str,
@@ -1438,7 +1455,7 @@ def github_issue_create(
         return _tool_error(e)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_issue_edit(
     number: int,
@@ -1603,7 +1620,7 @@ def github_issue_edit(
         return _tool_error(e)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_issue_set_status(
     number: int,
@@ -1756,7 +1773,7 @@ def _subissue_write(
         return _api_error(exc, reference_name)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_subissue_add(
     parent_number: int, child_number: int, reference_name: str | None = None
@@ -1786,7 +1803,7 @@ def github_subissue_add(
     return _subissue_write(parent_number, child_number, False, reference_name)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_subissue_list(
     parent_number: int, max_results: int = 30, reference_name: str | None = None
@@ -1845,7 +1862,7 @@ def github_subissue_list(
         return _api_error(exc, reference_name)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_subissue_remove(
     parent_number: int, child_number: int, reference_name: str | None = None
@@ -1873,7 +1890,7 @@ def github_subissue_remove(
     return _subissue_write(parent_number, child_number, True, reference_name)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_issue_comment(
     number: int,
@@ -1921,7 +1938,7 @@ def github_issue_comment(
         return _tool_error(e)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_review_comment_reply(
     pr_number: int,
@@ -1960,7 +1977,7 @@ def github_review_comment_reply(
         return _tool_error(e)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_review_thread_resolve(
     pr_number: int,
@@ -1996,7 +2013,7 @@ def github_review_thread_resolve(
         return _tool_error(e)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_label_list(
     search: str | None = None,
@@ -2053,7 +2070,7 @@ def github_label_list(
         return _tool_error(e)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def github_pr_create(
     title: str,
@@ -2191,7 +2208,7 @@ def _resolve_base_branch(
     )
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def get_base_branch() -> str:
     """Detect the base branch for the current branch.
@@ -2233,7 +2250,7 @@ def get_base_branch() -> str:
         return "main"
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 def check_file_size(
     max_lines: int | None = None, show_allowlisted: bool = False
@@ -2274,7 +2291,7 @@ def check_file_size(
     return render_output(result, effective)
 
 
-@mcp.tool()
+@_legacy_tool
 @log_function_call
 async def check_branch_status(
     max_log_lines: int = 300,
@@ -2312,6 +2329,61 @@ async def check_branch_status(
     )
 
 
+class FastMCPSink:
+    """ToolSink that registers each spec on a FastMCP server."""
+
+    def __init__(self, mcp: FastMCP) -> None:
+        self._mcp = mcp
+
+    def add(self, spec: ToolSpec) -> None:
+        """Register one spec under its name and description.
+
+        Args:
+            spec: The spec to register.
+        """
+        self._mcp.add_tool(spec.fn, name=spec.name, description=spec.description)
+
+
+def _configure_legacy(project_dir: Path, settings: dict[str, Any]) -> None:
+    """Apply the settings to the module globals the legacy tools read.
+
+    Temporary: shrinks as tool groups move into mcp_workspace.toolset.
+
+    Args:
+        project_dir: Workspace root.
+        settings: The keyword settings passed to create_server.
+    """
+    set_project_dir(project_dir)
+    set_file_size_limit(settings.get("file_size_limit"))
+    read_max_lines = settings.get("read_max_lines", DEFAULT_READ_MAX_LINES)
+    set_read_max_lines(read_max_lines)
+    set_reference_read_max_lines(read_max_lines)
+    set_fail_on_reviews(settings.get("fail_on_reviews", False))
+    set_enforce_base_branch_format(settings.get("enforce_base_branch_format", True))
+    set_reference_projects(settings.get("reference_projects") or {})
+
+
+def create_server(project_dir: Path, **settings: Any) -> FastMCP:
+    """Build a FastMCP server with every workspace tool registered.
+
+    Args:
+        project_dir: Workspace root the tools operate in.
+        **settings: Keyword settings forwarded to tool_specs.
+
+    Returns:
+        A new FastMCP server.
+    """
+    mcp = FastMCP("File System Service", instructions=_INSTRUCTIONS)
+    sink = FastMCPSink(mcp)
+    for spec in tool_specs(project_dir, **settings):
+        sink.add(spec)
+    _configure_legacy(project_dir, settings)
+    for fn in _LEGACY_TOOLS:
+        mcp.add_tool(fn)
+    register_reference_tools(mcp)
+    return mcp
+
+
 @log_function_call
 def run_server(
     project_dir: Path,
@@ -2335,25 +2407,14 @@ def run_server(
     """
     logger.debug("Entering run_server function")
 
-    # Set the project directory
-    set_project_dir(project_dir)
-
-    # Set the per-project default file size limit
-    set_file_size_limit(file_size_limit)
-
-    # Set the full-read line limit for workspace and reference reads
-    set_read_max_lines(read_max_lines)
-    set_reference_read_max_lines(read_max_lines)
-
-    # Set the per-server review-gate default
-    set_fail_on_reviews(fail_on_reviews)
-
-    # Set the server-wide base-branch-format enforcement default
-    set_enforce_base_branch_format(enforce_base_branch_format)
-
-    # Set reference projects if provided
-    if reference_projects:
-        set_reference_projects(reference_projects)
+    mcp = create_server(
+        project_dir,
+        reference_projects=reference_projects,
+        file_size_limit=file_size_limit,
+        fail_on_reviews=fail_on_reviews,
+        enforce_base_branch_format=enforce_base_branch_format,
+        read_max_lines=read_max_lines,
+    )
 
     # Run the server
     logger.info("Starting MCP server")

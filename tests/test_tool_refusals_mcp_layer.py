@@ -1,15 +1,16 @@
 """Refusals reach an MCP client as tool errors, without protected content."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import pytest
 from git import Repo
+from mcp.server.fastmcp import FastMCP
 from mcp.shared.memory import create_connected_server_and_client_session
 from mcp.types import CallToolResult, TextContent
 
-from mcp_workspace import server, server_reference_tools
 from mcp_workspace.reference_projects import ReferenceProject
+from mcp_workspace.server import create_server
 
 SECRET_TEXT = "SECRET-VALUE"
 OUTSIDE_TEXT = "OUTSIDE-VALUE"
@@ -24,9 +25,16 @@ def _text(result: CallToolResult) -> str:
     )
 
 
-async def _call(tool: str, arguments: dict[str, Any]) -> CallToolResult:
-    """Call a tool through a client session connected to the real server object."""
-    async with create_connected_server_and_client_session(server.mcp) as session:
+class Workspace(NamedTuple):
+    """The workspace repository and a server bound to it."""
+
+    repo: Repo
+    mcp: FastMCP
+
+
+async def _call(mcp: FastMCP, tool: str, arguments: dict[str, Any]) -> CallToolResult:
+    """Call a tool through a client session connected to a real server object."""
+    async with create_connected_server_and_client_session(mcp) as session:
         return await session.call_tool(tool, arguments)
 
 
@@ -49,23 +57,21 @@ def _make_repo(path: Path) -> Repo:
 
 
 @pytest.fixture
-def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Repo:
+def workspace(tmp_path: Path) -> Workspace:
     """Workspace and reference repositories, plus a file outside both."""
     repo = _make_repo(tmp_path / "workspace")
     _make_repo(tmp_path / "ref")
     (tmp_path / "outside.txt").write_text(OUTSIDE_TEXT + "\n", encoding="utf-8")
     (tmp_path / "outside2.txt").write_text(OUTSIDE_TEXT + "2\n", encoding="utf-8")
-    monkeypatch.setattr(server, "_project_dir", tmp_path / "workspace")
-    monkeypatch.setattr(
-        server_reference_tools,
-        "_reference_projects",
-        {"ref": ReferenceProject(name="ref", path=tmp_path / "ref")},
+    mcp = create_server(
+        tmp_path / "workspace",
+        reference_projects={"ref": ReferenceProject(name="ref", path=tmp_path / "ref")},
     )
-    return repo
+    return Workspace(repo, mcp)
 
 
 async def _assert_git_refusals(
-    tmp_path: Path, extra: dict[str, Any], repo: Repo
+    mcp: FastMCP, tmp_path: Path, extra: dict[str, Any], repo: Repo
 ) -> None:
     outside = str(tmp_path / "outside.txt")
     other = str(tmp_path / "outside2.txt")
@@ -83,7 +89,7 @@ async def _assert_git_refusals(
     ]
     heads_before = {head.name: head.commit.hexsha for head in repo.heads}
     for arguments in refused:
-        result = await _call("git", {**arguments, **extra})
+        result = await _call(mcp, "git", {**arguments, **extra})
         assert result.isError, arguments
         assert SECRET_TEXT not in _text(result), arguments
         assert OUTSIDE_TEXT not in _text(result), arguments
@@ -91,16 +97,16 @@ async def _assert_git_refusals(
 
 
 @pytest.mark.asyncio
-async def test_git_refusals_on_workspace(workspace: Repo, tmp_path: Path) -> None:
-    await _assert_git_refusals(tmp_path, {}, workspace)
+async def test_git_refusals_on_workspace(workspace: Workspace, tmp_path: Path) -> None:
+    await _assert_git_refusals(workspace.mcp, tmp_path, {}, workspace.repo)
 
 
 @pytest.mark.asyncio
 async def test_git_refusals_on_reference_project(
-    workspace: Repo, tmp_path: Path
+    workspace: Workspace, tmp_path: Path
 ) -> None:
     await _assert_git_refusals(
-        tmp_path, {"reference_name": "ref"}, Repo(tmp_path / "ref")
+        workspace.mcp, tmp_path, {"reference_name": "ref"}, Repo(tmp_path / "ref")
     )
 
 
@@ -129,11 +135,11 @@ async def test_git_refusals_on_reference_project(
     ],
 )
 async def test_file_tool_refusals(
-    workspace: Repo, tool: str, arguments: dict[str, Any]
+    workspace: Workspace, tool: str, arguments: dict[str, Any]
 ) -> None:
-    project = Path(workspace.working_dir)
+    project = Path(workspace.repo.working_dir)
     config_before = (project / ".git" / "config").read_bytes()
-    result = await _call(tool, arguments)
+    result = await _call(workspace.mcp, tool, arguments)
     assert result.isError
     assert SECRET_TEXT not in _text(result)
     assert CONFIG_MARKER not in _text(result)
@@ -142,21 +148,27 @@ async def test_file_tool_refusals(
 
 
 @pytest.mark.asyncio
-async def test_search_tools_return_no_protected_content(workspace: Repo) -> None:
+async def test_search_tools_return_no_protected_content(
+    workspace: Workspace,
+) -> None:
     pattern = f"{SECRET_TEXT}|{CONFIG_MARKER}"
     for tool, arguments in (
         ("search_files", {"pattern": pattern}),
         ("search_reference_files", {"reference_name": "ref", "pattern": pattern}),
     ):
-        result = await _call(tool, arguments)
+        result = await _call(workspace.mcp, tool, arguments)
         assert not result.isError
         assert result.structuredContent is not None
         assert result.structuredContent["details"] == []
 
 
 @pytest.mark.asyncio
-async def test_git_failure_reaches_client_as_error_text(workspace: Repo) -> None:
-    result = await _call("git", {"command": "log", "args": ["no-such-rev"]})
+async def test_git_failure_reaches_client_as_error_text(
+    workspace: Workspace,
+) -> None:
+    result = await _call(
+        workspace.mcp, "git", {"command": "log", "args": ["no-such-rev"]}
+    )
     assert result.isError
     assert "exit code" in _text(result)
     assert "cmdline: git log" in _text(result)
@@ -176,9 +188,9 @@ async def test_git_failure_reaches_client_as_error_text(workspace: Repo) -> None
     ],
 )
 async def test_ordinary_git_calls_succeed(
-    workspace: Repo, arguments: dict[str, Any], expected: str
+    workspace: Workspace, arguments: dict[str, Any], expected: str
 ) -> None:
     for extra in ({}, {"reference_name": "ref"}):
-        result = await _call("git", {**arguments, **extra})
+        result = await _call(workspace.mcp, "git", {**arguments, **extra})
         assert not result.isError, _text(result)
         assert expected in _text(result)

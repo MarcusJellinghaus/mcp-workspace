@@ -5,15 +5,18 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from mcp.server.fastmcp import FastMCP
+from mcp_coder_utils.tool_spec import tool_spec
 
 from mcp_workspace import server as server_module
-from mcp_workspace import server_reference_tools
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server import (
+    FastMCPSink,
     _check_not_gitignored,
     append_file,
     check_branch_status,
+    create_server,
     delete_directory,
     delete_this_file,
     edit_file,
@@ -565,10 +568,10 @@ class TestCheckBranchStatusTool:
 
 
 class TestRunServer:
-    """Tests for run_server."""
+    """Tests for run_server threading its settings into tool_specs."""
 
-    def test_run_server_with_reference_projects(self) -> None:
-        """Test run_server accepts reference projects parameter."""
+    def test_run_server_threads_reference_projects(self, project_dir: Path) -> None:
+        """run_server passes reference_projects through to tool_specs and runs."""
         test_projects = {
             "proj1": ReferenceProject(
                 name="proj1", path=Path("/path/to/proj1").resolve()
@@ -578,46 +581,96 @@ class TestRunServer:
             ),
         }
 
-        # Mock the mcp.run() call to avoid actually starting the server
-        with patch("mcp_workspace.server.mcp.run") as mock_run:
-            with patch("mcp_workspace.server.set_reference_projects") as mock_set_ref:
-                run_server(Path("/test/project"), reference_projects=test_projects)
+        with patch("mcp_workspace.server.FastMCP.run") as mock_run:
+            with patch(
+                "mcp_workspace.server.tool_specs", return_value=()
+            ) as mock_specs:
+                run_server(project_dir, reference_projects=test_projects)
 
-                # Verify that set_reference_projects was called with the correct arguments
-                mock_set_ref.assert_called_once_with(test_projects)
-                mock_run.assert_called_once()
+        assert mock_specs.call_args.args == (project_dir,)
+        assert mock_specs.call_args.kwargs["reference_projects"] == test_projects
+        mock_run.assert_called_once()
 
-    @pytest.fixture
-    def restore_read_max_lines(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Restore both modules' _read_max_lines after the test."""
-        monkeypatch.setattr(
-            server_module, "_read_max_lines", server_module._read_max_lines
-        )
-        monkeypatch.setattr(
-            server_reference_tools,
-            "_read_max_lines",
-            server_reference_tools._read_max_lines,
-        )
-
-    @pytest.mark.usefixtures("restore_read_max_lines")
-    def test_run_server_sets_read_max_lines_without_reference_projects(
+    def test_run_server_default_reference_projects_is_none(
         self, project_dir: Path
     ) -> None:
-        """read_max_lines reaches both modules even with no reference projects."""
-        with patch("mcp_workspace.server.mcp.run"):
-            run_server(project_dir, read_max_lines=7)
+        """run_server defaults reference_projects to None when omitted."""
+        with patch("mcp_workspace.server.FastMCP.run"):
+            with patch(
+                "mcp_workspace.server.tool_specs", return_value=()
+            ) as mock_specs:
+                run_server(project_dir)
 
-        assert server_module._read_max_lines == 7
-        assert server_reference_tools._read_max_lines == 7
+        assert mock_specs.call_args.kwargs["reference_projects"] is None
 
-    @pytest.mark.usefixtures("restore_read_max_lines")
+    def test_run_server_threads_read_max_lines(self, project_dir: Path) -> None:
+        """run_server passes read_max_lines through to tool_specs."""
+        with patch("mcp_workspace.server.FastMCP.run"):
+            with patch(
+                "mcp_workspace.server.tool_specs", return_value=()
+            ) as mock_specs:
+                run_server(project_dir, read_max_lines=7)
+
+        assert mock_specs.call_args.args == (project_dir,)
+        assert mock_specs.call_args.kwargs["read_max_lines"] == 7
+
     def test_run_server_defaults_read_max_lines(self, project_dir: Path) -> None:
-        """Without read_max_lines, both modules use DEFAULT_READ_MAX_LINES."""
-        server_module._read_max_lines = 1
-        server_reference_tools._read_max_lines = 1
+        """Without read_max_lines, tool_specs gets DEFAULT_READ_MAX_LINES."""
+        with patch("mcp_workspace.server.FastMCP.run"):
+            with patch(
+                "mcp_workspace.server.tool_specs", return_value=()
+            ) as mock_specs:
+                run_server(project_dir)
 
-        with patch("mcp_workspace.server.mcp.run"):
-            run_server(project_dir)
+        assert mock_specs.call_args.kwargs["read_max_lines"] == DEFAULT_READ_MAX_LINES
 
-        assert server_module._read_max_lines == DEFAULT_READ_MAX_LINES
-        assert server_reference_tools._read_max_lines == DEFAULT_READ_MAX_LINES
+
+# --- create_server / FastMCPSink tests ---
+
+SNAPSHOT_TOOL_NAMES = sorted(
+    path.stem
+    for path in (Path(__file__).parent / "toolset" / "tool_schemas").glob("*.json")
+)
+
+
+class TestCreateServer:
+    """Tests for create_server and FastMCPSink."""
+
+    def test_returns_fresh_server_each_call(self, tmp_path: Path) -> None:
+        """Two calls build two distinct FastMCP objects."""
+        first = create_server(tmp_path)
+        second = create_server(tmp_path)
+
+        assert isinstance(first, FastMCP)
+        assert isinstance(second, FastMCP)
+        assert first is not second
+
+    @pytest.mark.asyncio
+    async def test_each_server_lists_all_tools(self, tmp_path: Path) -> None:
+        """Every server built lists the full tool set."""
+        for mcp in (create_server(tmp_path), create_server(tmp_path)):
+            names = sorted(tool.name for tool in await mcp.list_tools())
+            assert names == SNAPSHOT_TOOL_NAMES
+
+    @pytest.mark.asyncio
+    async def test_sink_registers_spec_name_and_description(self) -> None:
+        """FastMCPSink.add registers under spec.name with spec.description."""
+
+        def _probe(text: str) -> str:
+            """Original docstring."""
+            return text
+
+        spec = tool_spec(
+            _probe,
+            group="test.probe",
+            read_only=True,
+            name="probe_tool",
+            description="Probe description.",
+        )
+        mcp = FastMCP("probe")
+
+        FastMCPSink(mcp).add(spec)
+
+        tools = {tool.name: tool for tool in await mcp.list_tools()}
+        assert list(tools) == ["probe_tool"]
+        assert tools["probe_tool"].description == "Probe description."

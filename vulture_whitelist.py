@@ -66,6 +66,11 @@ _.check_file_size
 # Branch status check tool
 _.check_branch_status
 
+# WorkspaceContext members for the toolset groups (issue #378); first used as
+# the groups move into mcp_workspace.toolset
+_.file_locks
+_.check_not_gitignored
+
 # =============================================================================
 # Public API Exports
 # =============================================================================
@@ -246,8 +251,8 @@ _._traffic_log_off
 _._clear_cache
 # Autouse fixture keeping tests from reading the real read_max_lines config (issue #380, pytest collection only)
 _._no_read_max_lines
-# Fixture reached through pytest.mark.usefixtures("restore_read_max_lines")
-_.restore_read_max_lines
+# Autouse fixture undoing create_server's legacy global settings (issue #378, pytest collection only)
+_._restore_legacy_globals
 # Named fixtures in issues/test_status.py (issue #388, pytest collection only)
 _._cache_write  # name="cache_write"
 _._cached_labels  # name="cached_labels"

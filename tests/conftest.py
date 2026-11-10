@@ -4,16 +4,19 @@ import contextlib
 import os
 import shutil
 import tempfile
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import TypedDict, TypeVar
+from typing import Any, TypedDict, TypeVar
 
 import git
 import pytest
 
-from mcp_workspace import config
+from mcp_workspace import config, server, server_reference_tools
 from mcp_workspace.config import get_github_token, get_test_repo_url
 from mcp_workspace.github_operations import clear_repository_cache
+from mcp_workspace.toolset import tool_specs
+
+ToolMap = dict[str, Callable[..., Any]]
 
 # Python path is now configured via pytest configuration in pyproject.toml
 
@@ -70,6 +73,43 @@ def project_dir(tmp_path: Path) -> Path:
     (tmp_path / TEST_DIR).mkdir(parents=True, exist_ok=True)
 
     return tmp_path
+
+
+@pytest.fixture
+def make_tools(project_dir: Path) -> Callable[..., ToolMap]:
+    """Build tools via tool_specs; returns {name: fn}."""
+
+    def _make(root: Path | None = None, **settings: Any) -> ToolMap:
+        return {s.name: s.fn for s in tool_specs(root or project_dir, **settings)}
+
+    return _make
+
+
+@pytest.fixture
+def tools(make_tools: Callable[..., ToolMap]) -> ToolMap:
+    """Tools bound to the project_dir fixture with default settings."""
+    return make_tools()
+
+
+# Module globals that create_server sets through _configure_legacy; temporary
+# until the last tool group moves into mcp_workspace.toolset.
+_LEGACY_GLOBALS = (
+    (server, "_project_dir"),
+    (server, "_file_size_limit"),
+    (server, "_read_max_lines"),
+    (server, "_fail_on_reviews"),
+    (server, "_enforce_base_branch_format"),
+    (server_reference_tools, "_reference_projects"),
+    (server_reference_tools, "_read_max_lines"),
+)
+
+
+@pytest.fixture(autouse=True)
+def _restore_legacy_globals(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Undo the legacy settings create_server writes into module globals."""
+    for module, name in _LEGACY_GLOBALS:
+        if hasattr(module, name):
+            monkeypatch.setattr(module, name, getattr(module, name))
 
 
 @pytest.fixture(autouse=True)

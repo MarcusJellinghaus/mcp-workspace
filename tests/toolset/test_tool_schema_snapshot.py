@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from mcp_workspace.server import mcp
+from mcp_workspace.server import create_server
 
 SNAPSHOT_DIR = Path(__file__).with_name("tool_schemas")
 
@@ -43,15 +43,15 @@ def _snapshot() -> dict[str, Any]:
     }
 
 
-async def _current_schemas() -> dict[str, Any]:
-    """{tool name: stripped inputSchema} from the live server."""
-    tools = await mcp.list_tools()
+async def _current_schemas(project_dir: Path) -> dict[str, Any]:
+    """{tool name: stripped inputSchema} from a freshly built server."""
+    tools = await create_server(project_dir).list_tools()
     return {tool.name: _strip(tool.inputSchema) for tool in tools}
 
 
 @pytest.mark.asyncio
-async def test_tool_schemas_match_snapshot() -> None:
-    current = await _current_schemas()
+async def test_tool_schemas_match_snapshot(tmp_path: Path) -> None:
+    current = await _current_schemas(tmp_path)
     expected = _snapshot()
 
     assert sorted(current) == sorted(expected)

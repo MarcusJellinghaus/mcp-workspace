@@ -118,22 +118,25 @@ class TestCheckFileSizeShowAllowlisted:
 
 
 class TestRunServerFileSizeLimit:
-    """Test that run_server threads file_size_limit to set_file_size_limit."""
+    """Test that run_server threads file_size_limit to tool_specs."""
 
-    def test_run_server_threads_value(self) -> None:
-        """run_server passes the file_size_limit through to the setter."""
-        with patch("mcp_workspace.server.mcp.run"):
-            with patch("mcp_workspace.server.set_project_dir"):
-                with patch("mcp_workspace.server.set_file_size_limit") as mock_setter:
-                    run_server(Path("/test/project"), file_size_limit=750)
+    def test_run_server_threads_value(self, tmp_path: Path) -> None:
+        """run_server passes the file_size_limit through to tool_specs."""
+        with patch("mcp_workspace.server.FastMCP.run"):
+            with patch(
+                "mcp_workspace.server.tool_specs", return_value=()
+            ) as mock_specs:
+                run_server(tmp_path, file_size_limit=750)
 
-        mock_setter.assert_called_once_with(750)
+        assert mock_specs.call_args.args == (tmp_path,)
+        assert mock_specs.call_args.kwargs["file_size_limit"] == 750
 
-    def test_run_server_default_is_none(self) -> None:
+    def test_run_server_default_is_none(self, tmp_path: Path) -> None:
         """run_server defaults file_size_limit to None when omitted."""
-        with patch("mcp_workspace.server.mcp.run"):
-            with patch("mcp_workspace.server.set_project_dir"):
-                with patch("mcp_workspace.server.set_file_size_limit") as mock_setter:
-                    run_server(Path("/test/project"))
+        with patch("mcp_workspace.server.FastMCP.run"):
+            with patch(
+                "mcp_workspace.server.tool_specs", return_value=()
+            ) as mock_specs:
+                run_server(tmp_path)
 
-        mock_setter.assert_called_once_with(None)
+        assert mock_specs.call_args.kwargs["file_size_limit"] is None
