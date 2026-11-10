@@ -89,9 +89,9 @@ See [step_11.md](./steps/step_11.md)
 
 ### Step 12: Acceptance tests for the exported toolset
 See [step_12.md](./steps/step_12.md)
-- [ ] Implementation: `tests/toolset/test_toolset.py` (groups, isolation, defaults, `args_model`)
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `tests/toolset/test_toolset.py` (groups, isolation, defaults, `args_model`)
+- [x] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
+- [x] Commit message prepared
 
 ### Step 13: Subprocess import tests — no `mcp`, lazy git/GitHub
 See [step_13.md](./steps/step_13.md)
