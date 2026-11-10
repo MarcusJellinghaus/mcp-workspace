@@ -16,6 +16,7 @@ import pytest
 from mcp_workspace import server, server_reference_tools
 from mcp_workspace.file_tools import file_operations
 from mcp_workspace.reference_projects import ReferenceProject
+from mcp_workspace.toolset import tool_specs
 
 _REFERENCE_NAME = "invariant_ref"
 
@@ -98,13 +99,22 @@ def reference_project(invariant_project: Path) -> Iterator[str]:
     server_reference_tools._reference_projects = previous
 
 
+def _tool(project: Path, name: str) -> Callable[..., Any]:
+    """Return the named toolset tool bound to project.
+
+    Returns:
+        The tool function.
+    """
+    return {s.name: s.fn for s in tool_specs(project)}[name]
+
+
 def _call_list_directory(project: Path, reference_name: str) -> Any:
     """Scoped listing — the shape the reported bug corrupted.
 
     Returns:
         The raw list_directory result.
     """
-    return server.list_directory(path="a")
+    return _tool(project, "list_directory")(path="a")
 
 
 def _call_search_files(project: Path, reference_name: str) -> Any:
@@ -113,7 +123,7 @@ def _call_search_files(project: Path, reference_name: str) -> Any:
     Returns:
         The raw search_files result.
     """
-    return server.search_files(glob="**/*.txt")
+    return _tool(project, "search_files")(glob="**/*.txt")
 
 
 def _call_list_reference_directory(project: Path, reference_name: str) -> Any:

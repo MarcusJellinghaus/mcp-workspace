@@ -19,20 +19,13 @@ from mcp_workspace.checks.file_sizes import (
     render_allowlisted,
     render_output,
 )
-from mcp_workspace.file_tools import (
-    DEFAULT_READ_MAX_LINES,
-    list_directory_tree,
-    normalize_path,
-)
+from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES, normalize_path
 from mcp_workspace.file_tools import append_file as append_file_util
 from mcp_workspace.file_tools import delete_directory as delete_directory_util
 from mcp_workspace.file_tools import delete_file as delete_file_util
 from mcp_workspace.file_tools import edit_file as edit_file_util
-from mcp_workspace.file_tools import list_files as list_files_util
 from mcp_workspace.file_tools import move_file as move_file_util
-from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools import save_file as save_file_util
-from mcp_workspace.file_tools import search_files as search_files_util
 from mcp_workspace.file_tools.directory_utils import check_path_not_gitignored
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server_reference_tools import (
@@ -88,9 +81,6 @@ _project_dir: Path | None = None
 
 # Per-project default line limit for check_file_size (set via --file-size-limit)
 _file_size_limit: int | None = None
-
-# Full-read line limit for read_file (set via --read-max-lines)
-_read_max_lines: int | None = DEFAULT_READ_MAX_LINES
 
 # Per-server default for check_branch_status' review gate (set via --fail-on-reviews)
 _fail_on_reviews: bool = False
@@ -390,18 +380,6 @@ def set_file_size_limit(limit: int | None) -> None:
 
 
 @log_function_call
-def set_read_max_lines(limit: int | None) -> None:
-    """Set the full-read line limit used by read_file.
-
-    Args:
-        limit: Maximum lines returned by a full read; None or 0 means no limit
-    """
-    global _read_max_lines  # pylint: disable=global-statement
-    _read_max_lines = limit
-    logger.info("Read max lines set to: %s", limit)
-
-
-@log_function_call
 def set_fail_on_reviews(value: bool) -> None:
     """Set the per-server default for check_branch_status' review gate.
 
@@ -424,169 +402,6 @@ def set_enforce_base_branch_format(value: bool) -> None:
     global _enforce_base_branch_format  # pylint: disable=global-statement
     _enforce_base_branch_format = value
     logger.info("Enforce base branch format set to: %s", value)
-
-
-@_legacy_tool
-@log_function_call
-def search_files(
-    glob: str | None = None,
-    pattern: str | None = None,
-    context_lines: int = 0,
-    max_results: int = 50,
-    max_result_lines: int = 200,
-) -> dict[str, Any]:
-    """Search file contents by regex and/or find files by glob pattern.
-
-    Modes:
-        - File search: provide `glob` to find files by path pattern (like find)
-        - Content search: provide `pattern` (regex) to search inside files (like grep)
-        - Combined: both to search content within matching files
-
-    Args:
-        glob: File path pattern with gitignore/wildmatch semantics — e.g.
-            "**/*.py", "tests/**/test_*.py", "/README.md" (root only).
-            Brace expansion is NOT supported: "{a,b}/f.py" matches a literal
-            "{a,b}" directory. Issue one call per alternative, or widen to
-            "*" and filter. A bare "*.py" is unanchored and matches at
-            any depth, unlike a shell glob. On Windows, matching is
-            case-insensitive by design, so a glob cannot detect a filename
-            casing mismatch — use `git ls-files`, which reports the name as
-            recorded in the index.
-        pattern: Python regex to match file contents. Invalid regex patterns are
-            automatically treated as literal text. (e.g. "def foo", "TODO.*fix")
-        context_lines: Lines of context around each match (0 = match line only)
-        max_results: Maximum number of matches or files returned (default 50)
-        max_result_lines: Hard cap on total output lines (default 200)
-
-    Returns:
-        Dict with matches (content search) or file list (file search),
-        plus truncated flag if results were capped.
-        Adds a "glob_note" key when the glob matched no files and contains
-        "{", which wildmatch treats literally, distinguishing that from a
-        genuine no-such-file result.
-        A content search adds a "skipped_files" key listing project-relative
-        paths that could not be read — a path rejected by the security check,
-        or an unreadable file — present only when non-empty.
-        Paths are forward-slash separated on every platform and can be
-        passed straight back to `read_file`.
-
-    Raises:
-        ValueError: If the project directory has not been set, or if the glob
-            matches nothing by construction (a gitignore comment, blank,
-            negation-only, or unparseable pattern such as an unterminated "[").
-    """
-    if _project_dir is None:
-        raise ValueError("Project directory has not been set")
-
-    return search_files_util(
-        project_dir=_project_dir,
-        glob=glob,
-        pattern=pattern,
-        context_lines=context_lines,
-        max_results=max_results,
-        max_result_lines=max_result_lines,
-    )
-
-
-@_legacy_tool
-@log_function_call
-def list_directory(path: str = ".", dirs_only: bool = False) -> list[str]:
-    """List files and directories in the project directory.
-
-    Args:
-        path: Scope listing to a subtree (relative to project root).
-            Defaults to "." (entire project).
-        dirs_only: Show only directories, each with trailing "/".
-
-    Returns:
-        A list of path strings: files, directories (trailing ``/``),
-        collapsed summaries (``dir/ (N files)``), or a truncation line
-        when output exceeds the internal limit. Paths are forward-slash
-        separated on every platform and can be passed straight back to
-        `read_file`.
-
-    Raises:
-        ValueError: If the project directory has not been set or the
-            path points to a file instead of a directory.
-    """
-    try:
-        if _project_dir is None:
-            raise ValueError("Project directory has not been set")
-
-        # Validate path — normalize_path handles traversal attacks
-        abs_path, rel_path = normalize_path(path, _project_dir)
-
-        # If path points to a file, return error
-        if abs_path.is_file():
-            raise ValueError(
-                f"'{path}' is a file, not a directory. Use read_file() instead."
-            )
-
-        logger.info(
-            "Listing files in project directory: %s (path=%s)",
-            _project_dir,
-            path,
-        )
-        # Explicitly pass project_dir to list_files_util
-        raw_files = list_files_util(path, project_dir=_project_dir, use_gitignore=True)
-
-        # Build tree, collapse, render, truncate
-        return list_directory_tree(raw_files, base_path=rel_path, dirs_only=dirs_only)
-    except Exception as e:
-        logger.error("Error listing project directory: %s", str(e))
-        raise
-
-
-@_legacy_tool
-@log_function_call
-def read_file(
-    file_path: str,
-    start_line: int | None = None,
-    end_line: int | None = None,
-    with_line_numbers: bool | None = None,
-) -> str:
-    """Read a file, or a line slice via start_line/end_line.
-
-    Args:
-        file_path: Path to the file to read (relative to project directory)
-        start_line: First line to return (1-based, inclusive). Requires end_line.
-        end_line: Last line to return (1-based, inclusive). Requires start_line.
-        with_line_numbers: Prefix lines with line numbers. Defaults to True for
-            sliced reads, False for full reads.
-
-    Returns:
-        The contents of the file as a string. A full read beyond the
-        configured limit (default 2000 lines) is cut, followed by a note
-        giving the next start_line/end_line; an explicit range is returned
-        in full.
-
-    Raises:
-        ValueError: If file_path is not a non-empty string or the
-            project directory has not been set.
-    """
-    if not file_path or not isinstance(file_path, str):
-        logger.error("Invalid file path parameter: %s", file_path)
-        raise ValueError(f"File path must be a non-empty string, got {type(file_path)}")
-
-    if _project_dir is None:
-        raise ValueError("Project directory has not been set")
-
-    _check_not_gitignored(file_path)
-
-    logger.info("Reading file: %s", file_path)
-    try:
-        content = read_file_util(
-            file_path,
-            project_dir=_project_dir,
-            start_line=start_line,
-            end_line=end_line,
-            with_line_numbers=with_line_numbers,
-            max_lines=_read_max_lines,
-        )
-        return content
-    except Exception as e:
-        logger.error("Error reading file: %s", str(e))
-        raise
 
 
 @_legacy_tool
@@ -2355,9 +2170,7 @@ def _configure_legacy(project_dir: Path, settings: dict[str, Any]) -> None:
     """
     set_project_dir(project_dir)
     set_file_size_limit(settings.get("file_size_limit"))
-    read_max_lines = settings.get("read_max_lines", DEFAULT_READ_MAX_LINES)
-    set_read_max_lines(read_max_lines)
-    set_reference_read_max_lines(read_max_lines)
+    set_reference_read_max_lines(settings.get("read_max_lines", DEFAULT_READ_MAX_LINES))
     set_fail_on_reviews(settings.get("fail_on_reviews", False))
     set_enforce_base_branch_format(settings.get("enforce_base_branch_format", True))
     set_reference_projects(settings.get("reference_projects") or {})

@@ -69,7 +69,6 @@ _.check_branch_status
 # WorkspaceContext members for the toolset groups (issue #378); first used as
 # the groups move into mcp_workspace.toolset
 _.file_locks
-_.check_not_gitignored
 
 # =============================================================================
 # Public API Exports

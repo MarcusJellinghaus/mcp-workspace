@@ -8,7 +8,6 @@ import pytest
 from mcp.server.fastmcp import FastMCP
 from mcp_coder_utils.tool_spec import tool_spec
 
-from mcp_workspace import server as server_module
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server import (
@@ -22,11 +21,11 @@ from mcp_workspace.server import (
     edit_file,
     git,
     move_file,
-    read_file,
     run_server,
     save_file,
     set_project_dir,
 )
+from tests.conftest import ToolMap
 
 # Python path is now configured via pytest configuration in pyproject.toml
 
@@ -71,7 +70,7 @@ def test_save_file(project_dir: Path) -> None:
     assert content == TEST_CONTENT
 
 
-def test_read_file(project_dir: Path) -> None:
+def test_read_file(project_dir: Path, tools: ToolMap) -> None:
     """Test the read_file tool."""
     # Create absolute path for test file
     abs_file_path = project_dir / TEST_FILE
@@ -80,12 +79,12 @@ def test_read_file(project_dir: Path) -> None:
     with open(abs_file_path, "w", encoding="utf-8") as f:
         f.write(TEST_CONTENT)
 
-    content = read_file(str(TEST_FILE))
+    content = tools["read_file"](str(TEST_FILE))
 
     assert content == TEST_CONTENT
 
 
-def test_read_file_not_found() -> None:
+def test_read_file_not_found(tools: ToolMap) -> None:
     """Test the read_file tool with a non-existent file."""
     non_existent_file = TEST_DIR / "non_existent.txt"
 
@@ -94,7 +93,7 @@ def test_read_file_not_found() -> None:
         Path(non_existent_file).unlink()
 
     with pytest.raises(FileNotFoundError):
-        read_file(str(non_existent_file))
+        tools["read_file"](str(non_existent_file))
 
 
 def test_append_file(project_dir: Path) -> None:
@@ -265,11 +264,11 @@ def gitignore_project(project_dir: Path) -> Path:
     return project_dir
 
 
-def test_read_file_gitignored(gitignore_project: Path) -> None:
+def test_read_file_gitignored(gitignore_project: Path, tools: ToolMap) -> None:
     """read_file on gitignored file raises ValueError."""
     (gitignore_project / "debug.log").write_text("log content")
     with pytest.raises(ValueError, match="excluded by .gitignore"):
-        read_file("debug.log")
+        tools["read_file"]("debug.log")
 
 
 def test_save_file_gitignored(gitignore_project: Path) -> None:
@@ -333,22 +332,24 @@ def test_move_file_gitignored_destination(gitignore_project: Path) -> None:
         move_file("safe.txt", "output.log")
 
 
-def test_read_file_in_gitignored_directory(gitignore_project: Path) -> None:
+def test_read_file_in_gitignored_directory(
+    gitignore_project: Path, tools: ToolMap
+) -> None:
     """File inside gitignored directory (__pycache__/) is blocked."""
     cache_dir = gitignore_project / "__pycache__"
     cache_dir.mkdir()
     (cache_dir / "module.pyc").write_text("bytecode")
     with pytest.raises(ValueError, match="excluded by .gitignore"):
-        read_file("__pycache__/module.pyc")
+        tools["read_file"]("__pycache__/module.pyc")
 
 
-def test_read_file_git_config(gitignore_project: Path) -> None:
+def test_read_file_git_config(gitignore_project: Path, tools: ToolMap) -> None:
     """read_file on .git/config is blocked."""
     git_dir = gitignore_project / ".git"
     git_dir.mkdir()
     (git_dir / "config").write_text("[core]")
     with pytest.raises(ValueError, match="excluded by .gitignore"):
-        read_file(".git/config")
+        tools["read_file"](".git/config")
 
 
 def test_save_file_git_hooks(gitignore_project: Path) -> None:
@@ -357,10 +358,10 @@ def test_save_file_git_hooks(gitignore_project: Path) -> None:
         save_file(".git/hooks/pre-commit", "#!/bin/sh")
 
 
-def test_read_file_not_gitignored(gitignore_project: Path) -> None:
+def test_read_file_not_gitignored(gitignore_project: Path, tools: ToolMap) -> None:
     """Non-gitignored file works normally."""
     (gitignore_project / "readme.txt").write_text("hello")
-    content = read_file("readme.txt")
+    content = tools["read_file"]("readme.txt")
     assert content == "hello"
 
 
@@ -384,21 +385,21 @@ def test_check_not_gitignored_absolute_path_message_is_forward_slash(
     assert "File 'sub/deeper/debug.log' is excluded by .gitignore" in str(excinfo.value)
 
 
-def test_read_file_no_gitignore(project_dir: Path) -> None:
+def test_read_file_no_gitignore(project_dir: Path, tools: ToolMap) -> None:
     """Without .gitignore, all files are accessible."""
     (project_dir / "debug.log").write_text("log content")
-    content = read_file("debug.log")
+    content = tools["read_file"]("debug.log")
     assert content == "log content"
 
 
-@patch("mcp_workspace.server.read_file_util")
+@patch("mcp_workspace.toolset.read.read_file_util")
 def test_read_file_forwards_line_range_params(
-    mock_read_file_util: MagicMock, project_dir: Path
+    mock_read_file_util: MagicMock, project_dir: Path, tools: ToolMap
 ) -> None:
     """Test that read_file forwards line-range params to read_file_util."""
     mock_read_file_util.return_value = "5\u2192line five\n6\u2192line six\n"
 
-    result = read_file(
+    result = tools["read_file"](
         "some_file.py",
         start_line=5,
         end_line=10,
@@ -417,13 +418,13 @@ def test_read_file_forwards_line_range_params(
 
 
 def test_read_file_truncates_full_read_at_configured_limit(
-    project_dir: Path, monkeypatch: pytest.MonkeyPatch
+    project_dir: Path, make_tools: Callable[..., ToolMap]
 ) -> None:
     """A full read beyond the configured limit is cut with a paging note."""
-    monkeypatch.setattr(server_module, "_read_max_lines", 3)
+    tools = make_tools(read_max_lines=3)
     (project_dir / "five.txt").write_text("a\nb\nc\nd\ne\n")
 
-    content = read_file("five.txt")
+    content = tools["read_file"]("five.txt")
 
     assert content == (
         "a\nb\nc\n"

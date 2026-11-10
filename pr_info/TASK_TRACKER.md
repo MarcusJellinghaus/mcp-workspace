@@ -35,9 +35,9 @@ See [step_2.md](./steps/step_2.md)
 
 ### Step 3: Move group `workspace.read` (`read_file`, `list_directory`, `search_files`)
 See [step_3.md](./steps/step_3.md)
-- [ ] Implementation: `toolset/read.py`, remove unused legacy code, migrate tests
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `toolset/read.py`, remove unused legacy code, migrate tests
+- [x] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: Move group `workspace.write` (`save_file`, `edit_file`, `append_file`)
 See [step_4.md](./steps/step_4.md)

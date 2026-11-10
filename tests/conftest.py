@@ -96,7 +96,6 @@ def tools(make_tools: Callable[..., ToolMap]) -> ToolMap:
 _LEGACY_GLOBALS = (
     (server, "_project_dir"),
     (server, "_file_size_limit"),
-    (server, "_read_max_lines"),
     (server, "_fail_on_reviews"),
     (server, "_enforce_base_branch_format"),
     (server_reference_tools, "_reference_projects"),
