@@ -47,9 +47,9 @@ See [step_4.md](./steps/step_4.md)
 
 ### Step 5: Move group `workspace.delete` (`delete_this_file`, `delete_directory`)
 See [step_5.md](./steps/step_5.md)
-- [ ] Implementation: `toolset/delete.py`, remove unused legacy code, migrate tests
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `toolset/delete.py`, remove unused legacy code, migrate tests
+- [x] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
+- [x] Commit message prepared
 
 ### Step 6: Move group `workspace.move` (`move_file`)
 See [step_6.md](./steps/step_6.md)

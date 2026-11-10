@@ -28,6 +28,16 @@ def test_write_group_specs(tmp_path: Path, name: str) -> None:
     assert specs[name].read_only is False
 
 
+@pytest.mark.parametrize("name", ["delete_this_file", "delete_directory"])
+def test_delete_group_specs(tmp_path: Path, name: str) -> None:
+    """The workspace.delete tools are exported as writing specs."""
+    specs = {s.name: s for s in tool_specs(tmp_path)}
+
+    assert name in specs
+    assert specs[name].group == "workspace.delete"
+    assert specs[name].read_only is False
+
+
 def test_edit_file_spec_is_async(tmp_path: Path) -> None:
     """edit_file stays a coroutine function."""
     specs = {s.name: s for s in tool_specs(tmp_path)}

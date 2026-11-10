@@ -38,8 +38,8 @@ FILE_TOOLS: dict[str, Callable[[ToolMap, str], Any]] = {
     "save_file": lambda t, p: t["save_file"](p, "changed"),
     "append_file": lambda t, p: t["append_file"](p, "changed"),
     "edit_file": lambda t, p: asyncio.run(t["edit_file"](p, "core", "changed")),
-    "delete_this_file": lambda _t, p: server.delete_this_file(p),
-    "delete_directory": lambda _t, p: server.delete_directory(
+    "delete_this_file": lambda t, p: t["delete_this_file"](p),
+    "delete_directory": lambda t, p: t["delete_directory"](
         str(Path(p).parent), recursive=True
     ),
     "move_file_source": lambda _t, p: server.move_file(p, "moved.txt"),
@@ -222,12 +222,14 @@ class TestGitFileAndNestedRepos:
         with pytest.raises(ValueError):
             tools["read_file"]("vendor/lib/.git/config")
 
-    def test_recursive_delete_keeps_nested_repo(self, project: Path) -> None:
+    def test_recursive_delete_keeps_nested_repo(
+        self, project: Path, tools: ToolMap
+    ) -> None:
         nested = project / "vendor" / "lib" / ".git"
         nested.mkdir(parents=True)
         (nested / "config").write_text(CONFIG_TEXT, encoding="utf-8")
         with pytest.raises(ValueError, match="git directory"):
-            server.delete_directory("vendor", recursive=True)
+            tools["delete_directory"]("vendor", recursive=True)
         assert (nested / "config").is_file()
 
     def test_move_keeps_nested_repo(self, project: Path) -> None:
@@ -238,12 +240,12 @@ class TestGitFileAndNestedRepos:
         assert nested.is_dir()
 
     def test_directory_without_repo_still_deletes_and_moves(
-        self, project: Path
+        self, project: Path, tools: ToolMap
     ) -> None:
         (project / "old").mkdir()
         (project / "old" / "x.txt").write_text("x", encoding="utf-8")
         assert server.move_file("old", "new") is True
-        server.delete_directory("new", recursive=True)
+        tools["delete_directory"]("new", recursive=True)
         assert not (project / "new").exists()
 
 

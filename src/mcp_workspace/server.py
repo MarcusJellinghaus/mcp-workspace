@@ -20,8 +20,6 @@ from mcp_workspace.checks.file_sizes import (
     render_output,
 )
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES, normalize_path
-from mcp_workspace.file_tools import delete_directory as delete_directory_util
-from mcp_workspace.file_tools import delete_file as delete_file_util
 from mcp_workspace.file_tools import move_file as move_file_util
 from mcp_workspace.file_tools.directory_utils import check_path_not_gitignored
 from mcp_workspace.reference_projects import ReferenceProject
@@ -396,89 +394,6 @@ def set_enforce_base_branch_format(value: bool) -> None:
     global _enforce_base_branch_format  # pylint: disable=global-statement
     _enforce_base_branch_format = value
     logger.info("Enforce base branch format set to: %s", value)
-
-
-@_legacy_tool
-@log_function_call
-def delete_this_file(file_path: str) -> bool:
-    """Delete a specified file from the filesystem.
-
-    Handles files only, not directories — use delete_directory for directories.
-
-    Args:
-        file_path: Path to the file to delete (relative to project directory)
-
-    Returns:
-        True if the file was deleted successfully
-
-    Raises:
-        ValueError: If file_path is not a non-empty string or the
-            project directory has not been set.
-    """
-    # delete_file does not work with Claude Desktop (!!!)  ;-)
-    # Validate the file_path parameter
-    if not file_path or not isinstance(file_path, str):
-        logger.error("Invalid file path parameter: %s", file_path)
-        raise ValueError(f"File path must be a non-empty string, got {type(file_path)}")
-
-    if _project_dir is None:
-        raise ValueError("Project directory has not been set")
-
-    _check_not_gitignored(file_path)
-
-    logger.info("Deleting file: %s", file_path)
-    try:
-        # Directly delete the file without user confirmation
-        success = delete_file_util(file_path, project_dir=_project_dir)
-        logger.info("File deleted successfully: %s", file_path)
-        return success
-    except Exception as e:
-        logger.error("Error deleting file %s: %s", file_path, str(e))
-        raise
-
-
-@_legacy_tool
-@log_function_call
-def delete_directory(dir_path: str, recursive: bool = False) -> list[str]:
-    """Delete a directory (empty by default; recursive=True for non-empty).
-
-    Handles directories only — for files use delete_this_file. Deletes an empty
-    directory by default; pass recursive=True to delete a non-empty tree. Missing
-    directory is a no-op (returns a message, no error).
-
-    Args:
-        dir_path: Path to the directory to delete (relative to project directory)
-        recursive: Delete the directory and all its contents when True
-
-    Returns:
-        List of deleted paths (relative to project directory), or a single
-        message when the directory does not exist.
-
-    Raises:
-        ValueError: If dir_path is not a non-empty string, the project directory
-            has not been set, the path is excluded by .gitignore, or the
-            underlying deletion is rejected (outside project, project root,
-            path-is-a-file, or non-empty without recursive).
-    """
-    if not dir_path or not isinstance(dir_path, str):
-        logger.error("Invalid directory path parameter: %s", dir_path)
-        raise ValueError(
-            f"Directory path must be a non-empty string, got {type(dir_path)}"
-        )
-
-    if _project_dir is None:
-        raise ValueError("Project directory has not been set")
-
-    _check_not_gitignored(dir_path)
-
-    logger.info("Deleting directory: %s", dir_path)
-    try:
-        return delete_directory_util(
-            dir_path, project_dir=_project_dir, recursive=recursive
-        )
-    except Exception as e:
-        logger.error("Error deleting directory %s: %s", dir_path, str(e))
-        raise
 
 
 @_legacy_tool
