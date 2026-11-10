@@ -13,6 +13,9 @@ These are integration tests: each spawns a real Python interpreter so that
 "did importing X pull in Y?" and "how long does a cold import take?" are
 measured in a fresh process where nothing is cached -- exactly how the MCP
 client launches the server.
+
+These checks cover imports only. Building and calling the exported tools is
+covered by ``tests/toolset/test_toolset_imports.py``.
 """
 
 import json

@@ -95,9 +95,9 @@ See [step_12.md](./steps/step_12.md)
 
 ### Step 13: Subprocess import tests — no `mcp`, lazy git/GitHub
 See [step_13.md](./steps/step_13.md)
-- [ ] Implementation: `tests/toolset/test_toolset_imports.py`
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `tests/toolset/test_toolset_imports.py`
+- [x] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
+- [x] Commit message prepared
 
 ### Step 14: Documentation
 See [step_14.md](./steps/step_14.md)
