@@ -9,3 +9,13 @@ Reviewing the branch diff for #378. The issue, plan and knowledge base are read;
 Verdict(decision='tasks', tasks=['Revert the `--python-executable` change in `.mcp.json:10` (from commit 826f81f) back to `${MCP_CODER_VENV_PATH}\\python.exe`. Changing the interpreter path in shared tooling config is out of scope for #378. Leave the rest of the branch unchanged.'], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 2 — 2026-11-10
+**Findings**:
+Reading the toolset modules now to compare them against the issue's groups/read_only table and the old server.py.Checking main's `run_server` and remaining modules for behavior drift.Running the quality checks.`pyproject.toml:29` — medium — pytest, pylint and mypy could not run this round: the check venv has an older `mcp-coder-utils` without `mcp_coder_utils.tool_spec`, so `tests/conftest.py:17` stops with ModuleNotFoundError (pylint E0401 ×13, mypy import-not-found ×13). The "pylint, mypy, pytest pass" acceptance criterion is still unverified. Commit 51d0df7 (the round-1 `.mcp.json` revert) points the checks back at that venv. Escalate rather than fix in code: install a `mcp-coder-utils` that has `tool_spec` in the check venv. The issue rules out pinning a version.
+`src/mcp_workspace/github_operations/search.py:4` — low — The module docstring still says "The handler in server.py"; after this change the handler lives in `src/mcp_workspace/toolset/github_read.py`.
+**Decisions**:
+Verdict(decision='escalate', tasks=[], escalate_reason="pytest, pylint and mypy can't run because the check venv at MCP_CODER_VENV_PATH (the one .mcp.json uses again after the round-1 revert) has an mcp-coder-utils without `tool_spec`, so the 'checks pass' criterion is unverified. A human needs to install an mcp-coder-utils that has `tool_spec` in that venv; it can't be fixed in code, and pinning a version is ruled out by the issue. Also fix the stale 'handler in server.py' docstring at src/mcp_workspace/github_operations/search.py:4 (it now lives in toolset/github_read.py).")
+**Changes**:
+escalate
+**Escalate reason**: pytest, pylint and mypy can't run because the check venv at MCP_CODER_VENV_PATH (the one .mcp.json uses again after the round-1 revert) has an mcp-coder-utils without `tool_spec`, so the 'checks pass' criterion is unverified. A human needs to install an mcp-coder-utils that has `tool_spec` in that venv; it can't be fixed in code, and pinning a version is ruled out by the issue. Also fix the stale 'handler in server.py' docstring at src/mcp_workspace/github_operations/search.py:4 (it now lives in toolset/github_read.py).
