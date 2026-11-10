@@ -82,6 +82,18 @@ def run_server(
     """
     logger.debug("Entering run_server function")
 
+    logger.info(
+        "Server settings: project_dir=%s, file_size_limit=%s, read_max_lines=%s, "
+        "fail_on_reviews=%s, enforce_base_branch_format=%s",
+        project_dir,
+        file_size_limit,
+        read_max_lines,
+        fail_on_reviews,
+        enforce_base_branch_format,
+    )
+    for project_name, project in (reference_projects or {}).items():
+        logger.info("Reference project '%s' set to: %s", project_name, project.path)
+
     mcp = create_server(
         project_dir,
         reference_projects=reference_projects,

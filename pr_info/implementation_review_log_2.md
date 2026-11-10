@@ -27,3 +27,20 @@ Supervisor-driven review of branch `378-export-workspace-tools-as-toolspec-s-fro
 - Local pytest/pylint/mypy not runnable (venv); ruff + format pass.
 
 **Status**: committed
+
+## Round 2 — 2026-11-10
+**Findings**:
+- `src/mcp_workspace/toolset/__init__.py:28-38` — MCP tool list order changed (now `_GROUPS` order; names and schemas unchanged) (low).
+- `src/mcp_workspace/server.py:83-97` — startup INFO logging of settings and reference projects lost with the setters (low).
+- All 32 moved tool bodies, `_github_common.py`, `_github_write_helpers.py`, `checks.py`, `create_server`/`FastMCPSink`/`run_server` verified against `main`: no drift. Test changes stay within setup/imports/patch targets plus the listed exceptions.
+- Checks: ruff, lint-imports, vulture, tach pass; pytest/pylint/mypy blocked only by missing `mcp_coder_utils.tool_spec` in the check venv. CI green on `d0f0ae9`.
+
+**Decisions**:
+- Tool order: skip — issue pins names and schemas, not order; name it in the PR description.
+- Startup logging: accept — operator-visible regression, one-line fix.
+
+**Changes**:
+- `run_server` logs one INFO line with all settings and one `Reference project '%s' set to: %s` line per reference project before `create_server(...).run()`; `toolset/` untouched (no side effects on the library path).
+- `tests/test_server.py`: `test_run_server_logs_reference_projects` (caplog). Not run locally (venv).
+
+**Status**: committed

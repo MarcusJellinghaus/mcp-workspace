@@ -1,5 +1,6 @@
 """Tests for the MCP server API endpoints."""
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -578,6 +579,20 @@ class TestRunServer:
                 run_server(project_dir)
 
         assert mock_specs.call_args.kwargs["read_max_lines"] == DEFAULT_READ_MAX_LINES
+
+    def test_run_server_logs_reference_projects(
+        self, project_dir: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """run_server logs each reference project at INFO before starting."""
+        proj_path = Path("/path/to/proj1").resolve()
+        test_projects = {"proj1": ReferenceProject(name="proj1", path=proj_path)}
+
+        with patch("mcp_workspace.server.FastMCP.run"):
+            with patch("mcp_workspace.server.tool_specs", return_value=()):
+                with caplog.at_level(logging.INFO, logger="mcp_workspace.server"):
+                    run_server(project_dir, reference_projects=test_projects)
+
+        assert f"Reference project 'proj1' set to: {proj_path}" in caplog.messages
 
 
 # --- create_server / FastMCPSink tests ---
