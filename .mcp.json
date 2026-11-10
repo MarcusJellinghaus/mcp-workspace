@@ -7,7 +7,7 @@
         "--project-dir",
         "${MCP_CODER_PROJECT_DIR}",
         "--python-executable",
-        "${VIRTUAL_ENV}\\Scripts\\python.exe",
+        "${MCP_CODER_VENV_PATH}\\python.exe",
         "--test-folder",
         "tests",
         "--log-level",
