@@ -23,9 +23,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: Pin the MCP tool schemas in a snapshot
 See [step_1.md](./steps/step_1.md)
-- [ ] Implementation: snapshot test + `tool_schema_snapshot.json` captured from current server
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: snapshot test + `tool_schema_snapshot.json` captured from current server
+- [x] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `toolset` skeleton, `create_server`, `FastMCPSink`, test fixtures
 See [step_2.md](./steps/step_2.md)

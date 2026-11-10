@@ -1,0 +1,1104 @@
+{
+  "append_file": {
+    "properties": {
+      "content": {
+        "type": "string"
+      },
+      "file_path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "file_path",
+      "content"
+    ],
+    "type": "object"
+  },
+  "check_branch_status": {
+    "properties": {
+      "ci_timeout": {
+        "default": 300,
+        "type": "integer"
+      },
+      "fail_on_reviews": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "max_log_lines": {
+        "default": 300,
+        "type": "integer"
+      },
+      "pr_timeout": {
+        "default": 0,
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "check_file_size": {
+    "properties": {
+      "max_lines": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "show_allowlisted": {
+        "default": false,
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  },
+  "delete_directory": {
+    "properties": {
+      "dir_path": {
+        "type": "string"
+      },
+      "recursive": {
+        "default": false,
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "dir_path"
+    ],
+    "type": "object"
+  },
+  "delete_this_file": {
+    "properties": {
+      "file_path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "file_path"
+    ],
+    "type": "object"
+  },
+  "edit_file": {
+    "properties": {
+      "file_path": {
+        "type": "string"
+      },
+      "new_string": {
+        "type": "string"
+      },
+      "old_string": {
+        "type": "string"
+      },
+      "replace_all": {
+        "default": false,
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "file_path",
+      "old_string",
+      "new_string"
+    ],
+    "type": "object"
+  },
+  "get_base_branch": {
+    "properties": {},
+    "type": "object"
+  },
+  "get_reference_projects": {
+    "properties": {},
+    "type": "object"
+  },
+  "git": {
+    "properties": {
+      "args": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "command": {
+        "type": "string"
+      },
+      "compact": {
+        "default": true,
+        "type": "boolean"
+      },
+      "context": {
+        "default": 3,
+        "type": "integer"
+      },
+      "max_lines": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "pathspec": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "search": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "required": [
+      "command"
+    ],
+    "type": "object"
+  },
+  "github_issue_comment": {
+    "properties": {
+      "body": {
+        "default": "",
+        "type": "string"
+      },
+      "body_file": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "number": {
+        "type": "integer"
+      },
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "required": [
+      "number"
+    ],
+    "type": "object"
+  },
+  "github_issue_create": {
+    "properties": {
+      "assignees": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "body": {
+        "default": "",
+        "type": "string"
+      },
+      "body_file": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "labels": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "title": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "title"
+    ],
+    "type": "object"
+  },
+  "github_issue_edit": {
+    "properties": {
+      "add_assignees": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "add_labels": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "body": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "body_file": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "number": {
+        "type": "integer"
+      },
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "remove_labels": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "state": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "title": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "required": [
+      "number"
+    ],
+    "type": "object"
+  },
+  "github_issue_list": {
+    "properties": {
+      "assignee": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "labels": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "max_results": {
+        "default": 30,
+        "type": "integer"
+      },
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "since": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "state": {
+        "default": "open",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "github_issue_set_status": {
+    "properties": {
+      "from_status": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "number": {
+        "type": "integer"
+      },
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "refresh_labels": {
+        "default": false,
+        "type": "boolean"
+      },
+      "status": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "number",
+      "status"
+    ],
+    "type": "object"
+  },
+  "github_issue_view": {
+    "properties": {
+      "include_comments": {
+        "default": true,
+        "type": "boolean"
+      },
+      "include_linked_branches": {
+        "default": false,
+        "type": "boolean"
+      },
+      "max_lines": {
+        "default": 200,
+        "type": "integer"
+      },
+      "number": {
+        "type": "integer"
+      },
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "required": [
+      "number"
+    ],
+    "type": "object"
+  },
+  "github_label_list": {
+    "properties": {
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "refresh_labels": {
+        "default": false,
+        "type": "boolean"
+      },
+      "search": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "type": "object"
+  },
+  "github_pr_create": {
+    "properties": {
+      "base": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "body": {
+        "default": "",
+        "type": "string"
+      },
+      "body_file": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "head": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "title": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "title"
+    ],
+    "type": "object"
+  },
+  "github_pr_view": {
+    "properties": {
+      "include_comments": {
+        "default": false,
+        "type": "boolean"
+      },
+      "max_lines": {
+        "default": 200,
+        "type": "integer"
+      },
+      "number": {
+        "type": "integer"
+      },
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "required": [
+      "number"
+    ],
+    "type": "object"
+  },
+  "github_review_comment_reply": {
+    "properties": {
+      "body": {
+        "type": "string"
+      },
+      "comment_id": {
+        "type": "integer"
+      },
+      "pr_number": {
+        "type": "integer"
+      },
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "required": [
+      "pr_number",
+      "comment_id",
+      "body"
+    ],
+    "type": "object"
+  },
+  "github_review_thread_resolve": {
+    "properties": {
+      "pr_number": {
+        "type": "integer"
+      },
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "thread_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "pr_number",
+      "thread_id"
+    ],
+    "type": "object"
+  },
+  "github_search": {
+    "properties": {
+      "assignee": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "labels": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "max_results": {
+        "default": 30,
+        "type": "integer"
+      },
+      "order": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "query": {
+        "type": "string"
+      },
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "sort": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "state": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
+  },
+  "github_subissue_add": {
+    "properties": {
+      "child_number": {
+        "type": "integer"
+      },
+      "parent_number": {
+        "type": "integer"
+      },
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "required": [
+      "parent_number",
+      "child_number"
+    ],
+    "type": "object"
+  },
+  "github_subissue_list": {
+    "properties": {
+      "max_results": {
+        "default": 30,
+        "type": "integer"
+      },
+      "parent_number": {
+        "type": "integer"
+      },
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "required": [
+      "parent_number"
+    ],
+    "type": "object"
+  },
+  "github_subissue_remove": {
+    "properties": {
+      "child_number": {
+        "type": "integer"
+      },
+      "parent_number": {
+        "type": "integer"
+      },
+      "reference_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "required": [
+      "parent_number",
+      "child_number"
+    ],
+    "type": "object"
+  },
+  "list_directory": {
+    "properties": {
+      "dirs_only": {
+        "default": false,
+        "type": "boolean"
+      },
+      "path": {
+        "default": ".",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "list_reference_directory": {
+    "properties": {
+      "reference_name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "reference_name"
+    ],
+    "type": "object"
+  },
+  "move_file": {
+    "properties": {
+      "destination_path": {
+        "type": "string"
+      },
+      "source_path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "source_path",
+      "destination_path"
+    ],
+    "type": "object"
+  },
+  "read_file": {
+    "properties": {
+      "end_line": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "file_path": {
+        "type": "string"
+      },
+      "start_line": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "with_line_numbers": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "required": [
+      "file_path"
+    ],
+    "type": "object"
+  },
+  "read_reference_file": {
+    "properties": {
+      "end_line": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "file_path": {
+        "type": "string"
+      },
+      "reference_name": {
+        "type": "string"
+      },
+      "start_line": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "with_line_numbers": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "required": [
+      "reference_name",
+      "file_path"
+    ],
+    "type": "object"
+  },
+  "save_file": {
+    "properties": {
+      "content": {
+        "type": "string"
+      },
+      "file_path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "file_path",
+      "content"
+    ],
+    "type": "object"
+  },
+  "search_files": {
+    "properties": {
+      "context_lines": {
+        "default": 0,
+        "type": "integer"
+      },
+      "glob": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "max_result_lines": {
+        "default": 200,
+        "type": "integer"
+      },
+      "max_results": {
+        "default": 50,
+        "type": "integer"
+      },
+      "pattern": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "type": "object"
+  },
+  "search_reference_files": {
+    "properties": {
+      "context_lines": {
+        "default": 0,
+        "type": "integer"
+      },
+      "glob": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "max_result_lines": {
+        "default": 200,
+        "type": "integer"
+      },
+      "max_results": {
+        "default": 50,
+        "type": "integer"
+      },
+      "pattern": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "reference_name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "reference_name"
+    ],
+    "type": "object"
+  }
+}
