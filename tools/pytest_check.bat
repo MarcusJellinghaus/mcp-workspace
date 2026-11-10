@@ -10,5 +10,14 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+echo Running performance tests (serial)...
+pytest -n 0 -m performance
+
+if %errorlevel% neq 0 (
+    echo.
+    echo ✗ Performance tests failed!
+    exit /b 1
+)
+
 echo.
 echo ✓ All tests passed!

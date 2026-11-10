@@ -26,6 +26,7 @@ echo ""
 
 echo "[5/9] Running pytest..."
 pytest -n auto
+pytest -n 0 -m performance
 echo ""
 
 echo "========================================"

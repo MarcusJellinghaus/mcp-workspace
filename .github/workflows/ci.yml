@@ -257,6 +257,11 @@ jobs:
         run: |
           pytest --version && pytest -n auto -m 'not git_integration and not github_integration' --cov=src/mcp_workspace --cov-report=
 
+      - name: Run performance tests
+        # Timing-sensitive tests skip themselves under xdist; run them alone.
+        run: |
+          pytest -n 0 -m performance
+
       - name: Upload coverage data
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

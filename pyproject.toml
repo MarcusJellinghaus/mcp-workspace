@@ -87,6 +87,7 @@ addopts = ["--strict-markers", "--tb=short", "-n", "auto", "-p", "no:tach"]
 markers = [
     "git_integration: File system git operations (repos, commits)",
     "github_integration: GitHub API access (requires GITHUB_TOKEN)",
+    "performance: Timing-sensitive; skipped under xdist, run with -n 0 -m performance",
 ]
 
 [tool.mcp-tools-py]
