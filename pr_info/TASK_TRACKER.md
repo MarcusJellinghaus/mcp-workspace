@@ -65,9 +65,9 @@ See [step_7.md](./steps/step_7.md)
 
 ### Step 8: Move group `workspace.git` (`git`)
 See [step_8.md](./steps/step_8.md)
-- [ ] Implementation: `toolset/git.py`, remove unused legacy code, migrate tests
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `toolset/git.py`, remove unused legacy code, migrate tests
+- [x] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
+- [x] Commit message prepared
 
 ### Step 9: Move `workspace.github` read tools + `_github_common.py`
 See [step_9.md](./steps/step_9.md)

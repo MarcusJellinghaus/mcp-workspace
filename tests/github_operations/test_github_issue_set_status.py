@@ -116,7 +116,7 @@ def test_workspace_issue_status_changed(
     mock_mgr.set_labels.assert_called_once_with(42, "bug", "status-02:planning")
 
 
-@patch("mcp_workspace.server_reference_tools.ensure_available")
+@patch("mcp_workspace.toolset.reference.ensure_available")
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_reference_project_uses_url_without_clone(
     mock_manager_cls: MagicMock,

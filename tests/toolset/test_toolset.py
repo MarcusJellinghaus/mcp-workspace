@@ -66,6 +66,16 @@ def test_reference_group_specs(tmp_path: Path, name: str, is_async: bool) -> Non
     assert inspect.iscoroutinefunction(specs[name].fn) is is_async
 
 
+def test_git_group_spec(tmp_path: Path) -> None:
+    """git is exported as a read-only coroutine spec."""
+    specs = {s.name: s for s in tool_specs(tmp_path)}
+
+    assert "git" in specs
+    assert specs["git"].group == "workspace.git"
+    assert specs["git"].read_only is True
+    assert inspect.iscoroutinefunction(specs["git"].fn)
+
+
 def test_edit_file_spec_is_async(tmp_path: Path) -> None:
     """edit_file stays a coroutine function."""
     specs = {s.name: s for s in tool_specs(tmp_path)}

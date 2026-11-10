@@ -15,7 +15,6 @@ from mcp_workspace.server import (
     _check_not_gitignored,
     check_branch_status,
     create_server,
-    git,
     run_server,
     set_project_dir,
 )
@@ -451,11 +450,11 @@ class TestGitTool:
     @pytest.mark.asyncio
     @patch("mcp_workspace.git_operations.read_operations.git")
     async def test_delegates_to_impl(
-        self, mock_impl: MagicMock, project_dir: Path
+        self, mock_impl: MagicMock, project_dir: Path, tools: ToolMap
     ) -> None:
         """Verify git() delegates all params to git_impl."""
         mock_impl.return_value = "output"
-        result = await git(
+        result = await tools["git"](
             command="log",
             args=["--oneline"],
             pathspec=["src/"],
@@ -475,19 +474,6 @@ class TestGitTool:
             max_lines=25,
             compact=False,
         )
-
-    @pytest.mark.asyncio
-    async def test_raises_without_project_dir(self) -> None:
-        """git() raises ValueError when _project_dir is None."""
-        import mcp_workspace.server as srv
-
-        original = srv._project_dir
-        try:
-            srv._project_dir = None
-            with pytest.raises(ValueError, match="Project directory has not been set"):
-                await git(command="log")
-        finally:
-            srv._project_dir = original
 
 
 # --- check_branch_status tool tests ---

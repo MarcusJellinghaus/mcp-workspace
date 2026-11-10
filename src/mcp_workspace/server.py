@@ -1,6 +1,5 @@
 """MCP server exposing workspace file, search, git, and GitHub tools."""
 
-import asyncio
 import logging
 import secrets
 from collections.abc import Callable, Iterable
@@ -23,7 +22,6 @@ from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES, normalize_path
 from mcp_workspace.file_tools.directory_utils import check_path_not_gitignored
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server_reference_tools import (
-    get_reference_project_path,
     get_reference_repo_url,
     set_reference_projects,
 )
@@ -391,63 +389,6 @@ def set_enforce_base_branch_format(value: bool) -> None:
     global _enforce_base_branch_format  # pylint: disable=global-statement
     _enforce_base_branch_format = value
     logger.info("Enforce base branch format set to: %s", value)
-
-
-@_legacy_tool
-@log_function_call
-async def git(
-    command: str,
-    args: list[str] | None = None,
-    pathspec: list[str] | None = None,
-    search: str | None = None,
-    context: int = 3,
-    max_lines: int | None = None,
-    compact: bool = True,
-    reference_name: str | None = None,
-) -> str:
-    """Run a read-only git command on the workspace or a reference project.
-
-    Args:
-        command: Git subcommand (log, diff, status, merge_base, fetch,
-            show, branch, rev_parse, ls_tree, ls_files, ls_remote, check_ignore).
-        args: Optional CLI flags and operands. Flags are validated against
-            per-command security allowlists. Paths must be relative and stay inside
-            the repository. fetch and ls_remote take a configured remote name only.
-        pathspec: Optional file paths appended after --, under the same path rule.
-        search: Optional regex to filter output (log, diff, show only).
-        context: Lines of context around search matches (default 3).
-        max_lines: Maximum output lines. Per-command defaults: log=50, diff=100, status=200, others=100.
-        compact: If True, apply compact diff rendering (diff, show only).
-        reference_name: Optional reference project name. When set, runs git against
-            that project instead of the workspace.
-
-    Returns:
-        Command output, optionally filtered/truncated.
-
-    Raises:
-        ValueError: If no reference project is given and the project
-            directory has not been set.
-    """
-    # Lazy import: keeps GitPython off the server startup import path
-    from mcp_workspace.git_operations.read_operations import git as git_impl
-
-    if reference_name is not None:
-        project_dir = await get_reference_project_path(reference_name)
-    else:
-        if _project_dir is None:
-            raise ValueError("Project directory has not been set")
-        project_dir = _project_dir
-    return await asyncio.to_thread(
-        git_impl,
-        command=command,
-        project_dir=project_dir,
-        args=args,
-        pathspec=pathspec,
-        search=search,
-        context=context,
-        max_lines=max_lines,
-        compact=compact,
-    )
 
 
 def _issue_manager(reference_name: str | None) -> "IssueManager":

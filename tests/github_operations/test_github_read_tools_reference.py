@@ -146,7 +146,7 @@ def test_reference_project_without_url_returns_error(
     mock_manager_cls.assert_not_called()
 
 
-@patch("mcp_workspace.server_reference_tools.ensure_available")
+@patch("mcp_workspace.toolset.reference.ensure_available")
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_reference_read_does_not_clone(
     mock_manager_cls: MagicMock,

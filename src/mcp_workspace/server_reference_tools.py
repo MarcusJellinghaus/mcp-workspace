@@ -1,11 +1,10 @@
-"""Reference project lookups for the legacy git and GitHub tools in server.py."""
+"""Reference project lookups for the legacy GitHub tools in server.py."""
 
 import logging
-from pathlib import Path
 
 from mcp_coder_utils.log_utils import log_function_call
 
-from mcp_workspace.reference_projects import ReferenceProject, ensure_available
+from mcp_workspace.reference_projects import ReferenceProject
 
 logger = logging.getLogger(__name__)
 
@@ -29,27 +28,10 @@ def set_reference_projects(reference_projects: dict[str, ReferenceProject]) -> N
         logger.info("Reference project '%s' set to: %s", project_name, project.path)
 
 
-async def get_reference_project_path(name: str) -> Path:
-    """Resolve a reference project name to its local path, ensuring availability.
-
-    Returns:
-        Local filesystem path of the reference project.
-
-    Raises:
-        ValueError: If no reference project with the given name exists.
-    """
-    if name not in _reference_projects:
-        raise ValueError(f"Reference project '{name}' not found")
-    project = _reference_projects[name]
-    await ensure_available(project)
-    return project.path
-
-
 def get_reference_repo_url(name: str) -> str:
     """Resolve a reference project name to its configured repository URL.
 
-    Synchronous and side-effect free — unlike get_reference_project_path(),
-    this never calls ensure_available(), so it never clones.
+    Synchronous and side-effect free: it never clones.
 
     Returns:
         The configured repository URL.
