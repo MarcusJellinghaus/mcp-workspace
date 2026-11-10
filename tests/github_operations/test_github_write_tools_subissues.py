@@ -1,4 +1,8 @@
-"""Tests for the ``github_subissue_add/_list/_remove`` MCP tools in server.py."""
+"""Tests for the ``github_subissue_add/_list/_remove`` MCP tools.
+
+``github_subissue_list`` lives in toolset/github_read.py; add and remove are
+still in server.py.
+"""
 
 from collections.abc import Callable, Generator
 from pathlib import Path
@@ -13,11 +17,11 @@ from mcp_workspace.github_operations.issues.sub_issues_mixin import SubIssueLink
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server import (
     github_subissue_add,
-    github_subissue_list,
     github_subissue_remove,
     set_project_dir,
 )
 from mcp_workspace.server_reference_tools import set_reference_projects
+from tests.conftest import ToolMap
 
 from ._issue_test_helpers import make_mock_issue
 from .conftest import make_retry_error
@@ -330,19 +334,21 @@ class TestSubissueList:
     """Tests for github_subissue_list."""
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_lists_children_in_order(self, mock_cls: MagicMock) -> None:
+    def test_lists_children_in_order(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """Each child renders as one line, in API order."""
         mock_cls.return_value.list_sub_issues.return_value = [
             _make_child(7, "open", "First"),
             _make_child(9, "closed", "Second"),
         ]
 
-        result = github_subissue_list(parent_number=3)
+        result = tools["github_subissue_list"](parent_number=3)
 
         assert result == "#7  open  First\n#9  closed  Second"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_untrusted_children_are_prefixed(self, mock_cls: MagicMock) -> None:
+    def test_untrusted_children_are_prefixed(
+        self, mock_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """Untrusted children get the prefix, a ghost renders as @ghost."""
         mock_cls.return_value.list_sub_issues.return_value = [
             _make_child(7, "open", "First", login="abc", author_association="NONE"),
@@ -350,7 +356,7 @@ class TestSubissueList:
             _make_child(9, "closed", "Gone", login=None, author_association="NONE"),
         ]
 
-        result = github_subissue_list(parent_number=3)
+        result = tools["github_subissue_list"](parent_number=3)
 
         assert result.splitlines() == [
             "#7  open  [untrusted @abc] First",
@@ -360,7 +366,7 @@ class TestSubissueList:
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_allowlisted_child_has_no_prefix(
-        self, mock_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+        self, mock_cls: MagicMock, monkeypatch: pytest.MonkeyPatch, tools: ToolMap
     ) -> None:
         """An allowlisted login is trusted whatever its role."""
         monkeypatch.setattr(
@@ -371,46 +377,48 @@ class TestSubissueList:
             _make_child(7, "open", "First", login="abc", author_association="NONE"),
         ]
 
-        assert github_subissue_list(parent_number=3) == "#7  open  First"
+        assert tools["github_subissue_list"](parent_number=3) == "#7  open  First"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_no_children(self, mock_cls: MagicMock) -> None:
+    def test_no_children(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """An empty list is reported explicitly."""
         mock_cls.return_value.list_sub_issues.return_value = []
 
-        assert github_subissue_list(parent_number=3) == "No sub-issues."
+        assert tools["github_subissue_list"](parent_number=3) == "No sub-issues."
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_repository_inaccessible(self, mock_cls: MagicMock) -> None:
+    def test_repository_inaccessible(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """A None from the mixin renders the repository access error."""
         mock_cls.return_value.list_sub_issues.return_value = None
 
-        result = github_subissue_list(parent_number=3)
+        result = tools["github_subissue_list"](parent_number=3)
 
         assert result.startswith("Error: Could not access repository")
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_retry_error_is_reported_as_rate_limit(self, mock_cls: MagicMock) -> None:
+    def test_retry_error_is_reported_as_rate_limit(
+        self, mock_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """Exhausted retries read as a rate limit, not as no repository access."""
         mock_cls.return_value = _retry_exhausted_manager()
 
-        result = github_subissue_list(parent_number=3)
+        result = tools["github_subissue_list"](parent_number=3)
 
         assert result == "GitHub rate limit: retries exhausted"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_invalid_number(self, mock_cls: MagicMock) -> None:
+    def test_invalid_number(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """A non-positive number is rejected before the manager is built."""
-        result = github_subissue_list(parent_number=0)
+        result = tools["github_subissue_list"](parent_number=0)
 
         assert result == "Error: invalid issue number: 0"
         mock_cls.assert_not_called()
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_forwards_max_results(self, mock_cls: MagicMock) -> None:
+    def test_forwards_max_results(self, mock_cls: MagicMock, tools: ToolMap) -> None:
         """max_results is passed through to the mixin untouched."""
         mock_cls.return_value.list_sub_issues.return_value = []
 
-        github_subissue_list(parent_number=3, max_results=5)
+        tools["github_subissue_list"](parent_number=3, max_results=5)
 
         mock_cls.return_value.list_sub_issues.assert_called_once_with(3, max_results=5)

@@ -1,4 +1,4 @@
-"""Tests for the GitHub PR and search read-only MCP tools in server.py.
+"""Tests for the GitHub PR and search read-only tools in toolset/github_read.py.
 
 The github_search tests here cover result capping and the truncation notice.
 Query construction and validation live in ``test_github_search_tool``; the two
@@ -9,13 +9,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mcp_workspace.server import github_pr_view, github_search
+from tests.conftest import ToolMap
 
 from ._github_read_tools_helpers import mock_pull as _mock_pull
 from .search_helpers import FakeSearchResults, make_search_items
-
-pytestmark = pytest.mark.usefixtures("setup_server")
-
 
 # =============================================================================
 # github_pr_view tests
@@ -23,7 +20,7 @@ pytestmark = pytest.mark.usefixtures("setup_server")
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_pr_view_basic(mock_manager_cls: MagicMock) -> None:
+def test_github_pr_view_basic(mock_manager_cls: MagicMock, tools: ToolMap) -> None:
     """Returns formatted text with title, state, branches."""
     mock_repo = MagicMock()
     mock_pr = _mock_pull()
@@ -33,7 +30,7 @@ def test_github_pr_view_basic(mock_manager_cls: MagicMock) -> None:
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
 
-    result = github_pr_view(number=10)
+    result = tools["github_pr_view"](number=10)
 
     assert "#10" in result
     assert "Fix bug" in result
@@ -44,7 +41,9 @@ def test_github_pr_view_basic(mock_manager_cls: MagicMock) -> None:
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_pr_view_with_comments(mock_manager_cls: MagicMock) -> None:
+def test_github_pr_view_with_comments(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """Reviews + conversation + inline comments rendered."""
     mock_repo = MagicMock()
     mock_pr = _mock_pull()
@@ -78,7 +77,7 @@ def test_github_pr_view_with_comments(mock_manager_cls: MagicMock) -> None:
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
 
-    result = github_pr_view(number=10, include_comments=True)
+    result = tools["github_pr_view"](number=10, include_comments=True)
 
     assert "LGTM" in result
     assert "reviewer1" in result
@@ -89,7 +88,9 @@ def test_github_pr_view_with_comments(mock_manager_cls: MagicMock) -> None:
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_pr_view_ghost_users_untrusted(mock_manager_cls: MagicMock) -> None:
+def test_github_pr_view_ghost_users_untrusted(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """Deleted accounts (user=None) do not crash and are withheld."""
     mock_repo = MagicMock()
     mock_pr = _mock_pull(title="Ghost title", body="Ghost body")
@@ -124,7 +125,7 @@ def test_github_pr_view_ghost_users_untrusted(mock_manager_cls: MagicMock) -> No
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
 
-    result = github_pr_view(number=10, include_comments=True)
+    result = tools["github_pr_view"](number=10, include_comments=True)
 
     assert not result.startswith("Error")
     for text in ("Ghost title", "Ghost body", "ghost review", "ghost comment"):
@@ -139,7 +140,7 @@ def test_github_pr_view_ghost_users_untrusted(mock_manager_cls: MagicMock) -> No
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_pr_view_uses_config_allowlist(
-    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+    mock_manager_cls: MagicMock, monkeypatch: pytest.MonkeyPatch, tools: ToolMap
 ) -> None:
     """The allowlist is read through mcp_workspace.config at call time."""
     monkeypatch.setattr(
@@ -154,13 +155,15 @@ def test_github_pr_view_uses_config_allowlist(
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
 
-    result = github_pr_view(number=10)
+    result = tools["github_pr_view"](number=10)
 
     assert "# PR #10: Allowlisted title" in result
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_pr_view_without_comments(mock_manager_cls: MagicMock) -> None:
+def test_github_pr_view_without_comments(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """No comment sections when include_comments=False."""
     mock_repo = MagicMock()
     mock_pr = _mock_pull()
@@ -170,7 +173,7 @@ def test_github_pr_view_without_comments(mock_manager_cls: MagicMock) -> None:
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
 
-    result = github_pr_view(number=10, include_comments=False)
+    result = tools["github_pr_view"](number=10, include_comments=False)
 
     assert "Fix bug" in result
     assert "Reviews" not in result
@@ -180,7 +183,7 @@ def test_github_pr_view_without_comments(mock_manager_cls: MagicMock) -> None:
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_pr_view_not_found(mock_manager_cls: MagicMock) -> None:
+def test_github_pr_view_not_found(mock_manager_cls: MagicMock, tools: ToolMap) -> None:
     """Returns error text on 404."""
     from github.GithubException import UnknownObjectException
 
@@ -193,30 +196,30 @@ def test_github_pr_view_not_found(mock_manager_cls: MagicMock) -> None:
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
 
-    result = github_pr_view(number=999)
+    result = tools["github_pr_view"](number=999)
 
     assert "Error" in result
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_pr_view_error(mock_manager_cls: MagicMock) -> None:
+def test_github_pr_view_error(mock_manager_cls: MagicMock, tools: ToolMap) -> None:
     """Returns 'Error: ...' on exception."""
     mock_manager_cls.side_effect = RuntimeError("connection failed")
 
-    result = github_pr_view(number=10)
+    result = tools["github_pr_view"](number=10)
 
     assert result == "Error: connection failed"
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_pr_view_no_repo(mock_manager_cls: MagicMock) -> None:
+def test_github_pr_view_no_repo(mock_manager_cls: MagicMock, tools: ToolMap) -> None:
     """Returns error when repository not accessible."""
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = None
     mock_mgr.repo_identifier.api_base_url = "https://gitlab.com/api/v3"
 
-    result = github_pr_view(number=10)
+    result = tools["github_pr_view"](number=10)
 
     assert (
         result == "Error: Could not access repository (tried https://gitlab.com/api/v3)"
@@ -229,7 +232,9 @@ def test_github_pr_view_no_repo(mock_manager_cls: MagicMock) -> None:
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_search_max_results_cap(mock_manager_cls: MagicMock) -> None:
+def test_github_search_max_results_cap(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """Results capped at max_results."""
     mock_repo = MagicMock()
     mock_repo.full_name = "owner/repo"
@@ -241,7 +246,7 @@ def test_github_search_max_results_cap(mock_manager_cls: MagicMock) -> None:
         make_search_items(10)
     )
 
-    result = github_search(query="test", max_results=3)
+    result = tools["github_search"](query="test", max_results=3)
 
     assert "#1" in result
     assert "#3" in result
@@ -254,6 +259,7 @@ def test_github_search_max_results_cap(mock_manager_cls: MagicMock) -> None:
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_stops_without_pulling_the_surplus_item(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """islice stops at max_results without pulling item max_results + 1.
 
@@ -271,13 +277,15 @@ def test_github_search_stops_without_pulling_the_surplus_item(
     mock_mgr._get_repository.return_value = mock_repo
     mock_mgr._github_client.search_issues.return_value = results
 
-    github_search(query="test", max_results=3)
+    tools["github_search"](query="test", max_results=3)
 
     assert results.items_pulled == 3
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_search_notice_states_exact_total(mock_manager_cls: MagicMock) -> None:
+def test_github_search_notice_states_exact_total(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """The notice reports PaginatedList.totalCount, not the item count."""
     mock_repo = MagicMock()
     mock_repo.full_name = "owner/repo"
@@ -289,7 +297,7 @@ def test_github_search_notice_states_exact_total(mock_manager_cls: MagicMock) ->
     mock_mgr._get_repository.return_value = mock_repo
     mock_mgr._github_client.search_issues.return_value = results
 
-    result = github_search(query="test", max_results=3)
+    result = tools["github_search"](query="test", max_results=3)
 
     assert "showing 3 of 412 results" in result
 
@@ -297,7 +305,7 @@ def test_github_search_notice_states_exact_total(mock_manager_cls: MagicMock) ->
 @pytest.mark.parametrize("max_results", [0, -1])
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_non_positive_max_results(
-    mock_manager_cls: MagicMock, max_results: int
+    mock_manager_cls: MagicMock, max_results: int, tools: ToolMap
 ) -> None:
     """A non-positive cap reports suppression, not an empty result set.
 
@@ -315,7 +323,7 @@ def test_github_search_non_positive_max_results(
     mock_mgr._get_repository.return_value = mock_repo
     mock_mgr._github_client.search_issues.return_value = results
 
-    result = github_search(query="test", max_results=max_results)
+    result = tools["github_search"](query="test", max_results=max_results)
 
     assert not result.startswith("Error:")
     assert "No results found." not in result
@@ -329,6 +337,7 @@ def test_github_search_non_positive_max_results(
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_empty_makes_no_total_count_call(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """A zero-result search never reads totalCount; a non-empty one reads it once.
 
@@ -346,7 +355,7 @@ def test_github_search_empty_makes_no_total_count_call(
     empty_results = FakeSearchResults([])
     mock_mgr._github_client.search_issues.return_value = empty_results
 
-    result = github_search(query="test")
+    result = tools["github_search"](query="test")
 
     assert "No results found." in result
     assert empty_results.total_count_reads == 0
@@ -354,6 +363,6 @@ def test_github_search_empty_makes_no_total_count_call(
     non_empty_results = FakeSearchResults(make_search_items(3))
     mock_mgr._github_client.search_issues.return_value = non_empty_results
 
-    github_search(query="test", max_results=3)
+    tools["github_search"](query="test", max_results=3)
 
     assert non_empty_results.total_count_reads == 1

@@ -1,6 +1,7 @@
-"""Tests for the label and pull-request MCP tools in server.py.
+"""Tests for the label and pull-request MCP tools.
 
-Covers ``github_label_list`` and ``github_pr_create``.
+Covers ``github_label_list`` (toolset/github_read.py) and ``github_pr_create``
+(server.py).
 """
 
 from collections.abc import Callable, Generator
@@ -14,7 +15,6 @@ from github import GithubException
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server import (
-    github_label_list,
     github_pr_create,
     github_review_comment_reply,
     github_review_thread_resolve,
@@ -22,6 +22,7 @@ from mcp_workspace.server import (
 )
 from mcp_workspace.server_reference_tools import set_reference_projects
 from mcp_workspace.utils.repo_identifier import RepoIdentifier
+from tests.conftest import ToolMap
 
 # Bound at import time, before any @patch is active: patching
 # ``mcp_workspace.github_operations.pr_manager.PullRequestManager`` replaces the
@@ -113,11 +114,13 @@ class TestGithubLabelList:
     """Tests for the ``github_label_list`` MCP tool."""
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_lists_all_labels(self, mock_manager_cls: MagicMock) -> None:
+    def test_lists_all_labels(
+        self, mock_manager_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """Without a search every label is rendered on its own line."""
         mock_manager_cls.return_value = _make_manager(_LABELS)
 
-        result = github_label_list()
+        result = tools["github_label_list"]()
 
         assert _body(result) == [
             "bug  #d73a4a  Something isn't working",
@@ -125,97 +128,111 @@ class TestGithubLabelList:
         ]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_search_matches_name(self, mock_manager_cls: MagicMock) -> None:
+    def test_search_matches_name(
+        self, mock_manager_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """A search matching a label name returns only that label."""
         mock_manager_cls.return_value = _make_manager(_LABELS)
 
-        result = github_label_list(search="bug")
+        result = tools["github_label_list"](search="bug")
 
         assert _body(result) == ["bug  #d73a4a  Something isn't working"]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_search_matches_description_only(self, mock_manager_cls: MagicMock) -> None:
+    def test_search_matches_description_only(
+        self, mock_manager_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """A search matching only the description still returns the label."""
         mock_manager_cls.return_value = _make_manager(_LABELS)
 
-        result = github_label_list(search="New feature")
+        result = tools["github_label_list"](search="New feature")
 
         assert _body(result) == ["enhancement  #a2eeef  New feature or request"]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_search_is_case_insensitive(self, mock_manager_cls: MagicMock) -> None:
+    def test_search_is_case_insensitive(
+        self, mock_manager_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """Matching ignores letter case on both sides."""
         mock_manager_cls.return_value = _make_manager(_LABELS)
 
-        result = github_label_list(search="ENHANCEment")
+        result = tools["github_label_list"](search="ENHANCEment")
 
         assert _body(result) == ["enhancement  #a2eeef  New feature or request"]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_search_matching_nothing(self, mock_manager_cls: MagicMock) -> None:
+    def test_search_matching_nothing(
+        self, mock_manager_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """A search with no matches reports that plainly."""
         mock_manager_cls.return_value = _make_manager(_LABELS)
 
-        result = github_label_list(search="nonexistent")
+        result = tools["github_label_list"](search="nonexistent")
 
         assert _body(result) == ["No labels found."]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_empty_repository_label_set(self, mock_manager_cls: MagicMock) -> None:
+    def test_empty_repository_label_set(
+        self, mock_manager_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """A repository with no labels reports the same empty message."""
         mock_manager_cls.return_value = _make_manager([])
 
-        result = github_label_list()
+        result = tools["github_label_list"]()
 
         assert _body(result) == ["No labels found."]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_empty_description_leaves_no_trailing_space(
-        self, mock_manager_cls: MagicMock
+        self, mock_manager_cls: MagicMock, tools: ToolMap
     ) -> None:
         """A label without a description renders without trailing whitespace."""
         mock_manager_cls.return_value = _make_manager([_label("wontfix", "ffffff")])
 
-        result = github_label_list()
+        result = tools["github_label_list"]()
 
         assert _body(result) == ["wontfix  #ffffff"]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_second_call_reads_cache(self, mock_manager_cls: MagicMock) -> None:
+    def test_second_call_reads_cache(
+        self, mock_manager_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """Without refresh_labels a second call does not fetch again."""
         mock_mgr = _make_manager(_LABELS)
         mock_manager_cls.return_value = mock_mgr
 
-        github_label_list()
-        result = github_label_list()
+        tools["github_label_list"]()
+        result = tools["github_label_list"]()
 
         assert mock_mgr.get_available_labels.call_count == 1
         assert len(_body(result)) == 2
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_refresh_labels_refetches(self, mock_manager_cls: MagicMock) -> None:
+    def test_refresh_labels_refetches(
+        self, mock_manager_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """refresh_labels=True fetches again although a cache entry exists."""
         mock_mgr = _make_manager(_LABELS)
         mock_manager_cls.return_value = mock_mgr
-        github_label_list()
+        tools["github_label_list"]()
         mock_mgr.get_available_labels.return_value = [_label("new")]
 
-        result = github_label_list(refresh_labels=True)
+        result = tools["github_label_list"](refresh_labels=True)
 
         assert mock_mgr.get_available_labels.call_count == 2
         assert _body(result) == ["new  #d73a4a"]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_rate_limited_refresh_returns_stale_labels(
-        self, mock_manager_cls: MagicMock
+        self, mock_manager_cls: MagicMock, tools: ToolMap
     ) -> None:
         """A rate-limited forced refresh keeps the old labels, marked stale."""
         mock_mgr = _make_manager(_LABELS)
         mock_manager_cls.return_value = mock_mgr
-        github_label_list()
+        tools["github_label_list"]()
         mock_mgr.get_available_labels.side_effect = _rate_limit()
 
-        result = github_label_list(refresh_labels=True)
+        result = tools["github_label_list"](refresh_labels=True)
 
         assert _body(result) == [
             "bug  #d73a4a  Something isn't working",
@@ -224,19 +241,21 @@ class TestGithubLabelList:
         assert "refresh failed: rate limited" in result.splitlines()[-1]
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
-    def test_exception_is_reported(self, mock_manager_cls: MagicMock) -> None:
+    def test_exception_is_reported(
+        self, mock_manager_cls: MagicMock, tools: ToolMap
+    ) -> None:
         """An arbitrary failure surfaces as an error string."""
         mock_mgr = _make_manager()
         mock_mgr.get_available_labels.side_effect = RuntimeError("boom")
         mock_manager_cls.return_value = mock_mgr
 
-        result = github_label_list()
+        result = tools["github_label_list"]()
 
         assert result == "Error: boom"
 
     @patch("mcp_workspace.github_operations.issues.IssueManager")
     def test_api_failure_is_not_reported_as_empty(
-        self, mock_manager_cls: MagicMock
+        self, mock_manager_cls: MagicMock, tools: ToolMap
     ) -> None:
         """A 500 from the API reads as an error, never as 'No labels found.'."""
         mock_mgr = _make_manager()
@@ -245,7 +264,7 @@ class TestGithubLabelList:
         )
         mock_manager_cls.return_value = mock_mgr
 
-        result = github_label_list()
+        result = tools["github_label_list"]()
 
         assert result.startswith("Error:")
         assert "Server Error" in result

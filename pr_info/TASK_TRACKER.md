@@ -71,9 +71,9 @@ See [step_8.md](./steps/step_8.md)
 
 ### Step 9: Move `workspace.github` read tools + `_github_common.py`
 See [step_9.md](./steps/step_9.md)
-- [ ] Implementation: `toolset/_github_common.py`, `toolset/github_read.py`, remove unused legacy code, migrate tests
-- [ ] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `toolset/_github_common.py`, `toolset/github_read.py`, remove unused legacy code, migrate tests
+- [x] Quality checks: pylint, pytest, mypy (plus ruff, lint-imports, tach, vulture, deptry) — fix all issues
+- [x] Commit message prepared
 
 ### Step 10: Move `workspace.github` write tools; delete `server_reference_tools.py`
 See [step_10.md](./steps/step_10.md)

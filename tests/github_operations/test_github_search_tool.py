@@ -1,4 +1,4 @@
-"""Tests for the github_search read-only MCP tool in server.py.
+"""Tests for the github_search read-only tool in toolset/github_read.py.
 
 Covers handler wiring, result rendering and live searches. Query construction
 and the validation messages live in ``test_search``, where SearchSpec is tested
@@ -10,37 +10,37 @@ merged they would exceed the file-size limit.
 
 import re
 import time
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mcp_workspace.server import github_search, set_project_dir
+from tests.conftest import ToolMap
 
 from .search_helpers import FakeSearchResults
 
-# setup_server lives in conftest.py; it is not autouse, so opt in here.
-pytestmark = pytest.mark.usefixtures("setup_server")
+LIVE_REPO_ROOT = Path(__file__).parents[2]
 
 
 @pytest.fixture
-def live_repo_root() -> Path:
-    """Point the server at this repository's own checkout for live searches.
+def live_search(make_tools: Callable[..., ToolMap]) -> Callable[..., str]:
+    """github_search bound to this repository's own checkout for live searches.
 
-    Re-points the server after `setup_server`, which sets a tmp_path with no
-    git remote. Skips when no GitHub token is configured.
+    The default `tools` fixture uses a tmp_path with no git remote. Skips when
+    no GitHub token is configured.
     """
     from mcp_workspace.config import get_github_token
 
     if not get_github_token():
         pytest.skip("GitHub token not configured (set GITHUB_TOKEN or config file)")
 
-    repo_root = Path(__file__).parents[2]
-    set_project_dir(repo_root)
-    return repo_root
+    return make_tools(LIVE_REPO_ROOT)["github_search"]
 
 
-def _live_search_or_skip(query: str, attempts: int = 3, delay: float = 2.0) -> str:
+def _live_search_or_skip(
+    search: Callable[..., str], query: str, attempts: int = 3, delay: float = 2.0
+) -> str:
     """Run a live search, retrying when GitHub returns no hits.
 
     GitHub's search API occasionally answers a valid query with zero hits and
@@ -50,7 +50,7 @@ def _live_search_or_skip(query: str, attempts: int = 3, delay: float = 2.0) -> s
     An exhausted rate limit on the shared CI token skips the same way.
     """
     for attempt in range(attempts):
-        result: str = github_search(query=query, sort="created", order="desc")
+        result: str = search(query=query, sort="created", order="desc")
         if result.startswith("GitHub ") and "rate limit" in result:
             pytest.skip(f"GitHub rate limit hit for {query!r}: {result}")
         if result != "No results found.":
@@ -61,7 +61,7 @@ def _live_search_or_skip(query: str, attempts: int = 3, delay: float = 2.0) -> s
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_search_basic(mock_manager_cls: MagicMock) -> None:
+def test_github_search_basic(mock_manager_cls: MagicMock, tools: ToolMap) -> None:
     """Returns compact summary lines with auto-scoped repo."""
     mock_repo = MagicMock()
     mock_repo.full_name = "owner/repo"
@@ -89,7 +89,7 @@ def test_github_search_basic(mock_manager_cls: MagicMock) -> None:
         [item1, item2]
     )
 
-    result = github_search(query="fix")
+    result = tools["github_search"](query="fix")
 
     assert "#1" in result
     assert "Bug fix" in result
@@ -101,7 +101,7 @@ def test_github_search_basic(mock_manager_cls: MagicMock) -> None:
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_search_empty(mock_manager_cls: MagicMock) -> None:
+def test_github_search_empty(mock_manager_cls: MagicMock, tools: ToolMap) -> None:
     """Returns 'No results found.' for empty results."""
     mock_repo = MagicMock()
     mock_repo.full_name = "owner/repo"
@@ -111,13 +111,15 @@ def test_github_search_empty(mock_manager_cls: MagicMock) -> None:
     mock_mgr._get_repository.return_value = mock_repo
     mock_mgr._github_client.search_issues.return_value = FakeSearchResults([])
 
-    result = github_search(query="nonexistent")
+    result = tools["github_search"](query="nonexistent")
 
     assert "No results found." in result
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_search_with_qualifiers(mock_manager_cls: MagicMock) -> None:
+def test_github_search_with_qualifiers(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """state/labels/assignee become query text; sort/order stay kwargs."""
     mock_repo = MagicMock()
     mock_repo.full_name = "owner/repo"
@@ -127,7 +129,7 @@ def test_github_search_with_qualifiers(mock_manager_cls: MagicMock) -> None:
     mock_mgr._get_repository.return_value = mock_repo
     mock_mgr._github_client.search_issues.return_value = FakeSearchResults([])
 
-    github_search(
+    tools["github_search"](
         query="bug",
         state="open",
         labels=["bug", "urgent"],
@@ -148,7 +150,9 @@ def test_github_search_with_qualifiers(mock_manager_cls: MagicMock) -> None:
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_search_invalid_state(mock_manager_cls: MagicMock) -> None:
+def test_github_search_invalid_state(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """An unrecognised state fails loudly before any API call."""
     mock_repo = MagicMock()
     mock_repo.full_name = "owner/repo"
@@ -157,7 +161,7 @@ def test_github_search_invalid_state(mock_manager_cls: MagicMock) -> None:
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = mock_repo
 
-    result = github_search(query="bug", state="bogus")
+    result = tools["github_search"](query="bug", state="bogus")
 
     assert result == "Error: Invalid state: bogus. Expected 'open', 'closed' or 'all'."
     mock_mgr._github_client.search_issues.assert_not_called()
@@ -166,7 +170,9 @@ def test_github_search_invalid_state(mock_manager_cls: MagicMock) -> None:
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_search_issue_vs_pr_indicator(mock_manager_cls: MagicMock) -> None:
+def test_github_search_issue_vs_pr_indicator(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """Correct Issue/PR indicator in results."""
     mock_repo = MagicMock()
     mock_repo.full_name = "owner/repo"
@@ -194,7 +200,7 @@ def test_github_search_issue_vs_pr_indicator(mock_manager_cls: MagicMock) -> Non
         [issue_item, pr_item]
     )
 
-    result = github_search(query="test")
+    result = tools["github_search"](query="test")
 
     result_lines = result.strip().split("\n")
     assert "[Issue]" in result_lines[0]
@@ -204,6 +210,7 @@ def test_github_search_issue_vs_pr_indicator(mock_manager_cls: MagicMock) -> Non
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_results_trigger_no_extra_request(
     mock_manager_cls: MagicMock,
+    tools: ToolMap,
 ) -> None:
     """Rendering real search Issues never lazily completes them.
 
@@ -235,7 +242,7 @@ def test_github_search_results_trigger_no_extra_request(
         [search_item(1, is_pr=False), search_item(2, is_pr=True)]
     )
 
-    result = github_search(query="test")
+    result = tools["github_search"](query="test")
 
     assert result.splitlines()[:2] == [
         "#1 [Issue] [open] Item 1  bug",
@@ -246,7 +253,9 @@ def test_github_search_results_trigger_no_extra_request(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_search_untrusted_prefix(mock_manager_cls: MagicMock) -> None:
+def test_github_search_untrusted_prefix(
+    mock_manager_cls: MagicMock, tools: ToolMap
+) -> None:
     """Untrusted items are prefixed with their login; a ghost renders as @ghost."""
     mock_repo = MagicMock()
     mock_repo.full_name = "owner/repo"
@@ -285,7 +294,7 @@ def test_github_search_untrusted_prefix(mock_manager_cls: MagicMock) -> None:
         [untrusted, ghost, trusted]
     )
 
-    result = github_search(query="fix")
+    result = tools["github_search"](query="fix")
 
     assert result.splitlines() == [
         "#412 [Issue] [open] [untrusted @abc] Fix login",
@@ -297,7 +306,7 @@ def test_github_search_untrusted_prefix(mock_manager_cls: MagicMock) -> None:
 @patch("mcp_workspace.github_operations.formatters.format_search_results")
 @patch("mcp_workspace.github_operations.issues.IssueManager")
 def test_github_search_item_dict_carries_author(
-    mock_manager_cls: MagicMock, mock_format: MagicMock
+    mock_manager_cls: MagicMock, mock_format: MagicMock, tools: ToolMap
 ) -> None:
     """The item dict maps user.login and the normalised association."""
     mock_repo = MagicMock()
@@ -330,7 +339,7 @@ def test_github_search_item_dict_carries_author(
     )
     mock_format.return_value = "ok"
 
-    assert github_search(query="x") == "ok"
+    assert tools["github_search"](query="x") == "ok"
 
     items = mock_format.call_args[0][0]
     assert items[0]["user"] == "abc"
@@ -341,24 +350,24 @@ def test_github_search_item_dict_carries_author(
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_search_error(mock_manager_cls: MagicMock) -> None:
+def test_github_search_error(mock_manager_cls: MagicMock, tools: ToolMap) -> None:
     """Returns 'Error: ...' on exception."""
     mock_manager_cls.side_effect = RuntimeError("API down")
 
-    result = github_search(query="test")
+    result = tools["github_search"](query="test")
 
     assert result == "Error: API down"
 
 
 @patch("mcp_workspace.github_operations.issues.IssueManager")
-def test_github_search_no_repo(mock_manager_cls: MagicMock) -> None:
+def test_github_search_no_repo(mock_manager_cls: MagicMock, tools: ToolMap) -> None:
     """Returns error when repository not accessible."""
     mock_mgr = MagicMock()
     mock_manager_cls.return_value = mock_mgr
     mock_mgr._get_repository.return_value = None
     mock_mgr.repo_identifier.api_base_url = "https://gitlab.com/api/v3"
 
-    result = github_search(query="test")
+    result = tools["github_search"](query="test")
 
     assert (
         result == "Error: Could not access repository (tried https://gitlab.com/api/v3)"
@@ -366,14 +375,14 @@ def test_github_search_no_repo(mock_manager_cls: MagicMock) -> None:
 
 
 @pytest.mark.github_integration
-def test_github_search_live_label_and_state_filters(live_repo_root: Path) -> None:
+def test_github_search_live_label_and_state_filters(
+    live_search: Callable[..., str],
+) -> None:
     """Live: GitHub accepts and honors label: and is:open qualifiers."""
     from mcp_workspace.github_operations.issues import IssueManager
 
-    repo_root = live_repo_root
-
     try:
-        manager = IssueManager(project_dir=repo_root)
+        manager = IssueManager(project_dir=LIVE_REPO_ROOT)
     except ValueError as exc:
         pytest.skip(f"Checkout is not a git repo with a GitHub origin: {exc}")
 
@@ -404,7 +413,7 @@ def test_github_search_live_label_and_state_filters(live_repo_root: Path) -> Non
 
     # sort/order are URL parameters, not query text: oldest match first, so the
     # anchor cannot be pushed past the max_results cap.
-    result = github_search(
+    result = live_search(
         query="",
         state="open",
         labels=[anchor_label],
@@ -436,7 +445,7 @@ def test_github_search_live_label_and_state_filters(live_repo_root: Path) -> Non
     if not anchor_word:
         pytest.skip("Anchor issue title has no distinctive word for a free-text search")
 
-    text_result = github_search(
+    text_result = live_search(
         query=anchor_word,
         state="open",
         labels=[anchor_label],
@@ -466,7 +475,7 @@ def test_github_search_live_label_and_state_filters(live_repo_root: Path) -> Non
     ],
 )
 def test_github_search_live_explicit_type_accepted(
-    live_repo_root: Path, type_token: str, indicator: str
+    live_search: Callable[..., str], type_token: str, indicator: str
 ) -> None:
     """Live: every spelling that suppresses the default is accepted by GitHub.
 
@@ -475,7 +484,7 @@ def test_github_search_live_explicit_type_accepted(
     is the failure mode issue #254 is about. GitHub's own gate message names
     only the is: forms, so the type: forms need live proof, not an assumption.
     """
-    result = _live_search_or_skip(type_token)
+    result = _live_search_or_skip(live_search, type_token)
 
     assert not result.startswith("Error:"), result
 
@@ -496,7 +505,7 @@ def test_github_search_live_explicit_type_accepted(
     ],
 )
 def test_github_search_live_state_spelling_honored(
-    live_repo_root: Path, state_token: str, indicator: str
+    live_search: Callable[..., str], state_token: str, indicator: str
 ) -> None:
     """Live: every spelling the suppression regex trusts really filters state.
 
@@ -505,7 +514,7 @@ def test_github_search_live_state_spelling_honored(
     the failure mode issue #254 is about. A mocked test can only prove we sent
     the token, never that GitHub honored it.
     """
-    result = _live_search_or_skip(f"is:issue {state_token}")
+    result = _live_search_or_skip(live_search, f"is:issue {state_token}")
 
     assert not result.startswith("Error:"), result
 

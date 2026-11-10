@@ -76,6 +76,26 @@ def test_git_group_spec(tmp_path: Path) -> None:
     assert inspect.iscoroutinefunction(specs["git"].fn)
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "github_issue_view",
+        "github_issue_list",
+        "github_pr_view",
+        "github_search",
+        "github_label_list",
+        "github_subissue_list",
+    ],
+)
+def test_github_read_group_specs(tmp_path: Path, name: str) -> None:
+    """The read-only workspace.github tools are exported as read-only specs."""
+    specs = {s.name: s for s in tool_specs(tmp_path)}
+
+    assert name in specs
+    assert specs[name].group == "workspace.github"
+    assert specs[name].read_only is True
+
+
 def test_edit_file_spec_is_async(tmp_path: Path) -> None:
     """edit_file stays a coroutine function."""
     specs = {s.name: s for s in tool_specs(tmp_path)}
