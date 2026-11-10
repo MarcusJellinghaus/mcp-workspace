@@ -102,6 +102,7 @@ def test_read_and_write_tools_work_on_temp_project(tmp_path: Path) -> None:
     "tool, kwargs",
     [
         ("read_file", {"file_path": "../outside.txt"}),
+        ("list_directory", {"path": ".."}),
         ("save_file", {"file_path": "../outside.txt", "content": "changed"}),
         ("save_file", {"file_path": "../new.txt", "content": "changed"}),
         ("append_file", {"file_path": "../outside.txt", "content": "changed"}),
