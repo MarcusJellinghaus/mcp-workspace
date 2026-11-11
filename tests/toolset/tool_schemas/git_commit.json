@@ -1,0 +1,29 @@
+{
+  "properties": {
+    "all": {
+      "default": false,
+      "type": "boolean"
+    },
+    "message": {
+      "type": "string"
+    },
+    "paths": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "message"
+  ],
+  "type": "object"
+}

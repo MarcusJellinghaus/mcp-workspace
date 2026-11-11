@@ -21,9 +21,20 @@ from mcp_workspace.git_operations.branches import (
     delete_local_branch_force,
     switch_branch,
 )
-from mcp_workspace.git_operations.core import GIT_SHORT_HASH_LENGTH, GitResult
+from mcp_workspace.git_operations.commits import commit_paths, committed_files
+from mcp_workspace.git_operations.core import (
+    GIT_SHORT_HASH_LENGTH,
+    CommitResult,
+    GitResult,
+)
 from mcp_workspace.git_operations.rebase import operation_in_progress
-from mcp_workspace.git_operations.remotes import remote_head_sha
+from mcp_workspace.git_operations.remotes import format_dirty_tree, remote_head_sha
+from mcp_workspace.git_operations.staging import (
+    list_untracked_paths,
+    stage_paths,
+    unstage_paths,
+)
+from mcp_workspace.git_operations.workflows import commit_all_changes
 from mcp_workspace.toolset._context import WorkspaceContext
 from mcp_workspace.toolset._github_common import pr_manager
 from mcp_workspace.utils.url_credentials import scrub_credentials
@@ -268,3 +279,133 @@ def do_git_branch_delete(ctx: WorkspaceContext, name: str) -> str:
         line, or ``Error: <reason>``.
     """
     return run_tool(lambda: _git_branch_delete(ctx, name))
+
+
+_MAX_COMMITTED_FILES = 50
+
+
+def format_commit_result(commit_hash: str, branch: str, files: list[str]) -> str:
+    """Render a created commit with its file list.
+
+    Args:
+        commit_hash: Short SHA of the commit.
+        branch: Branch the commit was made on.
+        files: Paths changed by the commit.
+
+    Returns:
+        ``Committed <sha7> on <branch> (<n> files)`` followed by one indented
+        line per file, capped at ``_MAX_COMMITTED_FILES``.
+    """
+    count = len(files)
+    lines = [f"Committed {commit_hash} on {branch} ({count} file{'s' * (count != 1)})"]
+    lines += [f"  {path}" for path in files[:_MAX_COMMITTED_FILES]]
+    if count > _MAX_COMMITTED_FILES:
+        lines.append(f"  ... showing {_MAX_COMMITTED_FILES} of {count} files")
+    return "\n".join(lines)
+
+
+def _commit_given_paths(
+    project_dir: Path, message: str, paths: list[str]
+) -> CommitResult | str:
+    """Stage the untracked files under ``paths`` and commit exactly ``paths``.
+
+    On failure the files staged here are unstaged again; they had no prior
+    index state, so nothing the user staged is touched.
+
+    Returns:
+        The ``commit_paths`` result, or an error string when staging failed.
+    """
+    given = [Path(p) for p in paths]
+    staged = [Path(p) for p in list_untracked_paths(given, project_dir)]
+    staging = stage_paths(staged, project_dir)
+    if not staging["success"]:
+        # A failing chunk leaves earlier chunks staged
+        unstage_paths(staged, project_dir)
+        return failure(staging)
+
+    result = commit_paths(message, given, project_dir)
+    if not result["success"] and staged:
+        unstage_paths(staged, project_dir)
+    return result
+
+
+def _render_commit(
+    project_dir: Path, result: CommitResult, branch: str, paths: list[str] | None
+) -> str:
+    """Render a commit attempt of ``commit_paths`` or ``commit_all_changes``.
+
+    Args:
+        project_dir: Repository the commit ran in.
+        result: The commit result.
+        branch: Branch the commit was made on.
+        paths: Paths given to ``commit_paths``; None for ``all=True``.
+
+    Returns:
+        The tool result; every outcome ends with the remaining changes.
+    """
+    if result["error_category"] == "nothing_to_commit":
+        # Name the paths so a mistyped or missing one is visible
+        given = f" for paths: {', '.join(paths)}" if paths else ""
+        return f"Nothing to commit{given}" + format_dirty_tree(project_dir)
+    if (result["success"] and result["commit_hash"] is None) or (
+        result["error"] == "No staged files to commit"
+    ):
+        return "Nothing to commit" + format_dirty_tree(project_dir)
+    if not result["success"]:
+        return scrub_credentials(f"Error: {result['error']}")
+    files = committed_files(project_dir)
+    return format_commit_result(
+        result["commit_hash"] or "HEAD", branch, files
+    ) + format_dirty_tree(project_dir)
+
+
+def _git_commit(
+    project_dir: Path, message: str, paths: list[str] | None, commit_all: bool
+) -> str:
+    """Body of the git_commit tool; see ``do_git_commit``.
+
+    Returns:
+        The tool result.
+    """
+    if bool(paths) == commit_all:
+        return "Error: pass exactly one of paths or all=True"
+    if not message.strip():
+        # Checked here: commit_all_changes would stage everything first
+        return "Error: commit message is empty"
+    error = guard_operation(project_dir)
+    if error:
+        return error
+    branch = get_current_branch_name(project_dir)
+    if branch is None:
+        return "Error: HEAD is detached; switch to a branch first"
+
+    result: CommitResult | str
+    if commit_all:
+        result = commit_all_changes(message, project_dir)
+    else:
+        result = _commit_given_paths(project_dir, message, paths or [])
+    if isinstance(result, str):
+        return result
+    return _render_commit(project_dir, result, branch, paths)
+
+
+def do_git_commit(
+    ctx: WorkspaceContext, message: str, paths: list[str] | None, commit_all: bool
+) -> str:
+    """Commit exactly ``paths``, or every change with ``commit_all``.
+
+    ``paths`` may name directories; untracked files under them are included.
+    ``commit_all`` is ``git add -A`` plus a commit. Hooks run; no amend.
+
+    Args:
+        ctx: Context holding the workspace directory.
+        message: Commit message.
+        paths: Files or directories to commit; an empty list counts as none.
+        commit_all: Commit every change instead of ``paths``.
+
+    Returns:
+        ``Committed <sha7> on <branch> (<n> files)`` with the file list and the
+        remaining working-tree changes, ``Nothing to commit ...`` or
+        ``Error: <reason>``.
+    """
+    return run_tool(lambda: _git_commit(ctx.project_dir, message, paths, commit_all))

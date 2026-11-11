@@ -89,5 +89,49 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
         async with ctx.git_write_lock:
             return await asyncio.to_thread(helpers.do_git_branch_delete, ctx, name)
 
+    @log_function_call
+    async def git_commit(
+        message: Annotated[str, Field(description="Commit message.")],
+        paths: Annotated[
+            list[str] | None,
+            Field(
+                description=(
+                    "Files or directories to commit, relative to the project "
+                    "root; new files under a directory are included. Only these "
+                    "paths are committed: other staged changes stay staged."
+                )
+            ),
+        ] = None,
+        all: Annotated[  # pylint: disable=redefined-builtin
+            bool,
+            Field(
+                description=(
+                    "Commit every change (git add -A). Respects .gitignore, but "
+                    "picks up any untracked file, e.g. .scratch/."
+                )
+            ),
+        ] = False,
+    ) -> str:
+        """Commit the given paths, or all changes (modifies the repository).
+
+        Pass exactly one of `paths` or `all=True`. No amend and no hook
+        bypass: a failing pre-commit hook fails the commit. Check the reported
+        file list. Refused on a detached HEAD or while a rebase or merge is in
+        progress.
+
+        Returns:
+            "Committed <sha7> on <branch> (<n> files)" with the committed files
+            and the remaining working-tree changes, "Nothing to commit", or
+            "Error: <reason>".
+        """
+        # Lazy import: keeps GitPython off the server startup import path
+        from mcp_workspace.toolset import _git_write_helpers as helpers
+
+        async with ctx.git_write_lock:
+            return await asyncio.to_thread(
+                helpers.do_git_commit, ctx, message, paths, all
+            )
+
     sink.add(tool_spec(git_branch, group="workspace.git", read_only=False))
     sink.add(tool_spec(git_branch_delete, group="workspace.git", read_only=False))
+    sink.add(tool_spec(git_commit, group="workspace.git", read_only=False))
