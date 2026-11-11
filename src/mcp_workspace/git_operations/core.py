@@ -100,6 +100,16 @@ class BranchProbe(GitResult):
     exists: bool | None
 
 
+class RemoteHeadResult(GitResult):
+    """Result of asking origin for one branch's tip.
+
+    ``sha`` is the full SHA, or None when origin has no such branch or could
+    not answer; ``success`` tells the two apart.
+    """
+
+    sha: str | None
+
+
 class RemoteBranchesResult(GitResult):
     """Result of listing the heads on origin.
 

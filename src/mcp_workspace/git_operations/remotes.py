@@ -18,6 +18,8 @@ from .core import (
     BranchProbe,
     GitResult,
     RemoteBranchesResult,
+    RemoteHeadResult,
+    is_option_like,
     logger,
     run_git_raw,
     safe_repo_context,
@@ -462,6 +464,53 @@ def probe_origin_branch(project_dir: Path, branch: str) -> BranchProbe:
         "stderr": stderr,
         "exists": bool(stdout.strip()),
     }
+
+
+def remote_head_sha(project_dir: Path, branch: str) -> RemoteHeadResult:
+    """Ask origin (git ls-remote, no fetch) for the tip of ``refs/heads/<branch>``.
+
+    Runs through ``run_git_timed``, so a dead remote cannot hang the call. Only
+    the exact ref counts: ``x`` does not match ``team/x``.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+        branch: Branch name to look up (without 'origin/' prefix)
+
+    Returns:
+        RemoteHeadResult; ``sha`` is None with ``success`` True when origin has
+        no such branch, and None with ``success`` False when origin couldn't
+        answer. A blank or option-like branch name is an error result with
+        ``returncode`` and ``stderr`` None.
+    """
+    logger.debug("Looking up origin tip of '%s' in %s", branch, project_dir)
+
+    if not branch.strip() or is_option_like(branch):
+        return {
+            "success": False,
+            "error": "Invalid branch name",
+            "returncode": None,
+            "stderr": None,
+            "sha": None,
+        }
+
+    ref = f"refs/heads/{branch}"
+    out = run_git_timed(project_dir, "ls-remote", "--heads", "origin", ref)
+    result: RemoteHeadResult = {
+        "success": out["success"],
+        "error": out["error"],
+        "returncode": out["returncode"],
+        "stderr": out["stderr"],
+        "sha": None,
+    }
+    if not out["success"]:
+        return result
+
+    for line in out["stdout"].splitlines():
+        sha, _, line_ref = line.partition("\t")
+        if line_ref == ref:
+            result["sha"] = sha
+            break
+    return result
 
 
 def list_remote_branches(project_dir: Path) -> RemoteBranchesResult:
