@@ -23,9 +23,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: `get_eol_attribute` in `git_operations` — [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: tests (`test_eol_attribute.py`, export count 70 → 71) + `get_eol_attribute` in `file_tracking.py`, exported from `__init__.py`
-- [ ] Quality checks (pylint, pytest `-n auto`, mypy, lint-imports, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (`test_eol_attribute.py`, export count 70 → 71) + `get_eol_attribute` in `file_tracking.py`, exported from `__init__.py`
+- [x] Quality checks (pylint, pytest `-n auto`, mypy, lint-imports, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `file_tools/line_endings.py` — [step_2.md](./steps/step_2.md)
 
