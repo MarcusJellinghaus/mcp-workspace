@@ -82,9 +82,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 13: Tool `git_push_force` — [step_13.md](./steps/step_13.md)
-- [ ] Implementation: tests + `git_push_force` closure, `EXPECTED`/`ASYNC_TOOLS`, `git_push_force.json` snapshot
-- [ ] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests + `git_push_force` closure, `EXPECTED`/`ASYNC_TOOLS`, `git_push_force.json` snapshot
+- [x] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
+- [x] Commit message prepared
 
 ### Step 14: Docs — README, LIBRARY_USE, ARCHITECTURE, SECURITY — [step_14.md](./steps/step_14.md)
 - [ ] Implementation: README tool rows, `docs/LIBRARY_USE.md`, `docs/ARCHITECTURE.md`, `SECURITY.md`

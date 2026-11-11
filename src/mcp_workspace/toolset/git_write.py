@@ -150,7 +150,29 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
         async with ctx.git_write_lock:
             return await asyncio.to_thread(helpers.do_git_push, ctx)
 
+    @log_function_call
+    async def git_push_force() -> str:
+        """Force-push the current branch after a simple rebase (modifies the remote).
+
+        Always `git push -u --force-with-lease --force-if-includes origin` for
+        the current branch only, never plain `--force`. Refused on a detached
+        HEAD, on the default branch, on git older than 2.30, when someone else
+        moved the remote branch since it was last fetched into this clone, and
+        in a fresh clone whose origin/<branch> has no reflog. For any other
+        force push use Bash (manual approval). Takes no arguments.
+
+        Returns:
+            "Force-pushed <branch> to origin (lease ok)" followed by git's push
+            output, or "Error: <reason>".
+        """
+        # Lazy import: keeps GitPython off the server startup import path
+        from mcp_workspace.toolset import _git_write_helpers as helpers
+
+        async with ctx.git_write_lock:
+            return await asyncio.to_thread(helpers.do_git_push, ctx, True)
+
     sink.add(tool_spec(git_branch, group="workspace.git", read_only=False))
     sink.add(tool_spec(git_branch_delete, group="workspace.git", read_only=False))
     sink.add(tool_spec(git_commit, group="workspace.git", read_only=False))
     sink.add(tool_spec(git_push, group="workspace.git", read_only=False))
+    sink.add(tool_spec(git_push_force, group="workspace.git", read_only=False))
