@@ -41,9 +41,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 4: Conformance test against `git check-ignore` — [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: precondition probe (git binary), `tests/file_tools/test_gitignore_conformance.py` with scenarios 01–25, worktree and submodule `info/exclude` tests; small local fix in `directory_utils.py` only if a scenario requires it
-- [ ] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: precondition probe (git binary), `tests/file_tools/test_gitignore_conformance.py` with scenarios 01–25, worktree and submodule `info/exclude` tests; small local fix in `directory_utils.py` only if a scenario requires it
+- [x] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 5: Documentation and release notes — [step_5.md](./steps/step_5.md)
 
