@@ -319,6 +319,19 @@ class TestIssueViewBodyFile:
         assert result == "Error: boom"
         assert _files(project_dir) == before
 
+    def test_write_error_returns_only_error(
+        self, manager_cls: MagicMock, tools: ToolMap
+    ) -> None:
+        """A failed write returns the tool error and no partial view."""
+        with patch(
+            "mcp_workspace.toolset.github_read.save_body",
+            side_effect=OSError("Permission denied"),
+        ):
+            result = tools["github_issue_view"](number=42, body_file=TARGET)
+
+        assert result == "Error: Permission denied"
+        manager_cls.return_value.get_issue.assert_called_once_with(42)
+
     def test_without_body_file_unchanged(
         self, manager_cls: MagicMock, tools: ToolMap
     ) -> None:
