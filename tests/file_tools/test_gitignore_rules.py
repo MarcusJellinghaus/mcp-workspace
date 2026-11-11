@@ -118,6 +118,15 @@ def test_git_file_without_gitdir_line(tmp_path: Path) -> None:
     assert is_path_gitignored("a.bak", tmp_path) is False
 
 
+def test_git_file_not_utf8(tmp_path: Path) -> None:
+    """A .git file that is not valid UTF-8 contributes no rules."""
+    _write(tmp_path / ".gitignore", "*.log\n")
+    (tmp_path / ".git").write_bytes(b"gitdir: \xff\xfe\n")
+
+    assert is_path_gitignored("a.bak", tmp_path) is False
+    assert is_path_gitignored("a.log", tmp_path) is True
+
+
 def test_nothing_outside_project_dir_is_read(tmp_path: Path) -> None:
     """Rules above project_dir are not read, and a path leaving it is not ignored."""
     _write(tmp_path / ".gitignore", "*.log\n")

@@ -45,7 +45,7 @@ def _info_exclude_path(project_dir: Path) -> Path | None:
     if git.is_file():
         try:
             lines = git.read_text(encoding="utf-8").splitlines()
-        except OSError as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.warning("Error reading %s: %s", git, e)
             return None
         gitdirs = [line for line in lines if line.startswith("gitdir:")]
@@ -58,7 +58,7 @@ def _info_exclude_path(project_dir: Path) -> Path | None:
     if commondir.is_file():
         try:
             git = git / commondir.read_text(encoding="utf-8").strip()
-        except OSError as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.warning("Error reading %s: %s", commondir, e)
             return None
     return git / "info" / "exclude"
