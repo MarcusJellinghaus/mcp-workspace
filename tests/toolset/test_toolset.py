@@ -31,6 +31,7 @@ EXPECTED: dict[str, tuple[str, bool]] = {
     "list_reference_directory": ("workspace.reference", True),
     "search_reference_files": ("workspace.reference", True),
     "git": ("workspace.git", True),
+    "git_branch": ("workspace.git", False),
     "github_issue_view": ("workspace.github", True),
     "github_issue_list": ("workspace.github", True),
     "github_pr_view": ("workspace.github", True),
@@ -54,6 +55,7 @@ EXPECTED: dict[str, tuple[str, bool]] = {
 ASYNC_TOOLS = {
     "edit_file",
     "git",
+    "git_branch",
     "check_branch_status",
     "read_reference_file",
     "list_reference_directory",

@@ -62,9 +62,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 9: Tool `git_branch` (+ `git_write.py`, helpers module, lock) — [step_9.md](./steps/step_9.md)
-- [ ] Implementation: tests + `git_write_lock`, `toolset/git_write.py`, `toolset/_git_write_helpers.py` (`do_git_branch`, guards, `run_tool`), registration, `EXPECTED`/`ASYNC_TOOLS`, `git_branch.json` snapshot
-- [ ] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests + `git_write_lock`, `toolset/git_write.py`, `toolset/_git_write_helpers.py` (`do_git_branch`, guards, `run_tool`), registration, `EXPECTED`/`ASYNC_TOOLS`, `git_branch.json` snapshot
+- [x] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
+- [x] Commit message prepared
 
 ### Step 10: Tool `git_branch_delete` — [step_10.md](./steps/step_10.md)
 - [ ] Implementation: tests + `git_branch_delete` closure, `do_git_branch_delete`, `tip_on_github`, `EXPECTED`/`ASYNC_TOOLS`, `git_branch_delete.json` snapshot
