@@ -59,9 +59,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 7: `check_body_target` / `save_body` helpers — [step_7.md](./steps/step_7.md)
 
-- [ ] Implementation: tests (`test_github_issue_view_body_file.py`) + `check_body_target` and `save_body` in `_github_write_helpers.py`
-- [ ] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (`test_github_issue_view_body_file.py`) + `check_body_target` and `save_body` in `_github_write_helpers.py`
+- [x] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 8: `github_issue_view(body_file=…)` with round-trip tests — [step_8.md](./steps/step_8.md)
 
