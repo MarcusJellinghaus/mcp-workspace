@@ -136,6 +136,9 @@ The rule is enforced at two sources, not per call site:
 
 - `directory_utils._discover_files` — every listing and search tool
   (`list_directory`, `search_files`, and their reference-project variants).
+  It takes an optional `skip` callback, called for every entry; `list_files`
+  uses it to drop gitignored entries and prune gitignored directories during
+  the walk.
 - `path_utils.normalize_path` — the relative path returned alongside the
   absolute one.
 

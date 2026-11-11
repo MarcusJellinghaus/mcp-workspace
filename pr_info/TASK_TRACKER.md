@@ -47,9 +47,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 5: Documentation and release notes — [step_5.md](./steps/step_5.md)
 
-- [ ] Implementation: `README.md`, `SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/processes-prompts/refactoring-guide.md`, `check_file_size` description in `toolset/checks.py`, `docs/release-notes.md`; leftover search
-- [ ] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `README.md`, `SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/processes-prompts/refactoring-guide.md`, `check_file_size` description in `toolset/checks.py`, `docs/release-notes.md`; leftover search
+- [x] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 
