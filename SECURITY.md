@@ -18,7 +18,7 @@ Only the latest release on PyPI receives security fixes.
 
 `mcp-workspace` is a local MCP server. It runs over stdio under the user's account, with that account's file permissions and the configured GitHub token. It does not authenticate its client, normally an LLM agent, and carries out any request the restrictions below allow.
 
-Treat the agent as influenceable. Issue bodies, PR comments, file content and git output can all carry prompt injection written by someone else. An agent that follows such text can do whatever the tools permit: change or delete project files, and write to GitHub with the token.
+Treat the agent as influenceable. Issue bodies, PR comments, file content and git output can all carry prompt injection written by someone else. An agent that follows such text can do whatever the tools permit: change or delete project files, create and switch branches, commit, push and force-push with the user's git credentials, and write to GitHub with the token.
 
 ## Intended Restrictions
 
@@ -39,6 +39,15 @@ File tools:
 - `fetch` and `ls_remote` accept only configured remote names, not URLs or paths. `fetch` refspecs cannot name a destination or force an update, and shallow-history flags are refused, so a fetch updates only remote-tracking refs, tags and `FETCH_HEAD`.
 - `branch` only lists: a name is accepted only with a flag that puts git in list mode.
 
+Git write tools (`git_branch`, `git_branch_delete`, `git_commit`, `git_push`, `git_push_force`):
+
+- They act on the workspace repository only, never on reference projects.
+- They never fetch.
+- Pushes go only to `origin`, only for the current branch, with a full `refs/heads/<branch>:refs/heads/<branch>` refspec. Pushes refuse the default branch and a detached HEAD.
+- `git_push_force` uses only `--force-with-lease --force-if-includes`, never plain `--force`.
+- `git_branch_delete` deletes only a local branch whose tip is on GitHub, never the current or default branch, and never deletes a remote branch.
+- No tool amends a commit, passes `--no-verify`, or runs `reset`, `clean` or a checkout of paths.
+
 GitHub tools:
 
 - `github_issue_view` fences text from untrusted authors in `<untrusted>` tags, and issue list and search tools mark their rows. These are labels for the agent, not enforcement. File content and git output carry no such label.
@@ -53,7 +62,7 @@ The GitHub token comes from the `GITHUB_TOKEN` environment variable, otherwise f
 
 The API host comes from the repository's `origin` remote. The token is sent only to `github.com`, `*.ghe.com` and hosts listed in `[github] enterprise_hosts`.
 
-Credentials embedded in remote URLs (`https://user:token@host/...`) are removed from `get_reference_projects`, `git fetch` and `ls_remote` output, and from error messages.
+Credentials embedded in remote URLs (`https://user:token@host/...`) are removed from `get_reference_projects`, `git fetch`, `ls_remote`, `git_push`/`git_push_force` and `git_branch_delete`'s `ls-remote` output, and from error messages.
 
 ## Scope
 
@@ -62,6 +71,7 @@ In scope are bypasses of the restrictions above, such as:
 - reading or writing outside the project or reference project with any tool
 - file tools reaching `.git` or the content of gitignored paths
 - the `git` tool changing anything beyond what `fetch` updates
+- a git write tool bypassing its listed refusals
 - getting untrusted text shown to the agent as trusted
 - changing an issue's status label through any tool other than `github_issue_set_status`, or promoting an issue without being trusted
 - credential handling

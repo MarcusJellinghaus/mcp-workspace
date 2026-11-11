@@ -87,9 +87,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 14: Docs — README, LIBRARY_USE, ARCHITECTURE, SECURITY — [step_14.md](./steps/step_14.md)
-- [ ] Implementation: README tool rows, `docs/LIBRARY_USE.md`, `docs/ARCHITECTURE.md`, `SECURITY.md`
-- [ ] Quality checks (pytest, file sizes < 750 lines) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: README tool rows, `docs/LIBRARY_USE.md`, `docs/ARCHITECTURE.md`, `SECURITY.md`
+- [x] Quality checks (pytest, file sizes < 750 lines) — fix all issues
+- [x] Commit message prepared
 
 ### Step 15: LLM_Test section, Claude settings and CLAUDE.md — [step_15.md](./steps/step_15.md)
 - [ ] Implementation: `tests/LLM_Test.md` Section 5, `.claude/settings.local.json` allowlist, `.claude/CLAUDE.md` tool table / Bash git list

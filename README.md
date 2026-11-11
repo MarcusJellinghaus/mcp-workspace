@@ -404,6 +404,11 @@ The server exposes the following MCP tools:
 | `github_pr_create` | Creates a GitHub pull request; the body can come from a project file (`body_file`) | "Open a PR for this branch" |
 | `search_reference_files` | Searches file contents or finds files in a reference project | "Find where the docs project configures logging" |
 | `git` | Runs a read-only git command (log, diff, status, show, branch, ...) | "Show the last five commits" |
+| `git_branch` | Switches to a branch, or creates one from HEAD or a local/`origin/` base; never fetches (modifies the repository) | "Create branch 42-fix-login from main" |
+| `git_branch_delete` | Force-deletes a local branch only if its tip is on GitHub; never the current or default branch, never the remote branch (modifies the repository) | "Delete the merged branch 42-fix-login" |
+| `git_commit` | Commits the given paths or all changes; no amend, no hook bypass (modifies the repository) | "Commit my changes to src/" |
+| `git_push` | Pushes the current branch to `origin` with `-u`; refused on the default branch (modifies the remote) | "Push this branch" |
+| `git_push_force` | Force-pushes the current branch with `--force-with-lease --force-if-includes` after a rebase; refused on the default branch (modifies the remote) | "Force-push the rebased branch" |
 | `check_file_size` | Reports files whose line count exceeds a threshold; `show_allowlisted=True` lists allowlisted files with their sizes | "Which files in this project are too long?" |
 
 ### Tool Details
