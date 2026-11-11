@@ -190,8 +190,17 @@ def check_path_not_gitignored(file_path: str, project_dir: Path) -> None:
         )
 
 
-def _discover_files(directory: Path, project_dir: Path) -> list[str]:
+def _discover_files(
+    directory: Path, project_dir: Path, skip: Callable[[Path], bool] | None = None
+) -> list[str]:
     """Discover all files recursively, excluding the .git directory.
+
+    Args:
+        directory: Absolute directory to walk.
+        project_dir: Project root directory.
+        skip: Optional predicate called with the absolute path of every
+            subdirectory and file; a skipped directory is never entered and a
+            skipped file is not returned.
 
     Returns:
         List of file paths relative to project_dir, forward-slash separated
@@ -201,10 +210,15 @@ def _discover_files(directory: Path, project_dir: Path) -> list[str]:
     discovered_files = []
 
     for root, dirs, files in os.walk(directory):
-        # Skip .git directories
-        dirs[:] = [d for d in dirs if not is_path_in_git_dir(d)]
-
         root_path = Path(root)
+
+        # Skip .git directories
+        dirs[:] = [
+            d
+            for d in dirs
+            if not is_path_in_git_dir(d) and not (skip and skip(root_path / d))
+        ]
+
         try:
             rel_root = root_path.relative_to(project_dir)
         except ValueError:
@@ -214,124 +228,52 @@ def _discover_files(directory: Path, project_dir: Path) -> list[str]:
             # A .git file marks a worktree or submodule
             if is_path_in_git_dir(file):
                 continue
+            if skip and skip(root_path / file):
+                continue
             rel_file_path = rel_root.joinpath(file).as_posix()
             discovered_files.append(rel_file_path)
 
     return discovered_files
 
 
-def read_gitignore_rules(
-    gitignore_path: Path,
-) -> Callable[[str], bool] | None:
-    """Read and parse a .gitignore file to create a matcher function.
+def _gitignore_skip(start: Path, project_dir: Path) -> Callable[[Path], bool]:
+    """Build a skip predicate for a top-down walk from start.
+
+    Each directory's rules are its parent's rules plus its own .gitignore. A
+    directory without a .gitignore shares its parent's parser; one with a
+    .gitignore gets a copy, so siblings never share rules.
 
     Args:
-        gitignore_path: Path to the .gitignore file
+        start: Absolute directory the walk starts at, not itself ignored.
+        project_dir: Project root directory.
 
     Returns:
-        A matcher function, or None if the file doesn't exist or cannot be parsed
+        A predicate that is True for an entry the rules ignore, or for a
+        symlink that points into an ignored location.
     """
-    if not gitignore_path.is_file():
-        logger.debug("No .gitignore file found at %s", gitignore_path)
-        return None
+    parsers = {start: _rules_for(start, project_dir)}
 
-    try:
-        parser = IgnoreParser()
-        parser.parse_rule_file(gitignore_path)
-        logger.debug(
-            "Loaded .gitignore at %s (%s rules)", gitignore_path, len(parser.rules)
+    def parser_for(directory: Path) -> IgnoreParser:
+        # The walk is top-down, so the parent is already known
+        if directory not in parsers:
+            parent = parser_for(directory.parent)
+            parsers[directory] = parent
+            gitignore = directory / ".gitignore"
+            if gitignore.is_file():
+                parser = IgnoreParser()
+                parser.rules = list(parent.rules)
+                _load_rule_file(parser, gitignore, directory)
+                parsers[directory] = parser
+        return parsers[directory]
+
+    def skip(path: Path) -> bool:
+        if parser_for(path.parent).match(path):
+            return True
+        return path.is_symlink() and is_path_gitignored(
+            path.relative_to(project_dir).as_posix(), project_dir
         )
 
-        def matcher(path: str) -> bool:
-            return bool(parser.match(path))
-
-        return matcher
-
-    except Exception as e:
-        logger.warning("Error reading/parsing gitignore: %s", str(e))
-        return None
-
-
-def _link_target_ignored(
-    path: Path, matcher: Callable[[str], bool], project_dir: Path
-) -> bool:
-    """Check whether a path is a symlink to a location the matcher ignores.
-
-    Returns:
-        True for a symlink whose target inside the project is ignored.
-    """
-    if not path.is_symlink():
-        return False
-    target = _resolved_relative(path, project_dir)
-    return target is not None and bool(matcher(str(project_dir / target)))
-
-
-def apply_gitignore_filter(
-    file_paths: list[str], matcher: Callable[[str], bool] | None, project_dir: Path
-) -> list[str]:
-    """Filter a list of file paths using a gitignore matcher function.
-
-    Args:
-        file_paths: List of file paths to filter
-        matcher: Function that takes a path and returns True if it should be ignored
-        project_dir: Base directory for resolving relative paths to absolute
-
-    Returns:
-        Filtered list of file paths that are not ignored
-
-    Raises:
-        ValueError: If project_dir is None
-    """
-    if matcher is None:
-        return file_paths
-
-    filtered_files = []
-
-    # Validate project_dir parameter
-    if project_dir is None:
-        raise ValueError("Project directory cannot be None")
-
-    for file_path in file_paths:
-        # Convert to absolute path for the matcher
-        abs_file_path = str(project_dir / file_path)
-
-        # The matcher returns True if the file should be ignored
-        if not matcher(abs_file_path) and not _link_target_ignored(
-            project_dir / file_path, matcher, project_dir
-        ):
-            filtered_files.append(file_path)
-
-    logger.info(
-        "Applied gitignore filtering: %s files found, %s after filtering",
-        len(file_paths),
-        len(filtered_files),
-    )
-    return filtered_files
-
-
-def filter_with_gitignore(
-    file_paths: list[str], base_dir: Path, project_dir: Path
-) -> list[str]:
-    """Filter a list of file paths using .gitignore rules.
-
-    Args:
-        file_paths: List of file paths to filter
-        base_dir: Directory containing the .gitignore file
-        project_dir: Project directory path
-
-    Returns:
-        List of file paths that are not ignored
-    """
-    gitignore_path = base_dir / ".gitignore"
-
-    # Get the matcher function from the gitignore file
-    matcher = read_gitignore_rules(gitignore_path)
-
-    if matcher is None:
-        return file_paths
-
-    # Use the matcher for more complex gitignore patterns
-    return apply_gitignore_filter(file_paths, matcher, project_dir)
+    return skip
 
 
 def list_files(
@@ -365,14 +307,16 @@ def list_files(
         raise NotADirectoryError(f"Path '{directory}' is not a directory")
 
     try:
-        all_files = _discover_files(abs_path, project_dir)
-        logger.info("Discovered %s files in %s", len(all_files), rel_path)
-
         if not use_gitignore:
-            return all_files
-
-        # Apply gitignore filtering
-        return filter_with_gitignore(all_files, abs_path, project_dir)
+            files = _discover_files(abs_path, project_dir)
+        elif is_path_gitignored(rel_path, project_dir):
+            files = []
+        else:
+            files = _discover_files(
+                abs_path, project_dir, _gitignore_skip(abs_path, project_dir)
+            )
+        logger.debug("Discovered %s files in %s", len(files), rel_path)
+        return files
 
     except Exception as e:
         logger.error("Error listing files in directory %s: %s", rel_path, str(e))

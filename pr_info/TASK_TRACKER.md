@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: `list_files` walk with `skip` callback; delete old helpers — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: listing tests in `test_gitignore_rules.py`, update `test_directory_utils.py`, then `_discover_files(skip=...)`, `_gitignore_skip`, new `list_files`, delete `read_gitignore_rules` / `_link_target_ignored` / `apply_gitignore_filter` / `filter_with_gitignore`
-- [ ] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: listing tests in `test_gitignore_rules.py`, update `test_directory_utils.py`, then `_discover_files(skip=...)`, `_gitignore_skip`, new `list_files`, delete `read_gitignore_rules` / `_link_target_ignored` / `apply_gitignore_filter` / `filter_with_gitignore`
+- [x] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: `list_directory` refuses ignored directories — [step_3.md](./steps/step_3.md)
 

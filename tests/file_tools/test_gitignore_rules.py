@@ -9,7 +9,11 @@ from unittest.mock import patch
 import pytest
 from igittigitt import IgnoreParser
 
-from mcp_workspace.file_tools.directory_utils import _rules_for, is_path_gitignored
+from mcp_workspace.file_tools.directory_utils import (
+    _rules_for,
+    is_path_gitignored,
+    list_files,
+)
 
 MODULE_LOGGER = "mcp_workspace.file_tools.directory_utils"
 
@@ -163,6 +167,8 @@ def test_rule_loading_logs_nothing_above_debug(
         _write(tmp_path / "sub" / ".gitignore", "*.tmp\n")
         _rules_for(tmp_path / "sub", tmp_path)  # every rule file present
         is_path_gitignored("sub/a.log", tmp_path)
+        list_files(".", tmp_path)
+        list_files("sub", tmp_path)
 
     assert [r for r in caplog.records if r.name == MODULE_LOGGER] == []
 
@@ -172,3 +178,83 @@ def test_project_root_is_never_ignored(tmp_path: Path) -> None:
     _write(tmp_path / ".gitignore", "*\n")
 
     assert is_path_gitignored(".", tmp_path) is False
+
+
+def test_listing_omits_ignored_names_in_every_directory(tmp_path: Path) -> None:
+    """Root rules apply to listings of the root and of subdirectories (#392)."""
+    _write(tmp_path / ".gitignore", "secret/\n*.env\n")
+    _write(tmp_path / "secret" / "key.txt", "x")
+    _write(tmp_path / "sub" / "a.env", "x")
+    _write(tmp_path / "sub" / "ok.txt", "x")
+
+    files = list_files(".", tmp_path)
+
+    assert "secret/key.txt" not in files
+    assert "sub/a.env" not in files
+    assert "sub/ok.txt" in files
+    assert list_files("secret", tmp_path) == []
+    assert list_files("sub", tmp_path) == ["sub/ok.txt"]
+
+
+def test_listing_applies_nested_gitignore(tmp_path: Path) -> None:
+    """A nested .gitignore hides matching files below its own directory only."""
+    _write(tmp_path / "sub" / ".gitignore", "*.tmp\n")
+    _write(tmp_path / "sub" / "x.tmp", "x")
+    _write(tmp_path / "x.tmp", "x")
+
+    files = list_files(".", tmp_path)
+
+    assert "sub/x.tmp" not in files
+    assert "x.tmp" in files
+
+
+def test_listing_siblings_do_not_share_rules(tmp_path: Path) -> None:
+    """Rules of one directory's .gitignore do not leak into a sibling."""
+    _write(tmp_path / "a" / ".gitignore", "*.txt\n")
+    _write(tmp_path / "a" / "x.txt", "x")
+    _write(tmp_path / "b" / "x.txt", "x")
+
+    files = list_files(".", tmp_path)
+
+    assert "a/x.txt" not in files
+    assert "b/x.txt" in files
+
+
+def test_listing_deeper_negation_reincludes(tmp_path: Path) -> None:
+    """A deeper .gitignore negation re-includes a file the root ignores."""
+    _write(tmp_path / ".gitignore", "*.log\n")
+    _write(tmp_path / "sub" / ".gitignore", "!keep.log\n")
+    _write(tmp_path / "sub" / "keep.log", "x")
+    _write(tmp_path / "sub" / "x.log", "x")
+
+    files = list_files(".", tmp_path)
+
+    assert "sub/keep.log" in files
+    assert "sub/x.log" not in files
+
+
+def test_listing_does_not_read_gitignore_in_ignored_directory(
+    tmp_path: Path,
+) -> None:
+    """The walk prunes an ignored directory without reading its .gitignore."""
+    _write(tmp_path / ".gitignore", "build/\n")
+    _write(tmp_path / "build" / ".gitignore", "!*\n")
+    _write(tmp_path / "build" / "a", "x")
+
+    with _spy_parsed_files() as parsed:
+        files = list_files(".", tmp_path)
+
+    assert "build/a" not in files
+    assert tmp_path / "build" / ".gitignore" not in parsed
+
+
+def test_listing_without_gitignore_lists_everything(tmp_path: Path) -> None:
+    """use_gitignore=False lists every file outside .git, ignored ones included."""
+    _write(tmp_path / ".gitignore", "secret/\n*.env\n")
+    _write(tmp_path / "secret" / "key.txt", "x")
+    _write(tmp_path / "sub" / "a.env", "x")
+    _write(tmp_path / ".git" / "config", "x")
+
+    files = list_files(".", tmp_path, use_gitignore=False)
+
+    assert set(files) == {".gitignore", "secret/key.txt", "sub/a.env"}
