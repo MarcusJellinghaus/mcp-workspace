@@ -53,7 +53,8 @@ fail -> f"Error: {r.error}" + ("\n" + r.stderr.strip() if r.stderr)
 
 ## Tests (write first)
 
-Unit (patch library):
+Unit (patch library functions where `_git_write_helpers.py` imports them, e.g.
+`mcp_workspace.toolset._git_write_helpers.push_current_branch` — not in `mcp_workspace.git_operations.*`):
 - detached HEAD → error; default branch → error; default unknown → error with hint; push not called.
 - push rejected → `Error:` with git's stderr.
 - timeout from the library → `Error: git push timed out after 120 s`.

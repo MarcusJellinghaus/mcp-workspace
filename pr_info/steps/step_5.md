@@ -56,7 +56,7 @@ delete_local_branch_force: run_git_raw(repo, "branch", "-D", name)
 
 ## Tests (write first)
 
-Integration (`git_integration`, bare origin + clone):
+Integration (`git_integration`, `origin_clone` / `make_clone` fixtures from step 2):
 - create from HEAD → on new branch, no upstream.
 - create from `refs/heads/main` → on new branch at main's tip.
 - create from `refs/remotes/origin/main` with `no_track=True` → no upstream configured.

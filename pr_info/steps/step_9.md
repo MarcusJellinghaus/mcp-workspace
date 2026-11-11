@@ -1,4 +1,4 @@
-# Step 9 — Tool `git_branch` (+ `git_write.py`, helpers module, lock, fixture)
+# Step 9 — Tool `git_branch` (+ `git_write.py`, helpers module, lock)
 
 ## LLM prompt
 
@@ -14,7 +14,6 @@
 - New `src/mcp_workspace/toolset/_git_write_helpers.py`: shared guards + `do_git_branch`.
 - `src/mcp_workspace/toolset/__init__.py`: import `git_write`; add `git_write.register` to
   `_GROUPS` right after `git.register`.
-- New `tests/toolset/conftest.py`: fixtures `origin_clone`, `make_clone`.
 - New `tests/toolset/test_git_branch.py`.
 - `tests/toolset/test_toolset.py`: `EXPECTED["git_branch"] = ("workspace.git", False)`; add to `ASYNC_TOOLS`.
 - New `tests/toolset/tool_schemas/git_branch.json`.
@@ -59,6 +58,7 @@ def do_git_branch(ctx: WorkspaceContext, name: str, create: bool, base: str | No
 ## ALGORITHM (`do_git_branch`)
 
 ```
+if base is not None and not create: return "Error: base requires create=True"
 err = guard_name(name, "name") or (base and guard_name(base, "base")) or guard_operation(); if err: return err
 if not create:
     r = switch_branch(project_dir, name); return f"Switched to {name}" if ok else f"Error: {r['error']}\n{r['stderr']}"
@@ -75,19 +75,19 @@ return f"Created {name} from {base or 'HEAD'} ({short(resolve_commit(project_dir
 
 `str`; first line `Switched to <name>` / `Created <name> from <base|HEAD> (<sha7>)` / `Error: ...`.
 
-## Fixtures (`tests/toolset/conftest.py`)
+## Fixtures
 
-- `origin_clone(tmp_path) -> Path`: bare `origin.git` (HEAD → `refs/heads/main`), seeded with one
-  commit on `main` from a seed repo, then `git clone` into `work/`; user name/email set,
-  `commit.gpgsign=false`. Returns the clone dir (has `origin/HEAD`, fresh-clone reflog state).
-- `make_clone(tmp_path) -> Callable[[str], Path]`: makes another configured clone of the same
-  origin under the given dir name.
+Reuse `origin_clone` / `make_clone` from `tests/conftest.py` (introduced in step 2); no new
+fixtures in this step.
 
 ## Tests (write first)
 
-Unit (patch the library functions at their defining module, e.g.
-`mcp_workspace.git_operations.branches.switch_branch`; call via `asyncio.run(spec.fn(...))`):
+Unit (patch the library functions where `_git_write_helpers.py` imports them, e.g.
+`mcp_workspace.toolset._git_write_helpers.switch_branch` — **not** at their defining module
+`mcp_workspace.git_operations.*`, whose patch would not reach the helper's bound name; call via
+`asyncio.run(spec.fn(...))`):
 - invalid `name` (`-x`, `@{-1}`, `a..b`) → `Error: invalid branch name`, no mutation called.
+- `base` given with `create=False` → `Error: base requires create=True`, no git call.
 - invalid `base` → error; `base` not resolvable → error.
 - rebase/merge in progress → error.
 - `create=True` and `origin/<name>` exists → error pointing to `create=False`.

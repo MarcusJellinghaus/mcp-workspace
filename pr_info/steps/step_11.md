@@ -46,7 +46,9 @@ if commit_all: r = commit_all_changes(message, dir); staged = []
 else: staged = list_untracked_paths([Path(p) for p in paths]); s = stage_paths(staged); fail -> Error
       r = commit_paths(message, [Path(p) for p in paths], dir); if not r.success and staged: unstage_paths(staged)
 nothing = (r.success and r.commit_hash is None) or r.error_category == "nothing_to_commit" or r.error == "No staged files to commit"
-nothing -> "Nothing to commit" + format_dirty_tree;  failure -> f"Error: {r.error}"
+nothing -> "Nothing to commit" (+ f" for paths: {', '.join(paths)}" when commit_paths returned
+           nothing_to_commit, so a mistyped / missing path is visible) + format_dirty_tree
+failure -> f"Error: {r.error}"
 files = committed_files(dir) -> format_commit_result(r.commit_hash, branch, files) + format_dirty_tree(dir)
 ```
 
@@ -65,13 +67,15 @@ remaining-changes block is `format_dirty_tree` (already capped per bucket).
 
 ## Tests (write first)
 
-Unit (patch library):
+Unit (patch library functions where `_git_write_helpers.py` imports them, e.g.
+`mcp_workspace.toolset._git_write_helpers.commit_paths` — not in `mcp_workspace.git_operations.*`):
 - neither / both of `paths` and `all` → error, nothing called; `paths=[]` counts as "not given".
 - detached HEAD, rebase/merge in progress → error.
 - commit failure after staging untracked files → `unstage_paths` called with exactly those files.
 - `commit_all_changes` → `success=True, commit_hash=None` → `Nothing to commit`.
 - `commit_all_changes` → "No staged files to commit" → `Nothing to commit`.
-- `commit_paths` → `nothing_to_commit` → `Nothing to commit`.
+- `commit_paths` → `nothing_to_commit` → first line `Nothing to commit for paths: <given paths>`
+  (e.g. a mistyped path appears in the message).
 - committed file list longer than the cap → truncated line.
 
 Integration (`git_integration`, `origin_clone`):

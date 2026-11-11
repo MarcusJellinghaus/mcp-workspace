@@ -58,7 +58,8 @@ none  -> object_missing ? "Error: cannot verify tip <sha7> ... run git fetch fir
 
 ## Tests (write first)
 
-Unit (patch library + `find_merged_pr_by_head_sha` / `pr_manager`):
+Unit (patch library functions and `pr_manager` where `_git_write_helpers.py` imports them, e.g.
+`mcp_workspace.toolset._git_write_helpers.remote_head_sha` — not in `mcp_workspace.git_operations.*`):
 - current branch, default branch, `main`/`master` when default is None → refused, no delete.
 - invalid name → refused.
 - check 1 passes (remote SHA contains tip) → deleted, checks 2/3 not needed.

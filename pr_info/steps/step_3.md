@@ -59,7 +59,7 @@ Unit (patch `mcp_workspace.git_operations.remotes.run_git_timed`):
 - failure / timeout → `success=False`, `sha is None`, error passed through.
 - `"-x"` → validation error, `run_git_timed` not called.
 
-Integration (`git_integration`, bare origin): pushed branch → SHA equals the local tip;
+Integration (`git_integration`, `origin_clone` fixture from step 2): pushed branch → SHA equals the local tip;
 unknown branch → `sha is None`.
 
 ## Commit

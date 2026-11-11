@@ -64,9 +64,12 @@ repeat what each step needs.
 - `git_commit(paths)` stages only the untracked files under `paths`, listed by
   `git ls-files --others --exclude-standard -z -- <paths>`; on a failed commit exactly those
   files are unstaged (they had no prior index state, so nothing the user staged is touched).
-- Tests: a new fixture in `tests/toolset/conftest.py` (bare origin + real `git clone`, plus a
-  factory for further clones) instead of promoting `git_repo_with_remote`. Real clones give
+- Tests: new shared fixtures `origin_clone` / `make_clone` in `tests/conftest.py` (bare origin +
+  real `git clone`, plus a factory for further clones), introduced in step 2 and reused by the
+  library and toolset tests, instead of promoting `git_repo_with_remote`. Real clones give
   `origin/HEAD` (default-branch detection) and the real fresh-clone "no reflog" state.
+- Toolset unit tests patch library names where `_git_write_helpers.py` imports them
+  (`mcp_workspace.toolset._git_write_helpers.<fn>`), not at their defining module.
 - The git ≥ 2.30 version check is kept as the issue specifies (inside `push_current_branch`).
 
 ## Files
@@ -86,7 +89,6 @@ repeat what each step needs.
 | `tests/git_operations/test_stage_paths.py` | step 6 |
 | `tests/git_operations/test_commit_reporting.py` | step 7 |
 | `tests/github_operations/test_pr_manager_merged_by_sha.py` | step 8 |
-| `tests/toolset/conftest.py` | `origin_clone` / `make_clone` fixtures |
 | `tests/toolset/test_git_branch.py` | step 9 |
 | `tests/toolset/test_git_branch_delete.py` | step 10 |
 | `tests/toolset/test_git_commit.py` | step 11 |
@@ -110,6 +112,7 @@ repeat what each step needs.
 | `src/mcp_workspace/toolset/_context.py` | `git_write_lock` field |
 | `src/mcp_workspace/toolset/__init__.py` | import `git_write`, add to `_GROUPS` |
 | `tests/git_operations/test_remotes.py`, `tests/git_operations/test_rebase_probe.py` | follow the two renames (`format_dirty_tree`, `git_version`) |
+| `tests/conftest.py` | `origin_clone` / `make_clone` fixtures (step 2) |
 | `tests/toolset/test_toolset.py` | `EXPECTED`, `ASYNC_TOOLS` |
 | `README.md`, `docs/LIBRARY_USE.md`, `docs/ARCHITECTURE.md`, `SECURITY.md` | docs |
 | `tests/LLM_Test.md` | new local-only mutating section |
@@ -118,14 +121,14 @@ repeat what each step needs.
 ## Steps (one commit each)
 
 1. Subprocess timeout helper (`_subprocess_git.py`, `.importlinter`)
-2. `push_current_branch` (+ public `git_version`, reflog check)
+2. `push_current_branch` (+ public `git_version`, reflog check, shared `origin_clone` / `make_clone` fixtures)
 3. `remote_head_sha`
 4. Guardrail queries (`is_valid_branch_name_strict`, `resolve_base_ref`, `resolve_commit`, `is_ancestor`, `operation_in_progress`)
 5. Branch mutations (`create_and_switch_branch`, `switch_branch`, `delete_local_branch_force`)
 6. Staging (`list_untracked_paths`, `stage_paths`)
 7. Commit reporting (`committed_files`, public `format_dirty_tree`)
 8. `PullRequestManager.find_merged_pr_by_head_sha`
-9. Tool `git_branch` (+ `git_write.py`, helpers module, lock, fixture, registration)
+9. Tool `git_branch` (+ `git_write.py`, helpers module, lock, registration)
 10. Tool `git_branch_delete`
 11. Tool `git_commit`
 12. Tool `git_push`

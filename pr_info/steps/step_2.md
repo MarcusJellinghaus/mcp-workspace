@@ -14,6 +14,17 @@
 - `src/mcp_workspace/git_operations/remotes.py`: new `push_current_branch`,
   private `_remote_tracking_reflog_exists`. (remotes.py is ~576 lines; stay under 750.)
 - New tests: `tests/git_operations/test_push_current_branch.py`
+- `tests/conftest.py`: new fixtures `origin_clone`, `make_clone` (shared by steps 2, 3, 5, 9–13).
+
+## Fixtures (`tests/conftest.py`)
+
+- `origin_clone(tmp_path) -> Path`: bare `origin.git` (HEAD → `refs/heads/main`), seeded with one
+  commit on `main` from a seed repo, then a real `git clone` into `work/`; user name/email set,
+  `commit.gpgsign=false`. Returns the clone dir (has `origin/HEAD`, fresh-clone reflog state).
+- `make_clone(tmp_path) -> Callable[[str], Path]`: makes another configured clone of the same
+  origin under the given dir name.
+
+Existing `git_repo_with_remote` in `tests/git_operations/conftest.py` stays unchanged.
 
 ## WHAT
 
@@ -71,13 +82,13 @@ Unit (patch `run_git_timed`, `get_current_branch_name`, `git_version`, reflog he
 - `force=True` with version (2, 29) → error, not called; with no reflog → error, not called.
 - timeout result from `run_git_timed` is passed through (`success=False`, timeout text).
 
-Integration (`git_integration`; bare origin + clone made in the test with GitPython):
+Integration (`git_integration`; `origin_clone` / `make_clone` fixtures):
 - push of a new branch → success; `git rev-parse --abbrev-ref @{u}` is `origin/<b>`.
   **Precondition:** if the upstream is *not* set by `-u` with a full refspec,
   write one line to `pr_info/.blocked.txt` and stop.
 - a tag with the same name as the branch exists → push still succeeds.
 - after a pushed branch is amended in the pushing clone, `force=True` succeeds.
-- in a fresh `git clone` (no new fetch), `force=True` → reflog error.
+- in a fresh clone (`origin_clone` / `make_clone`, no new fetch), `force=True` → reflog error.
 
 ## Commit
 

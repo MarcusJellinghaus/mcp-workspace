@@ -17,6 +17,11 @@
   update the `read_only` bullet ("`True` for tools that only read") and add one sentence:
   library consumers have no client allowlist, so filter on `spec.read_only` to exclude the
   git-write and GitHub-write tools.
+  - "TLS and global state", TLS/network note (line 53): add `workspace.git` to the groups that
+    need network and TLS set up by library callers — it pushes, runs `ls-remote`, and
+    `git_branch_delete` calls the GitHub API.
+  - Locks note (line 54): mention the new `git_write_lock`, which serialises the git write tools
+    and, like the file locks, belongs to one `tool_specs()` call.
 - `docs/ARCHITECTURE.md` → "Library Isolation" table: add
   `| subprocess | git_operations/verification.py, git_operations/_subprocess_git.py | external binaries; network git with a timeout |`.
 - `SECURITY.md`:

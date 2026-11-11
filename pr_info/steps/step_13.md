@@ -42,7 +42,9 @@ same as git_push (step 12) with force=True
 
 ## Tests (write first)
 
-Unit: default branch / detached → refused; `push_current_branch` called with `force=True`;
+Unit (patch where `_git_write_helpers.py` imports the names, e.g.
+`mcp_workspace.toolset._git_write_helpers.push_current_branch` — not in `mcp_workspace.git_operations.*`):
+default branch / detached → refused; `push_current_branch` called with `force=True`;
 its version / reflog errors are passed through as `Error:`.
 
 Integration (`git_integration`; use `origin_clone` + `make_clone`):
