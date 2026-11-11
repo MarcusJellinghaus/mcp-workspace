@@ -2,10 +2,18 @@
 
 from pathlib import Path
 
-from git.exc import GitCommandError, InvalidGitRepositoryError
+from git import Repo
+from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
 from .branch_queries import validate_branch_name
-from .core import logger, safe_repo_context
+from .core import (
+    GIT_NONINTERACTIVE_ENV,
+    GitResult,
+    is_option_like,
+    logger,
+    run_git_raw,
+    safe_repo_context,
+)
 from .repository_status import is_git_repository
 
 
@@ -266,3 +274,153 @@ def delete_branch(
     except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.error("Unexpected error deleting branch: %s", e)
         return False
+
+
+def _result(returncode: int | None, stderr: str | None, error_text: str) -> GitResult:
+    """Build a GitResult that succeeds only when git ran and exited 0.
+
+    Returns:
+        A success result for ``returncode`` 0, else an error with ``error_text``.
+    """
+    if returncode == 0:
+        return {"success": True, "error": None, "returncode": 0, "stderr": stderr}
+    return {
+        "success": False,
+        "error": error_text,
+        "returncode": returncode,
+        "stderr": stderr,
+    }
+
+
+def _reject_option_like(*values: str | None) -> GitResult | None:
+    """Return an error result if any value would be parsed as a git option."""
+    for value in values:
+        if value is not None and is_option_like(value):
+            return _result(None, None, f"Argument must not start with '-': {value}")
+    return None
+
+
+def _not_a_repository(project_dir: Path) -> GitResult:
+    """Return the error result for a directory that is not a repository."""
+    logger.debug("Not a git repository: %s", project_dir)
+    return _result(None, None, f"Not a git repository: {project_dir}")
+
+
+def _ref_exists(repo: Repo, ref: str) -> bool:
+    """Return True if the full ref ``ref`` exists locally."""
+    returncode, _, _ = run_git_raw(
+        repo, "show_ref", "--verify", "--quiet", ref, env=GIT_NONINTERACTIVE_ENV
+    )
+    return returncode == 0
+
+
+def create_and_switch_branch(
+    project_dir: Path, name: str, start_ref: str | None = None, no_track: bool = False
+) -> GitResult:
+    """Create branch ``name`` and check it out (``git checkout -b``).
+
+    The caller validates ``name`` and resolves ``start_ref``; only option-like
+    values are rejected here. Never fetches.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+        name: Branch to create
+        start_ref: Ref to start from; HEAD when None
+        no_track: Pass ``--no-track`` so no upstream is configured
+
+    Returns:
+        GitResult; on failure ``stderr`` carries git's message.
+    """
+    logger.debug("Creating and switching to '%s' in %s", name, project_dir)
+    rejected = _reject_option_like(name, start_ref)
+    if rejected is not None:
+        return rejected
+
+    args = [
+        *(["--no-track"] if no_track else []),
+        "-b",
+        name,
+        *([start_ref] if start_ref else []),
+    ]
+    try:
+        with safe_repo_context(project_dir) as repo:
+            returncode, _, stderr = run_git_raw(
+                repo, "checkout", *args, env=GIT_NONINTERACTIVE_ENV
+            )
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        return _not_a_repository(project_dir)
+    return _result(returncode, stderr, f"git checkout -b failed (exit {returncode})")
+
+
+def switch_branch(project_dir: Path, name: str) -> GitResult:
+    """Check out local branch ``name``, or create it from ``origin/<name>``.
+
+    A name present only as ``refs/remotes/origin/<name>`` becomes a local branch
+    tracking it. Never fetches.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+        name: Branch to switch to
+
+    Returns:
+        GitResult; on failure ``stderr`` carries git's message, and an unknown
+        name is an error with ``returncode`` and ``stderr`` None.
+    """
+    logger.debug("Switching to '%s' in %s", name, project_dir)
+    rejected = _reject_option_like(name)
+    if rejected is not None:
+        return rejected
+
+    remote_ref = f"refs/remotes/origin/{name}"
+    try:
+        with safe_repo_context(project_dir) as repo:
+            if _ref_exists(repo, f"refs/heads/{name}"):
+                returncode, _, stderr = run_git_raw(
+                    repo, "checkout", name, "--", env=GIT_NONINTERACTIVE_ENV
+                )
+            elif _ref_exists(repo, remote_ref):
+                returncode, _, stderr = run_git_raw(
+                    repo,
+                    "checkout",
+                    "--track",
+                    "-b",
+                    name,
+                    remote_ref,
+                    env=GIT_NONINTERACTIVE_ENV,
+                )
+            else:
+                return _result(
+                    None,
+                    None,
+                    f"Branch '{name}' not found locally or as origin/{name}; "
+                    "run git fetch first",
+                )
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        return _not_a_repository(project_dir)
+    return _result(returncode, stderr, f"git checkout failed (exit {returncode})")
+
+
+def delete_local_branch_force(project_dir: Path, name: str) -> GitResult:
+    """Delete local branch ``name`` with ``git branch -D``.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+        name: Branch to delete
+
+    Returns:
+        GitResult; on failure (e.g. the current branch) ``stderr`` carries
+        git's message.
+    """
+    logger.debug("Force-deleting branch '%s' in %s", name, project_dir)
+    rejected = _reject_option_like(name)
+    if rejected is not None:
+        return rejected
+
+    try:
+        with safe_repo_context(project_dir) as repo:
+            returncode, _, stderr = run_git_raw(
+                repo, "branch", "-D", name, env=GIT_NONINTERACTIVE_ENV
+            )
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        return _not_a_repository(project_dir)
+    return _result(returncode, stderr, f"git branch -D failed (exit {returncode})")
