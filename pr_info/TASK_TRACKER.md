@@ -35,9 +35,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 3: `edit_file` keeps line endings — [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: rewrite `test_crlf_normalization`, new tests in `test_line_endings_file_tools.py` + byte read and `newline=` write in `edit_file.py`, tool docstring in `toolset/write.py`
-- [ ] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: rewrite `test_crlf_normalization`, new tests in `test_line_endings_file_tools.py` + byte read and `newline=` write in `edit_file.py`, tool docstring in `toolset/write.py`
+- [x] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: `save_file` keeps line endings — [step_4.md](./steps/step_4.md)
 

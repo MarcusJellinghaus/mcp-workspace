@@ -140,6 +140,11 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
         Raises ValueError if old_string matches multiple locations
         (use replace_all=True to replace all).
 
+        Line endings: an existing file keeps its style (mixed → most common,
+        tie → platform default); a file with no line breaks follows
+        .gitattributes eol=, else the platform default. Matching and the
+        returned diff use LF.
+
         Returns:
             Git-style unified diff showing the changes, or a message
             if the edit was already applied.

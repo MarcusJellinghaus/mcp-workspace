@@ -190,7 +190,7 @@ class TestEditFile(unittest.TestCase):
         self.assertIn("\treturn 20", content)
 
     def test_crlf_normalization(self) -> None:
-        """CRLF in old_string/new_string/file content handled."""
+        """CRLF in old_string/new_string matches a CRLF file, which stays CRLF."""
         # Write file with CRLF
         self.test_file.write_bytes(b"hello\r\nworld\r\n")
 
@@ -201,10 +201,7 @@ class TestEditFile(unittest.TestCase):
         )
 
         self.assertIsInstance(result, str)
-        with open(self.test_file, encoding="utf-8") as f:
-            content = f.read()
-        self.assertIn("hi", content)
-        self.assertNotIn("\r", content)
+        self.assertEqual(self.test_file.read_bytes(), b"hi\r\nworld\r\n")
 
     def test_backslash_hint(self) -> None:
         """Single backslash old_string triggers hint in ValueError message."""
