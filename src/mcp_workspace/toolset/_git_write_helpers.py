@@ -197,17 +197,19 @@ def tip_on_github(
     Returns:
         ``(passing check, object_missing, lookup_failed, notes)``: the
         description of the check that passed or None; whether some check could
-        not decide because an object is missing locally; whether the merged-PR
-        lookup failed (GitHub error, not a negative answer); reasons a check
-        was skipped or failed.
+        not decide because an object is missing locally; whether the
+        ``ls-remote`` or merged-PR lookup failed (GitHub error, not a negative
+        answer); reasons a check was skipped or failed.
     """
     project_dir = ctx.project_dir
     object_missing = False
+    lookup_failed = False
     notes: list[str] = []
 
     remote = remote_head_sha(project_dir, name)
     if not remote["success"]:
         notes.append(f"GitHub branch check failed: {remote['error']}")
+        lookup_failed = True
     elif remote["sha"]:
         contained = is_ancestor(project_dir, tip, remote["sha"])
         if contained:
@@ -224,7 +226,7 @@ def tip_on_github(
         manager = pr_manager(ctx, None)
     except Exception as e:  # pylint: disable=broad-exception-caught  # optional check: no token, no GitHub remote
         notes.append(f"merged-PR check skipped: {e}")
-        return None, object_missing, False, notes
+        return None, object_missing, lookup_failed, notes
     try:
         number = manager.find_merged_pr_by_head_sha(tip)
     except Exception as e:  # pylint: disable=broad-exception-caught  # GitHub error: auth, rate limit, 5xx, network
@@ -232,7 +234,7 @@ def tip_on_github(
         return None, object_missing, True, notes
     if number is not None:
         return f"merged PR #{number}", object_missing, False, notes
-    return None, object_missing, False, notes
+    return None, object_missing, lookup_failed, notes
 
 
 def _git_branch_delete(ctx: WorkspaceContext, name: str) -> str:

@@ -138,6 +138,14 @@ class TestRunGitTimed:
 
         assert run_mock.call_args.kwargs["timeout"] == GIT_NETWORK_TIMEOUT == 120.0
 
+    def test_credential_manager_dialog_disabled(self, tmp_path: Path) -> None:
+        """Git Credential Manager may not open a dialog that outlives the timeout."""
+        run_mock = MagicMock(return_value=_completed(0))
+
+        _run_patched(tmp_path, run_mock, "push")
+
+        assert run_mock.call_args.kwargs["env"]["GCM_INTERACTIVE"] == "never"
+
 
 @pytest.mark.git_integration
 class TestRunGitTimedIntegration:

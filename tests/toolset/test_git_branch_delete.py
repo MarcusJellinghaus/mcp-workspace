@@ -239,10 +239,10 @@ class TestGitBranchDeleteUnit:
         assert "is not on GitHub" not in result
         lib["delete_local_branch_force"].assert_not_called()
 
-    def test_remote_failure_in_notes(
+    def test_remote_failure_is_not_a_negative_answer(
         self, tmp_path: Path, lib: dict[str, MagicMock]
     ) -> None:
-        """A failed ls-remote is reported with the refusal."""
+        """A failed ls-remote in check 1 is reported as a failed check."""
         lib["remote_head_sha"].return_value = _remote(
             None, "git ls-remote failed (exit 128)"
         )
@@ -250,12 +250,27 @@ class TestGitBranchDeleteUnit:
         result = _git_branch_delete(tmp_path, "feature")
 
         assert result == (
-            "Error: refusing to delete feature: tip 0123456 is not on GitHub\n"
+            "Error: cannot verify tip 0123456 of feature: the GitHub check "
+            "failed; retry later\n"
             "GitHub branch check failed: git ls-remote failed (exit 128)"
         )
         lib["is_ancestor"].assert_called_once_with(
             tmp_path, _TIP, "refs/remotes/origin/main"
         )
+        lib["delete_local_branch_force"].assert_not_called()
+
+    def test_remote_branch_without_tip(
+        self, tmp_path: Path, lib: dict[str, MagicMock]
+    ) -> None:
+        """A successful ls-remote whose branch lacks the tip is a negative answer."""
+        lib["remote_head_sha"].return_value = _remote(_REMOTE)
+
+        result = _git_branch_delete(tmp_path, "feature")
+
+        assert result == (
+            "Error: refusing to delete feature: tip 0123456 is not on GitHub"
+        )
+        lib["delete_local_branch_force"].assert_not_called()
 
     def test_delete_failure(self, tmp_path: Path, lib: dict[str, MagicMock]) -> None:
         """A failed git branch -D reports the reason and git's stderr."""
