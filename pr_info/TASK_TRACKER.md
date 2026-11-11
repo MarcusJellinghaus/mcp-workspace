@@ -41,9 +41,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 4: `save_file` keeps line endings — [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: rewrite `test_save_file_normalizes_crlf`, new tests in `test_line_endings_file_tools.py` + `save_file` / `_write_file_atomically` newline handling, tool docstring
-- [ ] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: rewrite `test_save_file_normalizes_crlf`, new tests in `test_line_endings_file_tools.py` + `save_file` / `_write_file_atomically` newline handling, tool docstring
+- [x] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 5: `append_file` becomes a real append in the file's ending — [step_5.md](./steps/step_5.md)
 

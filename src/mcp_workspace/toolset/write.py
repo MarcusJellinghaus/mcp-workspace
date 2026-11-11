@@ -40,6 +40,10 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
 
         Auto-creates parent directories if they do not exist.
 
+        Line endings: overwriting an existing file keeps its style (mixed →
+        most common, tie → platform default); a new file, or one with no
+        line breaks, follows .gitattributes eol=, else the platform default.
+
         Returns:
             True if the file was written successfully
 
