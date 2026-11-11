@@ -1,8 +1,5 @@
 """Tests for directory_utils functionality."""
 
-import logging
-import os
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,11 +8,8 @@ import pytest
 # Import functions directly from the module
 from mcp_workspace.file_tools.directory_utils import (
     _discover_files,
-    apply_gitignore_filter,
-    filter_with_gitignore,
     is_path_gitignored,
     list_files,
-    read_gitignore_rules,
 )
 from mcp_workspace.utils.git_paths import is_path_in_git_dir
 from tests.conftest import TEST_DIR
@@ -148,109 +142,6 @@ class TestIsPathGitignored:
         assert is_path_gitignored(".gitignore", project_dir) is False
 
 
-def test_read_gitignore_rules_no_file() -> None:
-    """Test reading gitignore rules when no file exists."""
-    # Use a temporary directory to ensure no .gitignore exists
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir) / ".gitignore"
-
-        # Test with non-existent file
-        matcher = read_gitignore_rules(temp_path)
-
-        # The matcher should be None when file doesn't exist
-        assert matcher is None
-
-
-def test_read_gitignore_rules_with_file() -> None:
-    """Test reading gitignore rules from an existing file."""
-    # Create a temporary .gitignore file
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir) / ".gitignore"
-
-        # Create sample gitignore content
-        gitignore_content = "*.log\n/node_modules/\n"
-        temp_path.write_text(gitignore_content)
-
-        # Test reading the rules
-        matcher = read_gitignore_rules(temp_path)
-
-        # Matcher should be a callable function
-        assert callable(matcher)
-
-        # Check if it correctly identifies ignored files
-        ignored_file = os.path.join(temp_dir, "test.log")
-        not_ignored_file = os.path.join(temp_dir, "test.txt")
-
-        # True means the file should be ignored
-        assert matcher(ignored_file) is True
-        assert matcher(not_ignored_file) is False
-
-
-def test_read_gitignore_rules_logs_nothing_above_debug(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """The gitignore hot path emits no INFO+ records (issue #48)."""
-    module_logger = "mcp_workspace.file_tools.directory_utils"
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir) / ".gitignore"
-
-        with caplog.at_level(logging.INFO, logger=module_logger):
-            read_gitignore_rules(temp_path)  # absent-file path
-            temp_path.write_text("*.log\n")
-            read_gitignore_rules(temp_path)  # parsed-file path
-
-        assert [r for r in caplog.records if r.name == module_logger] == []
-
-
-def test_apply_gitignore_filter(project_dir: Path) -> None:
-    """Test applying gitignore filter with a predefined matcher."""
-
-    # Create a simple matcher function that ignores files with .log extension
-    def mock_matcher(path: str) -> bool:
-        return path.endswith(".log")
-
-    # Create list of test file paths
-    file_paths = [
-        "folder/file.txt",
-        "folder/data.log",
-        "another/document.md",
-        "logs/error.log",
-    ]
-
-    # Apply the filter
-    filtered = apply_gitignore_filter(file_paths, mock_matcher, project_dir)
-
-    # Check that only non-.log files remain
-    assert filtered == ["folder/file.txt", "another/document.md"]
-
-    # Test with None matcher
-    assert apply_gitignore_filter(file_paths, None, project_dir) == file_paths
-
-
-def test_filter_with_gitignore_no_gitignore(project_dir: Path) -> None:
-    """Test filtering files when no .gitignore file exists."""
-    # Create a list of file paths
-    file_paths = [
-        "testdata/test_file_tools/file1.txt",
-        "testdata/test_file_tools/file2.txt",
-    ]
-
-    # Test with a directory that doesn't have a .gitignore file
-    test_dir = project_dir / TEST_DIR
-
-    # Ensure no .gitignore file exists
-    gitignore_path = test_dir / ".gitignore"
-    if gitignore_path.exists():
-        gitignore_path.unlink()
-
-    # Test the filter with no .gitignore
-    filtered_files = filter_with_gitignore(file_paths, test_dir, project_dir)
-
-    # Without a .gitignore file, all files should be returned
-    assert set(filtered_files) == set(file_paths)
-
-
 def test_list_files_basic(project_dir: Path) -> None:
     """Test listing files in a directory."""
     # Create test directory structure
@@ -291,6 +182,15 @@ def test_list_files_with_gitignore(project_dir: Path) -> None:
     # The .log file should be filtered out
     assert "testdata/test_file_tools/keep.txt" in files
     assert not any(f.endswith("ignore.log") for f in files)
+
+    # A root .gitignore applies to the listing of a subdirectory (#392)
+    (test_dir / "x.env").write_text("ignore this file")
+    (project_dir / ".gitignore").write_text("*.env\n")
+
+    files = list_files(str(TEST_DIR), project_dir=project_dir, use_gitignore=True)
+
+    assert "testdata/test_file_tools/keep.txt" in files
+    assert "testdata/test_file_tools/x.env" not in files
 
 
 def test_list_files_without_gitignore(project_dir: Path) -> None:

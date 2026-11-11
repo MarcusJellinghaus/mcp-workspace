@@ -37,8 +37,16 @@ One limitation: if the operating system cannot resolve a path at all, validation
 File tools also refuse `.git` entries and gitignored paths:
 
 - **`.git`**: A path naming a `.git` file or directory at any depth, in any letter case or Windows alias, or resolving to one through a link, is rejected. So is deleting or moving a whole directory that contains one.
-- **Gitignored paths**: Paths matched by the project root's `.gitignore` are rejected for reading and writing, including a link into a gitignored location. Reference project reads apply their own root `.gitignore`. Nested `.gitignore` files and `.git/info/exclude` are not read here.
-- **Listing a subdirectory** applies the `.gitignore` in that directory only, so it can show the names of files the root `.gitignore` matches. Their content stays refused.
+- **Gitignored paths**: Paths matched by the gitignore rules are rejected for reading and writing, including a link into a gitignored location. The rules come from every `.gitignore` from the project root down plus `.git/info/exclude` (also for a worktree or submodule checkout), with git's precedence: a deeper file overrides a shallower one, the last matching line wins, and a `.gitignore` inside an ignored directory is not read. Reference projects apply their own rules the same way.
+- **Listing an ignored directory** is refused. A directory whose files are all ignored lists as empty.
+
+Known differences from git:
+
+- `project_dir` is the root: no `.gitignore` above it is read, nor the `info/exclude` of an enclosing repository.
+- A nested repository or submodule checkout inside `project_dir` gets the outer rules; its own `info/exclude` is not read.
+- Ignore rules apply to committed files too.
+- Global excludes (`core.excludesFile`) are not applied.
+- A path that does not exist yet is refused by a directory-only rule: under `out/`, a new `out` is refused even though git would ignore it only as a directory.
 
 The `git` tool checks its arguments separately. Paths must be relative and stay inside the repository, and `fetch` and `ls_remote` accept only configured remote names. See [SECURITY.md](SECURITY.md#intended-restrictions).
 
@@ -240,7 +248,7 @@ Reference projects allow you to provide AI assistants with read-only *file* acce
 - **Read-only file access**: Reference project *files* can only be browsed and read from, never modified. Their GitHub issues are a separate matter — see [Cross-Repo GitHub Access](#cross-repo-github-access)
 - **Multiple projects**: Configure multiple reference projects simultaneously
 - **Auto-discovery**: LLM can discover available reference projects
-- **Security**: Reads, searches and listings get the same path validation and gitignore filtering as the main project, using the reference project's own `.gitignore`
+- **Security**: Reads, searches and listings get the same path validation and gitignore filtering as the main project, using the reference project's own gitignore rules
 - **Flexible paths**: Supports both relative and absolute paths
 
 ### Configuration
@@ -402,7 +410,7 @@ The server exposes the following MCP tools:
 
 #### List Directory
 - Returns a list of file and directory names
-- The `.gitignore` in the listed directory is applied; no other `.gitignore` file is read — including the project-root one when listing a subdirectory — nor `.git/info/exclude`
+- Applies the same gitignore rules as the other file tools; an ignored directory is refused and never descended into
 - `.git` folders are excluded
 
 #### Read File
@@ -663,7 +671,7 @@ Reports files whose line count exceeds a threshold.
 - `max_lines` (integer, optional): Line threshold. Falls back to the server's `--file-size-limit` flag, then to `600`
 
 **Features:**
-- Counts lines in every UTF-8 file under the project directory — all file types, tracked or not — excluding `.git/` and anything the project-root `.gitignore` matches. Nested `.gitignore` files are not read
+- Counts lines in every UTF-8 file under the project directory — all file types, tracked or not — excluding `.git/` and anything the gitignore rules match
 - Files listed in `.large-files-allowlist` (one path per line, `#` comments allowed) are exempt; entries are matched as exact paths, not globs
 - Allowlist entries are reported as stale when the file no longer exceeds the threshold, and also when it is missing, binary/non-UTF-8, or matched by `.gitignore` — for example after a rename or a typo in the entry
 - The violations list and the stale-entries list are each capped at 50 with a `showing X of Y` notice; the caps are internal and there is no parameter to lift them

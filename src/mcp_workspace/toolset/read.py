@@ -127,11 +127,14 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             `read_file`.
 
         Raises:
-            ValueError: If the path points to a file instead of a directory.
+            ValueError: If the path points to a file instead of a directory,
+                or is excluded by .gitignore rules.
         """
         try:
             # Validate path — normalize_path handles traversal attacks
             abs_path, rel_path = normalize_path(path, ctx.project_dir)
+
+            check_not_gitignored(ctx, path)
 
             # If path points to a file, return error
             if abs_path.is_file():

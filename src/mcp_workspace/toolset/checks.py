@@ -55,8 +55,8 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
         """Check file line counts against threshold.
 
         Counts lines in every UTF-8 file under the project directory — all file
-        types, tracked or not — excluding `.git/` and anything the project-root
-        `.gitignore` matches. Nested `.gitignore` files are not read.
+        types, tracked or not — excluding `.git/` and anything the gitignore
+        rules (every `.gitignore` and `.git/info/exclude`) match.
 
         Returns:
             Formatted report of files exceeding the threshold, or the

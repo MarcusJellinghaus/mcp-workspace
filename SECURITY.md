@@ -27,8 +27,8 @@ The server is meant to enforce the following. A way around any of them is a vuln
 File tools:
 
 - Workspace file tools stay inside the project directory. Reference project file tools stay inside that reference project and only read. See [Path Confinement](README.md#path-confinement).
-- Workspace file tools and reference project reads refuse any `.git` entry, under any spelling or through a link, and paths matched by the root `.gitignore` of that project. Listing a subdirectory is the exception described in [Path Confinement](README.md#path-confinement): it can show file names, not content.
-- The root `.gitignore` itself is writable, so an agent that edits it changes which paths are refused.
+- Workspace file tools and reference project reads refuse any `.git` entry, under any spelling or through a link, and paths matched by that project's gitignore rules.
+- Any `.gitignore` is writable, so an agent that edits one changes which paths are refused.
 - `delete_directory` refuses the project root. It and `move_file` refuse a directory that contains a `.git` entry.
 
 `git` tool, on the workspace and on reference projects alike:
@@ -71,5 +71,5 @@ Out of scope:
 - an agent misusing tools it is allowed to use, including after prompt injection, unless a restriction above was bypassed
 - anything requiring prior access to the user's account, config file or environment
 - what a token can do within its own permissions
-- the limitation documented under [Path Confinement](README.md#path-confinement)
-- editing the root `.gitignore` to lift its rules
+- the limitation and the differences from git documented under [Path Confinement](README.md#path-confinement)
+- editing any `.gitignore` to lift its rules

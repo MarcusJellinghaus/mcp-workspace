@@ -1,5 +1,13 @@
 # Release notes
 
+## Next minor release — gitignore rules follow git (#392)
+
+- Every file tool now applies nested `.gitignore` files and `.git/info/exclude` (worktrees and submodules included) with git's precedence, not only the project-root `.gitignore`. Listing a subdirectory no longer shows names the outer rules ignore. See README "Path Confinement" for the remaining differences from git.
+- `list_directory` refuses an ignored directory, like `read_file` does.
+- New refusal wording: `Path '<p>' is excluded by .gitignore rules and cannot be accessed. Use list_directory() to see available files.` (was `File '<p>' is excluded by .gitignore and …`).
+- Removed from `file_tools.directory_utils`: `read_gitignore_rules`, `apply_gitignore_filter`, `filter_with_gitignore`. Signatures of `is_path_gitignored`, `check_path_not_gitignored` and `list_files` are unchanged; `list_files` returns `[]` for an ignored directory.
+- Requires `igittigitt>=2.4.0`.
+
 ## Next minor release — workspace tools as `ToolSpec`s (#378)
 
 - New `mcp_workspace.toolset.tool_specs(project_dir, *, reference_projects=None, read_max_lines=DEFAULT_READ_MAX_LINES, file_size_limit=None, fail_on_reviews=False, enforce_base_branch_format=True) -> tuple[ToolSpec, ...]`: every MCP tool as a framework-neutral `ToolSpec` (`mcp_coder_utils.tool_spec`), bound to `project_dir`, with `group` and `read_only`. Does not import `mcp`; each call has its own settings and file locks. See [LIBRARY_USE.md](LIBRARY_USE.md), including the TLS note for library callers.
