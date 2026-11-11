@@ -77,9 +77,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 12: Tool `git_push` — [step_12.md](./steps/step_12.md)
-- [ ] Implementation: tests + `git_push` closure, `guard_push_branch`, `do_git_push`, `EXPECTED`/`ASYNC_TOOLS`, `git_push.json` snapshot
-- [ ] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests + `git_push` closure, `guard_push_branch`, `do_git_push`, `EXPECTED`/`ASYNC_TOOLS`, `git_push.json` snapshot
+- [x] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
+- [x] Commit message prepared
 
 ### Step 13: Tool `git_push_force` — [step_13.md](./steps/step_13.md)
 - [ ] Implementation: tests + `git_push_force` closure, `EXPECTED`/`ASYNC_TOOLS`, `git_push_force.json` snapshot

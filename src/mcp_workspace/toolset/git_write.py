@@ -132,6 +132,25 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
                 helpers.do_git_commit, ctx, message, paths, all
             )
 
+    @log_function_call
+    async def git_push() -> str:
+        """Push the current branch to origin with -u (modifies the remote).
+
+        Always `git push -u origin` for the current branch only, with a full
+        refspec. Never forces: a rejected push stays rejected. Refused on a
+        detached HEAD and on the default branch. Takes no arguments.
+
+        Returns:
+            "Pushed <branch> to origin" followed by git's push output, or
+            "Error: <reason>".
+        """
+        # Lazy import: keeps GitPython off the server startup import path
+        from mcp_workspace.toolset import _git_write_helpers as helpers
+
+        async with ctx.git_write_lock:
+            return await asyncio.to_thread(helpers.do_git_push, ctx)
+
     sink.add(tool_spec(git_branch, group="workspace.git", read_only=False))
     sink.add(tool_spec(git_branch_delete, group="workspace.git", read_only=False))
     sink.add(tool_spec(git_commit, group="workspace.git", read_only=False))
+    sink.add(tool_spec(git_push, group="workspace.git", read_only=False))

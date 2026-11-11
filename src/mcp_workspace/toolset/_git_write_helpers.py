@@ -28,7 +28,11 @@ from mcp_workspace.git_operations.core import (
     GitResult,
 )
 from mcp_workspace.git_operations.rebase import operation_in_progress
-from mcp_workspace.git_operations.remotes import format_dirty_tree, remote_head_sha
+from mcp_workspace.git_operations.remotes import (
+    format_dirty_tree,
+    push_current_branch,
+    remote_head_sha,
+)
 from mcp_workspace.git_operations.staging import (
     list_untracked_paths,
     stage_paths,
@@ -409,3 +413,66 @@ def do_git_commit(
         ``Error: <reason>``.
     """
     return run_tool(lambda: _git_commit(ctx.project_dir, message, paths, commit_all))
+
+
+def guard_push_branch(project_dir: Path) -> tuple[str | None, str | None]:
+    """Find the branch to push, refusing a detached HEAD and the default branch.
+
+    Args:
+        project_dir: Repository to check.
+
+    Returns:
+        ``(branch, None)``, or ``(None, "Error: <reason>")``.
+    """
+    branch = get_current_branch_name(project_dir)
+    if branch is None:
+        return None, "Error: HEAD is detached; check out a branch first"
+    default = get_default_branch_name(project_dir)
+    if default is None:
+        return None, (
+            "Error: cannot determine the default branch (no origin/HEAD, no "
+            "main/master); set it with git remote set-head origin -a"
+        )
+    if branch == default:
+        return None, f"Error: refusing to push the default branch {branch}"
+    return branch, None
+
+
+def _git_push(project_dir: Path, force: bool) -> str:
+    """Body of the git_push tools; see ``do_git_push``.
+
+    Returns:
+        The tool result.
+    """
+    branch, error = guard_push_branch(project_dir)
+    if branch is None:
+        return error or "Error: no branch to push"
+    result = push_current_branch(project_dir, force)
+    if not result["success"]:
+        return failure(result)
+    message = (
+        f"Force-pushed {branch} to origin (lease ok)"
+        if force
+        else f"Pushed {branch} to origin"
+    )
+    output = (result["stderr"] or "").strip()
+    if output:
+        message += f"\n{output}"
+    return scrub_credentials(message)
+
+
+def do_git_push(ctx: WorkspaceContext, force: bool = False) -> str:
+    """Push the current branch to origin with upstream tracking.
+
+    Refuses a detached HEAD and the default branch. ``force`` pushes with
+    ``--force-with-lease --force-if-includes``, never plain ``--force``.
+
+    Args:
+        ctx: Context holding the workspace directory.
+        force: Force-push with lease instead of a fast-forward push.
+
+    Returns:
+        ``Pushed <branch> to origin`` (or ``Force-pushed <branch> to origin
+        (lease ok)``) followed by git's push output, or ``Error: <reason>``.
+    """
+    return run_tool(lambda: _git_push(ctx.project_dir, force))
