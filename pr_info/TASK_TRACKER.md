@@ -21,6 +21,37 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: Rules builder, `info/exclude`, `is_path_gitignored`, new message — [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: precondition probe (igittigitt >=2.4.0), tests in `tests/file_tools/test_gitignore_rules.py` + `test_server.py` message assertion, then `_info_exclude_path`, `_load_rule_file`, `_rules_for`, `_matches_rules`, new `is_path_gitignored` and message, `pyproject.toml` bump
+- [ ] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: `list_files` walk with `skip` callback; delete old helpers — [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: listing tests in `test_gitignore_rules.py`, update `test_directory_utils.py`, then `_discover_files(skip=...)`, `_gitignore_skip`, new `list_files`, delete `read_gitignore_rules` / `_link_target_ignored` / `apply_gitignore_filter` / `filter_with_gitignore`
+- [ ] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: `list_directory` refuses ignored directories — [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation: refusal tests in `tests/test_server_list_directory.py`, then `check_not_gitignored(ctx, path)` in `toolset/read.py` and docstring `Raises:`
+- [ ] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 4: Conformance test against `git check-ignore` — [step_4.md](./steps/step_4.md)
+
+- [ ] Implementation: precondition probe (git binary), `tests/file_tools/test_gitignore_conformance.py` with scenarios 01–25, worktree and submodule `info/exclude` tests; small local fix in `directory_utils.py` only if a scenario requires it
+- [ ] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
+- [ ] Commit message prepared
+
+### Step 5: Documentation and release notes — [step_5.md](./steps/step_5.md)
+
+- [ ] Implementation: `README.md`, `SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/processes-prompts/refactoring-guide.md`, `check_file_size` description in `toolset/checks.py`, `docs/release-notes.md`; leftover search
+- [ ] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: review the full branch diff against `main`, resolve findings
+- [ ] PR summary prepared (include hand-measured before/after listing timing and single-path check timing)
