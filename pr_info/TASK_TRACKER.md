@@ -67,9 +67,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 10: Tool `git_branch_delete` — [step_10.md](./steps/step_10.md)
-- [ ] Implementation: tests + `git_branch_delete` closure, `do_git_branch_delete`, `tip_on_github`, `EXPECTED`/`ASYNC_TOOLS`, `git_branch_delete.json` snapshot
-- [ ] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests + `git_branch_delete` closure, `do_git_branch_delete`, `tip_on_github`, `EXPECTED`/`ASYNC_TOOLS`, `git_branch_delete.json` snapshot
+- [x] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
+- [x] Commit message prepared
 
 ### Step 11: Tool `git_commit` — [step_11.md](./steps/step_11.md)
 - [ ] Implementation: tests + `git_commit` closure, `do_git_commit`, `format_commit_result`, `EXPECTED`/`ASYNC_TOOLS`, `git_commit.json` snapshot

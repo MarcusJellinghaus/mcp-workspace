@@ -66,4 +66,28 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
                 helpers.do_git_branch, ctx, name, create, base
             )
 
+    @log_function_call
+    async def git_branch_delete(
+        name: Annotated[str, Field(description="Local branch to delete.")],
+    ) -> str:
+        """Force-delete a local branch whose tip is on GitHub (modifies the repository).
+
+        Runs `git branch -D` only after proving the tip is on GitHub: origin's
+        branch of that name contains it, origin/<default> contains it (local
+        remote-tracking ref, no fetch), or a merged PR has it as head (needs a
+        GitHub token; skipped without one). Refuses the current branch, the
+        default branch (main and master when the default is unknown) and tips
+        no check can find. Never deletes the remote branch.
+
+        Returns:
+            "Deleted branch <name> (tip <sha7> on origin)" plus a
+            "Verified by: <check>" line, or "Error: <reason>".
+        """
+        # Lazy import: keeps GitPython off the server startup import path
+        from mcp_workspace.toolset import _git_write_helpers as helpers
+
+        async with ctx.git_write_lock:
+            return await asyncio.to_thread(helpers.do_git_branch_delete, ctx, name)
+
     sink.add(tool_spec(git_branch, group="workspace.git", read_only=False))
+    sink.add(tool_spec(git_branch_delete, group="workspace.git", read_only=False))
