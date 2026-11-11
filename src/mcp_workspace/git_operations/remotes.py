@@ -11,7 +11,8 @@ from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
 from mcp_workspace.utils.url_credentials import scrub_credentials
 
-from .branch_queries import branch_exists
+from ._subprocess_git import run_git_timed
+from .branch_queries import branch_exists, get_current_branch_name
 from .core import (
     GIT_NONINTERACTIVE_ENV,
     BranchProbe,
@@ -22,7 +23,7 @@ from .core import (
     safe_repo_context,
 )
 from .porcelain_parsers import parse_ls_remote_heads
-from .rebase import rebase_abort, rebase_start
+from .rebase import git_version, rebase_abort, rebase_start
 from .repository_status import get_working_tree_status, is_git_repository
 
 if TYPE_CHECKING:
@@ -200,6 +201,95 @@ def push_branch(branch_name: str, project_dir: Path, set_upstream: bool = True) 
     except Exception as e:  # pylint: disable=broad-exception-caught  # TODO: narrow to GitCommandError
         logger.error("Unexpected error pushing branch: %s", e)
         return False
+
+
+# First git release with `push --force-if-includes`
+_FORCE_IF_INCLUDES_MIN_VERSION = (2, 30)
+
+
+def _remote_tracking_reflog_exists(repo: Repo, branch: str) -> bool:
+    """Check whether ``refs/remotes/origin/<branch>`` has a reflog.
+
+    Returns:
+        True if ``git reflog exists`` succeeds for the remote-tracking ref.
+    """
+    returncode, _, _ = run_git_raw(
+        repo,
+        "reflog",
+        "exists",
+        f"refs/remotes/origin/{branch}",
+        env=GIT_NONINTERACTIVE_ENV,
+    )
+    return returncode == 0
+
+
+def push_current_branch(project_dir: Path, force: bool = False) -> GitResult:
+    """Push the current branch to origin with -u and a full refspec.
+
+    The refspec ``refs/heads/<b>:refs/heads/<b>`` cannot be mistaken for a tag
+    of the same name. ``force`` adds ``--force-with-lease --force-if-includes``
+    (never plain ``--force``) and is refused on git older than 2.30 and when
+    ``refs/remotes/origin/<b>`` has no reflog (a fresh clone), where
+    ``--force-if-includes`` would refuse falsely.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+        force: Force-push with lease instead of a fast-forward push
+
+    Returns:
+        GitResult; ``stderr`` holds git's scrubbed push output on success too.
+        A non-repository, detached HEAD or failed force precondition is an
+        error result with ``returncode`` and ``stderr`` None.
+    """
+    logger.debug("Pushing current branch in %s (force=%s)", project_dir, force)
+
+    if not is_git_repository(project_dir):
+        return {
+            "success": False,
+            "error": f"Not a git repository: {project_dir}",
+            "returncode": None,
+            "stderr": None,
+        }
+
+    branch = get_current_branch_name(project_dir)
+    if branch is None:
+        return {
+            "success": False,
+            "error": "HEAD is detached; check out a branch first",
+            "returncode": None,
+            "stderr": None,
+        }
+
+    if force:
+        with safe_repo_context(project_dir) as repo:
+            precondition_error: str | None = None
+            if git_version(repo) < _FORCE_IF_INCLUDES_MIN_VERSION:
+                precondition_error = (
+                    "git_push_force needs git 2.30+ (--force-if-includes)"
+                )
+            elif not _remote_tracking_reflog_exists(repo, branch):
+                precondition_error = (
+                    f"refs/remotes/origin/{branch} has no reflog (fresh clone?); "
+                    "--force-if-includes would refuse falsely. "
+                    "Force-push via Bash after checking the remote branch"
+                )
+        if precondition_error is not None:
+            return {
+                "success": False,
+                "error": precondition_error,
+                "returncode": None,
+                "stderr": None,
+            }
+
+    refspec = f"refs/heads/{branch}:refs/heads/{branch}"
+    force_args = ["--force-with-lease", "--force-if-includes"] if force else []
+    result = run_git_timed(project_dir, "push", "-u", *force_args, "origin", refspec)
+    return {
+        "success": result["success"],
+        "error": result["error"],
+        "returncode": result["returncode"],
+        "stderr": result["stderr"],
+    }
 
 
 def fetch_remote(project_dir: Path, remote: str = "origin") -> bool:

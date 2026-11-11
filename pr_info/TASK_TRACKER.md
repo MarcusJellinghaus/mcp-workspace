@@ -27,9 +27,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 2: `push_current_branch` — [step_2.md](./steps/step_2.md)
-- [ ] Implementation: tests + `origin_clone` / `make_clone` fixtures, `git_version` public, `_remote_tracking_reflog_exists`, `push_current_branch`
-- [ ] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests + `origin_clone` / `make_clone` fixtures, `git_version` public, `_remote_tracking_reflog_exists`, `push_current_branch`
+- [x] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: `remote_head_sha` — [step_3.md](./steps/step_3.md)
 - [ ] Implementation: tests + `RemoteHeadResult` (core.py) + `remote_head_sha` (remotes.py)

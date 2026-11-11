@@ -184,6 +184,53 @@ def github_test_setup(tmp_path: Path) -> Generator[GitHubTestSetup, None, None]:
     yield setup
 
 
+def _configure_test_repo(repo: git.Repo) -> None:
+    """Set the commit identity and disable signing for a test repository."""
+    with repo.config_writer() as cfg:
+        cfg.set_value("user", "name", "Test User")
+        cfg.set_value("user", "email", "test@example.com")
+        cfg.set_value("commit", "gpgsign", "false")
+        cfg.set_value("tag", "gpgsign", "false")
+
+
+@pytest.fixture
+def _origin_remote(tmp_path: Path) -> Path:
+    """Bare ``origin.git`` (HEAD -> ``refs/heads/main``) with one commit on main."""
+    origin = tmp_path / "origin.git"
+    bare = git.Repo.init(origin, bare=True)
+    bare.git.symbolic_ref("HEAD", "refs/heads/main")
+
+    seed = git.Repo.init(tmp_path / "seed")
+    _configure_test_repo(seed)
+    (tmp_path / "seed" / "README.md").write_text("# Test Project\n")
+    seed.index.add(["README.md"])
+    seed.index.commit("Initial commit")
+    seed.git.branch("-M", "main")
+    seed.git.push(str(origin), "refs/heads/main:refs/heads/main")
+    return origin
+
+
+@pytest.fixture
+def make_clone(tmp_path: Path, _origin_remote: Path) -> Callable[[str], Path]:
+    """Factory for further configured clones of the shared origin.
+
+    ``make_clone(name)`` runs a real ``git clone`` into ``tmp_path / name``.
+    """
+
+    def _make(name: str) -> Path:
+        clone_dir = tmp_path / name
+        _configure_test_repo(git.Repo.clone_from(str(_origin_remote), clone_dir))
+        return clone_dir
+
+    return _make
+
+
+@pytest.fixture
+def origin_clone(make_clone: Callable[[str], Path]) -> Path:
+    """Fresh clone ``work/`` of a bare origin; has ``origin/HEAD``, no new fetch."""
+    return make_clone("work")
+
+
 T = TypeVar("T")
 
 

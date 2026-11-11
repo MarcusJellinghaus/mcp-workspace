@@ -24,7 +24,7 @@ from .porcelain_parsers import parse_merge_tree_z
 _MERGE_TREE_MIN_VERSION = (2, 38)
 
 
-def _git_version(repo: Repo) -> tuple[int, int]:
+def git_version(repo: Repo) -> tuple[int, int]:
     """Return git's ``(major, minor)`` version, e.g. ``(2, 43)``.
 
     Parses ``git version 2.43.0.windows.1``; unparseable output is ``(0, 0)``.
@@ -93,8 +93,7 @@ def probe_rebase_conflicts(project_dir: Path, base_ref: str) -> RebaseProbe:
             )
             # Only an unexpected exit code needs the (extra) version call
             too_old = (
-                returncode not in (0, 1)
-                and _git_version(repo) < _MERGE_TREE_MIN_VERSION
+                returncode not in (0, 1) and git_version(repo) < _MERGE_TREE_MIN_VERSION
             )
     except (InvalidGitRepositoryError, NoSuchPathError):
         logger.debug("Not a git repository: %s", project_dir)
