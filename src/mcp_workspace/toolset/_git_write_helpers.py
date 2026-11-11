@@ -182,7 +182,7 @@ def do_git_branch(
 
 def tip_on_github(
     ctx: WorkspaceContext, name: str, tip: str, default: str | None
-) -> tuple[str | None, bool, list[str]]:
+) -> tuple[str | None, bool, bool, list[str]]:
     """Check whether a branch tip is provably on GitHub.
 
     Tries, stopping at the first that passes: origin's ``<name>`` contains the
@@ -195,9 +195,11 @@ def tip_on_github(
         default: Default branch name, or None when unknown.
 
     Returns:
-        ``(passing check, object_missing, notes)``: the description of the
-        check that passed or None; whether some check could not decide because
-        an object is missing locally; reasons a check was skipped.
+        ``(passing check, object_missing, lookup_failed, notes)``: the
+        description of the check that passed or None; whether some check could
+        not decide because an object is missing locally; whether the merged-PR
+        lookup failed (GitHub error, not a negative answer); reasons a check
+        was skipped or failed.
     """
     project_dir = ctx.project_dir
     object_missing = False
@@ -209,23 +211,28 @@ def tip_on_github(
     elif remote["sha"]:
         contained = is_ancestor(project_dir, tip, remote["sha"])
         if contained:
-            return f"{name} on GitHub contains the tip", object_missing, notes
+            return f"{name} on GitHub contains the tip", object_missing, False, notes
         object_missing = object_missing or contained is None
 
     if default:
         contained = is_ancestor(project_dir, tip, f"refs/remotes/origin/{default}")
         if contained:
-            return f"origin/{default} contains the tip", object_missing, notes
+            return f"origin/{default} contains the tip", object_missing, False, notes
         object_missing = object_missing or contained is None
 
     try:
-        number = pr_manager(ctx, None).find_merged_pr_by_head_sha(tip)
-    except Exception as e:  # pylint: disable=broad-exception-caught  # optional check: no token, auth, network
+        manager = pr_manager(ctx, None)
+    except Exception as e:  # pylint: disable=broad-exception-caught  # optional check: no token, no GitHub remote
         notes.append(f"merged-PR check skipped: {e}")
-        number = None
+        return None, object_missing, False, notes
+    try:
+        number = manager.find_merged_pr_by_head_sha(tip)
+    except Exception as e:  # pylint: disable=broad-exception-caught  # GitHub error: auth, rate limit, 5xx, network
+        notes.append(f"merged-PR check failed: {e}")
+        return None, object_missing, True, notes
     if number is not None:
-        return f"merged PR #{number}", object_missing, notes
-    return None, object_missing, notes
+        return f"merged PR #{number}", object_missing, False, notes
+    return None, object_missing, False, notes
 
 
 def _git_branch_delete(ctx: WorkspaceContext, name: str) -> str:
@@ -248,12 +255,17 @@ def _git_branch_delete(ctx: WorkspaceContext, name: str) -> str:
     if tip is None:
         return f"Error: no local branch {name}"
 
-    check, object_missing, notes = tip_on_github(ctx, name, tip, default)
+    check, object_missing, lookup_failed, notes = tip_on_github(ctx, name, tip, default)
     if check is None:
         if object_missing:
             message = (
                 f"Error: cannot verify tip {short(tip)} of {name}: a commit is "
                 "missing locally; run git fetch first"
+            )
+        elif lookup_failed:
+            message = (
+                f"Error: cannot verify tip {short(tip)} of {name}: the GitHub "
+                "check failed; retry later"
             )
         else:
             message = (
@@ -356,7 +368,10 @@ def _render_commit(
     ):
         return "Nothing to commit" + format_dirty_tree(project_dir)
     if not result["success"]:
-        return scrub_credentials(f"Error: {result['error']}")
+        # Shows what a failed all=True commit left staged
+        return scrub_credentials(
+            f"Error: {result['error']}" + format_dirty_tree(project_dir)
+        )
     files = committed_files(project_dir)
     return format_commit_result(
         result["commit_hash"] or "HEAD", branch, files

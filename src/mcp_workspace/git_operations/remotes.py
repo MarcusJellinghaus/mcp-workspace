@@ -225,14 +225,56 @@ def _remote_tracking_reflog_exists(repo: Repo, branch: str) -> bool:
     return returncode == 0
 
 
+def _remote_tracking_ref_exists(repo: Repo, branch: str) -> bool:
+    """Check whether ``refs/remotes/origin/<branch>`` exists locally.
+
+    Returns:
+        True if ``git show-ref --verify`` finds the remote-tracking ref.
+    """
+    returncode, _, _ = run_git_raw(
+        repo,
+        "show_ref",
+        "--verify",
+        "--quiet",
+        f"refs/remotes/origin/{branch}",
+        env=GIT_NONINTERACTIVE_ENV,
+    )
+    return returncode == 0
+
+
+def _force_push_precondition(repo: Repo, branch: str) -> str | None:
+    """Return why ``branch`` cannot be force-pushed safely, or None.
+
+    Returns:
+        An error message for git older than 2.30, a branch without
+        ``refs/remotes/origin/<branch>`` (never pushed) or one whose
+        remote-tracking ref has no reflog (fresh clone); otherwise None.
+    """
+    if git_version(repo) < _FORCE_IF_INCLUDES_MIN_VERSION:
+        return "git_push_force needs git 2.30+ (--force-if-includes)"
+    if not _remote_tracking_ref_exists(repo, branch):
+        return (
+            f"{branch} has no remote-tracking ref refs/remotes/origin/{branch} "
+            "(never pushed?); use git_push, a first push needs no force"
+        )
+    if not _remote_tracking_reflog_exists(repo, branch):
+        return (
+            f"refs/remotes/origin/{branch} has no reflog (fresh clone?); "
+            "--force-if-includes would refuse falsely. "
+            "Force-push via Bash after checking the remote branch"
+        )
+    return None
+
+
 def push_current_branch(project_dir: Path, force: bool = False) -> GitResult:
     """Push the current branch to origin with -u and a full refspec.
 
     The refspec ``refs/heads/<b>:refs/heads/<b>`` cannot be mistaken for a tag
     of the same name. ``force`` adds ``--force-with-lease --force-if-includes``
-    (never plain ``--force``) and is refused on git older than 2.30 and when
-    ``refs/remotes/origin/<b>`` has no reflog (a fresh clone), where
-    ``--force-if-includes`` would refuse falsely.
+    (never plain ``--force``) and is refused on git older than 2.30, when
+    ``refs/remotes/origin/<b>`` does not exist (never pushed), and when it
+    has no reflog (a fresh clone), where ``--force-if-includes`` would refuse
+    falsely.
 
     Args:
         project_dir: Path to the project directory containing git repository
@@ -264,17 +306,7 @@ def push_current_branch(project_dir: Path, force: bool = False) -> GitResult:
 
     if force:
         with safe_repo_context(project_dir) as repo:
-            precondition_error: str | None = None
-            if git_version(repo) < _FORCE_IF_INCLUDES_MIN_VERSION:
-                precondition_error = (
-                    "git_push_force needs git 2.30+ (--force-if-includes)"
-                )
-            elif not _remote_tracking_reflog_exists(repo, branch):
-                precondition_error = (
-                    f"refs/remotes/origin/{branch} has no reflog (fresh clone?); "
-                    "--force-if-includes would refuse falsely. "
-                    "Force-push via Bash after checking the remote branch"
-                )
+            precondition_error = _force_push_precondition(repo, branch)
         if precondition_error is not None:
             return {
                 "success": False,

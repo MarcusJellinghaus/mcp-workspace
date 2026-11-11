@@ -157,9 +157,10 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
         Always `git push -u --force-with-lease --force-if-includes origin` for
         the current branch only, never plain `--force`. Refused on a detached
         HEAD, on the default branch, on git older than 2.30, when someone else
-        moved the remote branch since it was last fetched into this clone, and
-        in a fresh clone whose origin/<branch> has no reflog. For any other
-        force push use Bash (manual approval). Takes no arguments.
+        moved the remote branch since it was last fetched into this clone, for
+        a branch never pushed (no origin/<branch>; use git_push), and in a
+        fresh clone whose origin/<branch> has no reflog. For any other force
+        push use Bash (manual approval). Takes no arguments.
 
         Returns:
             "Force-pushed <branch> to origin (lease ok)" followed by git's push

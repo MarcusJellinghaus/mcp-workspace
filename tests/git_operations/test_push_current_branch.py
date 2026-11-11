@@ -34,11 +34,13 @@ def _push_patched(
     branch: str | None = "b",
     version: tuple[int, int] = (2, 43),
     reflog: bool = True,
+    tracking_ref: bool = True,
 ) -> GitResult:
     """Call push_current_branch with its collaborators patched."""
     with (
         patch(f"{MODULE}.get_current_branch_name", return_value=branch),
         patch(f"{MODULE}.git_version", return_value=version),
+        patch(f"{MODULE}._remote_tracking_ref_exists", return_value=tracking_ref),
         patch(f"{MODULE}._remote_tracking_reflog_exists", return_value=reflog),
         patch(f"{MODULE}.run_git_timed", run_mock),
     ):
@@ -130,12 +132,31 @@ class TestPushCurrentBranchUnit:
         assert result["returncode"] is None
         run_mock.assert_not_called()
 
+    def test_force_needs_remote_tracking_ref(self, git_repo: tuple[Repo, Path]) -> None:
+        """A never-pushed branch is pointed to git_push, not to Bash."""
+        _, project_dir = git_repo
+        run_mock = MagicMock()
+
+        result = _push_patched(
+            project_dir, run_mock, force=True, tracking_ref=False, reflog=False
+        )
+
+        assert result["success"] is False
+        assert result["error"] == (
+            "b has no remote-tracking ref refs/remotes/origin/b "
+            "(never pushed?); use git_push, a first push needs no force"
+        )
+        assert result["returncode"] is None
+        run_mock.assert_not_called()
+
     def test_plain_push_skips_force_checks(self, git_repo: tuple[Repo, Path]) -> None:
-        """Old git and no reflog do not block a plain push."""
+        """Old git, no remote-tracking ref and no reflog do not block a plain push."""
         _, project_dir = git_repo
         run_mock = MagicMock(return_value=_output())
 
-        result = _push_patched(project_dir, run_mock, version=(2, 20), reflog=False)
+        result = _push_patched(
+            project_dir, run_mock, version=(2, 20), reflog=False, tracking_ref=False
+        )
 
         assert result["success"] is True
         run_mock.assert_called_once()
@@ -239,6 +260,19 @@ class TestPushCurrentBranchIntegration:
         assert result["success"] is True, result
         remote = repo.git.ls_remote("origin", "refs/heads/feature").split()[0]
         assert remote == repo.git.rev_parse("HEAD")
+
+    def test_force_refused_for_never_pushed_branch(self, origin_clone: Path) -> None:
+        """A branch without origin/<branch> is refused with a git_push hint."""
+        repo = _new_branch(origin_clone)
+
+        result = push_current_branch(origin_clone, force=True)
+
+        assert result["success"] is False
+        assert result["error"] is not None
+        assert "never pushed" in result["error"]
+        assert "use git_push" in result["error"]
+        assert "fresh clone" not in result["error"]
+        assert not repo.git.ls_remote("--heads", "origin", "refs/heads/feature")
 
     @pytest.mark.parametrize("name", ["work", "second"])
     def test_force_refused_in_fresh_clone(

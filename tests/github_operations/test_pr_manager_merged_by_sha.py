@@ -108,6 +108,35 @@ class TestFindMergedPrByHeadSha:
 
         assert manager.find_merged_pr_by_head_sha(SHA) is None
 
+    @pytest.mark.parametrize("status", [404, 500, 502])
+    def test_other_api_error_raised(
+        self, manager: PullRequestManager, mock_repo: MagicMock, status: int
+    ) -> None:
+        """A non-422 API error is raised, not reported as "no merged PR"."""
+        mock_repo.get_commit.side_effect = GithubException(
+            status, {"message": "Server Error"}, None
+        )
+
+        with pytest.raises(GithubException):
+            manager.find_merged_pr_by_head_sha(SHA)
+
+    def test_network_error_raised(
+        self, manager: PullRequestManager, mock_repo: MagicMock
+    ) -> None:
+        """A network error while listing PRs is raised."""
+        mock_repo.get_commit.return_value.get_pulls.side_effect = ConnectionError(
+            "connection reset"
+        )
+
+        with pytest.raises(ConnectionError):
+            manager.find_merged_pr_by_head_sha(SHA)
+
+    def test_inaccessible_repository_raised(self, manager: PullRequestManager) -> None:
+        """A repository that cannot be fetched is an error, not "no merged PR"."""
+        with patch.object(manager, "_get_repository", return_value=None):
+            with pytest.raises(RuntimeError, match="cannot access"):
+                manager.find_merged_pr_by_head_sha(SHA)
+
     def test_auth_error_401_raised(
         self, manager: PullRequestManager, mock_repo: MagicMock
     ) -> None:

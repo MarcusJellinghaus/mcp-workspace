@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from git import Repo
+from github.GithubException import GithubException
 
 from mcp_workspace.toolset import tool_specs
 
@@ -218,6 +219,25 @@ class TestGitBranchDeleteUnit:
         deleted = _git_branch_delete(tmp_path, "feature")
 
         assert deleted.endswith("Verified by: origin/main contains the tip")
+
+    def test_pr_lookup_failure_is_not_a_negative_answer(
+        self, tmp_path: Path, lib: dict[str, MagicMock]
+    ) -> None:
+        """A GitHub API error in check 3 is reported as a failed check."""
+        _merged_pr(lib).side_effect = GithubException(
+            502, {"message": "Bad Gateway"}, None
+        )
+
+        result = _git_branch_delete(tmp_path, "feature")
+
+        lines = result.splitlines()
+        assert lines[0] == (
+            "Error: cannot verify tip 0123456 of feature: the GitHub check "
+            "failed; retry later"
+        )
+        assert lines[1].startswith("merged-PR check failed: 502")
+        assert "is not on GitHub" not in result
+        lib["delete_local_branch_force"].assert_not_called()
 
     def test_remote_failure_in_notes(
         self, tmp_path: Path, lib: dict[str, MagicMock]

@@ -248,6 +248,23 @@ class TestGitCommitUnit:
         assert lines[51] == "  ... showing 50 of 60 files"
         assert len(lines) == 52
 
+    def test_all_failure_shows_working_tree(
+        self, tmp_path: Path, lib: dict[str, MagicMock]
+    ) -> None:
+        """A failed all=True commit lists what git add -A left staged."""
+        lib["commit_all_changes"].return_value = _commit_result(
+            False, error="Git error creating commit: hook failed"
+        )
+        lib["format_dirty_tree"].return_value = "\nWorking tree:\n  staged: a.txt"
+
+        result = _git_commit(tmp_path, all=True)
+
+        assert result == (
+            "Error: Git error creating commit: hook failed\n"
+            "Working tree:\n"
+            "  staged: a.txt"
+        )
+
     def test_library_raises(self, tmp_path: Path, lib: dict[str, MagicMock]) -> None:
         """An exception becomes an error result."""
         lib["commit_all_changes"].side_effect = RuntimeError("boom")
@@ -285,6 +302,18 @@ def _untracked(project_dir: Path) -> list[str]:
 def _staged(project_dir: Path) -> list[str]:
     """Return the paths staged relative to HEAD."""
     return str(Repo(project_dir).git.diff("--cached", "--name-only")).splitlines()
+
+
+def _install_failing_hook(project_dir: Path, tmp_path: Path) -> None:
+    """Point core.hooksPath at a pre-commit hook that always fails."""
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    hook = hooks / "pre-commit"
+    hook.write_text("#!/bin/sh\necho 'hook says no' >&2\nexit 1\n", newline="\n")
+    if os.name != "nt":
+        hook.chmod(hook.stat().st_mode | stat.S_IXUSR)
+    with Repo(project_dir).config_writer() as cfg:
+        cfg.set_value("core", "hooksPath", hooks.as_posix())
 
 
 @pytest.mark.git_integration
@@ -360,14 +389,7 @@ class TestGitCommitIntegration:
 
     def test_failing_pre_commit_hook(self, origin_clone: Path, tmp_path: Path) -> None:
         """A failing hook fails the commit; the new files are untracked again."""
-        hooks = tmp_path / "hooks"
-        hooks.mkdir()
-        hook = hooks / "pre-commit"
-        hook.write_text("#!/bin/sh\necho 'hook says no' >&2\nexit 1\n", newline="\n")
-        if os.name != "nt":
-            hook.chmod(hook.stat().st_mode | stat.S_IXUSR)
-        with Repo(origin_clone).config_writer() as cfg:
-            cfg.set_value("core", "hooksPath", hooks.as_posix())
+        _install_failing_hook(origin_clone, tmp_path)
         head = Repo(origin_clone).head.commit.hexsha
         (origin_clone / "new.txt").write_text("new\n")
         (origin_clone / "README.md").write_text("changed\n")
@@ -379,3 +401,22 @@ class TestGitCommitIntegration:
         assert Repo(origin_clone).head.commit.hexsha == head
         assert _untracked(origin_clone) == ["new.txt"]
         assert not _staged(origin_clone)
+
+    def test_failing_pre_commit_hook_all_shows_staged(
+        self, origin_clone: Path, tmp_path: Path
+    ) -> None:
+        """A failed all=True commit reports the files git add -A left staged."""
+        _install_failing_hook(origin_clone, tmp_path)
+        (origin_clone / "new.txt").write_text("new\n")
+        (origin_clone / "README.md").write_text("changed\n")
+
+        result = _git_commit(origin_clone, all=True)
+
+        error, _, tree = result.partition("\nWorking tree:\n")
+        assert error.startswith("Error: ")
+        assert "hook says no" in error
+        staged_line = next(
+            line for line in tree.splitlines() if line.startswith("  staged: ")
+        )
+        assert "README.md" in staged_line
+        assert "new.txt" in staged_line
