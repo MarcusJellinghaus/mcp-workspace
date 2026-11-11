@@ -92,9 +92,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 15: LLM_Test section, Claude settings and CLAUDE.md — [step_15.md](./steps/step_15.md)
-- [ ] Implementation: `tests/LLM_Test.md` Section 5, `.claude/settings.local.json` allowlist, `.claude/CLAUDE.md` tool table / Bash git list
-- [ ] Quality checks (settings JSON valid, pytest) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `tests/LLM_Test.md` Section 5, `.claude/settings.local.json` allowlist, `.claude/CLAUDE.md` tool table / Bash git list
+- [x] Quality checks (settings JSON valid, pytest) — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 - [ ] PR review: review the full branch diff against `main`, address findings

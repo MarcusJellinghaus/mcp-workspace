@@ -233,3 +233,23 @@ Only the rejection paths are scripted — creating a real PR needs a real branch
 10. `github_subissue_remove(parent_number=<P>, child_number=<C>)` again — expect a 404 error, not a silent success
 11. `github_subissue_list(parent_number=<P>)` — expect `No sub-issues.`
 12. `github_issue_edit(number=<P>, state="closed")` and the same for `#C` — expect `(state: closed)` for both
+
+---
+
+## Section 5: Git write tools (MUTATING — opt-in, local only)
+
+**These tools create branches and commits in the local repository.** Start on a clean tree.
+Nothing is pushed: a remote branch created here could not be deleted by any tool.
+
+### Test 5.1: Branch → commit → switch back → delete guards
+
+1. `git(command="branch", args=["--show-current"])` — note the branch as `<orig>`
+2. `git_commit(message="x")` — expect `Error: pass exactly one of paths or all=True`
+3. `git_branch(name="-x", create=True)` — expect `Error: invalid branch name: '-x'`
+4. `git_branch(name="llm-test-git-write", create=True)` — expect `Created llm-test-git-write from HEAD (<sha7>)`
+5. `save_file(".scratch/llm_git_write.txt", "x")`
+6. `git_commit(message="LLM test commit", paths=[".scratch/llm_git_write.txt"])` — expect `Committed <sha7> on llm-test-git-write (1 file)`, then `  .scratch/llm_git_write.txt`
+7. `git_branch(name="<orig>")` — expect `Switched to <orig>`
+8. `git_branch_delete(name="llm-test-git-write")` — expect `Error: refusing to delete llm-test-git-write: tip <sha7> is not on GitHub`, possibly followed by notes on skipped checks
+9. `git_branch_delete(name="<orig>")` — expect `Error: cannot delete the current branch`
+10. Cleanup (manual, Bash): `git branch -D llm-test-git-write`
