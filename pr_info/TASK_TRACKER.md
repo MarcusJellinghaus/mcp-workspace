@@ -65,9 +65,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 8: `github_issue_view(body_file=…)` with round-trip tests — [step_8.md](./steps/step_8.md)
 
-- [ ] Implementation: tool-level and round-trip tests + `body_file` parameter and docstring in `github_read.py`
-- [ ] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tool-level and round-trip tests + `body_file` parameter and docstring in `github_read.py`
+- [x] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 9: Docs — README, `LIBRARY_USE.md`, `LLM_Test.md` — [step_9.md](./steps/step_9.md)
 
