@@ -8,7 +8,7 @@ from git import Repo
 import mcp_workspace.git_operations
 from mcp_workspace.file_tools import line_endings
 from mcp_workspace.file_tools.edit_file import edit_file
-from mcp_workspace.file_tools.file_operations import save_file
+from mcp_workspace.file_tools.file_operations import append_file, save_file
 
 
 def _patch_lookup(monkeypatch: pytest.MonkeyPatch, value: str | None) -> list[str]:
@@ -240,3 +240,100 @@ def test_save_file_overwrites_non_utf8_file(
     assert save_file("f.txt", "good\n", project_dir=tmp_path) is True
 
     assert (tmp_path / "f.txt").read_bytes() == b"good\n"
+
+
+@pytest.mark.parametrize("nl", [b"\n", b"\r\n", b"\r"])
+def test_append_file_keeps_style(
+    nl: bytes, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Appending to an LF, CRLF or CR file keeps the prefix and uses its ending."""
+    calls = _patch_lookup(monkeypatch, "lf")
+    original = b"one" + nl + b"two" + nl
+    (tmp_path / "f.txt").write_bytes(original)
+
+    assert append_file("f.txt", "a\nb\n", project_dir=tmp_path) is True
+
+    assert (tmp_path / "f.txt").read_bytes() == original + b"a" + nl + b"b" + nl
+    assert not calls
+
+
+def test_append_file_mixed_keeps_bytes_appends_majority(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A mixed file keeps its minority endings; the appended part uses the majority."""
+    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", "\n")
+    _patch_lookup(monkeypatch, "lf")
+    original = b"a\r\nb\nc\r\n"
+    (tmp_path / "f.txt").write_bytes(original)
+
+    append_file("f.txt", "x\ny\n", project_dir=tmp_path)
+
+    assert (tmp_path / "f.txt").read_bytes() == original + b"x\r\ny\r\n"
+
+
+def test_append_file_inserts_no_newline(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """No newline is inserted before the appended text."""
+    _patch_lookup(monkeypatch, "lf")
+    (tmp_path / "f.txt").write_bytes(b"a\r\nb")
+
+    append_file("f.txt", "c\n", project_dir=tmp_path)
+
+    assert (tmp_path / "f.txt").read_bytes() == b"a\r\nbc\r\n"
+
+
+@pytest.mark.parametrize("existing", [b"", b"no breaks"])
+@pytest.mark.parametrize(("value", "nl"), [("lf", b"\n"), ("crlf", b"\r\n")])
+def test_append_file_no_breaks_follows_eol_attribute(
+    existing: bytes,
+    value: str,
+    nl: bytes,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """An empty file, or one without line breaks, follows eol=."""
+    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", "\r")
+    calls = _patch_lookup(monkeypatch, value)
+    (tmp_path / "f.txt").write_bytes(existing)
+
+    append_file("f.txt", "a\nb\n", project_dir=tmp_path)
+
+    assert (tmp_path / "f.txt").read_bytes() == existing + b"a" + nl + b"b" + nl
+    assert calls == ["f.txt"]
+
+
+@pytest.mark.parametrize("platform", ["\n", "\r\n"])
+def test_append_file_no_breaks_without_eol_uses_platform(
+    platform: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Without an eol= rule, a file without line breaks gets the platform default."""
+    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", platform)
+    _patch_lookup(monkeypatch, None)
+    (tmp_path / "f.txt").write_bytes(b"x")
+
+    append_file("f.txt", "a\nb\n", project_dir=tmp_path)
+
+    nl = platform.encode()
+    assert (tmp_path / "f.txt").read_bytes() == b"xa" + nl + b"b" + nl
+
+
+def test_append_file_non_utf8_file_keeps_bytes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Appending to a file that is not valid UTF-8 succeeds and keeps its bytes."""
+    _patch_lookup(monkeypatch, "lf")
+    original = b"\xff\xfe\x00bad\r\n"
+    (tmp_path / "f.txt").write_bytes(original)
+
+    assert append_file("f.txt", "good\n", project_dir=tmp_path) is True
+
+    assert (tmp_path / "f.txt").read_bytes() == original + b"good\r\n"
+
+
+def test_append_file_missing_file_raises(tmp_path: Path) -> None:
+    """Appending to a missing file still raises FileNotFoundError."""
+    with pytest.raises(FileNotFoundError):
+        append_file("missing.txt", "a\n", project_dir=tmp_path)
+
+    assert not (tmp_path / "missing.txt").exists()

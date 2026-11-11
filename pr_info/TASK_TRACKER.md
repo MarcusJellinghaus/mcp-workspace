@@ -47,9 +47,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 5: `append_file` becomes a real append in the file's ending — [step_5.md](./steps/step_5.md)
 
-- [ ] Implementation: rewrite `test_append_file_normalizes_crlf`, new tests in `test_line_endings_file_tools.py` + `"a"`-mode append with `target_newline`, tool docstring
-- [ ] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: rewrite `test_append_file_normalizes_crlf`, new tests in `test_line_endings_file_tools.py` + `"a"`-mode append with `target_newline`, tool docstring
+- [x] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 6: `format_issue_view(body_note=…)` — [step_6.md](./steps/step_6.md)
 

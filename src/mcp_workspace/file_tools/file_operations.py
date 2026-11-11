@@ -333,6 +333,10 @@ write_file = save_file
 def append_file(file_path: str, content: Any, project_dir: Path) -> bool:
     """Append content to the end of a file.
 
+    Appends without touching existing bytes; the appended text uses the
+    file's line ending (no line breaks → .gitattributes eol=, else platform
+    default). No newline is inserted before it.
+
     Args:
         file_path: Path to the file to append to (relative to project directory)
         content: Content to append to the file
@@ -360,15 +364,20 @@ def append_file(file_path: str, content: Any, project_dir: Path) -> bool:
         logger.error("Path is not a file: %s", file_path)
         raise IsADirectoryError(f"Path '{file_path}' is not a file")
 
-    # Read existing content
-    existing_content = read_file(file_path, project_dir)
+    newline = target_newline(abs_path.read_bytes(), rel_path, project_dir)
 
-    # Append new content
-    combined_content = existing_content + validated_content
-
-    # Use save_file to write the combined content
     logger.debug("Appending %s bytes to %s", len(validated_content), rel_path)
-    return save_file(file_path, combined_content, project_dir)
+    with open(abs_path, "a", encoding="utf-8", newline=newline) as f:
+        try:
+            f.write(validated_content)
+        except UnicodeEncodeError as e:
+            logger.error(
+                "Unicode encode error while appending to %s: %s", rel_path, str(e)
+            )
+            raise ValueError(
+                "Content contains characters that cannot be encoded. Please check the encoding."
+            ) from e
+    return True
 
 
 def delete_file(file_path: str, project_dir: Path) -> bool:

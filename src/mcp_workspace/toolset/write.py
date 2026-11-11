@@ -88,6 +88,10 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
     ) -> bool:
         """Append content to the end of a file.
 
+        Appends without touching existing bytes; the appended text uses the
+        file's line ending (no line breaks → .gitattributes eol=, else the
+        platform default). No newline is inserted before it.
+
         Returns:
             True if the content was appended successfully
 
