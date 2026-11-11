@@ -45,6 +45,11 @@ If you can't name the gap, use the MCP tool. Exempt: the approved git/gh command
 | Get library source | `mcp__mcp-tools-py__get_library_source` |
 | Refactoring | `mcp__mcp-tools-py__move_symbol`, `move_module`, `rename_symbol`, `list_symbols`, `find_references` |
 | Git (read-only) | `mcp__mcp-workspace__git` |
+| Create / switch branch | `mcp__mcp-workspace__git_branch` |
+| Delete local branch | `mcp__mcp-workspace__git_branch_delete` |
+| Commit | `mcp__mcp-workspace__git_commit` |
+| Push | `mcp__mcp-workspace__git_push` |
+| Force push after rebase | `mcp__mcp-workspace__git_push_force` |
 | Get base branch | `mcp__mcp-workspace__get_base_branch` |
 | Check file size | `mcp__mcp-workspace__check_file_size` |
 | Check branch status | `mcp__mcp-workspace__check_branch_status` |
@@ -108,7 +113,7 @@ Never use `python -c` via Bash. If you reason instead of running, label the conc
 **Allowed commands via Bash tool.** These have no MCP equivalent — use Bash directly. Skills that instruct bash commands (e.g. `git commit`) must also use Bash.
 
 ```
-git commit / add / rebase / push / checkout -b / branch
+git add / rebase (rebase conflict resolution: git add <file> + git rebase --continue)
 gh issue comment --repo owner/repo (only for a repo that is not a configured reference project — otherwise use the MCP tool with reference_name)
 gh issue view --repo owner/repo (only for a repo that is not a configured reference project — otherwise use the MCP tool with reference_name)
 gh run view
@@ -119,7 +124,7 @@ mcp-coder gh-tool set-status <label>
 
 **Slash-prefixed `gh` arguments:** prefix with `MSYS_NO_PATHCONV=1` — Git Bash rewrites a leading `/` into a Windows path.
 
-**Before every commit:** run `mcp__mcp-tools-py__run_format_code`, then stage and commit.
+**Before every commit:** run `mcp__mcp-tools-py__run_format_code`, then commit with `mcp__mcp-workspace__git_commit`.
 
 **Bash discipline:** no `cd` prefix. Don't chain approved with unapproved commands. Run them separately.
 

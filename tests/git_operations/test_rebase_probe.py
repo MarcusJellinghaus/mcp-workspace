@@ -13,7 +13,7 @@ from tests.git_operations.conftest import FileChanges
 BuildRepo = Callable[[FileChanges, FileChanges, FileChanges], tuple[Repo, Path]]
 
 RUNNER = "mcp_workspace.git_operations.rebase.run_git_raw"
-VERSION = "mcp_workspace.git_operations.rebase._git_version"
+VERSION = "mcp_workspace.git_operations.rebase.git_version"
 
 
 class TestProbeRebaseConflictsRealRepo:

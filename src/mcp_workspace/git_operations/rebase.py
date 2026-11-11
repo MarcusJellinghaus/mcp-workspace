@@ -24,7 +24,7 @@ from .porcelain_parsers import parse_merge_tree_z
 _MERGE_TREE_MIN_VERSION = (2, 38)
 
 
-def _git_version(repo: Repo) -> tuple[int, int]:
+def git_version(repo: Repo) -> tuple[int, int]:
     """Return git's ``(major, minor)`` version, e.g. ``(2, 43)``.
 
     Parses ``git version 2.43.0.windows.1``; unparseable output is ``(0, 0)``.
@@ -93,8 +93,7 @@ def probe_rebase_conflicts(project_dir: Path, base_ref: str) -> RebaseProbe:
             )
             # Only an unexpected exit code needs the (extra) version call
             too_old = (
-                returncode not in (0, 1)
-                and _git_version(repo) < _MERGE_TREE_MIN_VERSION
+                returncode not in (0, 1) and git_version(repo) < _MERGE_TREE_MIN_VERSION
             )
     except (InvalidGitRepositoryError, NoSuchPathError):
         logger.debug("Not a git repository: %s", project_dir)
@@ -162,6 +161,24 @@ def is_rebase_in_progress(project_dir: Path) -> bool:
     """  # noqa: DOC502  # ValueError propagates from open_repo_for_query
     with open_repo_for_query(project_dir) as repo:
         return _rebase_dir_exists(repo)
+
+
+def operation_in_progress(project_dir: Path) -> Literal["rebase", "merge"] | None:
+    """Return the git operation stopped mid-way in ``project_dir``, if any.
+
+    Returns:
+        ``"rebase"`` if a rebase is in progress, ``"merge"`` if ``MERGE_HEAD``
+        exists, otherwise None.
+
+    Raises:
+        ValueError: If ``project_dir`` is not a git repository.
+    """  # noqa: DOC502  # ValueError propagates from open_repo_for_query
+    with open_repo_for_query(project_dir) as repo:
+        if _rebase_dir_exists(repo):
+            return "rebase"
+        if (Path(repo.git_dir) / "MERGE_HEAD").exists():
+            return "merge"
+    return None
 
 
 def _run_rebase(project_dir: Path, *args: str) -> RebaseResult:

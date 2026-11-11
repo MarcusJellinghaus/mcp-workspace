@@ -11,18 +11,21 @@ from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
 from mcp_workspace.utils.url_credentials import scrub_credentials
 
-from .branch_queries import branch_exists
+from ._subprocess_git import run_git_timed
+from .branch_queries import branch_exists, get_current_branch_name
 from .core import (
     GIT_NONINTERACTIVE_ENV,
     BranchProbe,
     GitResult,
     RemoteBranchesResult,
+    RemoteHeadResult,
+    is_option_like,
     logger,
     run_git_raw,
     safe_repo_context,
 )
 from .porcelain_parsers import parse_ls_remote_heads
-from .rebase import rebase_abort, rebase_start
+from .rebase import git_version, rebase_abort, rebase_start
 from .repository_status import get_working_tree_status, is_git_repository
 
 if TYPE_CHECKING:
@@ -202,6 +205,127 @@ def push_branch(branch_name: str, project_dir: Path, set_upstream: bool = True) 
         return False
 
 
+# First git release with `push --force-if-includes`
+_FORCE_IF_INCLUDES_MIN_VERSION = (2, 30)
+
+
+def _remote_tracking_reflog_exists(repo: Repo, branch: str) -> bool:
+    """Check whether ``refs/remotes/origin/<branch>`` has a reflog.
+
+    Returns:
+        True if ``git reflog exists`` succeeds for the remote-tracking ref.
+    """
+    returncode, _, _ = run_git_raw(
+        repo,
+        "reflog",
+        "exists",
+        f"refs/remotes/origin/{branch}",
+        env=GIT_NONINTERACTIVE_ENV,
+    )
+    return returncode == 0
+
+
+def _remote_tracking_ref_exists(repo: Repo, branch: str) -> bool:
+    """Check whether ``refs/remotes/origin/<branch>`` exists locally.
+
+    Returns:
+        True if ``git show-ref --verify`` finds the remote-tracking ref.
+    """
+    returncode, _, _ = run_git_raw(
+        repo,
+        "show_ref",
+        "--verify",
+        "--quiet",
+        f"refs/remotes/origin/{branch}",
+        env=GIT_NONINTERACTIVE_ENV,
+    )
+    return returncode == 0
+
+
+def _force_push_precondition(repo: Repo, branch: str) -> str | None:
+    """Return why ``branch`` cannot be force-pushed safely, or None.
+
+    Returns:
+        An error message for git older than 2.30, a branch without
+        ``refs/remotes/origin/<branch>`` (never pushed) or one whose
+        remote-tracking ref has no reflog (fresh clone); otherwise None.
+    """
+    if git_version(repo) < _FORCE_IF_INCLUDES_MIN_VERSION:
+        return "git_push_force needs git 2.30+ (--force-if-includes)"
+    if not _remote_tracking_ref_exists(repo, branch):
+        return (
+            f"{branch} has no remote-tracking ref refs/remotes/origin/{branch} "
+            "(never pushed?); use git_push, a first push needs no force"
+        )
+    if not _remote_tracking_reflog_exists(repo, branch):
+        return (
+            f"refs/remotes/origin/{branch} has no reflog (fresh clone?); "
+            "--force-if-includes would refuse falsely. "
+            "Force-push via Bash after checking the remote branch"
+        )
+    return None
+
+
+def push_current_branch(project_dir: Path, force: bool = False) -> GitResult:
+    """Push the current branch to origin with -u and a full refspec.
+
+    The refspec ``refs/heads/<b>:refs/heads/<b>`` cannot be mistaken for a tag
+    of the same name. ``force`` adds ``--force-with-lease --force-if-includes``
+    (never plain ``--force``) and is refused on git older than 2.30, when
+    ``refs/remotes/origin/<b>`` does not exist (never pushed), and when it
+    has no reflog (a fresh clone), where ``--force-if-includes`` would refuse
+    falsely.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+        force: Force-push with lease instead of a fast-forward push
+
+    Returns:
+        GitResult; ``stderr`` holds git's scrubbed push output on success too.
+        A non-repository, detached HEAD or failed force precondition is an
+        error result with ``returncode`` and ``stderr`` None.
+    """
+    logger.debug("Pushing current branch in %s (force=%s)", project_dir, force)
+
+    if not is_git_repository(project_dir):
+        return {
+            "success": False,
+            "error": f"Not a git repository: {project_dir}",
+            "returncode": None,
+            "stderr": None,
+        }
+
+    branch = get_current_branch_name(project_dir)
+    if branch is None:
+        return {
+            "success": False,
+            "error": "HEAD is detached; check out a branch first",
+            "returncode": None,
+            "stderr": None,
+        }
+
+    if force:
+        with safe_repo_context(project_dir) as repo:
+            precondition_error = _force_push_precondition(repo, branch)
+        if precondition_error is not None:
+            return {
+                "success": False,
+                "error": precondition_error,
+                "returncode": None,
+                "stderr": None,
+            }
+
+    refspec = f"refs/heads/{branch}:refs/heads/{branch}"
+    force_args = ["--force-with-lease", "--force-if-includes"] if force else []
+    result = run_git_timed(project_dir, "push", "-u", *force_args, "origin", refspec)
+    return {
+        "success": result["success"],
+        "error": result["error"],
+        "returncode": result["returncode"],
+        "stderr": result["stderr"],
+    }
+
+
 def fetch_remote(project_dir: Path, remote: str = "origin") -> bool:
     """Fetch latest changes from remote repository.
 
@@ -374,6 +498,53 @@ def probe_origin_branch(project_dir: Path, branch: str) -> BranchProbe:
     }
 
 
+def remote_head_sha(project_dir: Path, branch: str) -> RemoteHeadResult:
+    """Ask origin (git ls-remote, no fetch) for the tip of ``refs/heads/<branch>``.
+
+    Runs through ``run_git_timed``, so a dead remote cannot hang the call. Only
+    the exact ref counts: ``x`` does not match ``team/x``.
+
+    Args:
+        project_dir: Path to the project directory containing git repository
+        branch: Branch name to look up (without 'origin/' prefix)
+
+    Returns:
+        RemoteHeadResult; ``sha`` is None with ``success`` True when origin has
+        no such branch, and None with ``success`` False when origin couldn't
+        answer. A blank or option-like branch name is an error result with
+        ``returncode`` and ``stderr`` None.
+    """
+    logger.debug("Looking up origin tip of '%s' in %s", branch, project_dir)
+
+    if not branch.strip() or is_option_like(branch):
+        return {
+            "success": False,
+            "error": "Invalid branch name",
+            "returncode": None,
+            "stderr": None,
+            "sha": None,
+        }
+
+    ref = f"refs/heads/{branch}"
+    out = run_git_timed(project_dir, "ls-remote", "--heads", "origin", ref)
+    result: RemoteHeadResult = {
+        "success": out["success"],
+        "error": out["error"],
+        "returncode": out["returncode"],
+        "stderr": out["stderr"],
+        "sha": None,
+    }
+    if not out["success"]:
+        return result
+
+    for line in out["stdout"].splitlines():
+        sha, _, line_ref = line.partition("\t")
+        if line_ref == ref:
+            result["sha"] = sha
+            break
+    return result
+
+
 def list_remote_branches(project_dir: Path) -> RemoteBranchesResult:
     """List every head on origin (git ls-remote, no fetch), without truncation.
 
@@ -474,7 +645,7 @@ def get_repository_identifier(
 _MAX_DIRTY_PATHS_PER_BUCKET = 20
 
 
-def _format_dirty_tree(project_dir: Path) -> str:
+def format_dirty_tree(project_dir: Path) -> str:
     """Render the uncommitted changes of a working tree as a log block.
 
     Args:
@@ -567,7 +738,7 @@ def rebase_onto_branch(project_dir: Path, target_branch: str) -> bool:
         # Other error (e.g. invalid branch name, rebase already in progress)
         logger.warning(
             f"Skipping rebase: {result['stderr'] or result['error']}"
-            f"{_format_dirty_tree(project_dir)}"
+            f"{format_dirty_tree(project_dir)}"
         )
         return False
 

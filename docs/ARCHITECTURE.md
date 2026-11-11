@@ -68,6 +68,7 @@ External libraries are isolated to specific modules:
 | `git` (GitPython) | git_operations/ | Git functionality isolated |
 | `github` (PyGithub) | github_operations/ | GitHub API access isolated |
 | `requests` | github_operations/ | HTTP requests isolated |
+| `subprocess` | git_operations/verification.py, git_operations/_subprocess_git.py | external binaries; network git with a timeout |
 | `truststore` | `_ssl.py`, activated eagerly by `main.py` | OS trust store for GitHub TLS (see below) |
 | `structlog` | mcp_coder_utils.log_utils (external) | Logging setup centralized in external package |
 

@@ -144,8 +144,10 @@ forbidden_modules =
 # -----------------------------------------------------------------------------
 # Contract: Subprocess Ban
 # -----------------------------------------------------------------------------
-# Production code must not use subprocess directly.
-# Use GitPython for git operations instead.
+# Production code must not use subprocess directly; GitPython is the default
+# for git. The two modules listed below are the only subprocess users:
+# - git_operations._subprocess_git: timeout-bounded network git (push, ls-remote)
+# - git_operations.verification: external binaries (gpg, ssh-keygen, ...)
 # Note: mcp_coder_utils.subprocess_runner/streaming are banned via tach.toml
 # (not listed in depends_on for any production module).
 # -----------------------------------------------------------------------------
@@ -157,6 +159,7 @@ source_modules =
 forbidden_modules =
     subprocess
 ignore_imports =
+    mcp_workspace.git_operations._subprocess_git -> subprocess
     mcp_workspace.git_operations.verification -> subprocess
 
 # -----------------------------------------------------------------------------

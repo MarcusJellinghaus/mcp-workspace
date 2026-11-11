@@ -233,6 +233,72 @@ def renormalize_paths(paths: list[Path], project_dir: Path) -> GitResult:
     )
 
 
+def list_untracked_paths(paths: list[Path], project_dir: Path) -> list[str]:
+    """List the untracked, non-ignored files at or under ``paths``.
+
+    Directories are listed recursively. Paths are matched literally (``*``,
+    ``[`` and ``:(`` have no special meaning).
+
+    Args:
+        paths: Absolute paths, or paths relative to ``project_dir``
+        project_dir: Path to the project directory containing the git repository
+
+    Returns:
+        Repo-relative forward-slash paths. Empty for an empty ``paths``, a
+        non-repository, a path outside ``project_dir`` or a git failure.
+    """
+    logger.debug("Listing untracked paths %s in %s", paths, project_dir)
+
+    if not paths:
+        return []
+    try:
+        rel_paths = to_git_paths(paths, project_dir)
+        with safe_repo_context(project_dir) as repo:
+            returncode, out, stderr = run_git_raw(
+                repo,
+                "ls_files",
+                "--others",
+                "--exclude-standard",
+                "-z",
+                "--",
+                *rel_paths,
+                literal_paths=True,
+            )
+    except ValueError as e:
+        logger.debug("list_untracked_paths failed: %s", e)
+        return []
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        logger.debug("Not a git repository: %s", project_dir)
+        return []
+
+    if returncode != 0:
+        logger.debug("git ls-files failed (exit %s): %s", returncode, stderr)
+        return []
+    return [p for p in out.decode("utf-8", errors="replace").split("\0") if p]
+
+
+def stage_paths(paths: list[Path], project_dir: Path) -> GitResult:
+    """Stage ``paths`` through ``git add``.
+
+    Directories are staged recursively, skipping ignored files. Paths
+    are matched literally and long lists are split into several git calls to
+    stay under the Windows command-line limit.
+
+    Args:
+        paths: Absolute paths, or paths relative to ``project_dir``
+        project_dir: Path to the project directory containing the git repository
+
+    Returns:
+        GitResult; ``success`` is True when every chunk succeeds. An empty
+        ``paths`` is a success without running git. A non-repository or a path
+        outside ``project_dir`` is an error result with ``returncode`` and
+        ``stderr`` None. A failing chunk leaves earlier chunks staged.
+    """
+    logger.debug("Staging paths %s in %s", paths, project_dir)
+
+    return _run_chunked(paths, project_dir, "stage_paths", "add", ("add", "--"))
+
+
 def stage_all_changes(project_dir: Path) -> bool:
     """Stage all unstaged changes (both modified and untracked files) for commit.
 

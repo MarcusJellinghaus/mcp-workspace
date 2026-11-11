@@ -5,6 +5,7 @@ through the PyGithub library.
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import Any, cast
 
@@ -321,6 +322,45 @@ class PullRequestManager(
         prs = repo.get_pulls(state="open", head=f"{owner}:{head_branch}")
 
         return [_pr_to_data(pr) for pr in prs]
+
+    @log_function_call
+    def find_merged_pr_by_head_sha(self, sha: str) -> int | None:
+        """Return the number of a merged PR whose head SHA is ``sha``, else None.
+
+        Reads only the ``GET /commits/{sha}/pulls`` list payload, so it still
+        works after GitHub deleted the PR's head branch. Unlike most methods
+        here, API failures raise instead of returning None, so a caller can
+        tell "no such PR" from "GitHub could not answer".
+
+        Args:
+            sha: Full 40-character lowercase hex commit SHA.
+
+        Returns:
+            The PR number, or None if no merged PR has ``sha`` as its head, the
+            SHA is malformed, or the commit is unknown to GitHub (422).
+
+        Raises:
+            RuntimeError: If the repository cannot be accessed.
+            GithubException: For any other API error (auth, rate limit, 5xx);
+                network errors from PyGithub propagate as well.
+        """
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            return None
+
+        repo = self._get_repository()
+        if repo is None:
+            raise RuntimeError("cannot access the GitHub repository")
+
+        try:
+            for pr in repo.get_commit(sha).get_pulls():
+                if pr.merged_at is not None and pr.head.sha == sha:
+                    return pr.number
+        except GithubException as e:
+            # 422 "No commit found for SHA": the commit is not on GitHub
+            if e.status == 422:
+                return None
+            raise
+        return None
 
     @log_function_call
     @_handle_github_errors(cast(PullRequestData, {}))

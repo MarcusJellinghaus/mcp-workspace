@@ -32,7 +32,9 @@ tools["read_file"].fn("README.md")
 - `fn`: the callable; sync or async
 - `args_model`: pydantic model of the parameters, with their descriptions
 - `group`: one of the groups below
-- `read_only`: `True` for tools that only read (files, git, GitHub)
+- `read_only`: `True` for tools that only read
+
+Library consumers have no client allowlist, so filter on `spec.read_only` to exclude the git-write and GitHub-write tools.
 
 ## Groups
 
@@ -43,6 +45,7 @@ tools["read_file"].fn("README.md")
 | `workspace.delete` | `delete_this_file`, `delete_directory` | no |
 | `workspace.move` | `move_file` | no |
 | `workspace.git` | `git` | yes |
+| `workspace.git` | `git_branch`, `git_branch_delete`, `git_commit`, `git_push`, `git_push_force` | no |
 | `workspace.github` | `github_issue_view`, `github_issue_list`, `github_pr_view`, `github_search`, `github_label_list`, `github_subissue_list` | yes |
 | `workspace.github` | `github_issue_create`, `github_issue_edit`, `github_issue_set_status`, `github_subissue_add`, `github_subissue_remove`, `github_issue_comment`, `github_review_comment_reply`, `github_review_thread_resolve`, `github_pr_create` | no |
 | `workspace.checks` | `check_file_size`, `check_branch_status`, `get_base_branch` | yes |
@@ -50,5 +53,5 @@ tools["read_file"].fn("README.md")
 
 ## TLS and global state
 
-- `tool_specs` has no global side effects. The `mcp-workspace` entry point activates the OS trust store (`truststore`) and labels [GitHub traffic log](../README.md#github-traffic-log) lines with its command name. The traffic log itself follows `config.toml` for library callers too, with an empty command field. Library callers that enable `workspace.github` or `workspace.checks` must set up TLS themselves. `workspace.read` and `workspace.write` need no network.
-- Settings and file locks belong to one `tool_specs(...)` call; two calls never share them. Reference-project clone locks and clone-failure caches are process-global, keyed by reference name.
+- `tool_specs` has no global side effects. The `mcp-workspace` entry point activates the OS trust store (`truststore`) and labels [GitHub traffic log](../README.md#github-traffic-log) lines with its command name. The traffic log itself follows `config.toml` for library callers too, with an empty command field. Library callers that enable `workspace.github`, `workspace.checks` or `workspace.git` must set up TLS and network access themselves; `workspace.git` pushes, runs `ls-remote`, and `git_branch_delete` calls the GitHub API. `workspace.read` and `workspace.write` need no network.
+- Settings, file locks and the `git_write_lock` belong to one `tool_specs(...)` call; two calls never share them. `git_write_lock` serialises the git write tools, so a `git_commit` and a `git_push` issued together run in order. Reference-project clone locks and clone-failure caches are process-global, keyed by reference name.

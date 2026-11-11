@@ -16,11 +16,13 @@ logger = logging.getLogger(__name__)
 PLACEHOLDER_HASH = "0" * 7
 GIT_SHORT_HASH_LENGTH = 7
 
-# Keep git from waiting on a human: no terminal credential prompt, and any
-# editor git would open (rebase --continue, commit without -m) exits at once.
+# Keep git from waiting on a human: no terminal credential prompt, no Git
+# Credential Manager dialog, and any editor git would open (rebase --continue,
+# commit without -m) exits at once.
 # Passed per call via `env=` so nothing leaks into the shared Git object.
 GIT_NONINTERACTIVE_ENV: dict[str, str] = {
     "GIT_TERMINAL_PROMPT": "0",
+    "GCM_INTERACTIVE": "never",
     "GIT_EDITOR": "true",
 }
 
@@ -98,6 +100,16 @@ class BranchProbe(GitResult):
     """
 
     exists: bool | None
+
+
+class RemoteHeadResult(GitResult):
+    """Result of asking origin for one branch's tip.
+
+    ``sha`` is the full SHA, or None when origin has no such branch or could
+    not answer; ``success`` tells the two apart.
+    """
+
+    sha: str | None
 
 
 class RemoteBranchesResult(GitResult):

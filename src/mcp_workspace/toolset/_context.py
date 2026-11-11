@@ -23,6 +23,8 @@ class WorkspaceContext:
         enforce_base_branch_format: Whether a malformed Base Branch section
             is rejected by github_issue_create / github_issue_edit.
         file_locks: Per-file locks for concurrent edit safety.
+        git_write_lock: Serialises the git write tools, so writes issued in
+            the same turn run in order.
     """
 
     project_dir: Path
@@ -32,6 +34,7 @@ class WorkspaceContext:
     fail_on_reviews: bool
     enforce_base_branch_format: bool
     file_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
+    git_write_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
 def check_not_gitignored(ctx: WorkspaceContext, file_path: str) -> None:
