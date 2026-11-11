@@ -13,8 +13,7 @@ from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.toolset._context import WorkspaceContext
 from mcp_workspace.toolset._github_write_helpers import check_body_target, save_body
 from tests.conftest import ToolMap
-
-from ._github_read_tools_helpers import make_comment, make_issue
+from tests.github_operations._github_read_tools_helpers import make_comment, make_issue
 
 ISSUE_MANAGER = "mcp_workspace.github_operations.issues.IssueManager"
 TARGET = ".scratch/issue-42.md"
