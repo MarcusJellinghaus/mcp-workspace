@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: `file_tools/line_endings.py` — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: tests (`test_line_endings.py`) + `PLATFORM_NEWLINE`, `count_line_endings`, `describe_line_endings`, `target_newline`, `_eol_from_gitattributes`
-- [ ] Quality checks (pylint, pytest `-n auto`, mypy, lint-imports, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (`test_line_endings.py`) + `PLATFORM_NEWLINE`, `count_line_endings`, `describe_line_endings`, `target_newline`, `_eol_from_gitattributes`
+- [x] Quality checks (pylint, pytest `-n auto`, mypy, lint-imports, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: `edit_file` keeps line endings — [step_3.md](./steps/step_3.md)
 
