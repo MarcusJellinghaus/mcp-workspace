@@ -6,7 +6,14 @@ from pathlib import Path
 from git import Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError
 
-from .core import logger, safe_repo_context
+from .core import (
+    GIT_NONINTERACTIVE_ENV,
+    is_option_like,
+    logger,
+    open_repo_for_query,
+    run_git_raw,
+    safe_repo_context,
+)
 from .repository_status import is_git_repository
 
 
@@ -374,3 +381,129 @@ def validate_branch_name(branch_name: str) -> bool:
     # Basic branch name validation (GitHub-compatible)
     invalid_chars = ["~", "^", ":", "?", "*", "["]
     return not any(char in branch_name for char in invalid_chars)
+
+
+def _is_valid_branch_name_strict(repo: Repo, name: str) -> bool:
+    """Return True if ``name`` is a literal branch name git accepts as-is."""
+    if not name or name == "HEAD" or is_option_like(name):
+        return False
+    returncode, stdout, _ = run_git_raw(
+        repo, "check_ref_format", "--branch", name, env=GIT_NONINTERACTIVE_ENV
+    )
+    # git expands shorthands such as @{-1}; only an unchanged echo is literal
+    return returncode == 0 and stdout.decode("utf-8", errors="replace").strip() == name
+
+
+def is_valid_branch_name_strict(project_dir: Path, name: str) -> bool:
+    """Validate ``name`` with ``git check-ref-format --branch``.
+
+    Stricter than ``validate_branch_name``: also rejects ``HEAD``, option-like
+    names and shorthands git would expand (``@{-1}``).
+
+    Args:
+        project_dir: Path to the project directory containing the git repository
+        name: Branch name to validate
+
+    Returns:
+        True if ``name`` is a valid literal branch name.
+
+    Raises:
+        ValueError: If ``project_dir`` is not a git repository.
+    """  # noqa: DOC502  # ValueError propagates from open_repo_for_query
+    with open_repo_for_query(project_dir) as repo:
+        return _is_valid_branch_name_strict(repo, name)
+
+
+def resolve_base_ref(project_dir: Path, base: str) -> str | None:
+    """Resolve a branch base to a full ref that exists locally.
+
+    ``origin/<b>`` resolves only to ``refs/remotes/origin/<b>``, anything else
+    only to ``refs/heads/<base>``; tags and other refs never match.
+
+    Args:
+        project_dir: Path to the project directory containing the git repository
+        base: Local branch name or ``origin/<branch>``
+
+    Returns:
+        The full ref name, or None if ``base`` is invalid or the ref is missing.
+
+    Raises:
+        ValueError: If ``project_dir`` is not a git repository.
+    """  # noqa: DOC502  # ValueError propagates from open_repo_for_query
+    with open_repo_for_query(project_dir) as repo:
+        if not _is_valid_branch_name_strict(repo, base):
+            return None
+        ref = (
+            f"refs/remotes/{base}"
+            if base.startswith("origin/")
+            else f"refs/heads/{base}"
+        )
+        returncode, _, _ = run_git_raw(
+            repo, "show_ref", "--verify", "--quiet", ref, env=GIT_NONINTERACTIVE_ENV
+        )
+    return ref if returncode == 0 else None
+
+
+def resolve_commit(project_dir: Path, ref: str) -> str | None:
+    """Resolve ``ref`` to the full SHA of a commit.
+
+    Args:
+        project_dir: Path to the project directory containing the git repository
+        ref: Ref or sha; must not start with ``-``
+
+    Returns:
+        The full commit SHA, or None if ``ref`` is invalid or not a commit.
+
+    Raises:
+        ValueError: If ``project_dir`` is not a git repository.
+    """  # noqa: DOC502  # ValueError propagates from open_repo_for_query
+    if not ref or is_option_like(ref):
+        return None
+    with open_repo_for_query(project_dir) as repo:
+        returncode, stdout, _ = run_git_raw(
+            repo,
+            "rev_parse",
+            "--verify",
+            "-q",
+            f"{ref}^{{commit}}",
+            env=GIT_NONINTERACTIVE_ENV,
+        )
+    if returncode != 0:
+        return None
+    return stdout.decode("utf-8", errors="replace").strip() or None
+
+
+def is_ancestor(project_dir: Path, ancestor: str, descendant: str) -> bool | None:
+    """Return whether ``ancestor`` is an ancestor of (or equal to) ``descendant``.
+
+    Args:
+        project_dir: Path to the project directory containing the git repository
+        ancestor: Ref or sha; must not start with ``-``
+        descendant: Ref or sha; must not start with ``-``
+
+    Returns:
+        True or False, or None if it cannot be decided (an argument is
+        option-like or an object is missing locally).
+
+    Raises:
+        ValueError: If ``project_dir`` is not a git repository.
+    """  # noqa: DOC502  # ValueError propagates from open_repo_for_query
+    if is_option_like(ancestor) or is_option_like(descendant):
+        return None
+    with open_repo_for_query(project_dir) as repo:
+        returncode, _, stderr = run_git_raw(
+            repo,
+            "merge_base",
+            "--is-ancestor",
+            ancestor,
+            descendant,
+            env=GIT_NONINTERACTIVE_ENV,
+        )
+    if returncode == 0:
+        return True
+    if returncode == 1:
+        return False
+    logger.debug(
+        "git merge-base --is-ancestor failed (exit %s): %s", returncode, stderr
+    )
+    return None

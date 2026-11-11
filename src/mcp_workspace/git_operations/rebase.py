@@ -163,6 +163,24 @@ def is_rebase_in_progress(project_dir: Path) -> bool:
         return _rebase_dir_exists(repo)
 
 
+def operation_in_progress(project_dir: Path) -> Literal["rebase", "merge"] | None:
+    """Return the git operation stopped mid-way in ``project_dir``, if any.
+
+    Returns:
+        ``"rebase"`` if a rebase is in progress, ``"merge"`` if ``MERGE_HEAD``
+        exists, otherwise None.
+
+    Raises:
+        ValueError: If ``project_dir`` is not a git repository.
+    """  # noqa: DOC502  # ValueError propagates from open_repo_for_query
+    with open_repo_for_query(project_dir) as repo:
+        if _rebase_dir_exists(repo):
+            return "rebase"
+        if (Path(repo.git_dir) / "MERGE_HEAD").exists():
+            return "merge"
+    return None
+
+
 def _run_rebase(project_dir: Path, *args: str) -> RebaseResult:
     """Run ``git rebase <args>`` non-interactively and classify the outcome.
 

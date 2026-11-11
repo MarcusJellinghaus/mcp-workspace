@@ -37,9 +37,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 4: Guardrail queries — [step_4.md](./steps/step_4.md)
-- [ ] Implementation: tests + `is_valid_branch_name_strict`, `resolve_base_ref`, `resolve_commit`, `is_ancestor`, `operation_in_progress`
-- [ ] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests + `is_valid_branch_name_strict`, `resolve_base_ref`, `resolve_commit`, `is_ancestor`, `operation_in_progress`
+- [x] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
+- [x] Commit message prepared
 
 ### Step 5: Branch mutations returning `GitResult` — [step_5.md](./steps/step_5.md)
 - [ ] Implementation: tests + `create_and_switch_branch`, `switch_branch`, `delete_local_branch_force`
