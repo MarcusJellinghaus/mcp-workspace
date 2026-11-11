@@ -53,9 +53,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 6: `format_issue_view(body_note=…)` — [step_6.md](./steps/step_6.md)
 
-- [ ] Implementation: tests (`test_formatters_body_note.py`) + keyword-only `body_note` in `formatters.py`
-- [ ] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests (`test_formatters_body_note.py`) + keyword-only `body_note` in `formatters.py`
+- [x] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 7: `check_body_target` / `save_body` helpers — [step_7.md](./steps/step_7.md)
 

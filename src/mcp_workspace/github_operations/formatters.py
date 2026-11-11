@@ -147,6 +147,7 @@ def format_issue_view(
     fence_id: str,
     linked_branches: list[str] | None = None,
     include_linked_branches: bool = False,
+    body_note: str | None = None,
 ) -> str:
     """Format a single issue with full detail for LLM consumption.
 
@@ -164,6 +165,9 @@ def format_issue_view(
             the lookup failed. Ignored unless include_linked_branches is set.
         include_linked_branches: Render a "Linked branches:" line under the
             State line, after the summary line.
+        body_note: Replaces the body text (e.g. a pointer to a file holding
+            the raw body). For an untrusted author only the title stays fenced
+            and the note follows outside the fence. None keeps today's output.
 
     Returns:
         Formatted multi-line text string.
@@ -204,18 +208,25 @@ def format_issue_view(
         header += f"\nLinked branches: {branches}"
     parts.append(header)
 
-    body = issue["body"] or "(no description)"
+    shown = (
+        body_note if body_note is not None else (issue["body"] or "(no description)")
+    )
     if author_ok:
-        parts.append(body)
-    else:
+        parts.append(shown)
+    elif body_note is None:
         parts.append(
             _fence(
-                f"Title: {issue['title']}\n\n{body}",
+                f"Title: {issue['title']}\n\n{shown}",
                 issue["user"],
                 association,
                 fence_id,
             )
         )
+    else:
+        parts.append(
+            _fence(f"Title: {issue['title']}", issue["user"], association, fence_id)
+        )
+        parts.append(body_note)
 
     if comments:
         parts.append(f"## Comments ({len(comments)})")
