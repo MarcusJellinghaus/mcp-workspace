@@ -43,7 +43,8 @@ _MAX_COMMITTED_FILES = 50
 has_paths = bool(paths); has_paths == commit_all -> "Error: pass exactly one of paths or all=True"
 guard_operation(); branch = get_current_branch_name(); None -> "Error: HEAD is detached"
 if commit_all: r = commit_all_changes(message, dir); staged = []
-else: staged = list_untracked_paths([Path(p) for p in paths]); s = stage_paths(staged); fail -> Error
+else: staged = list_untracked_paths([Path(p) for p in paths]); s = stage_paths(staged)
+      s fails -> unstage_paths(staged) (a partial chunked failure leaves earlier chunks staged) -> f"Error: {s.error}"
       r = commit_paths(message, [Path(p) for p in paths], dir); if not r.success and staged: unstage_paths(staged)
 nothing = (r.success and r.commit_hash is None) or r.error_category == "nothing_to_commit" or r.error == "No staged files to commit"
 nothing -> "Nothing to commit" (+ f" for paths: {', '.join(paths)}" when commit_paths returned
@@ -72,6 +73,8 @@ Unit (patch library functions where `_git_write_helpers.py` imports them, e.g.
 - neither / both of `paths` and `all` → error, nothing called; `paths=[]` counts as "not given".
 - detached HEAD, rebase/merge in progress → error.
 - commit failure after staging untracked files → `unstage_paths` called with exactly those files.
+- `stage_paths` fails partway (patched to return `success=False`) → `Error:`, `unstage_paths`
+  called with the untracked files, `commit_paths` not called.
 - `commit_all_changes` → `success=True, commit_hash=None` → `Nothing to commit`.
 - `commit_all_changes` → "No staged files to commit" → `Nothing to commit`.
 - `commit_paths` → `nothing_to_commit` → first line `Nothing to commit for paths: <given paths>`

@@ -41,6 +41,10 @@ Do **not** add `git_branch_delete` or `git_push_force` (they always prompt).
   `| Force push after rebase | mcp__mcp-workspace__git_push_force |`.
 - "Allowed commands via Bash tool" code block: `git commit / add / rebase / push / checkout -b / branch`
   → `git add / rebase` (rebase conflict resolution: `git add <file>` + `git rebase --continue`).
+  **Keep** the exception sentence above that block ("Skills that instruct bash commands (e.g.
+  `git commit`) must also use Bash"): the synced `commit_push` and `rebase` skills and the
+  `commit-pusher` agent still run Bash `git commit` / `git push` until
+  MarcusJellinghaus/mcp_coder#1415 is synced.
 - "Before every commit": "run `run_format_code`, then commit with `git_commit`".
 
 ## HOW / ALGORITHM / DATA

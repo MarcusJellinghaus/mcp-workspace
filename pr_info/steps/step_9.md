@@ -65,7 +65,9 @@ if not create:
 if resolve_base_ref(project_dir, f"origin/{name}"): return f"Error: origin/{name} already exists; use git_branch(name, create=False)"
 start = resolve_base_ref(project_dir, base) if base else None; base given and start None -> "Error: base '<b>' is not a local branch or origin/<branch>"
 r = create_and_switch_branch(project_dir, name, start, no_track=bool(start and start.startswith("refs/remotes/")))
-return f"Created {name} from {base or 'HEAD'} ({short(resolve_commit(project_dir, 'HEAD'))})" or Error
+r fails -> Error
+sha = resolve_commit(project_dir, "HEAD")              # str | None
+return f"Created {name} from {base or 'HEAD'}" + (f" ({short(sha)})" if sha else "")
 ```
 
 `guard_name`: `is_valid_branch_name_strict` false → `f"Error: invalid branch {what}: {value!r}"`.
