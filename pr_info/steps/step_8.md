@@ -76,4 +76,6 @@ return format_issue_view(..., body_note=body_note)
 - **Round trip with `edit_file`.** Parametrize over a 500+ line LF body and a CRLF body: view →
   `tools["edit_file"]` changes one unique line → `github_issue_edit(body_file=…)`. Compare the
   sent body with the original: line endings identical, and only the edited line differs (compare
-  `split` lists on the body's own ending).
+  `split` lists on the body's own ending). `edit_file` lives in the `workspace.write` group
+  (`toolset/write.py:118`) and is `async`: register that group too and
+  `await tools["edit_file"](…)`, following `tests/file_tools/test_edit_file_api.py`.

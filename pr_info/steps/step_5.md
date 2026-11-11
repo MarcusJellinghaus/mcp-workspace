@@ -42,7 +42,8 @@ return True
 
 ## Tests
 
-- **Rewrite `test_append_file_normalizes_crlf`:** an existing `b"existing\n"` plus CRLF content →
+- **Rewrite `test_append_file_normalizes_crlf`:** seed the file with `write_bytes(b"existing\n")`,
+  not `write_text("existing\n")`, which writes CRLF on Windows. Appending CRLF content →
   `read_bytes() == b"existing\nnew\nline\n"`. Update the docstring.
 - **New, in `test_line_endings_file_tools.py`:**
   - LF / CRLF / CR files: the existing bytes are an unchanged prefix, and the appended part uses

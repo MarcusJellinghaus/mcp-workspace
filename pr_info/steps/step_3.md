@@ -61,6 +61,9 @@ on write: _write_file(abs_path, modified, target_newline(raw, rel_path, project_
   - A tie → `PLATFORM_NEWLINE`, monkeypatched to `"\n"` and to `"\r\n"`.
   - A file with no line breaks + `new_string` containing `\n`: the ending comes from a patched
     `mcp_workspace.git_operations.get_eol_attribute` (`"lf"` → `\n`, `"crlf"` → `\r\n`).
+  - An empty existing file: an empty `old_string` prepends a `new_string` containing `\n`; the
+    ending comes from the patched `get_eol_attribute` the same way (`"lf"` → `\n`,
+    `"crlf"` → `\r\n`).
   - The lookup is not called for a file with line breaks.
   - The returned diff has no `\r` on a CRLF file.
   - An "already applied" edit on a CRLF file leaves the bytes identical.
