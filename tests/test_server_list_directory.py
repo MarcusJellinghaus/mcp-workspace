@@ -293,3 +293,41 @@ def test_list_directory_dirs_only_subtree_integration(
     _make_tree(project_dir)
 
     assert tools["list_directory"](path="pkg", dirs_only=True) == ["pkg/inner/"]
+
+
+# --- Integration tests for gitignored list_directory paths ---
+
+
+def test_list_directory_refuses_ignored_directory(
+    project_dir: Path, tools: ToolMap
+) -> None:
+    """Integration: listing an ignored directory is refused without leaking names."""
+    (project_dir / ".gitignore").write_text("secret/\n")
+    (project_dir / "secret").mkdir()
+    (project_dir / "secret" / "key.txt").write_text("k")
+
+    with pytest.raises(ValueError, match="excluded by .gitignore rules") as exc_info:
+        tools["list_directory"]("secret")
+
+    assert "key.txt" not in str(exc_info.value)
+
+
+def test_list_directory_all_files_ignored_returns_empty(
+    project_dir: Path, tools: ToolMap
+) -> None:
+    """Integration: a non-ignored directory whose files are all ignored lists empty."""
+    (project_dir / ".gitignore").write_text("*.log\n")
+    (project_dir / "logs").mkdir()
+    (project_dir / "logs" / "a.log").write_text("log")
+
+    assert tools["list_directory"]("logs") == []
+
+
+def test_list_directory_root_not_refused_by_star_pattern(
+    project_dir: Path, tools: ToolMap
+) -> None:
+    """Integration: the project root is never refused, even under a '*' rule."""
+    (project_dir / ".gitignore").write_text("*\n!*/\n!*.py\n")
+    (project_dir / "a.py").write_text("a")
+
+    assert "a.py" in tools["list_directory"](".")
