@@ -47,9 +47,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 6: Staging `list_untracked_paths`, `stage_paths` — [step_6.md](./steps/step_6.md)
-- [ ] Implementation: tests + `list_untracked_paths`, `stage_paths` (staging.py)
-- [ ] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests + `list_untracked_paths`, `stage_paths` (staging.py)
+- [x] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
+- [x] Commit message prepared
 
 ### Step 7: Commit reporting `committed_files`, public `format_dirty_tree` — [step_7.md](./steps/step_7.md)
 - [ ] Implementation: tests + `committed_files` (commits.py) + rename `_format_dirty_tree` → `format_dirty_tree`
