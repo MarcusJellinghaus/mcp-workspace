@@ -71,9 +71,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 9: Docs — README, `LIBRARY_USE.md`, `LLM_Test.md` — [step_9.md](./steps/step_9.md)
 
-- [ ] Implementation: README (existing lines only, ≤ 750), `docs/LIBRARY_USE.md` `read_only` exception, `tests/LLM_Test.md` Test 4.1b round trip
-- [ ] Quality checks (`check_file_size`, pytest `-n auto`) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: README (existing lines only, ≤ 750), `docs/LIBRARY_USE.md` `read_only` exception, `tests/LLM_Test.md` Test 4.1b round trip
+- [x] Quality checks (`check_file_size`, pytest `-n auto`) — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

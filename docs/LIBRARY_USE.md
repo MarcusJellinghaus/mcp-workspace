@@ -32,7 +32,7 @@ tools["read_file"].fn("README.md")
 - `fn`: the callable; sync or async
 - `args_model`: pydantic model of the parameters, with their descriptions
 - `group`: one of the groups below
-- `read_only`: `True` for tools that only read
+- `read_only`: `True` for tools that only read. Exception: `github_issue_view` with `body_file` writes one project file (`save_file` path rules).
 
 Library consumers have no client allowlist, so filter on `spec.read_only` to exclude the git-write and GitHub-write tools.
 

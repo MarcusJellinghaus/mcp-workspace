@@ -190,9 +190,13 @@ closed rather than removed.
 1. `` save_file(".scratch/llm_body.md", "Line 1\nLine `2` ✓") ``
 2. `github_issue_create(title="LLM test - safe to close", body_file=".scratch/llm_body.md")` — expect `Created issue #N — <url>`
 3. `github_issue_view(number=<N>)` — expect the body to show the file text exactly, including the backticks and `✓`
-4. `github_issue_create(title="x", body="y", body_file=".scratch/llm_body.md")` — expect an error saying to pass either `body` or `body_file`, not both; no issue is created
-5. `github_issue_edit(number=<N>, state="closed")` — expect `(state: closed)`
-6. `delete_directory(".scratch", recursive=True)`
+4. `github_issue_view(number=<N>, body_file=".scratch/llm_view.md")` — expect a pointer line `(body saved to .scratch/llm_view.md, 2 lines, …)` and no body text
+5. `edit_file(".scratch/llm_view.md", "Line 1", "Line one")` — expect a one-line diff
+6. `github_issue_edit(number=<N>, body_file=".scratch/llm_view.md")` — expect `Applied: body`
+7. `github_issue_view(number=<N>)` — expect `Line one` and the rest unchanged
+8. `github_issue_create(title="x", body="y", body_file=".scratch/llm_body.md")` — expect an error saying to pass either `body` or `body_file`, not both; no issue is created
+9. `github_issue_edit(number=<N>, state="closed")` — expect `(state: closed)`
+10. `delete_directory(".scratch", recursive=True)`
 
 ### Test 4.2: Cross-repo issue create → comment → edit → close
 
