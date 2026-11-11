@@ -24,3 +24,11 @@ pr_info/steps/step_9.md:68 — low — `short(resolve_commit(project_dir, 'HEAD'
 Verdict(decision='tasks', tasks=['In step_15.md (around line 42), say that the step keeps the exception at `.claude/CLAUDE.md:108` ("Skills that instruct bash commands (e.g. `git commit`) must also use Bash") while removing `commit`/`push` from the Bash list. The synced `commit_push` and `rebase` skills and the `commit-pusher` agent still run Bash `git commit` / `git push` until mcp_coder#1415 syncs.', 'In step_11.md (around line 46), when `stage_paths` fails partway, call `unstage_paths` on the paths already staged before returning the Error, as the commit-failure path does. Add a unit test for a staging failure partway through.', "In step_9.md (around line 68), handle `resolve_commit(project_dir, 'HEAD')` returning None before calling `short(...)`, or take the SHA from the create result instead, so that mypy passes."], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 3 — 2026-11-11
+**Findings**:
+Now the step files.Plan files are read; now checking a few library details the plan relies on (`_handle_github_errors`, `WorkspaceContext`, snapshot test, import test).Last check: confirming `scrub_credentials` is where step 1 imports it from.NO FINDINGS
+**Decisions**:
+Verdict(decision='dismiss', tasks=[], escalate_reason=None)
+**Changes**:
+dismiss
