@@ -8,3 +8,11 @@ Reading the plan against the source code to check its assumptions (helper usages
 Verdict(decision='tasks', tasks=['In pr_info/steps/step_1.md:129 (Test 10), make the exact-one-WARNING assertion depend on behaviour, not on incidental setup: state that the setup uses one rule file and a path with one spelling, so exactly one WARNING is expected. If that cannot be guaranteed, assert at least one WARNING instead.', 'In pr_info/steps/step_5.md:22, reword the ARCHITECTURE.md description of `skip` to say it drops ignored entries and prunes ignored directories. This matches its use on files in pr_info/steps/summary.md:24 and pr_info/steps/step_2.md:33.'], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 2 — 2026-11-11
+**Findings**:
+Checking the remaining usages of the deleted helpers in `tests/file_tools/test_directory_utils.py` before I emit the report.Checking igittigitt's `IgnoreParser` source to confirm the plan's `rules`-copy and ancestor-pruning assumptions hold.`pr_info/steps/step_4.md:6` — low — The LLM prompt calls step 4 "a test-only commit", but the precondition at `pr_info/steps/step_4.md:16-18` allows small fixes to `directory_utils.py` in the same step. Reword the prompt to "test-only unless a scenario needs a small fix (see Precondition)" so the two instructions agree.
+**Decisions**:
+Verdict(decision='tasks', tasks=['In pr_info/steps/step_4.md:6, change the LLM prompt\'s "a test-only commit" to "test-only unless a scenario needs a small fix to directory_utils.py (see Precondition)" so it agrees with the precondition at pr_info/steps/step_4.md:16-18.'], escalate_reason=None)
+**Changes**:
+applied
