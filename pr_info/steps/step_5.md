@@ -19,7 +19,7 @@
 | `SECURITY.md` line 30 | "paths matched by that project's gitignore rules"; drop the listing exception sentence. |
 | `SECURITY.md` line 31 | "Any `.gitignore` is writable, so an agent that edits one changes which paths are refused." |
 | `SECURITY.md` line 75 | "editing any `.gitignore` to lift its rules". |
-| `docs/ARCHITECTURE.md` ~line 137 | `_discover_files` takes an optional `skip` callback; `list_files` uses it to prune gitignored directories during the walk. |
+| `docs/ARCHITECTURE.md` ~line 137 | `_discover_files` takes an optional `skip` callback, called for every entry; `list_files` uses it to drop gitignored entries and prune gitignored directories during the walk. |
 | `docs/processes-prompts/refactoring-guide.md` line 104 | "anything the project-root `.gitignore` matches" → "anything the gitignore rules match". |
 | `src/mcp_workspace/toolset/checks.py` lines 57–59 (`check_file_size` docstring = tool description) | "excluding `.git/` and anything the gitignore rules (every `.gitignore` and `.git/info/exclude`) match." Drop the "Nested" sentence. |
 | `docs/release-notes.md` | New top section `## Next minor release — gitignore rules follow git (#392)` with bullets: nested `.gitignore` + `info/exclude` now applied by every tool; `list_directory` refuses ignored directories; new error wording `Path '<p>' is excluded by .gitignore rules …`; `read_gitignore_rules`, `apply_gitignore_filter`, `filter_with_gitignore` removed (signatures of `is_path_gitignored`, `check_path_not_gitignored`, `list_files` unchanged; `list_files` returns `[]` for an ignored directory); igittigitt `>=2.4.0`. |

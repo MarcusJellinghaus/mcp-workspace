@@ -127,7 +127,9 @@ Use `tmp_path` as `project_dir`; create `.git/` as a plain directory where neede
    `is_path_gitignored("../x.log", proj)` is False and the `parse_rule_file` spy saw no file
    outside `proj`.
 10. A rule file that can't be read: patch `IgnoreParser.parse_rule_file` to raise `OSError`
-    → result False, one WARNING record.
+    → result False, exactly one WARNING record. Setup guarantees one parse attempt: only a
+    root `.gitignore` (no `.git/`, so no `info/exclude`), and the query is `a.log` at the
+    root, whose three spellings (as given, canonical, resolved) are the same string.
 11. Port of #48 (`test_read_gitignore_rules_logs_nothing_above_debug`): with
     `caplog.at_level(logging.INFO, logger="mcp_workspace.file_tools.directory_utils")`, call
     `_rules_for` and `is_path_gitignored` with and without rule files → no records from that
