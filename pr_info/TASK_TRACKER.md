@@ -22,9 +22,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ## Tasks
 
 ### Step 1: Timeout-bounded git subprocess helper — [step_1.md](./steps/step_1.md)
-- [ ] Implementation: tests + `git_operations/_subprocess_git.py` (`run_git_timed`, `GitOutput`) + `.importlinter` ignore line
-- [ ] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests + `git_operations/_subprocess_git.py` (`run_git_timed`, `GitOutput`) + `.importlinter` ignore line
+- [x] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `push_current_branch` — [step_2.md](./steps/step_2.md)
 - [ ] Implementation: tests + `origin_clone` / `make_clone` fixtures, `git_version` public, `_remote_tracking_reflog_exists`, `push_current_branch`
