@@ -57,9 +57,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 8: `PullRequestManager.find_merged_pr_by_head_sha` — [step_8.md](./steps/step_8.md)
-- [ ] Implementation: tests + `find_merged_pr_by_head_sha` (pr_manager.py)
-- [ ] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests + `find_merged_pr_by_head_sha` (pr_manager.py)
+- [x] Quality checks (format, pylint, pytest, mypy, lint-imports, ruff) — fix all issues
+- [x] Commit message prepared
 
 ### Step 9: Tool `git_branch` (+ `git_write.py`, helpers module, lock) — [step_9.md](./steps/step_9.md)
 - [ ] Implementation: tests + `git_write_lock`, `toolset/git_write.py`, `toolset/_git_write_helpers.py` (`do_git_branch`, guards, `run_tool`), registration, `EXPECTED`/`ASYNC_TOOLS`, `git_branch.json` snapshot
