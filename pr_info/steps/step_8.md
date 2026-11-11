@@ -29,6 +29,7 @@ Docstring additions:
 - The rendered view is display-only; do not feed it back as a body.
 - For read-modify-write, use `body_file` → `edit_file` → `github_issue_edit(body_file=…)`.
 - `body_file` writes a project file, even though the tool is registered read-only.
+- `body_file` is always a workspace path, also when `reference_name` is set.
 
 ## HOW
 
