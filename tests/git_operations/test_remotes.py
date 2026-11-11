@@ -10,8 +10,8 @@ from git.exc import GitCommandError
 
 from mcp_workspace.git_operations.core import StatusResult
 from mcp_workspace.git_operations.remotes import (
-    _format_dirty_tree,
     clone_repo,
+    format_dirty_tree,
     get_remote_url,
     get_repository_identifier,
     git_push,
@@ -497,7 +497,7 @@ def _status_ok(
 
 
 class TestFormatDirtyTree:
-    """Tests for the _format_dirty_tree helper."""
+    """Tests for format_dirty_tree."""
 
     @pytest.mark.parametrize("bucket", ["staged", "modified", "untracked"])
     @patch("mcp_workspace.git_operations.remotes.get_working_tree_status")
@@ -509,7 +509,7 @@ class TestFormatDirtyTree:
         buckets[bucket] = [f"f{i}.py" for i in range(25)]
         mock_status.return_value = _status_ok(**buckets)
 
-        out = _format_dirty_tree(Path("/tmp"))
+        out = format_dirty_tree(Path("/tmp"))
 
         assert f"  {bucket}: f0.py" in out
         assert f"... showing 20 of 25 {bucket}" in out
@@ -520,7 +520,7 @@ class TestFormatDirtyTree:
         """Test labels and line order for a tree dirty in every category."""
         mock_status.return_value = _status_ok(["s.py"], ["m.py"], ["u.py"])
 
-        assert _format_dirty_tree(Path("/tmp")) == (
+        assert format_dirty_tree(Path("/tmp")) == (
             "\nWorking tree:\n  staged: s.py\n  modified: m.py\n  untracked: u.py"
         )
 
@@ -529,7 +529,7 @@ class TestFormatDirtyTree:
         """Test a clean tree renders nothing."""
         mock_status.return_value = _status_ok([], [], [])
 
-        assert _format_dirty_tree(Path("/tmp")) == ""
+        assert format_dirty_tree(Path("/tmp")) == ""
 
     @patch("mcp_workspace.git_operations.remotes.get_working_tree_status")
     def test_format_dirty_tree_status_failure(self, mock_status: MagicMock) -> None:
@@ -545,7 +545,7 @@ class TestFormatDirtyTree:
             "untracked": [],
         }
 
-        assert _format_dirty_tree(Path("/tmp")) == ""
+        assert format_dirty_tree(Path("/tmp")) == ""
 
 
 @pytest.mark.git_integration

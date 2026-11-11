@@ -9,6 +9,7 @@ from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 from .core import (
     GIT_SHORT_HASH_LENGTH,
     CommitResult,
+    is_option_like,
     logger,
     run_git_raw,
     safe_repo_context,
@@ -316,6 +317,38 @@ def commit_paths(message: str, paths: list[Path], project_dir: Path) -> CommitRe
         return _failure(
             f"Directory is not a git repository: {project_dir}", "validation_failed"
         )
+
+
+def committed_files(project_dir: Path, rev: str = "HEAD") -> list[str]:
+    """List the repo-relative paths changed by one commit.
+
+    Args:
+        project_dir: Path to the git repository
+        rev: Commit to report; a root commit lists every file it adds
+
+    Returns:
+        Paths added, modified or deleted by ``rev``; empty if ``rev`` is
+        option-like or unresolvable, or ``project_dir`` is not a repository.
+    """
+    if is_option_like(rev):
+        return []
+    try:
+        with safe_repo_context(project_dir) as repo:
+            rc, out, _ = run_git_raw(
+                repo,
+                "diff_tree",
+                "--root",
+                "--no-commit-id",
+                "--name-only",
+                "-r",
+                "-z",
+                rev,
+            )
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        return []
+    if rc != 0:
+        return []
+    return [p for p in out.decode("utf-8", "replace").split("\0") if p]
 
 
 def get_latest_commit_sha(project_dir: Path) -> str | None:

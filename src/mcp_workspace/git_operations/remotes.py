@@ -613,7 +613,7 @@ def get_repository_identifier(
 _MAX_DIRTY_PATHS_PER_BUCKET = 20
 
 
-def _format_dirty_tree(project_dir: Path) -> str:
+def format_dirty_tree(project_dir: Path) -> str:
     """Render the uncommitted changes of a working tree as a log block.
 
     Args:
@@ -706,7 +706,7 @@ def rebase_onto_branch(project_dir: Path, target_branch: str) -> bool:
         # Other error (e.g. invalid branch name, rebase already in progress)
         logger.warning(
             f"Skipping rebase: {result['stderr'] or result['error']}"
-            f"{_format_dirty_tree(project_dir)}"
+            f"{format_dirty_tree(project_dir)}"
         )
         return False
 
