@@ -30,6 +30,15 @@ def _files(project_dir: Path) -> set[Path]:
     return set(project_dir.rglob("*"))
 
 
+def _siblings(project_dir: Path) -> set[Path]:
+    """Return every entry next to the project directory.
+
+    The parent is pytest's per-worker base temp directory, shared with other
+    tests, so callers compare snapshots instead of checking fixed filenames.
+    """
+    return set(project_dir.parent.iterdir())
+
+
 class TestCheckBodyTarget:
     """Test the check_body_target helper."""
 
@@ -62,13 +71,13 @@ class TestCheckBodyTarget:
     ) -> None:
         """A path leaving the project is rejected without writing."""
         before = _files(project_dir)
+        siblings_before = _siblings(project_dir)
 
         with pytest.raises(ValueError):
             check_body_target(ctx, body_file)
 
         assert _files(project_dir) == before
-        assert not (project_dir.parent / "outside.md").exists()
-        assert not (project_dir.parent / "x.md").exists()
+        assert _siblings(project_dir) == siblings_before
 
     def test_gitignored_rejected(
         self, ctx: WorkspaceContext, project_dir: Path
@@ -280,13 +289,14 @@ class TestIssueViewBodyFile:
         (project_dir / ".gitignore").write_bytes(b"*.log\n")
         (project_dir / "subdir").mkdir()
         before = _files(project_dir)
+        siblings_before = _siblings(project_dir)
 
         result = tools["github_issue_view"](number=42, body_file=body_file)
 
         assert result.startswith("Error")
         manager_cls.assert_not_called()
         assert _files(project_dir) == before
-        assert not (project_dir.parent / "outside.md").exists()
+        assert _siblings(project_dir) == siblings_before
 
     def test_not_found_writes_nothing(
         self, manager_cls: MagicMock, project_dir: Path, tools: ToolMap
