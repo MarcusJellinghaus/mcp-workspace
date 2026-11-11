@@ -23,7 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "pathspec>=1.1.1",
-    "igittigitt>=2.1.5",
+    "igittigitt>=2.4.0",
     "mcp>=1.3.0,<2.0.0",
     "GitPython>=3.1.0",
     "mcp-coder-utils",

@@ -363,7 +363,9 @@ def test_check_not_gitignored_absolute_path_message_is_forward_slash(
     with pytest.raises(ValueError) as excinfo:
         check_not_gitignored(ctx, str(nested / "debug.log"))
 
-    assert "File 'sub/deeper/debug.log' is excluded by .gitignore" in str(excinfo.value)
+    assert "Path 'sub/deeper/debug.log' is excluded by .gitignore rules" in str(
+        excinfo.value
+    )
 
 
 def test_read_file_no_gitignore(project_dir: Path, tools: ToolMap) -> None:

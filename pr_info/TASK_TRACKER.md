@@ -23,9 +23,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: Rules builder, `info/exclude`, `is_path_gitignored`, new message — [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: precondition probe (igittigitt >=2.4.0), tests in `tests/file_tools/test_gitignore_rules.py` + `test_server.py` message assertion, then `_info_exclude_path`, `_load_rule_file`, `_rules_for`, `_matches_rules`, new `is_path_gitignored` and message, `pyproject.toml` bump
-- [ ] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: precondition probe (igittigitt >=2.4.0), tests in `tests/file_tools/test_gitignore_rules.py` + `test_server.py` message assertion, then `_info_exclude_path`, `_load_rule_file`, `_rules_for`, `_matches_rules`, new `is_path_gitignored` and message, `pyproject.toml` bump
+- [x] Quality checks: pylint, pytest (`-n auto`), mypy — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `list_files` walk with `skip` callback; delete old helpers — [step_2.md](./steps/step_2.md)
 
