@@ -3,9 +3,10 @@
 ## LLM prompt
 
 > Read `pr_info/steps/summary.md`, this file (`pr_info/steps/step_4.md`) and the "Tests" and
-> "Scenarios" sections of issue #392. Steps 1–3 are done. Implement **only** this step: a
-> test-only commit. Run pylint, pytest (`-n auto`) and mypy; all must pass. Format, then
-> make exactly one commit.
+> "Scenarios" sections of issue #392. Steps 1–3 are done. Implement **only** this step:
+> test-only unless a scenario needs a small fix to `directory_utils.py` (see Precondition).
+> Run pylint, pytest (`-n auto`) and mypy; all must pass. Format, then make exactly one
+> commit.
 
 ## Precondition
 
