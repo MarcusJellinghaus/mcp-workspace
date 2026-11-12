@@ -4,8 +4,33 @@ from pathlib import Path
 
 from git.exc import GitCommandError, InvalidGitRepositoryError
 
-from .core import _normalize_git_path, logger, safe_repo_context
+from .core import _normalize_git_path, logger, run_git_raw, safe_repo_context
 from .repository_status import is_git_repository
+
+
+def get_eol_attribute(rel_path: str, project_dir: Path) -> str | None:
+    """Return the gitattributes ``eol`` value for rel_path (works for missing paths).
+
+    Args:
+        rel_path: Path relative to project_dir; backslashes are accepted
+        project_dir: Root of the git repository
+
+    Returns:
+        The attribute value (``"lf"``, ``"crlf"``, ``"unspecified"``,
+        ``"unset"``, ``"set"`` or another value), or None if git exits nonzero.
+
+    Raises:
+        InvalidGitRepositoryError: project_dir is not a repository root.
+        Exception: Whatever GitPython raises; callers fall back on any error.
+    """  # noqa: DOC502  # raised by safe_repo_context and GitPython
+    git_path = rel_path.replace("\\", "/")
+    with safe_repo_context(project_dir) as repo:
+        rc, out, _ = run_git_raw(repo, "check_attr", "-z", "eol", "--", git_path)
+    if rc != 0:
+        return None
+    # -z output is b"<path>\0<attribute>\0<value>\0"
+    fields = out.split(b"\0")
+    return fields[2].decode("utf-8") if len(fields) > 2 else None
 
 
 def is_file_tracked(file_path: Path, project_dir: Path) -> bool:

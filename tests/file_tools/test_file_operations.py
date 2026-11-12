@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from mcp_workspace.file_tools import line_endings
+
 # Import functions directly from the module
 from mcp_workspace.file_tools.file_operations import (
     append_file,
@@ -590,26 +592,26 @@ def test_read_file_slicing_start_past_eof_with_line_numbers(
 # --- CRLF normalization tests ---
 
 
-def test_save_file_normalizes_crlf(project_dir: Path) -> None:
-    """save_file normalizes CRLF to LF, avoiding double carriage returns."""
+def test_save_file_normalizes_crlf(
+    project_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """save_file writes CRLF content to a new file in the platform default."""
+    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", "\n")
     result = save_file(str(TEST_FILE), "line1\r\nline2\r\n", project_dir=project_dir)
     assert result is True
 
-    abs_file_path = project_dir / TEST_FILE
-    raw = abs_file_path.read_bytes()
-    assert b"\r\r\n" not in raw, "Double carriage return found — normalization failed"
+    assert (project_dir / TEST_FILE).read_bytes() == b"line1\nline2\n"
 
 
 def test_append_file_normalizes_crlf(project_dir: Path) -> None:
-    """append_file normalizes CRLF to LF, avoiding double carriage returns."""
+    """append_file writes CRLF content onto an LF file in LF."""
     abs_file_path = project_dir / TEST_FILE
-    abs_file_path.write_text("existing\n", encoding="utf-8")
+    abs_file_path.write_bytes(b"existing\n")
 
     result = append_file(str(TEST_FILE), "new\r\nline\r\n", project_dir=project_dir)
     assert result is True
 
-    raw = abs_file_path.read_bytes()
-    assert b"\r\r\n" not in raw, "Double carriage return found — normalization failed"
+    assert abs_file_path.read_bytes() == b"existing\nnew\nline\n"
 
 
 def test_append_file_validation_via_validate_save_parameters(

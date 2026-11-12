@@ -1,8 +1,10 @@
-"""Validation and rendering helpers for the workspace.github write tools."""
+"""Validation and rendering helpers for the workspace.github tools."""
 
+from pathlib import Path
 from typing import Any
 
 from mcp_workspace.file_tools import normalize_path
+from mcp_workspace.file_tools.line_endings import describe_line_endings
 from mcp_workspace.toolset._context import WorkspaceContext, check_not_gitignored
 from mcp_workspace.toolset._github_common import (
     api_error,
@@ -245,6 +247,47 @@ def resolve_body(
             return f.read()
     except UnicodeDecodeError as e:
         raise ValueError(f"body_file '{body_file}' is not valid UTF-8") from e
+
+
+def check_body_target(ctx: WorkspaceContext, body_file: str) -> tuple[Path, str]:
+    """Validate a body_file write target under save_file's path rules.
+
+    Args:
+        ctx: Context whose project_dir body_file is relative to.
+        body_file: Project-relative path the body is to be written to.
+
+    Returns:
+        (absolute path, project-relative path with forward slashes).
+
+    Raises:
+        ValueError: path gitignored / outside the project / an existing directory.
+    """
+    check_not_gitignored(ctx, body_file)
+    abs_path, rel_path = normalize_path(body_file, ctx.project_dir)
+    if abs_path.is_dir():
+        raise ValueError(f"body_file '{body_file}' is a directory")
+    return abs_path, rel_path.replace("\\", "/")
+
+
+def save_body(abs_path: Path, display_path: str, body: str) -> str:
+    """Write body verbatim (UTF-8, no BOM, line endings kept); return the pointer line.
+
+    Args:
+        abs_path: Target path, validated by check_body_target.
+        display_path: Project-relative path shown in the pointer line.
+        body: Raw issue body.
+
+    Returns:
+        E.g. ``"(body saved to x.md, 2 lines, CRLF)"``, or
+        ``"(body saved to x.md: empty)"`` for an empty body.
+    """
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+    # Not save_file_util: it converts line endings; newline="" writes verbatim
+    with open(abs_path, "w", encoding="utf-8", newline="") as f:
+        f.write(body)
+    if not body:
+        return f"(body saved to {display_path}: empty)"
+    return f"(body saved to {display_path}, {describe_line_endings(body)})"
 
 
 def subissue_write(

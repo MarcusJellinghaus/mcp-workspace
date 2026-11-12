@@ -51,6 +51,7 @@ from mcp_workspace.git_operations.diffs import (
     get_git_diff_for_commit,
 )
 from mcp_workspace.git_operations.file_tracking import (
+    get_eol_attribute,
     git_move,
     is_file_tracked,
 )
@@ -131,6 +132,7 @@ __all__ = [
     "get_conflict_blob_info",
     "get_current_branch_name",
     "get_default_branch_name",
+    "get_eol_attribute",
     "get_full_status",
     "get_git_diff_for_commit",
     "get_head_commit_info",

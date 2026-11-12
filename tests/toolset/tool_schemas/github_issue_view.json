@@ -1,5 +1,16 @@
 {
   "properties": {
+    "body_file": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "include_comments": {
       "default": true,
       "type": "boolean"

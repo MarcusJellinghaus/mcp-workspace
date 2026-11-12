@@ -4,6 +4,7 @@ import difflib
 import logging
 from pathlib import Path
 
+from mcp_workspace.file_tools.line_endings import target_newline
 from mcp_workspace.file_tools.path_utils import normalize_line_endings, normalize_path
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,10 @@ def edit_file(
     project_dir: Path | None = None,
 ) -> str:
     """Make a selective edit to a file using exact string matching.
+
+    Line endings: an existing file keeps its style (mixed → most common,
+    tie → platform default); a file with no line breaks follows .gitattributes
+    eol=, else the platform default. Matching and the returned diff use LF.
 
     Args:
         file_path: Path to file (relative to project_dir if provided).
@@ -40,9 +45,10 @@ def edit_file(
 
     # Resolve file path
     if project_dir:
-        abs_path, _ = normalize_path(file_path, project_dir)
+        abs_path, rel_path = normalize_path(file_path, project_dir)
     else:
         abs_path = Path(file_path)
+        rel_path = file_path
 
     if not abs_path.exists():
         raise FileNotFoundError(f"File not found: {abs_path}")
@@ -50,9 +56,9 @@ def edit_file(
     if not abs_path.is_file():
         raise ValueError(f"Not a file: {abs_path}")
 
-    # Read and normalize content
-    with open(abs_path, encoding="utf-8") as f:
-        original_content = normalize_line_endings(f.read())
+    # Read bytes once: decoded for matching, raw for the line-ending choice
+    raw = abs_path.read_bytes()
+    original_content = normalize_line_endings(raw.decode("utf-8"))
 
     old_string = normalize_line_endings(old_string)
     new_string = normalize_line_endings(new_string)
@@ -60,7 +66,9 @@ def edit_file(
     # Empty old_string → prepend new_string
     if not old_string:
         modified_content = new_string + original_content
-        _write_file(abs_path, modified_content)
+        _write_file(
+            abs_path, modified_content, target_newline(raw, rel_path, project_dir)
+        )
         return _create_diff(original_content, modified_content, file_path)
 
     # Check if old_string exists in content
@@ -84,7 +92,9 @@ def edit_file(
         else:
             modified_content = original_content.replace(old_string, new_string, 1)
 
-        _write_file(abs_path, modified_content)
+        _write_file(
+            abs_path, modified_content, target_newline(raw, rel_path, project_dir)
+        )
         return _create_diff(original_content, modified_content, file_path)
 
     # old_string not found — check contextual already-applied
@@ -103,9 +113,9 @@ def edit_file(
     raise ValueError(f"Text not found in {abs_path}: {_truncate(old_string)}")
 
 
-def _write_file(path: Path, content: str) -> None:
-    """Write content to file."""
-    with open(path, "w", encoding="utf-8") as f:
+def _write_file(path: Path, content: str, newline: str) -> None:
+    r"""Write LF-normalised content, translating each \n to newline."""
+    with open(path, "w", encoding="utf-8", newline=newline) as f:
         f.write(content)
 
 

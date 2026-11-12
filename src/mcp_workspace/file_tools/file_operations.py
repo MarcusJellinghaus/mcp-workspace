@@ -9,6 +9,7 @@ from typing import Any
 
 from mcp_coder_utils.log_utils import log_function_call
 
+from mcp_workspace.file_tools.line_endings import target_newline
 from mcp_workspace.file_tools.path_utils import normalize_line_endings, normalize_path
 from mcp_workspace.utils.git_paths import is_path_in_git_dir
 
@@ -229,13 +230,16 @@ def _create_parent_directories(abs_path: Path) -> None:
         raise
 
 
-def _write_file_atomically(abs_path: Path, rel_path: str, content: str) -> bool:
-    """Write file atomically using a temporary file.
+def _write_file_atomically(
+    abs_path: Path, rel_path: str, content: str, newline: str
+) -> bool:
+    r"""Write file atomically using a temporary file.
 
     Args:
         abs_path: Absolute path to file
         rel_path: Relative path for logging
-        content: Content to write
+        content: LF-normalised content to write
+        newline: Line ending each ``\n`` is written as
 
     Returns:
         True if successful
@@ -255,7 +259,7 @@ def _write_file_atomically(abs_path: Path, rel_path: str, content: str) -> bool:
         logger.debug("Writing to temporary file for %s", rel_path)
 
         # Write content to temporary file
-        with open(temp_fd, "w", encoding="utf-8") as f:
+        with open(temp_fd, "w", encoding="utf-8", newline=newline) as f:
             try:
                 f.write(content)
             except UnicodeEncodeError as e:
@@ -311,11 +315,15 @@ def save_file(file_path: str, content: Any, project_dir: Path) -> bool:
         file_path, content, project_dir
     )
 
+    # Pick the ending before the write: Windows unlinks the target first
+    existing = abs_path.read_bytes() if abs_path.is_file() else None
+    newline = target_newline(existing, rel_path, project_dir)
+
     # Create parent directories if needed
     _create_parent_directories(abs_path)
 
     # Write file atomically
-    return _write_file_atomically(abs_path, rel_path, validated_content)
+    return _write_file_atomically(abs_path, rel_path, validated_content, newline)
 
 
 # Keep write_file for backward compatibility
@@ -324,6 +332,10 @@ write_file = save_file
 
 def append_file(file_path: str, content: Any, project_dir: Path) -> bool:
     """Append content to the end of a file.
+
+    Appends without touching existing bytes; the appended text uses the
+    file's line ending (no line breaks → .gitattributes eol=, else platform
+    default). No newline is inserted before it.
 
     Args:
         file_path: Path to the file to append to (relative to project directory)
@@ -352,15 +364,20 @@ def append_file(file_path: str, content: Any, project_dir: Path) -> bool:
         logger.error("Path is not a file: %s", file_path)
         raise IsADirectoryError(f"Path '{file_path}' is not a file")
 
-    # Read existing content
-    existing_content = read_file(file_path, project_dir)
+    newline = target_newline(abs_path.read_bytes(), rel_path, project_dir)
 
-    # Append new content
-    combined_content = existing_content + validated_content
-
-    # Use save_file to write the combined content
     logger.debug("Appending %s bytes to %s", len(validated_content), rel_path)
-    return save_file(file_path, combined_content, project_dir)
+    with open(abs_path, "a", encoding="utf-8", newline=newline) as f:
+        try:
+            f.write(validated_content)
+        except UnicodeEncodeError as e:
+            logger.error(
+                "Unicode encode error while appending to %s: %s", rel_path, str(e)
+            )
+            raise ValueError(
+                "Content contains characters that cannot be encoded. Please check the encoding."
+            ) from e
+    return True
 
 
 def delete_file(file_path: str, project_dir: Path) -> bool:
