@@ -6,15 +6,34 @@ We use the external igittigitt library for handling .gitignore patterns.
 
 import logging
 import os
+import sys
 from collections.abc import Callable
+from enum import IntEnum
 from pathlib import Path
 
 from igittigitt import IgnoreParser
 
+from mcp_workspace.file_tools.access_rules import (
+    ACCESS_RULES_FILE,
+    READ_ONLY,
+    AccessRules,
+    load_access_rules,
+)
+from mcp_workspace.file_tools.access_rules import (
+    validate_access_rules as validate_access_rules,
+)
 from mcp_workspace.file_tools.path_utils import normalize_path, resolves_into_git_dir
 from mcp_workspace.utils.git_paths import canonical_spelling, is_path_in_git_dir
 
 logger = logging.getLogger(__name__)
+
+
+class FileAccess(IntEnum):
+    """Effective access to a path; a higher value grants more."""
+
+    HIDDEN = 0
+    READ_ONLY = 1
+    READ_WRITE = 2
 
 
 def _resolved_relative(path: Path, project_dir: Path) -> str | None:
@@ -148,20 +167,152 @@ def is_path_gitignored(path: str, project_dir: Path) -> bool:
     if is_path_in_git_dir(path):
         return True
 
-    joined = project_dir / path
-    if resolves_into_git_dir(joined, project_dir):
+    if resolves_into_git_dir(project_dir / path, project_dir):
         return True
 
-    candidates = {
-        path,
-        canonical_spelling(path),
-        _resolved_relative(joined, project_dir),
-    }
     return any(
-        _matches_rules(candidate, project_dir)
-        for candidate in candidates
-        if candidate is not None
+        _matches_rules(spelling, project_dir)
+        for spelling in _spellings(path, project_dir)
     )
+
+
+def _spellings(path: str, project_dir: Path) -> set[str]:
+    """Return the spellings of a path that rules are checked against.
+
+    Args:
+        path: Relative path (relative to project_dir).
+        project_dir: Project root directory.
+
+    Returns:
+        The path as spelled, its canonical spelling, and the location it
+        resolves to when that is inside the project.
+    """
+    spellings = {path, canonical_spelling(path)}
+    resolved = _resolved_relative(project_dir / path, project_dir)
+    if resolved is not None:
+        spellings.add(resolved)
+    return spellings
+
+
+def _is_rules_file(rel_path: str) -> bool:
+    """Tell whether a project-relative path names the root rules file.
+
+    Returns:
+        True if the path is ``.mcp-file-access`` at the project root.
+    """
+    # Windows matches names case-insensitively; the file name is lower case
+    folded = rel_path.casefold() if sys.platform == "win32" else rel_path
+    return folded == ACCESS_RULES_FILE
+
+
+def _access_of_spelling(
+    rel_path: str, project_dir: Path, rules: AccessRules
+) -> tuple[FileAccess, str]:
+    """Decide the access of one spelling of a path, ignoring ``.git``.
+
+    Returns:
+        The access level and the reason it differs from the default.
+    """
+    ignored = _matches_rules(rel_path, project_dir)
+    rule = rules.match(rel_path, is_dir=(project_dir / rel_path).is_dir())
+    if rule is not None:
+        base = (
+            FileAccess.READ_ONLY if rule.level == READ_ONLY else FileAccess.READ_WRITE
+        )
+    else:
+        base = FileAccess.HIDDEN if ignored else FileAccess.READ_WRITE
+
+    if _is_rules_file(rel_path):
+        return min(base, FileAccess.READ_ONLY), "built-in"
+    if rules.problems:
+        access = FileAccess.HIDDEN if ignored else FileAccess.READ_ONLY
+        return access, f"{ACCESS_RULES_FILE} is invalid: " + "; ".join(rules.problems)
+    if rule is not None:
+        return base, f"rule '{rule.pattern}' in {ACCESS_RULES_FILE}"
+    return base, ""
+
+
+def _access(path: str, project_dir: Path, rules: AccessRules) -> tuple[FileAccess, str]:
+    """Decide the effective access to a path: gitignore default plus rules.
+
+    ``.git`` is always hidden. Otherwise the last matching rule overrides the
+    gitignore default, the rules file is capped at read-only, and an invalid
+    rules file leaves committed paths read-only and ignored paths hidden. The
+    most restrictive result across the path's spellings wins.
+
+    Args:
+        path: Relative path (relative to project_dir).
+        project_dir: Project root directory.
+        rules: The project's rules, loaded once per tool call.
+
+    Returns:
+        The access level and its reason: empty for the default, else the
+        rule, ``built-in`` or the invalid rules file's problems.
+    """
+    if is_path_in_git_dir(path) or resolves_into_git_dir(
+        project_dir / path, project_dir
+    ):
+        return FileAccess.HIDDEN, ""
+    # Sorted, so ties between spellings always give the same reason
+    return min(
+        (
+            _access_of_spelling(spelling, project_dir, rules)
+            for spelling in sorted(_spellings(path, project_dir))
+        ),
+        key=lambda result: result[0],
+    )
+
+
+def get_file_access(path: str, project_dir: Path) -> FileAccess:
+    """Return the effective access to a path.
+
+    Args:
+        path: Relative path (relative to project_dir).
+        project_dir: Project root directory.
+
+    Returns:
+        The path's access level under .gitignore and ``.mcp-file-access``.
+    """
+    return _access(path, project_dir, load_access_rules(project_dir))[0]
+
+
+def _excluded_error(file_path: str) -> ValueError:
+    """Build the refusal for a path hidden by gitignore rules.
+
+    Returns:
+        The error to raise, naming file_path.
+    """
+    return ValueError(
+        f"Path '{file_path}' is excluded by .gitignore rules and cannot be "
+        "accessed. Use list_directory() to see available files."
+    )
+
+
+def require_access(file_path: str, project_dir: Path, needed: FileAccess) -> None:
+    """Raise ValueError unless a path grants the needed access.
+
+    An absolute path is checked relative to project_dir. One that is not below
+    project_dir is left for ``normalize_path`` to refuse.
+
+    Args:
+        file_path: Path to check, relative to project_dir or absolute.
+        project_dir: Project root directory.
+        needed: ``READ_ONLY`` to read, ``READ_WRITE`` to write.
+
+    Raises:
+        ValueError: If the path is hidden, or read-only and a write is needed.
+    """  # noqa: DOC501 - _excluded_error returns the documented ValueError
+    path = Path(file_path)
+    if path.is_absolute():
+        try:
+            file_path = path.relative_to(project_dir).as_posix()
+        except ValueError:
+            return
+    access, reason = _access(file_path, project_dir, load_access_rules(project_dir))
+    if access is FileAccess.HIDDEN:
+        raise _excluded_error(file_path)
+    if needed is FileAccess.READ_WRITE and access is FileAccess.READ_ONLY:
+        raise ValueError(f"No write access to '{file_path}' ({reason})")
 
 
 def check_path_not_gitignored(file_path: str, project_dir: Path) -> None:
@@ -176,7 +327,7 @@ def check_path_not_gitignored(file_path: str, project_dir: Path) -> None:
 
     Raises:
         ValueError: If the path is excluded.
-    """
+    """  # noqa: DOC501, DOC502 - _excluded_error returns the documented ValueError
     path = Path(file_path)
     if path.is_absolute():
         try:
@@ -184,10 +335,7 @@ def check_path_not_gitignored(file_path: str, project_dir: Path) -> None:
         except ValueError:
             return
     if is_path_gitignored(file_path, project_dir):
-        raise ValueError(
-            f"Path '{file_path}' is excluded by .gitignore rules and cannot be "
-            "accessed. Use list_directory() to see available files."
-        )
+        raise _excluded_error(file_path)
 
 
 def _discover_files(

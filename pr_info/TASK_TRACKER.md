@@ -27,9 +27,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 2: Effective access and public API — [step_2.md](./steps/step_2.md)
-- [ ] Implementation (tests, `FileAccess` / `_access` / `get_file_access` / `require_access`, exports)
-- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests, `FileAccess` / `_access` / `get_file_access` / `require_access`, exports)
+- [x] Quality checks (pylint, pytest, mypy) — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: Single-path enforcement in the tools — [step_3.md](./steps/step_3.md)
 - [ ] Implementation (tests, `check_readable` / `check_writable` replace `check_not_gitignored` at all call sites)

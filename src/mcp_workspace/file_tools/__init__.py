@@ -1,6 +1,11 @@
 """File operation tools for MCP server."""
 
-from mcp_workspace.file_tools.directory_utils import list_files
+from mcp_workspace.file_tools.directory_utils import (
+    FileAccess,
+    get_file_access,
+    list_files,
+    validate_access_rules,
+)
 from mcp_workspace.file_tools.edit_file import edit_file
 from mcp_workspace.file_tools.file_operations import (
     DEFAULT_READ_MAX_LINES,
@@ -19,6 +24,9 @@ from mcp_workspace.file_tools.tree_listing import list_directory_tree
 # Define what functions are exposed when importing from this package
 __all__ = [
     "DEFAULT_READ_MAX_LINES",
+    "FileAccess",
+    "get_file_access",
+    "validate_access_rules",
     "normalize_path",
     "read_file",
     "write_file",
