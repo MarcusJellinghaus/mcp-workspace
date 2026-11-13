@@ -42,9 +42,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 5: Exposure-aware listing walk for `search_files` and reference listing / search — [step_5.md](./steps/step_5.md)
-- [ ] Implementation (tests, `list_accessible_files`, `search_files`, `list_reference_directory`)
-- [ ] Quality checks (pylint, pytest, mypy, serial performance tests) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests, `list_accessible_files`, `search_files`, `list_reference_directory`)
+- [x] Quality checks (pylint, pytest, mypy, serial performance tests) — fix all issues
+- [x] Commit message prepared
 
 ### Step 6: `list_directory` — exposed paths, suffixes, warning line, hidden directory — [step_6.md](./steps/step_6.md)
 - [ ] Implementation (tests, `list_directory` switched to `list_accessible_files`)

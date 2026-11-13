@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
 
@@ -437,7 +438,8 @@ def _gitignore_skip(start: Path, project_dir: Path) -> Callable[[Path], bool]:
     .gitignore gets a copy, so siblings never share rules.
 
     Args:
-        start: Absolute directory the walk starts at, not itself ignored.
+        start: Absolute directory the walk starts at. When it is itself
+            ignored, every entry below it is reported as ignored.
         project_dir: Project root directory.
 
     Returns:
@@ -646,3 +648,159 @@ def list_files(
     except Exception as e:
         logger.error("Error listing files in directory %s: %s", rel_path, str(e))
         raise
+
+
+_NOTE_READ_ONLY = "(read-only)"
+_NOTE_NOT_COMMITTED = "(read-write, not committed)"
+
+
+@dataclass(frozen=True)
+class AccessListing:
+    """What a listing walk reaches under .gitignore and ``.mcp-file-access``.
+
+    Attributes:
+        files: Project-relative paths, forward-slash separated, in walk order.
+        notes: Path to ``(read-only)`` or ``(read-write, not committed)`` for
+            files whose access differs from the default; empty when the rules
+            file is invalid.
+        problems: The rules file's problems; empty when it is valid.
+    """
+
+    files: list[str]
+    notes: dict[str, str]
+    problems: list[str]
+
+
+def _exposes_dir(rel_dir: str, rules: AccessRules) -> bool:
+    """Tell whether the walk may enter an ignored directory.
+
+    Returns:
+        True if a rule matches the directory itself or an anchored rule's
+        literal prefix leads into it.
+    """
+    return rules.match(rel_dir, is_dir=True) is not None or rules.leads_into(rel_dir)
+
+
+def _enterable(rel_dir: str, project_dir: Path, rules: AccessRules) -> bool:
+    """Tell whether a listing walk from the root would reach a directory.
+
+    Args:
+        rel_dir: Project-relative directory with forward slashes, not ``.``.
+        project_dir: Project root directory.
+        rules: The project's rules, loaded once per tool call.
+
+    Returns:
+        False for ``.git`` and below, for a path through a link to a hidden
+        location, and when an ignored directory on the path, rel_dir
+        included, is not exposed by a rule; else True.
+    """
+    if is_path_in_git_dir(rel_dir):
+        return False
+    ancestor = ""
+    for part in rel_dir.split("/"):
+        ancestor = f"{ancestor}/{part}" if ancestor else part
+        if (project_dir / ancestor).is_symlink() and _access(
+            ancestor, project_dir, rules
+        )[0] is FileAccess.HIDDEN:
+            return False
+        if is_path_gitignored(ancestor, project_dir) and not _exposes_dir(
+            ancestor, rules
+        ):
+            return False
+    return True
+
+
+def _exposure_skip(
+    start: Path, project_dir: Path, rules: AccessRules, notes: dict[str, str]
+) -> Callable[[Path], bool]:
+    """Build a skip predicate that lets the paths the rules expose through.
+
+    Gitignore decides first. An ignored directory is entered only when
+    ``_exposes_dir`` allows it; an ignored file is kept when a rule matches
+    it. Only a link pays for the full multi-spelling ``_access`` check.
+
+    Args:
+        start: Absolute directory the walk starts at.
+        project_dir: Project root directory.
+        rules: The project's rules, loaded once per tool call.
+        notes: Filled with the note of every kept entry that differs from the
+            default; may hold directories, which the caller drops.
+
+    Returns:
+        A predicate that is True for an entry the listing leaves out.
+    """
+    ignored = _gitignore_skip(start, project_dir)
+
+    def note(rel: str, is_ignored: bool) -> None:
+        if rules.problems:
+            return
+        level = _rule_access(rel, rules)[0]
+        if level is FileAccess.READ_ONLY:
+            notes[rel] = _NOTE_READ_ONLY
+        elif level is FileAccess.READ_WRITE and is_ignored:
+            notes[rel] = _NOTE_NOT_COMMITTED
+
+    def skip(path: Path) -> bool:
+        rel = path.relative_to(project_dir).as_posix()
+        if not ignored(path):
+            note(rel, is_ignored=False)
+            return False
+        if path.is_dir():
+            return not _exposes_dir(rel, rules)
+        if _rule_access(rel, rules)[0] is None:
+            return True
+        # The built-in rule caps the rules file; it does not expose it
+        if _is_rules_file(rel) and rules.match(rel) is None:
+            return True
+        if path.is_symlink() and (
+            _access(rel, project_dir, rules)[0] is FileAccess.HIDDEN
+        ):
+            return True
+        note(rel, is_ignored=True)
+        return False
+
+    return skip
+
+
+def list_accessible_files(directory: str | Path, project_dir: Path) -> AccessListing:
+    """List the files below a directory that effective access lets through.
+
+    Like ``list_files``, plus the gitignored paths ``.mcp-file-access``
+    exposes. The walk enters an ignored directory only when a rule matches it
+    or an anchored rule's literal prefix leads into it, so a deep match of an
+    unanchored rule is readable but not listed. The rules file is read once.
+
+    Args:
+        directory: Directory to list, relative to project_dir or absolute.
+        project_dir: Project root directory.
+
+    Returns:
+        The files, their notes and the rules file's problems.
+
+    Raises:
+        ValueError: If the directory is hidden and the walk would not enter
+            it, also when it does not exist, or is outside the project.
+        FileNotFoundError: If the directory does not exist.
+        NotADirectoryError: If the path is not a directory.
+    """  # noqa: DOC501, DOC502 - _excluded_error and normalize_path raise ValueError
+    abs_path, rel_path = normalize_path(str(directory), project_dir)
+    rules = load_access_rules(project_dir)
+
+    # Before the existence check, which would reveal whether a hidden path exists
+    if rel_path != "." and not _enterable(rel_path, project_dir, rules):
+        raise _excluded_error(str(directory))
+    if not abs_path.exists():
+        raise FileNotFoundError(f"Directory '{directory}' does not exist")
+    if not abs_path.is_dir():
+        raise NotADirectoryError(f"Path '{directory}' is not a directory")
+
+    notes: dict[str, str] = {}
+    files = _discover_files(
+        abs_path, project_dir, _exposure_skip(abs_path, project_dir, rules, notes)
+    )
+    logger.debug("Discovered %s accessible files in %s", len(files), rel_path)
+    return AccessListing(
+        files=files,
+        notes={rel: notes[rel] for rel in files if rel in notes},
+        problems=list(rules.problems),
+    )
