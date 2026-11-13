@@ -55,6 +55,10 @@ _.push_branch
 # (issue #83); the tools call require_access instead.
 _.check_path_not_gitignored
 
+# PEP 562 module __getattr__ in directory_utils, re-exporting the file_access
+# API lazily; Python calls it on attribute lookup, never our own code.
+_.__getattr__
+
 # =============================================================================
 # Test Mock Attributes
 # =============================================================================

@@ -127,7 +127,7 @@ class TestLinkedAncestor:
             os.symlink(root / "protected", root / "alias", target_is_directory=True)
         except (OSError, NotImplementedError) as exc:
             if sys.platform == "win32":
-                import _winapi  # pylint: disable=import-outside-toplevel
+                import _winapi  # pylint: disable=import-outside-toplevel,import-error
 
                 _winapi.CreateJunction(str(root / "protected"), str(root / "alias"))
             else:
