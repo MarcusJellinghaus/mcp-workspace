@@ -57,9 +57,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 8: `.scratch/` migration in this repo — [step_8.md](./steps/step_8.md)
-- [ ] Implementation (guard test, `.mcp-file-access`, `.gitignore`, ruff probe, CLAUDE.md "Scratch probes")
-- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (guard test, `.mcp-file-access`, `.gitignore`, ruff probe, CLAUDE.md "Scratch probes")
+- [x] Quality checks (pylint, pytest, mypy) — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 - [ ] PR review — check the full branch diff against issue #83 and `summary.md`

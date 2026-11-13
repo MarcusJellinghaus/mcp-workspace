@@ -1,0 +1,5 @@
+# MCP file access rules: <level> <gitignore pattern>; last match wins.
+# See README "Access rules (.mcp-file-access)".
+read-write  /.scratch/
+read-only   /.mcp.json
+read-only   /.mcp-file-access
