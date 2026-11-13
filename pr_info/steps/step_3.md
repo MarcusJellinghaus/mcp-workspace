@@ -57,6 +57,7 @@ Use `make_tools(root)` from `tests/conftest.py`. Fixture project: `.gitignore` w
 
 - Matrix, parametrized: `save_file`, `append_file`, `edit_file`, `delete_this_file` × rule (none / `read-only` / `read-write`) × path (committed / ignored):
   none+committed → allowed; none+ignored → gitignore refusal; `read-only` → `No write access … (rule '<pattern>' in .mcp-file-access)`; `read-write` → allowed. Refused calls leave the file bytes unchanged.
+- Logs directory rule, parametrized over `save_file`, `append_file`, `edit_file`, `delete_this_file`, and `move_file` (as source): `.gitignore` `*.log` and `logs/`, rule `read-only /logs/`, file `logs/a.log` → every tool refused with `No write access to 'logs/a.log' (rule '/logs/' in .mcp-file-access)`, bytes unchanged; `read_file("logs/a.log")` works.
 - `read_file`: exposed ignored file readable (both levels); unexposed ignored file refused.
 - `move_file`: read-only source refused; read-only destination refused; nothing moved.
 - `delete_directory` on a directory path that is read-only by rule → refused.

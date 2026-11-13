@@ -47,6 +47,8 @@ warning = access_rules_warning(listing.problems); return [warning, *lines] if wa
 - Collapsed directory holding exposed files (>250 entries) → its `dir/ (N files)` line is unmarked and `N` counts the exposed files.
 - Hidden directory with exposed files: `list_directory("logs")` under `read-only /logs/` (`logs/` ignored) → only the exposed paths.
 - Hidden directory without a rule → refused with the gitignore message.
+- Nonexistent ignored directory (`.gitignore` `secret/`, `list_directory("secret")` with no `secret/` on disk) → refused with the gitignore message, not "does not exist".
+- `.git/` always refused: with a `read-write /.git/` rule, `list_directory(".git")` → refused (`normalize_path`'s "inside a git directory" error, which fires first; `_enterable`'s `.git` short-circuit is defense in depth for direct `list_accessible_files` callers).
 - Invalid rules file → first line starts with `WARNING: .mcp-file-access is invalid`, no suffixes; with more than 250 entries the output is warning + 250 lines + the truncation summary.
 - A file path → `is a file` error; a hidden file path → gitignore message.
 - Update `tests/test_server_list_directory.py`: patch `mcp_workspace.toolset.read.list_accessible_files` (return an `AccessListing`) instead of `list_files_util`.
