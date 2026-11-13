@@ -11,7 +11,7 @@ from pydantic import Field
 from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools import search_files as search_files_util
 from mcp_workspace.file_tools.access_rules import access_rules_warning
-from mcp_workspace.file_tools.directory_utils import (
+from mcp_workspace.file_tools.file_access import (
     FileAccess,
     list_accessible_files,
     require_access,

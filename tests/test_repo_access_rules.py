@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
-from mcp_workspace.file_tools.directory_utils import (
+from mcp_workspace.file_tools.directory_utils import is_path_gitignored
+from mcp_workspace.file_tools.file_access import (
     FileAccess,
     get_file_access,
-    is_path_gitignored,
     validate_access_rules,
 )
 

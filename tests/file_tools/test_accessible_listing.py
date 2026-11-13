@@ -8,11 +8,11 @@ import pytest
 
 from mcp_workspace.checks.file_sizes import check_file_sizes
 from mcp_workspace.file_tools.access_rules import ACCESS_RULES_FILE
-from mcp_workspace.file_tools.directory_utils import (
+from mcp_workspace.file_tools.directory_utils import list_files
+from mcp_workspace.file_tools.file_access import (
     FileAccess,
     get_file_access,
     list_accessible_files,
-    list_files,
 )
 from mcp_workspace.file_tools.search import search_files
 from mcp_workspace.reference_projects import ReferenceProject

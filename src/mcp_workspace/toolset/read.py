@@ -11,7 +11,7 @@ from mcp_workspace.file_tools import list_directory_tree, normalize_path
 from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools import search_files as search_files_util
 from mcp_workspace.file_tools.access_rules import access_rules_warning
-from mcp_workspace.file_tools.directory_utils import list_accessible_files
+from mcp_workspace.file_tools.file_access import list_accessible_files
 from mcp_workspace.toolset._context import WorkspaceContext, check_readable
 
 logger = logging.getLogger(__name__)

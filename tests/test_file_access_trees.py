@@ -9,7 +9,7 @@ import pytest
 from git import Repo
 
 from mcp_workspace.file_tools.access_rules import ACCESS_RULES_FILE
-from mcp_workspace.file_tools.file_operations import _determine_move_method, move_file
+from mcp_workspace.file_tools.move_operations import _determine_move_method, move_file
 from tests.conftest import ToolMap
 
 CONTENT = b"content\n"

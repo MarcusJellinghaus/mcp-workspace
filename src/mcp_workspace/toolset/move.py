@@ -8,7 +8,7 @@ from mcp_coder_utils.tool_spec import ToolSink, tool_spec
 from pydantic import Field
 
 from mcp_workspace.file_tools import move_file as move_file_util
-from mcp_workspace.file_tools.directory_utils import check_tree_access
+from mcp_workspace.file_tools.file_access import check_tree_access
 from mcp_workspace.toolset._context import WorkspaceContext, check_writable
 
 logger = logging.getLogger(__name__)

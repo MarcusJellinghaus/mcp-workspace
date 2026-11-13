@@ -142,6 +142,7 @@ ignore = [
 # calls or delegated utils (PermissionError, GitCommandError, ValueError,
 # ...) — useful docs, keep them.
 "src/mcp_workspace/file_tools/file_operations.py" = ["DOC502"]
+"src/mcp_workspace/file_tools/move_operations.py" = ["DOC502"]
 "src/mcp_workspace/git_operations/read_operations.py" = ["DOC502"]
 "src/mcp_workspace/toolset/reference.py" = ["DOC502"]
 "src/mcp_workspace/main.py" = ["DOC502"]

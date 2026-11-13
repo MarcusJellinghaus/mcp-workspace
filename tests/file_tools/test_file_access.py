@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 
 from mcp_workspace.file_tools.access_rules import ACCESS_RULES_FILE, load_access_rules
-from mcp_workspace.file_tools.directory_utils import (
+from mcp_workspace.file_tools.directory_utils import is_path_gitignored
+from mcp_workspace.file_tools.file_access import (
     FileAccess,
     _access,
     get_file_access,
-    is_path_gitignored,
     require_access,
 )
 
@@ -259,7 +259,7 @@ class TestRequireAccess:
 
 
 @pytest.mark.parametrize(
-    "module", ["mcp_workspace.file_tools.directory_utils", "mcp_workspace.file_tools"]
+    "module", ["mcp_workspace.file_tools.file_access", "mcp_workspace.file_tools"]
 )
 def test_public_api_importable(module: str) -> None:
     imported = __import__(module, fromlist=["validate_access_rules"])

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mcp_workspace.file_tools.directory_utils import AccessListing
+from mcp_workspace.file_tools.file_access import AccessListing
 from tests.conftest import ToolMap
 
 TEST_DIR = Path("testdata/test_file_tools")

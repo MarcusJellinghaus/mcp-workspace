@@ -7,7 +7,7 @@ from typing import Any
 
 from pathspec import GitIgnoreSpec, RegexPattern
 
-from mcp_workspace.file_tools.directory_utils import list_accessible_files
+from mcp_workspace.file_tools.file_access import list_accessible_files
 from mcp_workspace.file_tools.path_utils import normalize_path
 
 # Deliberate internal cap with no lift parameter: search_files returns many

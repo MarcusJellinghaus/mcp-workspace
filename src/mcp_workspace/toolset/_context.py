@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from mcp_workspace.file_tools.directory_utils import FileAccess, require_access
+from mcp_workspace.file_tools.file_access import FileAccess, require_access
 from mcp_workspace.reference_projects import ReferenceProject
 
 

@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
-from mcp_workspace.file_tools.directory_utils import AccessListing
+from mcp_workspace.file_tools.file_access import AccessListing
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.toolset._context import WorkspaceContext
 from mcp_workspace.toolset.reference import (

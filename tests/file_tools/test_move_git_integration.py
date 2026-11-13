@@ -6,7 +6,7 @@ from unittest.mock import patch
 from git import Repo
 from git.exc import GitCommandError
 
-from mcp_workspace.file_tools.file_operations import move_file
+from mcp_workspace.file_tools.move_operations import move_file
 
 
 class TestGitMoveIntegration:

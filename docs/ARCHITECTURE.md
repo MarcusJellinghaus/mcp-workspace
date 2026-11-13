@@ -85,7 +85,7 @@ functions that need them**, rather than at module top level:
   branch-status checks inside the tool closures and the helpers they call, so
   building the specs with `tool_specs(...)` loads neither library; they load
   when a git/GitHub tool first runs.
-- `file_tools/file_operations.py` imports the git-move helpers inside `move_file`
+- `file_tools/move_operations.py` imports the git-move helpers inside `move_file`
   only, so the common read/write/edit/list/search path never loads GitPython.
 - `reference_projects.py` imports `clone_repo` inside `ensure_available`.
 
@@ -154,14 +154,15 @@ appear, so CI cannot catch a regression. The guard is
 ### 7. Access Layer
 
 Effective access to a path is the gitignore default overridden by the
-`.mcp-file-access` rules (see README "Access rules"). It is computed in
-`file_tools/` and enforced in `toolset/`:
+`.mcp-file-access` rules (see [file-access.md](file-access.md#access-rules-mcp-file-access)).
+It is computed in `file_tools/` and enforced in `toolset/`:
 
 ```
 file_tools/access_rules.py            parse + match the rules file (pure)
+file_tools/directory_utils.py         gitignore default (rules, walk)
         │
         ▼
-file_tools/directory_utils._access    gitignore default + rules override
+file_tools/file_access._access        gitignore default + rules override
         │
         ▼
 toolset/_context.check_readable / check_writable    enforcement
@@ -172,7 +173,7 @@ toolset/_context.check_readable / check_writable    enforcement
   `PathSpec.from_lines("gitignore", …)`, last match wins. Nothing is cached
   across calls, so a fixed file applies without a restart; walks and tree
   checks load it once and pass it down.
-- `directory_utils._access` is the one decision function: `.git` is hidden;
+- `file_access._access` is the one decision function: `.git` is hidden;
   the last matching rule overrides the gitignore default; the rules file is
   capped at read-only; an invalid rules file leaves committed paths read-only
   and ignored paths hidden. It returns the most restrictive result across the
@@ -185,7 +186,9 @@ toolset/_context.check_readable / check_writable    enforcement
   for the workspace tools; `toolset/reference.py` calls `require_access`
   directly for `read_reference_file`.
 - `is_path_gitignored`, `check_path_not_gitignored` and `list_files` stay
-  gitignore-only, for `check_file_size` and library callers.
+  gitignore-only in `directory_utils`, for `check_file_size` and library
+  callers.
+- `file_access` imports from `directory_utils`, never the reverse.
 - Keep the module path `mcp_workspace.file_tools.directory_utils`: mcp_coder
   imports from it and silences its logger by name.
 
