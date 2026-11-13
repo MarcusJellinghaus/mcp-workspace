@@ -1,5 +1,7 @@
 """move_file and delete_directory check every file of the tree they touch."""
 
+import os
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -109,6 +111,76 @@ def test_move_creating_protected_file_refused(
         "No write access to 'dst/config.json' "
         f"(rule '/dst/config.json' in {ACCESS_RULES_FILE})"
     )
+
+
+class TestLinkedAncestor:
+    """A directory link above the tree cannot route around a read-only rule."""
+
+    @staticmethod
+    def _link(root: Path) -> None:
+        """Create alias -> protected/, skipping where links are unavailable.
+
+        Windows without symlink rights gets a junction, which resolve()
+        follows the same way.
+        """
+        try:
+            os.symlink(root / "protected", root / "alias", target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            if sys.platform == "win32":
+                import _winapi  # pylint: disable=import-outside-toplevel
+
+                _winapi.CreateJunction(str(root / "protected"), str(root / "alias"))
+            else:
+                pytest.skip(f"symlinks unavailable: {exc}")
+
+    def test_delete_through_link_refused(
+        self, tmp_path: Path, make_tools: Callable[..., ToolMap]
+    ) -> None:
+        root = _project(
+            tmp_path / "proj",
+            ("protected/sub/x.json",),
+            "read-only /protected/sub/x.json\n",
+        )
+        self._link(root)
+        tools = make_tools(root)
+
+        message = _refused(
+            root, lambda: tools["delete_directory"]("alias/sub", recursive=True)
+        )
+
+        assert message.startswith("No write access to 'alias/sub/x.json'")
+        assert (root / "protected" / "sub" / "x.json").read_bytes() == CONTENT
+
+    def test_move_through_link_refused(
+        self, tmp_path: Path, make_tools: Callable[..., ToolMap]
+    ) -> None:
+        root = _project(
+            tmp_path / "proj",
+            ("protected/keep.txt", "tree/x.json"),
+            "read-only /protected/sub/x.json\n",
+        )
+        self._link(root)
+        tools = make_tools(root)
+
+        message = _refused(root, lambda: tools["move_file"]("tree", "alias/sub"))
+
+        assert message.startswith("No write access to 'alias/sub/x.json'")
+        assert not (root / "protected" / "sub" / "x.json").exists()
+        assert (root / "tree" / "x.json").read_bytes() == CONTENT
+
+
+def test_move_to_missing_read_write_directory_allowed(
+    tmp_path: Path, make_tools: Callable[..., ToolMap]
+) -> None:
+    root = _project(
+        tmp_path / "proj", ("tmp/probe.py",), "read-write /.scratch/\n", ".scratch/\n"
+    )
+    assert not (root / ".scratch").exists()
+
+    assert make_tools(root)["move_file"]("tmp", ".scratch") is True
+
+    assert not (root / "tmp").exists()
+    assert (root / ".scratch" / "probe.py").read_bytes() == CONTENT
 
 
 class TestHiddenFilesInMovedTree:

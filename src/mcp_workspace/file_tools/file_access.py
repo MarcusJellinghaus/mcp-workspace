@@ -26,6 +26,7 @@ from mcp_workspace.file_tools.directory_utils import (
     _excluded_error,
     _gitignore_skip,
     _matches_rules,
+    _resolved_relative,
     _spellings,
     is_path_gitignored,
 )
@@ -111,7 +112,8 @@ def _access_of_spelling(
         The access level and the reason it differs from the default.
     """
     ignored = _matches_rules(rel_path, project_dir)
-    is_dir = (project_dir / rel_path).is_dir()
+    # Like igittigitt, which _matches_rules uses: a missing path is a directory
+    is_dir = not (project_dir / rel_path).is_file()
     level, reason = _rule_of_spelling(rel_path, rules, is_dir)
 
     if reason == _BUILT_IN:
@@ -233,15 +235,42 @@ def _tree_member(root: tuple[Path, str], suffix: str) -> tuple[Path, str]:
     return root[0] / suffix, f"{root[1]}/{suffix}"
 
 
-def _check_not_read_only(rel: str, rules: AccessRules) -> None:
+def _through_linked_ancestors(rel: str, project_dir: Path) -> str | None:
+    """Return a path with its ancestors resolved, the entry itself kept.
+
+    Moving or deleting a link leaves its target alone, so only the
+    directories above the entry are followed.
+
+    Returns:
+        The project-relative path through resolved ancestors, or None when it
+        is the path as given or the ancestors resolve outside the project.
+    """
+    parent, _, name = rel.rpartition("/")
+    if not parent:
+        return None
+    resolved = _resolved_relative(project_dir / parent, project_dir)
+    if resolved is None or resolved == parent:
+        return None
+    return name if resolved == "." else f"{resolved}/{name}"
+
+
+def _check_not_read_only(rel: str, project_dir: Path, rules: AccessRules) -> None:
     """Raise ValueError if a path is read-only by rule.
+
+    The path is checked as given, canonically and through linked ancestors;
+    any read-only spelling refuses it.
 
     Raises:
         ValueError: If a rule or the built-in rule makes rel read-only.
     """
-    level, reason = _rule_access(rel, rules)
-    if level is FileAccess.READ_ONLY:
-        raise ValueError(f"No write access to '{rel}' ({reason})")
+    spellings = [rel]
+    resolved = _through_linked_ancestors(rel, project_dir)
+    if resolved is not None:
+        spellings.append(resolved)
+    for spelling in spellings:
+        level, reason = _rule_access(spelling, rules)
+        if level is FileAccess.READ_ONLY:
+            raise ValueError(f"No write access to '{rel}' ({reason})")
 
 
 def _check_no_exposure(
@@ -270,13 +299,19 @@ def _check_no_exposure(
     # Built once per call; each loads a directory's .gitignore chain once
     src_ignored = _gitignore_skip(src[0].parent, project_dir)
     dest_ignored = _gitignore_skip(dest[0].parent, project_dir)
+    # A link above either tree root leads every member elsewhere
+    linked_root = any(
+        _resolved_relative(root_abs.parent, project_dir)
+        != Path(root_rel).parent.as_posix()
+        for root_abs, root_rel in (src, dest)
+    )
 
     for suffix in suffixes:
         src_abs, src_rel = _tree_member(src, suffix)
         if not src_ignored(src_abs):
             continue
         dest_abs, dest_rel = _tree_member(dest, suffix)
-        if _below_link(src_abs, src[0]):
+        if linked_root or _below_link(src_abs, src[0]):
             # A link can lead anywhere: judge every spelling in full
             src_hidden = _access(src_rel, project_dir, rules)[0] is FileAccess.HIDDEN
             dest_hidden = _access(dest_rel, project_dir, rules)[0] is FileAccess.HIDDEN
@@ -322,9 +357,9 @@ def check_tree_access(src_path: str, dest_path: str | None, project_dir: Path) -
     rules = load_access_rules(project_dir)
     suffixes = [entry.relative_to(src[0]).as_posix() for entry in _tree_entries(src[0])]
     for suffix in suffixes:
-        _check_not_read_only(_tree_member(src, suffix)[1], rules)
+        _check_not_read_only(_tree_member(src, suffix)[1], project_dir, rules)
         if dest is not None:
-            _check_not_read_only(_tree_member(dest, suffix)[1], rules)
+            _check_not_read_only(_tree_member(dest, suffix)[1], project_dir, rules)
     if dest is not None:
         _check_no_exposure(src, dest, suffixes, project_dir, rules)
 
