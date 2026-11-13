@@ -51,6 +51,10 @@ _.delete_branch
 _.PushResult
 _.push_branch
 
+# Gitignore-only check kept as public API alongside the .mcp-file-access checks
+# (issue #83); the tools call require_access instead.
+_.check_path_not_gitignored
+
 # =============================================================================
 # Test Mock Attributes
 # =============================================================================

@@ -47,9 +47,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 6: `list_directory` — exposed paths, suffixes, warning line, hidden directory — [step_6.md](./steps/step_6.md)
-- [ ] Implementation (tests, `list_directory` switched to `list_accessible_files`)
-- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests, `list_directory` switched to `list_accessible_files`)
+- [x] Quality checks (pylint, pytest, mypy) — fix all issues
+- [x] Commit message prepared
 
 ### Step 7: Docs — [step_7.md](./steps/step_7.md)
 - [ ] Implementation (`README.md`, `SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/release-notes.md`)
