@@ -267,3 +267,23 @@ def test_public_api_importable(module: str) -> None:
     assert callable(imported.validate_access_rules)
     assert callable(imported.get_file_access)
     assert imported.FileAccess.READ_ONLY == 1
+
+
+def test_public_api_reexported_from_directory_utils() -> None:
+    """mcp_coder imports the public API from directory_utils."""
+    from mcp_workspace.file_tools import directory_utils, file_access
+    from mcp_workspace.file_tools.directory_utils import (
+        FileAccess as ReexportedFileAccess,
+    )
+    from mcp_workspace.file_tools.directory_utils import (
+        get_file_access as reexported_get_file_access,
+    )
+    from mcp_workspace.file_tools.directory_utils import (
+        validate_access_rules as reexported_validate_access_rules,
+    )
+
+    assert ReexportedFileAccess is file_access.FileAccess
+    assert reexported_get_file_access is file_access.get_file_access
+    assert reexported_validate_access_rules is file_access.validate_access_rules
+    with pytest.raises(AttributeError):
+        _ = directory_utils.no_such_name

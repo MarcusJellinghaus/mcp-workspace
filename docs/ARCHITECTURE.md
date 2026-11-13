@@ -188,7 +188,9 @@ toolset/_context.check_readable / check_writable    enforcement
 - `is_path_gitignored`, `check_path_not_gitignored` and `list_files` stay
   gitignore-only in `directory_utils`, for `check_file_size` and library
   callers.
-- `file_access` imports from `directory_utils`, never the reverse.
+- `file_access` imports from `directory_utils`, never the reverse at import
+  time; `directory_utils` re-exports `FileAccess`, `get_file_access` and
+  `validate_access_rules` through a lazy module `__getattr__`.
 - Keep the module path `mcp_workspace.file_tools.directory_utils`: mcp_coder
   imports from it and silences its logger by name.
 

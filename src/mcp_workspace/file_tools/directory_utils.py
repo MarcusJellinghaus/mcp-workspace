@@ -4,17 +4,49 @@ This module provides functions for file discovery and listing with gitignore sup
 We use the external igittigitt library for handling .gitignore patterns.
 """
 
+import importlib
 import logging
 import os
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from igittigitt import IgnoreParser
 
 from mcp_workspace.file_tools.path_utils import normalize_path, resolves_into_git_dir
 from mcp_workspace.utils.git_paths import canonical_spelling, is_path_in_git_dir
 
+if TYPE_CHECKING:
+    from mcp_workspace.file_tools.file_access import (
+        FileAccess as FileAccess,
+    )
+    from mcp_workspace.file_tools.file_access import (
+        get_file_access as get_file_access,
+    )
+    from mcp_workspace.file_tools.file_access import (
+        validate_access_rules as validate_access_rules,
+    )
+
 logger = logging.getLogger(__name__)
+
+# Re-exported for mcp_coder, which imports from this module. file_access
+# imports this module, so the names are resolved lazily on first access.
+_FILE_ACCESS_EXPORTS = ("FileAccess", "get_file_access", "validate_access_rules")
+
+
+def __getattr__(name: str) -> Any:
+    """Resolve the names re-exported from ``file_access`` on first access.
+
+    Returns:
+        The named object from ``mcp_workspace.file_tools.file_access``.
+
+    Raises:
+        AttributeError: If name is not one of the re-exported names.
+    """
+    if name in _FILE_ACCESS_EXPORTS:
+        module = importlib.import_module("mcp_workspace.file_tools.file_access")
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _resolved_relative(path: Path, project_dir: Path) -> str | None:
