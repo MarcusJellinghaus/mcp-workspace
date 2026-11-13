@@ -17,3 +17,11 @@ Reviewing the diff: access layer and toolset read; now checking `move_operations
 Verdict(decision='tasks', tasks=['Close the directory-symlink bypass in the tree checks at src/mcp_workspace/file_tools/file_access.py:242. `_check_not_read_only` and the walk used by move_file and delete_directory must also evaluate each tree entry\'s resolved spelling: the realpath through any linked ancestor. Take the most restrictive result across the as-given, canonical and resolved spellings, as issue #83 requires. You can reuse `_access` when `_below_link` or an ancestor link applies. Add tests with `alias -> protected/` and a rule `read-only /protected/sub/x.json`. Assert that `delete_directory("alias/sub")` is refused and leaves the file in place. Assert that moving a tree containing `x.json` to `alias/sub` is refused and does not create the file. Skip the tests where the platform cannot create symlinks.', 'At src/mcp_workspace/file_tools/file_access.py:114, make rule matching for a missing path use the same directory assumption as igittigitt\'s gitignore matching, so the two decisions cannot disagree. A missing path must match a directory-only rule such as `read-write /.scratch/`. Add a test where `.scratch` does not exist and `move_file("tmp", ".scratch")` succeeds with `read-write /.scratch/` in .mcp-file-access and `.scratch/` in .gitignore.'], escalate_reason=None)
 **Changes**:
 applied
+
+## Round 3 — 2026-11-13
+**Findings**:
+Reviewing round 3: checking whether a `.git/` rule can leak through the listing/search walk.Checking pathspec's gitignore regex to confirm a missing protected file can't be created.NO FINDINGS
+**Decisions**:
+Verdict(decision='dismiss', tasks=[], escalate_reason=None)
+**Changes**:
+dismiss
