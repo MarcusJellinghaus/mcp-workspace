@@ -32,9 +32,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 3: Single-path enforcement in the tools — [step_3.md](./steps/step_3.md)
-- [ ] Implementation (tests, `check_readable` / `check_writable` replace `check_not_gitignored` at all call sites)
-- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests, `check_readable` / `check_writable` replace `check_not_gitignored` at all call sites)
+- [x] Quality checks (pylint, pytest, mypy) — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: Tree checks for `move_file` / `delete_directory`; plain move into a gitignored destination — [step_4.md](./steps/step_4.md)
 - [ ] Implementation (tests, `check_tree_access`, `_determine_move_method(dest_ignored)`, tool call sites)

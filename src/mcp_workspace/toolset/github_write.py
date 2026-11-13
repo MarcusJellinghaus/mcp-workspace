@@ -26,7 +26,10 @@ from mcp_workspace.toolset._github_write_helpers import (
 
 logger = logging.getLogger(__name__)
 
-_BODY_FILE_RULES = "Same path rules as read_file, so gitignored paths are refused."
+_BODY_FILE_RULES = (
+    "Same path rules as read_file: gitignored paths are refused unless "
+    ".mcp-file-access exposes them."
+)
 
 
 def _reference_name_text(effect: str) -> str:

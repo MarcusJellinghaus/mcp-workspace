@@ -11,7 +11,8 @@ from mcp_workspace.file_tools import list_directory_tree, normalize_path
 from mcp_workspace.file_tools import list_files as list_files_util
 from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools import search_files as search_files_util
-from mcp_workspace.toolset._context import WorkspaceContext, check_not_gitignored
+from mcp_workspace.file_tools.directory_utils import check_path_not_gitignored
+from mcp_workspace.toolset._context import WorkspaceContext, check_readable
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +135,7 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             # Validate path — normalize_path handles traversal attacks
             abs_path, rel_path = normalize_path(path, ctx.project_dir)
 
-            check_not_gitignored(ctx, path)
+            check_path_not_gitignored(path, ctx.project_dir)
 
             # If path points to a file, return error
             if abs_path.is_file():
@@ -211,7 +212,7 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
                 f"File path must be a non-empty string, got {type(file_path)}"
             )
 
-        check_not_gitignored(ctx, file_path)
+        check_readable(ctx, file_path)
 
         logger.info("Reading file: %s", file_path)
         try:

@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from mcp_workspace.file_tools.directory_utils import check_path_not_gitignored
+from mcp_workspace.file_tools.directory_utils import FileAccess, require_access
 from mcp_workspace.reference_projects import ReferenceProject
 
 
@@ -37,11 +37,26 @@ class WorkspaceContext:
     git_write_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
-def check_not_gitignored(ctx: WorkspaceContext, file_path: str) -> None:
-    """Raise ValueError if file_path is excluded by .gitignore (security boundary).
+def check_readable(ctx: WorkspaceContext, file_path: str) -> None:
+    """Raise ValueError unless file_path may be read (security boundary).
+
+    Gitignored paths are refused unless .mcp-file-access exposes them.
 
     Args:
         ctx: Context whose project_dir the path is relative to.
         file_path: Path to check, relative to the project directory.
     """
-    check_path_not_gitignored(file_path, ctx.project_dir)
+    require_access(file_path, ctx.project_dir, FileAccess.READ_ONLY)
+
+
+def check_writable(ctx: WorkspaceContext, file_path: str) -> None:
+    """Raise ValueError unless file_path may be written (security boundary).
+
+    Refuses what check_readable refuses, and paths .mcp-file-access makes
+    read-only.
+
+    Args:
+        ctx: Context whose project_dir the path is relative to.
+        file_path: Path to check, relative to the project directory.
+    """
+    require_access(file_path, ctx.project_dir, FileAccess.READ_WRITE)

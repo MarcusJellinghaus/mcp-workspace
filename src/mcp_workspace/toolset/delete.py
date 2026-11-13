@@ -9,7 +9,7 @@ from pydantic import Field
 
 from mcp_workspace.file_tools import delete_directory as delete_directory_util
 from mcp_workspace.file_tools import delete_file as delete_file_util
-from mcp_workspace.toolset._context import WorkspaceContext, check_not_gitignored
+from mcp_workspace.toolset._context import WorkspaceContext, check_writable
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
                 f"File path must be a non-empty string, got {type(file_path)}"
             )
 
-        check_not_gitignored(ctx, file_path)
+        check_writable(ctx, file_path)
 
         logger.info("Deleting file: %s", file_path)
         try:
@@ -90,9 +90,9 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
 
         Raises:
             ValueError: If dir_path is not a non-empty string, the path is
-                excluded by .gitignore, or the underlying deletion is rejected
-                (outside project, project root, path-is-a-file, or non-empty
-                without recursive).
+                excluded by .gitignore or read-only by .mcp-file-access, or the
+                underlying deletion is rejected (outside project, project root,
+                path-is-a-file, or non-empty without recursive).
         """
         if not dir_path or not isinstance(dir_path, str):
             logger.error("Invalid directory path parameter: %s", dir_path)
@@ -100,7 +100,7 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
                 f"Directory path must be a non-empty string, got {type(dir_path)}"
             )
 
-        check_not_gitignored(ctx, dir_path)
+        check_writable(ctx, dir_path)
 
         logger.info("Deleting directory: %s", dir_path)
         try:

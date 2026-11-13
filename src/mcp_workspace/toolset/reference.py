@@ -11,7 +11,7 @@ from pydantic import Field
 from mcp_workspace.file_tools import list_files as list_files_util
 from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools import search_files as search_files_util
-from mcp_workspace.file_tools.directory_utils import check_path_not_gitignored
+from mcp_workspace.file_tools.directory_utils import FileAccess, require_access
 from mcp_workspace.reference_projects import ensure_available
 from mcp_workspace.toolset._context import WorkspaceContext
 from mcp_workspace.utils.url_credentials import scrub_credentials
@@ -176,7 +176,7 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
         """
         ref_path = await reference_project_path(ctx, reference_name)
 
-        check_path_not_gitignored(file_path, ref_path)
+        require_access(file_path, ref_path, FileAccess.READ_ONLY)
 
         # Call read_file_util with the reference project directory
         # The utility function handles all parameter validation and security checks

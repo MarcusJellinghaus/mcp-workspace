@@ -8,7 +8,7 @@ from mcp_coder_utils.tool_spec import ToolSink, tool_spec
 from pydantic import Field
 
 from mcp_workspace.file_tools import move_file as move_file_util
-from mcp_workspace.toolset._context import WorkspaceContext, check_not_gitignored
+from mcp_workspace.toolset._context import WorkspaceContext, check_writable
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +54,8 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
         if not destination_path or not isinstance(destination_path, str):
             raise ValueError("Invalid destination path")
 
-        check_not_gitignored(ctx, source_path)
-        check_not_gitignored(ctx, destination_path)
+        check_writable(ctx, source_path)
+        check_writable(ctx, destination_path)
 
         try:
             # Call the underlying function (all logic is handled internally)

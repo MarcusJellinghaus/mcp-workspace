@@ -11,7 +11,7 @@ from pydantic import Field
 from mcp_workspace.file_tools import append_file as append_file_util
 from mcp_workspace.file_tools import edit_file as edit_file_util
 from mcp_workspace.file_tools import save_file as save_file_util
-from mcp_workspace.toolset._context import WorkspaceContext, check_not_gitignored
+from mcp_workspace.toolset._context import WorkspaceContext, check_writable
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             logger.error("Invalid content type: %s", type(content))  # type: ignore[unreachable]
             raise ValueError(f"Content must be a string, got {type(content)}")
 
-        check_not_gitignored(ctx, file_path)
+        check_writable(ctx, file_path)
 
         logger.info("Writing to file: %s", file_path)
         try:
@@ -112,7 +112,7 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             logger.error("Invalid content type: %s", type(content))  # type: ignore[unreachable]
             raise ValueError(f"Content must be a string, got {type(content)}")
 
-        check_not_gitignored(ctx, file_path)
+        check_writable(ctx, file_path)
 
         logger.info("Appending to file: %s", file_path)
         try:
@@ -165,7 +165,7 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
                 f"File path must be a non-empty string, got {type(file_path)}"
             )
 
-        check_not_gitignored(ctx, file_path)
+        check_writable(ctx, file_path)
 
         abs_path = str((ctx.project_dir / file_path).resolve())
         lock = ctx.file_locks.setdefault(abs_path, asyncio.Lock())
