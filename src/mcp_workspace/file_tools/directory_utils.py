@@ -27,6 +27,8 @@ from mcp_workspace.utils.git_paths import canonical_spelling, is_path_in_git_dir
 
 logger = logging.getLogger(__name__)
 
+_BUILT_IN = "built-in"
+
 
 class FileAccess(IntEnum):
     """Effective access to a path; a higher value grants more."""
@@ -205,6 +207,52 @@ def _is_rules_file(rel_path: str) -> bool:
     return folded == ACCESS_RULES_FILE
 
 
+def _rule_of_spelling(
+    rel_path: str, rules: AccessRules, is_dir: bool
+) -> tuple[FileAccess | None, str]:
+    """Decide what the rules file and the built-in rule say about one spelling.
+
+    Returns:
+        ``(READ_ONLY, "built-in")`` for the rules file, the level and reason
+        of the last matching rule, or ``(None, "")`` when no rule matches.
+    """
+    if _is_rules_file(rel_path):
+        return FileAccess.READ_ONLY, _BUILT_IN
+    rule = rules.match(rel_path, is_dir=is_dir)
+    if rule is None:
+        return None, ""
+    level = FileAccess.READ_ONLY if rule.level == READ_ONLY else FileAccess.READ_WRITE
+    return level, f"rule '{rule.pattern}' in {ACCESS_RULES_FILE}"
+
+
+def _rule_access(
+    rel: str, rules: AccessRules, is_dir: bool = False
+) -> tuple[FileAccess | None, str]:
+    """Decide what the rules give a path, without consulting gitignore.
+
+    The path is checked as given and in its canonical spelling; the most
+    restrictive match wins.
+
+    Args:
+        rel: Project-relative path with forward slashes.
+        rules: The project's rules, loaded once per tool call.
+        is_dir: Whether the path is a directory.
+
+    Returns:
+        The access level and its reason, or ``(None, "")`` when neither a
+        rule nor the built-in rule applies.
+    """
+    matches: list[tuple[FileAccess, str]] = []
+    # Sorted, so ties between spellings always give the same reason
+    for spelling in sorted({rel, canonical_spelling(rel)}):
+        level, reason = _rule_of_spelling(spelling, rules, is_dir)
+        if level is not None:
+            matches.append((level, reason))
+    if not matches:
+        return None, ""
+    return min(matches, key=lambda match: match[0])
+
+
 def _access_of_spelling(
     rel_path: str, project_dir: Path, rules: AccessRules
 ) -> tuple[FileAccess, str]:
@@ -214,22 +262,19 @@ def _access_of_spelling(
         The access level and the reason it differs from the default.
     """
     ignored = _matches_rules(rel_path, project_dir)
-    rule = rules.match(rel_path, is_dir=(project_dir / rel_path).is_dir())
-    if rule is not None:
-        base = (
-            FileAccess.READ_ONLY if rule.level == READ_ONLY else FileAccess.READ_WRITE
-        )
-    else:
-        base = FileAccess.HIDDEN if ignored else FileAccess.READ_WRITE
+    is_dir = (project_dir / rel_path).is_dir()
+    level, reason = _rule_of_spelling(rel_path, rules, is_dir)
 
-    if _is_rules_file(rel_path):
-        return min(base, FileAccess.READ_ONLY), "built-in"
+    if reason == _BUILT_IN:
+        # Capped at read-only; ignored and matched by no rule, it stays hidden
+        hidden = ignored and rules.match(rel_path, is_dir=is_dir) is None
+        return (FileAccess.HIDDEN if hidden else FileAccess.READ_ONLY), reason
     if rules.problems:
         access = FileAccess.HIDDEN if ignored else FileAccess.READ_ONLY
         return access, f"{ACCESS_RULES_FILE} is invalid: " + "; ".join(rules.problems)
-    if rule is not None:
-        return base, f"rule '{rule.pattern}' in {ACCESS_RULES_FILE}"
-    return base, ""
+    if level is None:
+        return (FileAccess.HIDDEN if ignored else FileAccess.READ_WRITE), ""
+    return level, reason
 
 
 def _access(path: str, project_dir: Path, rules: AccessRules) -> tuple[FileAccess, str]:
@@ -422,6 +467,138 @@ def _gitignore_skip(start: Path, project_dir: Path) -> Callable[[Path], bool]:
         )
 
     return skip
+
+
+def _tree_entries(src_abs: Path) -> list[Path]:
+    """Return what a move or delete of src_abs carries along.
+
+    Returns:
+        src_abs itself for a file or a link; else every non-directory entry
+        below it, links included, also inside ignored subdirectories.
+    """
+    if src_abs.is_symlink() or not src_abs.is_dir():
+        return [src_abs]
+    return [p for p in src_abs.rglob("*") if p.is_symlink() or not p.is_dir()]
+
+
+def _below_link(path: Path, top: Path) -> bool:
+    """Tell whether path, or an ancestor of it up to top, is a symlink.
+
+    Returns:
+        True if a link lies on the way from top to path, both included.
+    """
+    return any(p.is_symlink() for p in (path, *path.parents) if p.is_relative_to(top))
+
+
+def _tree_member(root: tuple[Path, str], suffix: str) -> tuple[Path, str]:
+    """Return a tree entry's absolute and project-relative path.
+
+    Args:
+        root: The tree's absolute and project-relative path.
+        suffix: The entry relative to the tree, ``.`` for the root itself.
+
+    Returns:
+        The entry's paths, spelled like root.
+    """
+    if suffix == ".":
+        return root
+    return root[0] / suffix, f"{root[1]}/{suffix}"
+
+
+def _check_not_read_only(rel: str, rules: AccessRules) -> None:
+    """Raise ValueError if a path is read-only by rule.
+
+    Raises:
+        ValueError: If a rule or the built-in rule makes rel read-only.
+    """
+    level, reason = _rule_access(rel, rules)
+    if level is FileAccess.READ_ONLY:
+        raise ValueError(f"No write access to '{rel}' ({reason})")
+
+
+def _check_no_exposure(
+    src: tuple[Path, str],
+    dest: tuple[Path, str],
+    suffixes: list[str],
+    project_dir: Path,
+    rules: AccessRules,
+) -> None:
+    """Raise ValueError if a move would make a hidden file accessible.
+
+    Gitignore is consulted only for the files the source walk reports as
+    ignored. The destination is judged by the rules in effect before the move.
+
+    Args:
+        src: Absolute and project-relative path of the moved tree.
+        dest: Absolute and project-relative path it moves to.
+        suffixes: The tree's entries relative to it, ``.`` for a single file.
+        project_dir: Project root directory.
+        rules: The project's rules, loaded once per tool call.
+
+    Raises:
+        ValueError: If a file hidden at its source is not hidden at its
+            destination; the message names no file.
+    """
+    # Built once per call; each loads a directory's .gitignore chain once
+    src_ignored = _gitignore_skip(src[0].parent, project_dir)
+    dest_ignored = _gitignore_skip(dest[0].parent, project_dir)
+
+    for suffix in suffixes:
+        src_abs, src_rel = _tree_member(src, suffix)
+        if not src_ignored(src_abs):
+            continue
+        dest_abs, dest_rel = _tree_member(dest, suffix)
+        if _below_link(src_abs, src[0]):
+            # A link can lead anywhere: judge every spelling in full
+            src_hidden = _access(src_rel, project_dir, rules)[0] is FileAccess.HIDDEN
+            dest_hidden = _access(dest_rel, project_dir, rules)[0] is FileAccess.HIDDEN
+        else:
+            src_hidden = _rule_access(src_rel, rules)[0] is None
+            dest_hidden = (
+                dest_ignored(dest_abs) and _rule_access(dest_rel, rules)[0] is None
+            )
+        if src_hidden and not dest_hidden:
+            raise ValueError(
+                f"Move refused: '{src[1]}' contains files hidden by .gitignore "
+                f"rules that would become accessible at '{dest[1]}'"
+            )
+
+
+def check_tree_access(src_path: str, dest_path: str | None, project_dir: Path) -> None:
+    """Raise ValueError if deleting or moving a tree would break the rules.
+
+    Every file below src_path counts, including inside ignored
+    subdirectories; a single file is a tree of one. Refused when a file's
+    source path, or with dest_path its destination path, is read-only by
+    rule, and for a move when a file hidden at its source would not be
+    hidden at its destination. The destination is judged by the rules in
+    effect before the move. Invalid or missing paths are left to the caller.
+
+    Args:
+        src_path: File or directory to delete or move, relative to project_dir.
+        dest_path: Move destination, or None for a delete.
+        project_dir: Project root directory.
+
+    Raises:
+        ValueError: If a file is read-only by rule, or the move would expose a
+            hidden file; the latter message names no file.
+    """  # noqa: DOC502 - raised by _check_not_read_only and _check_no_exposure
+    try:
+        src = normalize_path(src_path, project_dir)
+        dest = None if dest_path is None else normalize_path(dest_path, project_dir)
+    except ValueError:
+        return
+    if not src[0].exists() and not src[0].is_symlink():
+        return
+
+    rules = load_access_rules(project_dir)
+    suffixes = [entry.relative_to(src[0]).as_posix() for entry in _tree_entries(src[0])]
+    for suffix in suffixes:
+        _check_not_read_only(_tree_member(src, suffix)[1], rules)
+        if dest is not None:
+            _check_not_read_only(_tree_member(dest, suffix)[1], rules)
+    if dest is not None:
+        _check_no_exposure(src, dest, suffixes, project_dir, rules)
 
 
 def list_files(

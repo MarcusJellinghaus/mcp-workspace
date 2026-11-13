@@ -9,6 +9,7 @@ from typing import Any
 
 from mcp_coder_utils.log_utils import log_function_call
 
+from mcp_workspace.file_tools.directory_utils import is_path_gitignored
 from mcp_workspace.file_tools.line_endings import target_newline
 from mcp_workspace.file_tools.path_utils import normalize_line_endings, normalize_path
 from mcp_workspace.utils.git_paths import is_path_in_git_dir
@@ -582,16 +583,23 @@ def _validate_move_parameters(
     return src_abs, src_rel, dest_abs, dest_rel
 
 
-def _determine_move_method(src_abs: Path, project_dir: Path) -> bool:
+def _determine_move_method(
+    src_abs: Path, project_dir: Path, dest_ignored: bool
+) -> bool:
     """Determine if git should be used for the move operation.
 
     Args:
         src_abs: Absolute path to source
         project_dir: Project directory path
+        dest_ignored: Whether .gitignore excludes the destination; such a
+            destination is never committed, so git is not used.
 
     Returns:
         True if git should be used, False otherwise
     """
+    if dest_ignored:
+        return False
+
     # Lazy import: keeps GitPython off the common file-operation import path
     from mcp_workspace.git_operations import is_file_tracked, is_git_repository
 
@@ -690,8 +698,13 @@ def move_file(
     """Move or rename a file or directory.
 
     Automatically uses git mv if the file is tracked by git,
-    otherwise uses standard filesystem operations.
+    otherwise uses standard filesystem operations. A destination excluded
+    by .gitignore always gets a plain filesystem move, so a tracked file
+    moved there ends up untracked.
     Always creates parent directories if they don't exist.
+
+    Access rules are not checked here; the move_file tool runs
+    ``check_tree_access`` first.
 
     Args:
         source_path: Source file/directory path (relative to project_dir)
@@ -722,7 +735,8 @@ def move_file(
     dest_parent.mkdir(parents=True, exist_ok=True)
 
     # Determine if git should be used
-    should_use_git = _determine_move_method(src_abs, project_dir)
+    dest_ignored = is_path_gitignored(dest_rel, project_dir)
+    should_use_git = _determine_move_method(src_abs, project_dir, dest_ignored)
 
     # Try git move if applicable
     if should_use_git:

@@ -37,9 +37,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 4: Tree checks for `move_file` / `delete_directory`; plain move into a gitignored destination — [step_4.md](./steps/step_4.md)
-- [ ] Implementation (tests, `check_tree_access`, `_determine_move_method(dest_ignored)`, tool call sites)
-- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests, `check_tree_access`, `_determine_move_method(dest_ignored)`, tool call sites)
+- [x] Quality checks (pylint, pytest, mypy) — fix all issues
+- [x] Commit message prepared
 
 ### Step 5: Exposure-aware listing walk for `search_files` and reference listing / search — [step_5.md](./steps/step_5.md)
 - [ ] Implementation (tests, `list_accessible_files`, `search_files`, `list_reference_directory`)
