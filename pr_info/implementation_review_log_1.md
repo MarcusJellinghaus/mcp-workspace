@@ -1,0 +1,9 @@
+# review-implementation review log 1
+
+## Round 1 — 2026-11-13
+**Findings**:
+Diff and core access layer read; now checking `move_operations.py`, the public-API re-exports, and the tests.Code and tests reviewed; doing a final check that the docs match the API location, then writing the report.`src/mcp_workspace/file_tools/directory_utils.py:1` — medium — Issue #83 ("Public API") asks for the new effective-access and rules-validation functions to be exported from `mcp_workspace.file_tools.directory_utils`, because mcp_coder imports from that module, or re-exported there. `FileAccess`, `get_file_access` and `validate_access_rules` are only reachable from `file_tools` and `file_tools.file_access`, so MarcusJellinghaus/mcp_coder#1414 cannot use its existing import path. Either add a re-export to `directory_utils`, using a lazy module `__getattr__` because `file_access` already imports `directory_utils`, or record the change from the issue.
+**Decisions**:
+Verdict(decision='tasks', tasks=["Issue #83's Public API section requires FileAccess, get_file_access and validate_access_rules to be importable from mcp_workspace.file_tools.directory_utils, which is the path mcp_coder#1414 uses. Re-export them from src/mcp_workspace/file_tools/directory_utils.py. file_access already imports directory_utils, so use a lazy module-level __getattr__ that imports from .file_access on first access and raises AttributeError for any other name. List the three names in __all__ if the module defines one, and add TYPE_CHECKING imports so mypy resolves them.", 'Add a test that runs `from mcp_workspace.file_tools.directory_utils import FileAccess, get_file_access, validate_access_rules` and asserts each one is the same object as in mcp_workspace.file_tools.file_access. Also assert that reading an unknown attribute on directory_utils still raises AttributeError.'], escalate_reason=None)
+**Changes**:
+applied
