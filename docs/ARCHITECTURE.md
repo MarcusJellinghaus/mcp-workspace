@@ -139,7 +139,9 @@ The rule is enforced at two sources, not per call site:
   (`list_directory`, `search_files`, and their reference-project variants).
   It takes an optional `skip` callback, called for every entry; `list_files`
   uses it to drop gitignored entries and prune gitignored directories during
-  the walk.
+  the walk. `list_accessible_files` wraps the same gitignore predicate so an
+  entry is skipped only when gitignore skips it and no `.mcp-file-access`
+  rule exposes it (see [Access Layer](#7-access-layer)).
 - `path_utils.normalize_path` — the relative path returned alongside the
   absolute one.
 
@@ -148,6 +150,44 @@ A new path source belongs next to these, not behind a local `replace("\\", "/")`
 **This is load-bearing.** CI runs on `ubuntu-latest` only, where backslashes never
 appear, so CI cannot catch a regression. The guard is
 `tests/test_path_separator_invariant.py`, which asserts the invariant across tools.
+
+### 7. Access Layer
+
+Effective access to a path is the gitignore default overridden by the
+`.mcp-file-access` rules (see README "Access rules"). It is computed in
+`file_tools/` and enforced in `toolset/`:
+
+```
+file_tools/access_rules.py            parse + match the rules file (pure)
+        │
+        ▼
+file_tools/directory_utils._access    gitignore default + rules override
+        │
+        ▼
+toolset/_context.check_readable / check_writable    enforcement
+```
+
+- `access_rules.py` parses the rules file into `AccessRules` (rules, or the
+  problems that make it invalid) and matches with
+  `PathSpec.from_lines("gitignore", …)`, last match wins. Nothing is cached
+  across calls, so a fixed file applies without a restart; walks and tree
+  checks load it once and pass it down.
+- `directory_utils._access` is the one decision function: `.git` is hidden;
+  the last matching rule overrides the gitignore default; the rules file is
+  capped at read-only; an invalid rules file leaves committed paths read-only
+  and ignored paths hidden. It returns the most restrictive result across the
+  spellings `is_path_gitignored` checks (as given, canonical, through links).
+- Public helpers on top of it: `get_file_access`, `require_access` (raises
+  every refusal), `check_tree_access` (an unpruned walk of a `move_file` /
+  `delete_directory` tree) and `list_accessible_files` (the listing / search
+  walk).
+- `toolset/_context.check_readable` / `check_writable` wrap `require_access`
+  for the workspace tools; `toolset/reference.py` calls `require_access`
+  directly for `read_reference_file`.
+- `is_path_gitignored`, `check_path_not_gitignored` and `list_files` stay
+  gitignore-only, for `check_file_size` and library callers.
+- Keep the module path `mcp_workspace.file_tools.directory_utils`: mcp_coder
+  imports from it and silences its logger by name.
 
 ## Architecture Enforcement Tools
 

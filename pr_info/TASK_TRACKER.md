@@ -52,9 +52,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 7: Docs — [step_7.md](./steps/step_7.md)
-- [ ] Implementation (`README.md`, `SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/release-notes.md`)
-- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (`README.md`, `SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/release-notes.md`)
+- [x] Quality checks (pylint, pytest, mypy) — fix all issues
+- [x] Commit message prepared
 
 ### Step 8: `.scratch/` migration in this repo — [step_8.md](./steps/step_8.md)
 - [ ] Implementation (guard test, `.mcp-file-access`, `.gitignore`, ruff probe, CLAUDE.md "Scratch probes")
