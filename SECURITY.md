@@ -20,15 +20,21 @@ Only the latest release on PyPI receives security fixes.
 
 Treat the agent as influenceable. Issue bodies, PR comments, file content and git output can all carry prompt injection written by someone else. An agent that follows such text can do whatever the tools permit: change or delete project files, create and switch branches, commit, push and force-push with the user's git credentials, and write to GitHub with the token.
 
+`.mcp-file-access` (see [Access rules](docs/file-access.md#access-rules-mcp-file-access)) defends against the agent widening its own access through the MCP file tools: it cannot write a path the rules make read-only, and cannot change the rules file. The rules come from the repository; a cloned repository is not treated as a threat to them, since its `.mcp.json` can already launch any executable. The rules are not a sandbox: a client's native file and shell tools and the git tools are not bound by them.
+
 ## Intended Restrictions
 
 The server is meant to enforce the following. A way around any of them is a vulnerability.
 
 File tools:
 
-- Workspace file tools stay inside the project directory. Reference project file tools stay inside that reference project and only read. See [Path Confinement](README.md#path-confinement).
-- Workspace file tools and reference project reads refuse any `.git` entry, under any spelling or through a link, and paths matched by that project's gitignore rules.
-- Any `.gitignore` is writable, so an agent that edits one changes which paths are refused.
+- Workspace file tools stay inside the project directory. Reference project file tools stay inside that reference project and only read. See [Path Confinement](docs/file-access.md#path-confinement).
+- Workspace file tools and reference project reads refuse any `.git` entry, under any spelling or through a link, and paths matched by that project's gitignore rules that its `.mcp-file-access` does not expose.
+- Paths read-only by `.mcp-file-access`, under any spelling or through a link, refuse every write tool: `save_file`, `append_file`, `edit_file`, `delete_this_file`, `move_file` and `delete_directory` (for the source and destination path of every file in the tree), and the `github_issue_view` `body_file` target.
+- `.mcp-file-access` itself is never writable through the file tools, also when it does not exist.
+- An invalid `.mcp-file-access` refuses every write and exposes no gitignored path.
+- `move_file` never makes a file hidden by gitignore rules accessible at its destination.
+- Any `.gitignore` not made read-only by `.mcp-file-access` is writable, so an agent that edits one changes which paths are refused.
 - `delete_directory` refuses the project root. It and `move_file` refuse a directory that contains a `.git` entry.
 
 `git` tool, on the workspace and on reference projects alike:
@@ -69,7 +75,8 @@ Credentials embedded in remote URLs (`https://user:token@host/...`) are removed 
 In scope are bypasses of the restrictions above, such as:
 
 - reading or writing outside the project or reference project with any tool
-- file tools reaching `.git` or the content of gitignored paths
+- file tools reaching `.git` or the content of gitignored paths not exposed by `.mcp-file-access`
+- file tools or a `body_file` parameter writing a path `.mcp-file-access` makes read-only, or creating or changing `.mcp-file-access`
 - the `git` tool changing anything beyond what `fetch` updates
 - a git write tool bypassing its listed refusals
 - getting untrusted text shown to the agent as trusted
@@ -81,5 +88,6 @@ Out of scope:
 - an agent misusing tools it is allowed to use, including after prompt injection, unless a restriction above was bypassed
 - anything requiring prior access to the user's account, config file or environment
 - what a token can do within its own permissions
-- the limitation and the differences from git documented under [Path Confinement](README.md#path-confinement)
+- the limitation and the differences from git documented under [Path Confinement](docs/file-access.md#path-confinement)
 - editing any `.gitignore` to lift its rules
+- getting around `.mcp-file-access` with a client's native tools or the git tools (e.g. `git_branch` rewriting tracked files when it switches branches), which the rules do not cover

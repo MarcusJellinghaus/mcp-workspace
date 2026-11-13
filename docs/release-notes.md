@@ -1,8 +1,19 @@
 # Release notes
 
+## Next minor release — file access rules via .mcp-file-access (#83)
+
+- New repo-root rules file `.mcp-file-access`: one `<level> <gitignore pattern>` per line, levels `read-only` / `read-write`, last match wins. Rules override the gitignore default: they make committed paths read-only and expose gitignored paths read-only or read-write. `.mcp-file-access` itself is always read-only; `.git` stays refused. An invalid file refuses every write and exposes nothing. No file → unchanged behaviour. See [file-access.md](file-access.md#access-rules-mcp-file-access).
+- `list_directory` lists exposed paths; file lines that differ from the default end in ` (read-only)` or ` (read-write, not committed)`. An invalid rules file adds a `WARNING:` first line. Listing an ignored directory is allowed when the walk scope reaches it.
+- `search_files`, `search_reference_files` and `list_reference_directory` include exposed paths, unmarked. `check_file_size` is unchanged and still excludes every gitignored file.
+- New refusal: `No write access to '<path>' (rule '<pattern>' in .mcp-file-access)`, `(built-in)` for the rules file, `(.mcp-file-access is invalid: …)` for an invalid file. `body_file` targets of `github_issue_view` get the same write check.
+- `move_file` and `delete_directory` check every file in the tree: refused when any file is read-only by rule; `move_file` is also refused with `Move refused: …` when a hidden file would become accessible at the destination.
+- `move_file` into a gitignored destination is a plain filesystem move, never `git mv`, so a tracked file moved there ends up untracked.
+- New public API in `mcp_workspace.file_tools` and `mcp_workspace.file_tools.file_access`: `FileAccess` (`HIDDEN` < `READ_ONLY` < `READ_WRITE`), `get_file_access(path, project_dir) -> FileAccess`, `validate_access_rules(project_dir) -> list[str]`. `is_path_gitignored`, `check_path_not_gitignored` and `list_files` are unchanged.
+- Removed (internal): `toolset._context.check_not_gitignored`, replaced by `check_readable` / `check_writable`.
+
 ## Next minor release — gitignore rules follow git (#392)
 
-- Every file tool now applies nested `.gitignore` files and `.git/info/exclude` (worktrees and submodules included) with git's precedence, not only the project-root `.gitignore`. Listing a subdirectory no longer shows names the outer rules ignore. See README "Path Confinement" for the remaining differences from git.
+- Every file tool now applies nested `.gitignore` files and `.git/info/exclude` (worktrees and submodules included) with git's precedence, not only the project-root `.gitignore`. Listing a subdirectory no longer shows names the outer rules ignore. See [file-access.md](file-access.md#path-confinement) for the remaining differences from git.
 - `list_directory` refuses an ignored directory, like `read_file` does.
 - New refusal wording: `Path '<p>' is excluded by .gitignore rules and cannot be accessed. Use list_directory() to see available files.` (was `File '<p>' is excluded by .gitignore and …`).
 - Removed from `file_tools.directory_utils`: `read_gitignore_rules`, `apply_gitignore_filter`, `filter_with_gitignore`. Signatures of `is_path_gitignored`, `check_path_not_gitignored` and `list_files` are unchanged; `list_files` returns `[]` for an ignored directory.

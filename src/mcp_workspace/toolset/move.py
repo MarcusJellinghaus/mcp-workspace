@@ -8,7 +8,8 @@ from mcp_coder_utils.tool_spec import ToolSink, tool_spec
 from pydantic import Field
 
 from mcp_workspace.file_tools import move_file as move_file_util
-from mcp_workspace.toolset._context import WorkspaceContext, check_not_gitignored
+from mcp_workspace.file_tools.file_access import check_tree_access
+from mcp_workspace.toolset._context import WorkspaceContext, check_writable
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +37,16 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
 
         Git-aware: uses `git mv` for tracked files (preserving rename/history);
         falls back to a plain filesystem move for untracked files or non-git repos.
+        A gitignored destination always gets a plain filesystem move, so a
+        tracked file moved there ends up untracked.
 
         Returns:
             True if successful
 
         Raises:
-            ValueError: If inputs are invalid
+            ValueError: If inputs are invalid; if the source or destination
+                path of any moved file is read-only by .mcp-file-access; or if
+                the move would make a file hidden by .gitignore accessible
             FileNotFoundError: If source doesn't exist
             FileExistsError: If destination already exists
             PermissionError: If permission is denied
@@ -54,8 +59,10 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
         if not destination_path or not isinstance(destination_path, str):
             raise ValueError("Invalid destination path")
 
-        check_not_gitignored(ctx, source_path)
-        check_not_gitignored(ctx, destination_path)
+        check_writable(ctx, source_path)
+        check_writable(ctx, destination_path)
+        # Before the try, which would turn the refusal into "Invalid operation"
+        check_tree_access(source_path, destination_path, ctx.project_dir)
 
         try:
             # Call the underlying function (all logic is handled internally)

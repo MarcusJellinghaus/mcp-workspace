@@ -19,36 +19,28 @@ This MCP server enables AI assistants like Claude (via Claude Desktop) or other 
 - Debug and fix issues in your codebase
 - Generate complete implementations based on your specifications
 
-File tools work inside your specified project directory, and refuse its `.git` directory and gitignored paths, giving you control while enabling powerful AI collaboration on your local files. [Path Confinement](#path-confinement) gives the rules and limits. The GitHub tools and `git fetch` reach the network, and [SECURITY.md](SECURITY.md) lists what is enforced.
+File tools work inside your specified project directory, and refuse its `.git` directory and gitignored paths (a `.mcp-file-access` rules file can expose some and make others read-only), giving you control while enabling powerful AI collaboration on your local files. [Path Confinement](#path-confinement) gives the rules and limits. The GitHub tools and `git fetch` reach the network, and [SECURITY.md](SECURITY.md) lists what is enforced.
 
 By connecting your AI assistant to your filesystem, you can transform your workflow from manual coding to a more intuitive prompting approach - describe what you need in natural language and let the AI generate, modify, and organize code directly in your project files.
 
 ## Path Confinement
 
-Every path is validated against the project directory before any file operation. Validation resolves symlinks and rejects the path if the resolved location lies outside the project directory. A `..` segment is rejected outright rather than followed. Reference projects are validated the same way against their own directory.
+Every path is validated against the project directory before any file operation: symlinks are resolved, and a path that resolves outside the project or contains a `..` segment is rejected. Reference projects are validated the same way against their own directory.
 
-Two kinds of path are rejected that earlier versions accepted:
+File tools also refuse `.git` entries, under any spelling or through a link, and paths matched by the gitignore rules: every `.gitignore` from the project root down plus `.git/info/exclude`, with git's precedence. An ignored directory cannot be listed unless a rule exposes it. The `git` tool checks its arguments separately.
 
-- **A `..` segment anywhere in the path**, not only a leading one. `read_file("src/../README.md")` is rejected; use `read_file("README.md")`.
-- **A path that leaves the project through a symlink.** A symlinked file inside the project whose target is outside it, or an intermediate symlinked directory component, is rejected even though the path contains no `..`. To read content that lives outside the project, configure it with `--reference-project` (read-only) or run a second server instance pointed at it.
+[docs/file-access.md](docs/file-access.md) gives the full rules, the differences from git and the limits.
 
-One limitation: if the operating system cannot resolve a path at all, validation falls back to the lexical checks alone — the path must contain no `..` and must lie under the project directory by name — so a symlink pointing outside the project is not detected in that case.
+### Access rules (`.mcp-file-access`)
 
-File tools also refuse `.git` entries and gitignored paths:
+A `.mcp-file-access` file at the project root overrides the gitignore default per path, one `<level> <gitignore pattern>` per line, last match wins:
 
-- **`.git`**: A path naming a `.git` file or directory at any depth, in any letter case or Windows alias, or resolving to one through a link, is rejected. So is deleting or moving a whole directory that contains one.
-- **Gitignored paths**: Paths matched by the gitignore rules are rejected for reading and writing, including a link into a gitignored location. The rules come from every `.gitignore` from the project root down plus `.git/info/exclude` (also for a worktree or submodule checkout), with git's precedence: a deeper file overrides a shallower one, the last matching line wins, and a `.gitignore` inside an ignored directory is not read. Reference projects apply their own rules the same way.
-- **Listing an ignored directory** is refused. A directory whose files are all ignored lists as empty.
+```
+read-write  /.scratch/
+read-only   /.mcp.json
+```
 
-Known differences from git:
-
-- `project_dir` is the root: no `.gitignore` above it is read, nor the `info/exclude` of an enclosing repository.
-- A nested repository or submodule checkout inside `project_dir` gets the outer rules; its own `info/exclude` is not read.
-- Ignore rules apply to committed files too.
-- Global excludes (`core.excludesFile`) are not applied.
-- A path that does not exist yet is refused by a directory-only rule: under `out/`, a new `out` is refused even though git would ignore it only as a directory.
-
-The `git` tool checks its arguments separately. Paths must be relative and stay inside the repository, and `fetch` and `ls_remote` accept only configured remote names. See [SECURITY.md](SECURITY.md#intended-restrictions).
+`read-only` makes a path read-only and exposes a gitignored one for reading; `read-write` exposes a gitignored path read-write, never committed. `.mcp-file-access` itself is always read-only, `.git` stays refused, and an invalid file refuses every write and exposes nothing. The rules bind the MCP file tools only; they are not a sandbox. See [docs/file-access.md](docs/file-access.md#access-rules-mcp-file-access) for walk scope, listing suffixes, refusals and the invalid-file behaviour.
 
 ## Features
 
@@ -248,7 +240,7 @@ Reference projects allow you to provide AI assistants with read-only *file* acce
 - **Read-only file access**: Reference project *files* can only be browsed and read from, never modified. Their GitHub issues are a separate matter — see [Cross-Repo GitHub Access](#cross-repo-github-access)
 - **Multiple projects**: Configure multiple reference projects simultaneously
 - **Auto-discovery**: LLM can discover available reference projects
-- **Security**: Reads, searches and listings get the same path validation and gitignore filtering as the main project, using the reference project's own gitignore rules
+- **Security**: Reads, searches and listings get the same path validation and gitignore filtering as the main project, using the reference project's own gitignore rules and `.mcp-file-access`
 - **Flexible paths**: Supports both relative and absolute paths
 
 ### Configuration
@@ -415,7 +407,9 @@ The server exposes the following MCP tools:
 
 #### List Directory
 - Returns a list of file and directory names
-- Applies the same gitignore rules as the other file tools; an ignored directory is refused and never descended into
+- Applies the same access rules as the other file tools: gitignored entries are left out unless `.mcp-file-access` exposes them, and an ignored directory is refused unless the [walk scope](docs/file-access.md#access-rules-mcp-file-access) reaches it
+- File lines whose access differs from the default end in ` (read-only)` or ` (read-write, not committed)`; strip the suffix before passing the path on. Collapsed `dir/ (N files)` lines and `dirs_only` output are unmarked
+- When `.mcp-file-access` is invalid, the first line is a `WARNING: .mcp-file-access is invalid (…)` line, outside the line cap
 - `.git` folders are excluded
 
 #### Read File
@@ -458,6 +452,7 @@ Deletes a directory within the project directory.
 - Idempotent: deleting a missing directory returns a message, not an error
 - Refuses to delete the project root
 - Enforces `.gitignore` on the top-level path; a recursive delete still removes individually-gitignored **children** (e.g. nested `__pycache__/`)
+- Refused as a whole, deleting nothing, when any file in the tree — including inside ignored subdirectories — is read-only by `.mcp-file-access`
 - Returns the list of deleted paths (capped at 20 entries with a summary line)
 
 #### Edit File
@@ -521,6 +516,7 @@ Moves or renames files and directories within the project directory. Automatical
 **Features:**
 - Automatically creates parent directories if they don't exist
 - Preserves git history when moving tracked files (uses git mv internally)
+- A gitignored destination always gets a plain filesystem move, so a tracked file moved there (e.g. into `.scratch/`) ends up untracked
 - Falls back to filesystem operations if git is unavailable
 - Works for both files and directories
 - Simple, clear error messages for LLMs
@@ -547,6 +543,9 @@ move_file("file.txt", "new_dir/sub_dir/file.txt")  # Creates new_dir/sub_dir if 
   - "Permission denied" - for access issues
   - "Invalid path" - for security violations
   - "Move operation failed" - for unexpected errors
+- Access refusals are returned unsimplified, and nothing is moved:
+  - `No write access to '<path>' (…)` - the source or destination path of any file in the moved tree is read-only by `.mcp-file-access`
+  - `Move refused: '<src>' contains files hidden by .gitignore rules that would become accessible at '<dest>'` - a file hidden at its source would not be hidden at its destination (e.g. `src/app/` holding an ignored `.env` moved into `.scratch/`). The message names no file. The destination is judged by the rules before the move, so a file hidden only by a `.gitignore` inside the moved tree also refuses the move
 
 #### Get Reference Projects
 Discovery tool for LLMs to find available reference projects.
@@ -676,7 +675,7 @@ Reports files whose line count exceeds a threshold.
 - `max_lines` (integer, optional): Line threshold. Falls back to the server's `--file-size-limit` flag, then to `600`
 
 **Features:**
-- Counts lines in every UTF-8 file under the project directory — all file types, tracked or not — excluding `.git/` and anything the gitignore rules match
+- Counts lines in every UTF-8 file under the project directory — all file types, tracked or not — excluding `.git/` and anything the gitignore rules match, including files `.mcp-file-access` exposes
 - Files listed in `.large-files-allowlist` (one path per line, `#` comments allowed) are exempt; entries are matched as exact paths, not globs
 - Allowlist entries are reported as stale when the file no longer exceeds the threshold, and also when it is missing, binary/non-UTF-8, or matched by `.gitignore` — for example after a rename or a typo in the entry
 - The violations list and the stale-entries list are each capped at 50 with a `showing X of Y` notice; the caps are internal and there is no parameter to lift them
@@ -685,6 +684,7 @@ Reports files whose line count exceeds a threshold.
 
 - All paths are normalized and validated to ensure they remain within the project directory
 - Reference projects use the same path validation and gitignore rules
+- Paths made read-only by `.mcp-file-access` refuse every write tool; see [Access rules](#access-rules-mcp-file-access)
 - Path traversal attacks are prevented for both main project and reference projects
 - The `git` tool checks flags, paths and remotes before running git; see [SECURITY.md](SECURITY.md#intended-restrictions)
 - Files are written atomically to prevent data corruption

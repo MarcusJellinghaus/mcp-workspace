@@ -12,7 +12,7 @@ from mcp_coder_utils.tool_spec import tool_spec
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.server import FastMCPSink, create_server, run_server
-from mcp_workspace.toolset._context import WorkspaceContext, check_not_gitignored
+from mcp_workspace.toolset._context import WorkspaceContext, check_readable
 from tests.conftest import ToolMap
 
 # Python path is now configured via pytest configuration in pyproject.toml
@@ -351,7 +351,7 @@ def test_save_file_not_gitignored(gitignore_project: Path, tools: ToolMap) -> No
     assert result is True
 
 
-def test_check_not_gitignored_absolute_path_message_is_forward_slash(
+def test_check_readable_absolute_path_message_is_forward_slash(
     gitignore_project: Path,
 ) -> None:
     """An absolute gitignored path is reported project-relative with '/'."""
@@ -361,7 +361,7 @@ def test_check_not_gitignored_absolute_path_message_is_forward_slash(
     ctx = WorkspaceContext(gitignore_project, {}, None, None, False, True)
 
     with pytest.raises(ValueError) as excinfo:
-        check_not_gitignored(ctx, str(nested / "debug.log"))
+        check_readable(ctx, str(nested / "debug.log"))
 
     assert "Path 'sub/deeper/debug.log' is excluded by .gitignore rules" in str(
         excinfo.value

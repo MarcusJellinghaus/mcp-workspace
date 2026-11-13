@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
+from mcp_workspace.file_tools.file_access import AccessListing
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.toolset._context import WorkspaceContext
 from mcp_workspace.toolset.reference import (
@@ -15,6 +16,11 @@ from mcp_workspace.toolset.reference import (
     reference_repo_url,
 )
 from tests.conftest import ToolMap
+
+
+def _listing(*files: str) -> AccessListing:
+    """Return a listing of files with a valid rules file and no notes."""
+    return AccessListing(files=list(files), notes={}, problems=[])
 
 
 class TestReferenceProjectMCPTools:
@@ -127,20 +133,18 @@ class TestReferenceProjectMCPTools:
         }
         tools = make_tools(reference_projects=test_projects)
 
-        # Mock the list_files_util function to return test data
+        # Mock the listing walk to return test data
         with patch(
-            "mcp_workspace.toolset.reference.list_files_util"
+            "mcp_workspace.toolset.reference.list_accessible_files"
         ) as mock_list_files:
             with patch(
                 "mcp_workspace.toolset.reference.ensure_available",
                 new_callable=AsyncMock,
                 return_value=None,
             ):
-                mock_list_files.return_value = [
-                    "file1.py",
-                    "file2.txt",
-                    "subdir/file3.md",
-                ]
+                mock_list_files.return_value = _listing(
+                    "file1.py", "file2.txt", "subdir/file3.md"
+                )
 
                 result = await tools["list_reference_directory"]("test_proj")
 
@@ -148,10 +152,8 @@ class TestReferenceProjectMCPTools:
                 assert result == ["file1.py", "file2.txt", "subdir/file3.md"]
                 assert isinstance(result, list)
 
-                # Verify list_files_util was called with correct parameters
-                mock_list_files.assert_called_once_with(
-                    ".", project_dir=ref_path, use_gitignore=True
-                )
+                # Verify the walk ran on the reference project root
+                mock_list_files.assert_called_once_with(".", ref_path)
 
     @pytest.mark.asyncio
     async def test_list_reference_directory_not_found(
@@ -181,9 +183,9 @@ class TestReferenceProjectMCPTools:
         }
         tools = make_tools(reference_projects=test_projects)
 
-        # Mock the list_files_util function
+        # Mock the listing walk
         with patch(
-            "mcp_workspace.toolset.reference.list_files_util"
+            "mcp_workspace.toolset.reference.list_accessible_files"
         ) as mock_list_files:
             with patch(
                 "mcp_workspace.toolset.reference.ensure_available",
@@ -191,16 +193,12 @@ class TestReferenceProjectMCPTools:
                 return_value=None,
             ):
                 # Should return files after gitignore filtering
-                mock_list_files.return_value = ["src/main.py", "README.md"]
+                mock_list_files.return_value = _listing("src/main.py", "README.md")
 
                 result = await tools["list_reference_directory"]("proj_with_gitignore")
 
-                # Verify gitignore filtering was enabled
-                mock_list_files.assert_called_once_with(
-                    ".",
-                    project_dir=ref_path,
-                    use_gitignore=True,
-                )
+                # Verify the filtering walk was used
+                mock_list_files.assert_called_once_with(".", ref_path)
                 assert result == ["src/main.py", "README.md"]
 
     @pytest.mark.asyncio
@@ -215,16 +213,16 @@ class TestReferenceProjectMCPTools:
         }
         tools = make_tools(reference_projects=test_projects)
 
-        # Mock the list_files_util function
+        # Mock the listing walk
         with patch(
-            "mcp_workspace.toolset.reference.list_files_util"
+            "mcp_workspace.toolset.reference.list_accessible_files"
         ) as mock_list_files:
             with patch(
                 "mcp_workspace.toolset.reference.ensure_available",
                 new_callable=AsyncMock,
                 return_value=None,
             ):
-                mock_list_files.return_value = ["test.py"]
+                mock_list_files.return_value = _listing("test.py")
 
                 with caplog.at_level(
                     logging.DEBUG, logger="mcp_workspace.toolset.reference"
@@ -523,14 +521,14 @@ class TestReferenceProjectMCPTools:
         tools = make_tools(reference_projects={"test_proj": proj})
 
         with patch(
-            "mcp_workspace.toolset.reference.list_files_util"
+            "mcp_workspace.toolset.reference.list_accessible_files"
         ) as mock_list_files:
             with patch(
                 "mcp_workspace.toolset.reference.ensure_available",
                 new_callable=AsyncMock,
                 return_value=None,
             ) as mock_ensure:
-                mock_list_files.return_value = ["file.py"]
+                mock_list_files.return_value = _listing("file.py")
 
                 await tools["list_reference_directory"]("test_proj")
 

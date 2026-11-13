@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from mcp_workspace.file_tools import file_operations
+from mcp_workspace.file_tools import file_operations, move_operations
 from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.toolset import tool_specs
 
@@ -161,7 +161,7 @@ def _call_move_file(project: Path, reference_name: str) -> Any:
     Returns:
         The util's result dict, carrying `source` and `destination`.
     """
-    return file_operations.move_file(
+    return move_operations.move_file(
         "move/nested/source.txt", "move/other/dest.txt", project
     )
 

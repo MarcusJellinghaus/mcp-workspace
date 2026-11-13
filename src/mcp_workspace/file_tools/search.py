@@ -7,7 +7,7 @@ from typing import Any
 
 from pathspec import GitIgnoreSpec, RegexPattern
 
-from mcp_workspace.file_tools.directory_utils import list_files
+from mcp_workspace.file_tools.file_access import list_accessible_files
 from mcp_workspace.file_tools.path_utils import normalize_path
 
 # Deliberate internal cap with no lift parameter: search_files returns many
@@ -200,7 +200,8 @@ def search_files(
     if glob is None and pattern is None:
         raise ValueError("At least one of 'glob' or 'pattern' must be provided")
 
-    all_files = list_files(".", project_dir=project_dir, use_gitignore=True)
+    # Includes the gitignored paths .mcp-file-access exposes, unmarked
+    all_files = list_accessible_files(".", project_dir).files
 
     matched = _match_glob(glob, all_files) if glob is not None else all_files
     glob_note = _glob_note(glob) if glob is not None and not matched else None

@@ -8,10 +8,11 @@ from mcp_coder_utils.tool_spec import ToolSink, tool_spec
 from pydantic import Field
 
 from mcp_workspace.file_tools import list_directory_tree, normalize_path
-from mcp_workspace.file_tools import list_files as list_files_util
 from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools import search_files as search_files_util
-from mcp_workspace.toolset._context import WorkspaceContext, check_not_gitignored
+from mcp_workspace.file_tools.access_rules import access_rules_warning
+from mcp_workspace.file_tools.file_access import list_accessible_files
+from mcp_workspace.toolset._context import WorkspaceContext, check_readable
 
 logger = logging.getLogger(__name__)
 
@@ -123,21 +124,23 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             A list of path strings: files, directories (trailing ``/``),
             collapsed summaries (``dir/ (N files)``), or a truncation line
             when output exceeds the internal limit. Paths are forward-slash
-            separated on every platform and can be passed straight back to
-            `read_file`.
+            separated on every platform. A file line may end in
+            `` (read-only)`` or `` (read-write, not committed)``; strip that
+            suffix before passing the path to `read_file`. The first line may
+            be a ``WARNING:`` about an invalid ``.mcp-file-access``.
 
         Raises:
             ValueError: If the path points to a file instead of a directory,
-                or is excluded by .gitignore rules.
+                or is excluded by .gitignore rules and not exposed by
+                .mcp-file-access.
         """
         try:
             # Validate path — normalize_path handles traversal attacks
             abs_path, rel_path = normalize_path(path, ctx.project_dir)
 
-            check_not_gitignored(ctx, path)
-
-            # If path points to a file, return error
+            # A hidden file keeps the gitignore message
             if abs_path.is_file():
+                check_readable(ctx, path)
                 raise ValueError(
                     f"'{path}' is a file, not a directory. Use read_file() instead."
                 )
@@ -147,15 +150,19 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
                 ctx.project_dir,
                 path,
             )
-            # Explicitly pass project_dir to list_files_util
-            raw_files = list_files_util(
-                path, project_dir=ctx.project_dir, use_gitignore=True
+            listing = list_accessible_files(path, ctx.project_dir)
+            # The tree builder treats a suffix as part of the file name, so
+            # collapsed and dirs_only lines stay unmarked
+            entries = [
+                f"{rel} {listing.notes[rel]}" if rel in listing.notes else rel
+                for rel in listing.files
+            ]
+            lines = list_directory_tree(
+                entries, base_path=rel_path, dirs_only=dirs_only
             )
-
-            # Build tree, collapse, render, truncate
-            return list_directory_tree(
-                raw_files, base_path=rel_path, dirs_only=dirs_only
-            )
+            # Prepended after rendering, so outside the line cap
+            warning = access_rules_warning(listing.problems)
+            return [warning, *lines] if warning is not None else lines
         except Exception as e:
             logger.error("Error listing project directory: %s", str(e))
             raise
@@ -211,7 +218,7 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
                 f"File path must be a non-empty string, got {type(file_path)}"
             )
 
-        check_not_gitignored(ctx, file_path)
+        check_readable(ctx, file_path)
 
         logger.info("Reading file: %s", file_path)
         try:

@@ -5,7 +5,11 @@ from typing import Any
 
 from mcp_workspace.file_tools import normalize_path
 from mcp_workspace.file_tools.line_endings import describe_line_endings
-from mcp_workspace.toolset._context import WorkspaceContext, check_not_gitignored
+from mcp_workspace.toolset._context import (
+    WorkspaceContext,
+    check_readable,
+    check_writable,
+)
 from mcp_workspace.toolset._github_common import (
     api_error,
     issue_manager,
@@ -217,8 +221,9 @@ def resolve_body(
 ) -> str | None:
     """Return the body to send: body unchanged, or body_file's text verbatim.
 
-    The file is read under read_file's rules (gitignore boundary, project
-    containment). A leading UTF-8 BOM is dropped; line endings are kept.
+    The file is read under read_file's rules (gitignore boundary unless
+    .mcp-file-access exposes the path, project containment). A leading UTF-8
+    BOM is dropped; line endings are kept.
 
     Args:
         ctx: Context whose project_dir body_file is relative to.
@@ -230,14 +235,15 @@ def resolve_body(
         body when body_file is None, otherwise the file's text.
 
     Raises:
-        ValueError: conflict is True, the path is gitignored / outside the
-            project / not a file, or the file is not UTF-8.
+        ValueError: conflict is True, the path is gitignored and not exposed
+            by .mcp-file-access / outside the project / not a file, or the
+            file is not UTF-8.
     """
     if body_file is None:
         return body
     if conflict:
         raise ValueError("pass either body or body_file, not both")
-    check_not_gitignored(ctx, body_file)
+    check_readable(ctx, body_file)
     abs_path, _ = normalize_path(body_file, ctx.project_dir)
     if not abs_path.is_file():
         raise ValueError(f"body_file '{body_file}' not found or not a file")
@@ -260,9 +266,11 @@ def check_body_target(ctx: WorkspaceContext, body_file: str) -> tuple[Path, str]
         (absolute path, project-relative path with forward slashes).
 
     Raises:
-        ValueError: path gitignored / outside the project / an existing directory.
+        ValueError: path gitignored and not exposed by .mcp-file-access /
+            read-only by .mcp-file-access / outside the project / an existing
+            directory.
     """
-    check_not_gitignored(ctx, body_file)
+    check_writable(ctx, body_file)
     abs_path, rel_path = normalize_path(body_file, ctx.project_dir)
     if abs_path.is_dir():
         raise ValueError(f"body_file '{body_file}' is a directory")

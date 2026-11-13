@@ -13,10 +13,10 @@ from mcp_workspace.file_tools.file_operations import (
     append_file,
     delete_directory,
     delete_file,
-    move_file,
     read_file,
     save_file,
 )
+from mcp_workspace.file_tools.move_operations import move_file
 from tests.conftest import TEST_CONTENT, TEST_DIR, TEST_FILE
 
 

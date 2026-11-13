@@ -100,7 +100,7 @@ mcp__mcp-workspace__save_file(".scratch/test_probe.py", ...)
 mcp__mcp-tools-py__run_pytest_check(extra_args=["-p", "no:cacheprovider", ".scratch/test_probe.py"])
 ```
 
-A path argument scopes the run, so a probe costs seconds. Delete when done — `delete_directory(".scratch", recursive=True)`; CI blocks any PR carrying one. `.scratch/` is not gitignored: the MCP file tools refuse ignored paths.
+A path argument scopes the run, so a probe costs seconds. Delete when done — `delete_directory(".scratch", recursive=True)`; CI blocks any PR carrying one. `.scratch/` is gitignored; `.mcp-file-access` makes it read-write for the MCP file tools, and it is never committed.
 
 Never use `python -c` via Bash. If you reason instead of running, label the conclusion analytical.
 

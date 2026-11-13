@@ -8,10 +8,14 @@ from mcp_coder_utils.log_utils import log_function_call
 from mcp_coder_utils.tool_spec import ToolSink, tool_spec
 from pydantic import Field
 
-from mcp_workspace.file_tools import list_files as list_files_util
 from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.file_tools import search_files as search_files_util
-from mcp_workspace.file_tools.directory_utils import check_path_not_gitignored
+from mcp_workspace.file_tools.access_rules import access_rules_warning
+from mcp_workspace.file_tools.file_access import (
+    FileAccess,
+    list_accessible_files,
+    require_access,
+)
 from mcp_workspace.reference_projects import ensure_available
 from mcp_workspace.toolset._context import WorkspaceContext
 from mcp_workspace.utils.url_credentials import scrub_credentials
@@ -176,7 +180,7 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
         """
         ref_path = await reference_project_path(ctx, reference_name)
 
-        check_path_not_gitignored(file_path, ref_path)
+        require_access(file_path, ref_path, FileAccess.READ_ONLY)
 
         # Call read_file_util with the reference project directory
         # The utility function handles all parameter validation and security checks
@@ -198,15 +202,19 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
         """List files and directories in a reference project directory.
 
         Returns:
-            A list of filenames in the reference project directory. Paths are
+            A list of filenames in the reference project directory, including
+            the gitignored paths its .mcp-file-access exposes. Paths are
             forward-slash separated on every platform and can be passed straight
-            back to `read_reference_file`.
+            back to `read_reference_file`. When that rules file is invalid, the
+            first line is a warning instead of a path.
         """
         ref_path = await reference_project_path(ctx, reference_name)
 
-        # Call list_files_util with gitignore filtering enabled
-        # The utility function handles all parameter validation
-        return list_files_util(".", project_dir=ref_path, use_gitignore=True)
+        listing = list_accessible_files(".", ref_path)
+        warning = access_rules_warning(listing.problems)
+        if warning is not None:
+            return [warning, *listing.files]
+        return listing.files
 
     @log_function_call
     async def search_reference_files(

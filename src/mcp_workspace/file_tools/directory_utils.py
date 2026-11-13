@@ -4,17 +4,49 @@ This module provides functions for file discovery and listing with gitignore sup
 We use the external igittigitt library for handling .gitignore patterns.
 """
 
+import importlib
 import logging
 import os
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from igittigitt import IgnoreParser
 
 from mcp_workspace.file_tools.path_utils import normalize_path, resolves_into_git_dir
 from mcp_workspace.utils.git_paths import canonical_spelling, is_path_in_git_dir
 
+if TYPE_CHECKING:
+    from mcp_workspace.file_tools.file_access import (
+        FileAccess as FileAccess,
+    )
+    from mcp_workspace.file_tools.file_access import (
+        get_file_access as get_file_access,
+    )
+    from mcp_workspace.file_tools.file_access import (
+        validate_access_rules as validate_access_rules,
+    )
+
 logger = logging.getLogger(__name__)
+
+# Re-exported for mcp_coder, which imports from this module. file_access
+# imports this module, so the names are resolved lazily on first access.
+_FILE_ACCESS_EXPORTS = ("FileAccess", "get_file_access", "validate_access_rules")
+
+
+def __getattr__(name: str) -> Any:
+    """Resolve the names re-exported from ``file_access`` on first access.
+
+    Returns:
+        The named object from ``mcp_workspace.file_tools.file_access``.
+
+    Raises:
+        AttributeError: If name is not one of the re-exported names.
+    """
+    if name in _FILE_ACCESS_EXPORTS:
+        module = importlib.import_module("mcp_workspace.file_tools.file_access")
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _resolved_relative(path: Path, project_dir: Path) -> str | None:
@@ -148,19 +180,42 @@ def is_path_gitignored(path: str, project_dir: Path) -> bool:
     if is_path_in_git_dir(path):
         return True
 
-    joined = project_dir / path
-    if resolves_into_git_dir(joined, project_dir):
+    if resolves_into_git_dir(project_dir / path, project_dir):
         return True
 
-    candidates = {
-        path,
-        canonical_spelling(path),
-        _resolved_relative(joined, project_dir),
-    }
     return any(
-        _matches_rules(candidate, project_dir)
-        for candidate in candidates
-        if candidate is not None
+        _matches_rules(spelling, project_dir)
+        for spelling in _spellings(path, project_dir)
+    )
+
+
+def _spellings(path: str, project_dir: Path) -> set[str]:
+    """Return the spellings of a path that rules are checked against.
+
+    Args:
+        path: Relative path (relative to project_dir).
+        project_dir: Project root directory.
+
+    Returns:
+        The path as spelled, its canonical spelling, and the location it
+        resolves to when that is inside the project.
+    """
+    spellings = {path, canonical_spelling(path)}
+    resolved = _resolved_relative(project_dir / path, project_dir)
+    if resolved is not None:
+        spellings.add(resolved)
+    return spellings
+
+
+def _excluded_error(file_path: str) -> ValueError:
+    """Build the refusal for a path hidden by gitignore rules.
+
+    Returns:
+        The error to raise, naming file_path.
+    """
+    return ValueError(
+        f"Path '{file_path}' is excluded by .gitignore rules and cannot be "
+        "accessed. Use list_directory() to see available files."
     )
 
 
@@ -176,7 +231,7 @@ def check_path_not_gitignored(file_path: str, project_dir: Path) -> None:
 
     Raises:
         ValueError: If the path is excluded.
-    """
+    """  # noqa: DOC501, DOC502 - _excluded_error returns the documented ValueError
     path = Path(file_path)
     if path.is_absolute():
         try:
@@ -184,10 +239,7 @@ def check_path_not_gitignored(file_path: str, project_dir: Path) -> None:
         except ValueError:
             return
     if is_path_gitignored(file_path, project_dir):
-        raise ValueError(
-            f"Path '{file_path}' is excluded by .gitignore rules and cannot be "
-            "accessed. Use list_directory() to see available files."
-        )
+        raise _excluded_error(file_path)
 
 
 def _discover_files(
@@ -244,7 +296,8 @@ def _gitignore_skip(start: Path, project_dir: Path) -> Callable[[Path], bool]:
     .gitignore gets a copy, so siblings never share rules.
 
     Args:
-        start: Absolute directory the walk starts at, not itself ignored.
+        start: Absolute directory the walk starts at. When it is itself
+            ignored, every entry below it is reported as ignored.
         project_dir: Project root directory.
 
     Returns:

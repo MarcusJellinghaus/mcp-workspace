@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from mcp_workspace.file_tools.file_access import AccessListing
 from tests.conftest import ToolMap
 
 TEST_DIR = Path("testdata/test_file_tools")
@@ -12,8 +13,13 @@ TEST_FILE = TEST_DIR / "test_api_file.txt"
 TEST_CONTENT = "This is API test content."
 
 
+def _listing(files: list[str]) -> AccessListing:
+    """Build a listing with no notes and a valid rules file."""
+    return AccessListing(files=files, notes={}, problems=[])
+
+
 @patch("mcp_workspace.toolset.read.list_directory_tree")
-@patch("mcp_workspace.toolset.read.list_files_util")
+@patch("mcp_workspace.toolset.read.list_accessible_files")
 def test_list_directory(
     mock_list_files: MagicMock,
     mock_tree: MagicMock,
@@ -28,28 +34,26 @@ def test_list_directory(
     with open(abs_file_path, "w", encoding="utf-8") as f:
         f.write(TEST_CONTENT)
 
-    # Mock the list_files function to return our test file
-    mock_list_files.return_value = [str(TEST_FILE)]
+    # Mock the listing walk to return our test file
+    mock_list_files.return_value = _listing([str(TEST_FILE)])
     mock_tree.return_value = [str(TEST_FILE)]
 
     files = tools["list_directory"]()
 
     # Verify the function was called with correct parameters
-    mock_list_files.assert_called_once_with(
-        ".", project_dir=project_dir, use_gitignore=True
-    )
+    mock_list_files.assert_called_once_with(".", project_dir)
     mock_tree.assert_called_once_with([str(TEST_FILE)], base_path=".", dirs_only=False)
 
     assert str(TEST_FILE) in files
 
 
-@patch("mcp_workspace.toolset.read.list_files_util")
+@patch("mcp_workspace.toolset.read.list_accessible_files")
 def test_list_directory_directory_not_found(
     mock_list_files: MagicMock,
     tools: ToolMap,
 ) -> None:
     """Test the list_directory tool with a non-existent directory."""
-    # Mock list_files to raise FileNotFoundError
+    # Mock the listing walk to raise FileNotFoundError
     mock_list_files.side_effect = FileNotFoundError("Directory not found")
 
     with pytest.raises(FileNotFoundError):
@@ -57,7 +61,7 @@ def test_list_directory_directory_not_found(
 
 
 @patch("mcp_workspace.toolset.read.list_directory_tree")
-@patch("mcp_workspace.toolset.read.list_files_util")
+@patch("mcp_workspace.toolset.read.list_accessible_files")
 def test_list_directory_with_gitignore(
     mock_list_files: MagicMock,
     mock_tree: MagicMock,
@@ -65,11 +69,13 @@ def test_list_directory_with_gitignore(
     tools: ToolMap,
 ) -> None:
     """Test the list_directory tool with gitignore filtering."""
-    # Mock list_files to return filtered files
-    mock_list_files.return_value = [
-        str(TEST_DIR / "test_normal.txt"),
-        str(TEST_DIR / ".gitignore"),
-    ]
+    # Mock the listing walk to return filtered files
+    mock_list_files.return_value = _listing(
+        [
+            str(TEST_DIR / "test_normal.txt"),
+            str(TEST_DIR / ".gitignore"),
+        ]
+    )
     mock_tree.return_value = [
         str(TEST_DIR / "test_normal.txt"),
         str(TEST_DIR / ".gitignore"),
@@ -77,21 +83,18 @@ def test_list_directory_with_gitignore(
 
     files = tools["list_directory"]()
 
-    # Verify the function was called with gitignore=True
-    mock_list_files.assert_called_once_with(
-        ".", project_dir=project_dir, use_gitignore=True
-    )
+    mock_list_files.assert_called_once_with(".", project_dir)
 
     assert str(TEST_DIR / "test_normal.txt") in files
     assert str(TEST_DIR / ".gitignore") in files
 
 
-@patch("mcp_workspace.toolset.read.list_files_util")
+@patch("mcp_workspace.toolset.read.list_accessible_files")
 def test_list_directory_error_handling(
     mock_list_files: MagicMock, tools: ToolMap
 ) -> None:
     """Test error handling in the list_directory tool."""
-    # Mock list_files to raise an exception it documents
+    # Mock the listing walk to raise an exception it documents
     mock_list_files.side_effect = NotADirectoryError("Test error")
 
     with pytest.raises(NotADirectoryError, match="Test error"):
@@ -99,7 +102,7 @@ def test_list_directory_error_handling(
 
 
 @patch("mcp_workspace.toolset.read.list_directory_tree")
-@patch("mcp_workspace.toolset.read.list_files_util")
+@patch("mcp_workspace.toolset.read.list_accessible_files")
 def test_list_directory_path_parameter(
     mock_list_files: MagicMock,
     mock_tree: MagicMock,
@@ -112,20 +115,18 @@ def test_list_directory_path_parameter(
     src_dir.mkdir(parents=True, exist_ok=True)
     (src_dir / "app.py").write_text("# app")
 
-    mock_list_files.return_value = ["src/app.py"]
+    mock_list_files.return_value = _listing(["src/app.py"])
     mock_tree.return_value = ["src/app.py"]
 
     files = tools["list_directory"](path="src")
 
-    mock_list_files.assert_called_once_with(
-        "src", project_dir=project_dir, use_gitignore=True
-    )
+    mock_list_files.assert_called_once_with("src", project_dir)
     mock_tree.assert_called_once_with(["src/app.py"], base_path="src", dirs_only=False)
     assert "src/app.py" in files
 
 
 @patch("mcp_workspace.toolset.read.list_directory_tree")
-@patch("mcp_workspace.toolset.read.list_files_util")
+@patch("mcp_workspace.toolset.read.list_accessible_files")
 def test_list_directory_dirs_only(
     mock_list_files: MagicMock,
     mock_tree: MagicMock,
@@ -133,14 +134,12 @@ def test_list_directory_dirs_only(
     tools: ToolMap,
 ) -> None:
     """Test list_directory with dirs_only=True returns only directory paths."""
-    mock_list_files.return_value = ["src/app.py", "tests/test_app.py"]
+    mock_list_files.return_value = _listing(["src/app.py", "tests/test_app.py"])
     mock_tree.return_value = ["src/", "tests/"]
 
     files = tools["list_directory"](dirs_only=True)
 
-    mock_list_files.assert_called_once_with(
-        ".", project_dir=project_dir, use_gitignore=True
-    )
+    mock_list_files.assert_called_once_with(".", project_dir)
     mock_tree.assert_called_once_with(
         ["src/app.py", "tests/test_app.py"], base_path=".", dirs_only=True
     )
@@ -170,7 +169,7 @@ def test_list_directory_path_traversal(tools: ToolMap) -> None:
 
 
 @patch("mcp_workspace.toolset.read.list_directory_tree")
-@patch("mcp_workspace.toolset.read.list_files_util")
+@patch("mcp_workspace.toolset.read.list_accessible_files")
 def test_list_directory_path_trailing_slash(
     mock_list_files: MagicMock,
     mock_tree: MagicMock,
@@ -183,14 +182,12 @@ def test_list_directory_path_trailing_slash(
     src_dir.mkdir(parents=True, exist_ok=True)
     (src_dir / "app.py").write_text("# app")
 
-    mock_list_files.return_value = ["src/app.py"]
+    mock_list_files.return_value = _listing(["src/app.py"])
     mock_tree.return_value = ["src/app.py"]
 
     files = tools["list_directory"](path="src/")
 
-    mock_list_files.assert_called_once_with(
-        "src/", project_dir=project_dir, use_gitignore=True
-    )
+    mock_list_files.assert_called_once_with("src/", project_dir)
     assert "src/app.py" in files
 
 
