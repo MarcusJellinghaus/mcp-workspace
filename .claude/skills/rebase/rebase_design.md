@@ -24,7 +24,7 @@ Bash(git rebase:*)
 # Staging and committing
 Bash(git add:*)
 Bash(git rm:*)
-Bash(git commit:*)
+mcp__mcp-workspace__git_commit
 
 # Conflict resolution helpers
 Bash(git checkout --ours:*)
@@ -33,7 +33,9 @@ Bash(git restore:*)
 Bash(git stash:*)
 
 # Pushing
-Bash(git push --force-with-lease:*)
+mcp__mcp-workspace__git_push
+mcp__mcp-workspace__git_push_force
+Bash(git push --force-with-lease:*)  # fallback when git_push_force refuses (git < 2.30, no reflog)
 ```
 
 ### 2. General Permissions (not documented here)
@@ -62,8 +64,8 @@ Rebase should not start if:
 ### 4. Abort Priority
 Critical failures (unexpected errors, binary conflicts) take priority over threshold-based failures (repeated conflicts, quality check failures).
 
-### 5. User Confirmation Before Push
-Force-push is destructive. Always show summary and get confirmation.
+### 5. Summary Before Push
+Force-push is destructive. Show a summary without waiting for confirmation; the Branch Moved Check guards the force push.
 
 ## Future Considerations
 

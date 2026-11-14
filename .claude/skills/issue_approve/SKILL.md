@@ -4,12 +4,11 @@ disable-model-invocation: true
 argument-hint: "<issue-number> [--repo owner/repo]"
 allowed-tools:
   - mcp__mcp-workspace__github_issue_view
+  - mcp__mcp-workspace__git
+  - "Bash(mcp-coder gh-tool set-status *)"
   - mcp__mcp-workspace__github_issue_comment
-  - "Bash(gh issue view *)"
-  - "Bash(MSYS_NO_PATHCONV=1 gh issue comment *)"
-  - mcp__mcp-tools-py__sleep
-  - mcp__mcp-workspace__read_file
   - mcp__mcp-workspace__get_reference_projects
+  - mcp__mcp-workspace__read_file
 ---
 
 # Approve Issue
@@ -26,20 +25,27 @@ If no issue number is provided:
 
 ## Cross-Repo Issues
 
-If a `--repo owner/repo` flag was given, first check whether that repo is a configured
-reference project — match `owner/repo` against the `url` of each entry
-`get_reference_projects()` returns. If it is, use the MCP tools with that entry's `name` as
-`reference_name`: `mcp__mcp-workspace__github_issue_view` and
-`mcp__mcp-workspace__github_issue_comment` both reach it. Only when the repo is not a
-configured reference project, fall back to the `gh` commands below, appending
-`--repo owner/repo` to each.
+- If `--repo owner/repo` was given, compare it with `origin` (`mcp__mcp-workspace__git`,
+  command `ls_remote`, args `["--get-url", "origin"]`). Normalise both: accept
+  `https://github.com/owner/repo` and `git@github.com:owner/repo` forms, drop a trailing
+  `.git`, compare case-insensitively.
+- Match → ignore `--repo` entirely; follow the normal (workspace) path.
+- No match (or no `origin`) → cross-repo. Call `mcp__mcp-workspace__get_reference_projects()`
+  and pick the entry whose `url` normalises (as above) to `owner/repo`. Use its `name` as
+  `reference_name` on every GitHub tool call. Entries with a null `url` never match.
+- No matching entry → stop and report "not a reference project". There is no other route.
+- **Never** pass a repo to `set-status`.
 
 ## Instructions
 
 1. Fetch the issue to confirm it exists:
-   Call `mcp__mcp-workspace__github_issue_view` with the issue number (or with `reference_name` for a cross-repo issue).
+   Call `mcp__mcp-workspace__github_issue_view` with the issue number (plus `reference_name`
+   for cross-repo). Cross-repo only: success means the output starts with `# #<number>: `,
+   or is `# #<number>` followed by a newline (untrusted author; proceed normally). Anything
+   else → "approval failed: <result>".
 
-   Note its current status label — step 5 compares against it.
+   Note its status labels (labels prefixed `status-`) — step 3 uses them for the promotable
+   check and the `--from-status` value.
 
 2. Validate that the issue is ready for approval:
    - Issue has been analyzed/discussed
@@ -48,39 +54,42 @@ configured reference project, fall back to the `gh` commands below, appending
 
    If any check fails, stop and report — do not approve.
 
-3. Comment `/approve` on the issue:
+3. **Promote.**
 
-```python
-mcp__mcp-workspace__github_issue_comment(number=<issue_number>, body="/approve")
-```
+   | current | next |
+   |---|---|
+   | `status-01:created` | `status-02:awaiting-planning` |
+   | `status-04:plan-review` | `status-05:plan-ready` |
+   | `status-07:code-review` | `status-08:ready-pr` |
 
-For a cross-repo issue (`--repo owner/repo`) that *is* a configured reference project, pass
-its `reference_name`:
+   - More than one status label → don't promote; report "nothing to approve (multiple
+     status labels: X, Y)".
+   - Current status not in the table (including no status label) → don't promote; report
+     "nothing to approve".
+   - Cross-repo → call
+     `mcp__mcp-workspace__github_issue_comment(number=…, reference_name=…, body="/approve")`
+     and report "approval requested, not confirmed". No polling.
+   - Otherwise run from the project directory (no `--project-dir`, no output redirection —
+     the result is printed on stderr):
+     ```bash
+     mcp-coder gh-tool set-status <next> --from-status <current> --issue <issue_number> --force
+     ```
+     `--force` only skips the clean-tree check, irrelevant for a label change.
+     Do **not** also comment `/approve` — the Action would race this call.
 
-```python
-mcp__mcp-workspace__github_issue_comment(number=<issue_number>, body="/approve", reference_name=<name>)
-```
+4. **Report** the issue number and the outcome:
 
-For any other repo, use Bash instead — the MCP tool only reaches the workspace repository
-and its configured reference projects. `MSYS_NO_PATHCONV=1` prevents Windows Git Bash from
-rewriting the leading `/` and is needed only for this Bash form:
+   | `set-status` result | Report |
+   |---|---|
+   | exit 0, `Updated issue #N to <next>` | `<current> → <next>` |
+   | exit 0, `Skipped set-status to '…': current label is 'X', expected 'Y'` | "not approved (current status X)" |
+   | non-zero exit | "approval failed: <error output>" — stop; no retry, no `/approve` fallback |
 
-```bash
-MSYS_NO_PATHCONV=1 gh issue comment <issue_number> --body "/approve" --repo owner/repo
-```
+   | Cross-repo comment result | Report |
+   |---|---|
+   | starts with `Added comment to issue #` | "approval requested, not confirmed" |
+   | anything else | "approval failed: <result>" — no retry |
 
-This triggers the GitHub Action to promote the issue status (e.g., `status-01:created` → `status-02:awaiting-planning`).
-
-4. **Wait 5 seconds** — call `mcp__mcp-tools-py__sleep` with `sleep_seconds: 5` — to give the
-   GitHub Action time to apply the label transition.
-
-5. **Confirm the transition landed.** Re-fetch the issue and compare its status label against
-   what you saw in step 1. The comment in step 3 only *requests* the transition; the Action
-   performs it, and it can be slow or fail.
-
-   If the label has not changed, report the issue as still sitting at its old status.
-
-6. Report the issue number, the status transition (from → to, or "unchanged"), and the
-   assignee.
+   Not-called outcomes are reported as stated in step 3.
 
 **Note:** This skill has `disable-model-invocation` — it can only be run by the user typing `/issue_approve`. If you need this skill as a follow-up, tell the user: "Please run `/issue_approve` to proceed."

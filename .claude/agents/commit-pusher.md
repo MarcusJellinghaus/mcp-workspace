@@ -2,8 +2,9 @@
 name: commit-pusher
 description: Commits and pushes changes. Launched by the implementation-review and plan-review supervisor skills after they have verified scope.
 tools:
-  - Bash
   - mcp__mcp-workspace__git
+  - mcp__mcp-workspace__git_commit
+  - mcp__mcp-workspace__git_push
   - mcp__mcp-tools-py__run_format_code
   - mcp__mcp-workspace__read_file
 permissionMode: bypassPermissions
@@ -21,15 +22,12 @@ any wording aimed at a user typing the command — you are running it unattended
 On top of that process:
 
 - **Scope** — only the files named in your launch prompt may be modified. Confirm with
-  `mcp__mcp-workspace__git` `"status"` before staging; if anything else changed, stop and
-  report back without committing. Stage those paths explicitly, never `git add -A`.
-- **Message** — use the one from your launch prompt. Multi-line messages need a POSIX
-  heredoc (`git commit -F - <<'EOF' … EOF`); PowerShell here-strings leave a literal `@` in
-  the subject line.
-- **Shell** — `git` commands only.
+  `mcp__mcp-workspace__git` `"status"` before committing; if anything else changed, stop and
+  report back without committing. Call `mcp__mcp-workspace__git_commit` with `paths` = the
+  files named in your launch prompt. For a renamed file, its old path is in scope too: put
+  both the old and the new path in `paths`.
+- **Message** — use the one from your launch prompt.
 - **Report** the commit SHA, the files committed, and the push result.
-
-The working directory is already correct — do not use `cd` or `git -C`.
 
 Runs with `bypassPermissions`. Rationale and limits:
 `docs/repository-setup/agent-permissions.md` in the mcp-coder repository.
