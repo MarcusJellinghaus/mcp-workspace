@@ -23,6 +23,7 @@
       "mcp__mcp-tools-py__run_lint_imports_check",
       "mcp__mcp-tools-py__run_vulture_check",
       "mcp__mcp-tools-py__get_library_source",
+      "mcp__mcp-tools-py__search_library_files",
       "mcp__mcp-tools-py__run_ruff_check",
       "mcp__mcp-tools-py__run_ruff_fix",
       "mcp__mcp-tools-py__run_bandit_check",
