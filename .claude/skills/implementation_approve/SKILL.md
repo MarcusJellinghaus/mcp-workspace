@@ -16,12 +16,13 @@ Call `mcp__mcp-workspace__check_branch_status`.
 
 2. If `branch-status` reports a base branch other than `main`, ask the user to confirm this is intentional before proceeding.
 
-3. Only if the branch-status check passes (exit code 0), run the set-status command and confirm it succeeded:
+3. Only if the report's `Recommendations:` line contains `Ready to merge`, run the set-status command and confirm it succeeded:
+The line is comma-separated (e.g. `Recommendations: Ready to merge (squash-merge safe), ...`); `Ready to merge (squash-merge safe)` counts. The match is case-sensitive: the blocking recommendation `Not ready to merge (GitHub mergeable_state: ...)` has a lowercase `r` and must not satisfy the check.
 ```bash
 mcp-coder gh-tool set-status status-08:ready-pr
 ```
 
-**Note:** If the branch-status check fails, report the failures to the user and do not set the label. If the set-status command fails, report the error to the user. Do not use `--force` unless explicitly asked.
+**Note:** If `Ready to merge` is absent, report the blockers to the user and do not set the label. If the set-status command fails, report the error to the user. Do not use `--force` unless explicitly asked.
 
 **Effect:** Changes issue status from `status-07:code-review` to `status-08:ready-pr`.
 

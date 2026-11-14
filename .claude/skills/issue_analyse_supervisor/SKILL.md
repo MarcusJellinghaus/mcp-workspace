@@ -36,19 +36,24 @@ You are a technical lead supervising a software engineer (subagent). You do not 
 
 **Workflow:**
 
-1. Launch a new engineer subagent → `/issue_analyse` with the issue number.
+1. Launch a new engineer subagent → `/issue_analyse` with the issue number. Tell the engineer to **verify every factual claim in the issue against the code** (symbol names, file paths, counts, ordering assumptions), not only to answer open questions. Pass the issue and linked issues — not your own conclusions from earlier rounds; an engineer handed a hypothesis tends to confirm it.
 2. Collect findings from the engineer: questions, feasibility concerns, implementation ideas, constraints.
 3. Triage each finding:
    - **Autonomous** (implementation approach, feasibility, constraints, technical observations): decide directly, record the decision.
    - **Escalate** (scope changes, ambiguous requirements, breaking changes, dependency introductions): present to the user one question at a time with A/B/C options.
 4. Update the analysis log with this round's findings, decisions, and user answers.
-5. Accumulate all decisions, constraints, and refined requirements. Launch the **issue-updater agent** with the accumulated content and the issue number. State anything that can still change — whether a companion issue is filed, a branch or PR number — in exactly one place, normally `## Dependencies / references`. A fact restated in three sections goes stale in three.
+5. Accumulate all decisions, constraints, and refined requirements. Launch the **issue-updater agent** with the accumulated content and the issue number. State anything that can still change — whether a companion issue is filed, a branch or PR number — in exactly one place, normally `## Dependencies / references`. A fact restated in three sections goes stale in three. Issue content rules:
+   - **Decisions and constraints, not a pre-computed implementation** — line ranges, per-file import lists and counts go stale and duplicate the planning step.
+   - Refer to paths and symbols, not line numbers — they go stale, especially in files other open issues also edit.
+   - Link shared rules (e.g. `.claude/knowledge_base/refactoring_principles.md`) instead of copying them.
+   - Every prohibition needs an allowed fallback or an explicit "stop and report".
+   - Every step or check must be doable with MCP tools — the implement workflow has no Bash.
 6. **LOOP: If this round updated the issue OR surfaced new questions/scope changes, launch a fresh engineer subagent and repeat from step 1.** Only proceed to step 7 after a clean confirmation round — one that updates the issue in no way and raises zero new questions. Do NOT stop or wait for user input between rounds — the loop is automatic.
 7. **Safety valve:** If 5 rounds have been reached, stop. Your output here *is* the list of remaining open items plus a request for guidance — not a separate "done" message followed by issues.
 8. **Finalize:**
    - Add a `## Final Status` section to the log.
    - Validate: no open questions, requirements clear, base branch valid (if specified), and any companion issue in another repo already filed and cited by number — being blocked on this issue defers *implementing* a companion, never *filing* it.
-   - Launch the **issue-approver agent** with the issue number. For cross-repo issues include `--repo owner/repo`. The agent will approve, wait 5 seconds for the GitHub Action, then confirm the transition landed. **Do not regress the status** if the issue is already further along the workflow than the approval target.
+   - Launch the **issue-approver agent** with the issue number. For cross-repo issues include `--repo owner/repo`. For same-repo issues the agent sets the status synchronously via `mcp-coder gh-tool set-status`; for cross-repo issues it comments `/approve` and reports "approval requested, not confirmed". An issue already further along than the approval target is not regressed — the agent reports it as not approved.
    - **After approval the issue leaves analysis — do not touch the body again.** `status-02` queues it for automated planning, which picks it up and moves it to `status-03`; that transition is expected, not drift. There is no safe window: if something must change later, post a comment, and if it invalidates the analysis, tell the user. Never edit an approved issue for bookkeeping alone.
    - On success, **delete `pr_info/issue_analysis_log.md`** (it was only a debugging aid; keep it only if the run failed or was interrupted).
    - Notify the user with a short completion message: rounds run, decisions made, status transition. **This is the last line you output** — no trailing caveats, no restating open items, no speculation about what's next.
@@ -67,6 +72,8 @@ You are a technical lead supervising a software engineer (subagent). You do not 
 
 **Subagent instructions:** When launching subagents, **explicitly instruct them to read `.claude/CLAUDE.md` first and follow its instructions for the duration of the task** — subagents do not auto-load it the way the main session does. Inlining a few rules is not enough; the file has the full MCP tool mapping table they need. Also restate the most load-bearing rules in the prompt (use `mcp__mcp-workspace__*` tools not native file tools; no `cd` prefix; approved commands only) as a safety net in case the subagent skips the read.
 
+Analysis is **read-only**: engineers do not change files. Engineers report scope gaps as findings but do not propose follow-up issues — splitting the scope is the user's call (see the triage table).
+
 **Triage Guidelines:**
 
 | Autonomous (decide directly) | Escalate to User |
@@ -76,5 +83,6 @@ You are a technical lead supervising a software engineer (subagent). You do not 
 | Feasibility assessment ("yes this is doable") | Breaking changes / API surface decisions |
 | Technical debt observations (flag, don't block) | Priority / ordering between alternatives |
 | Structure and formatting of issue text | Dependency introductions |
+| | Follow-up issues or splitting the scope |
 
 **Escalation:** If you are unsure whether something is autonomous or needs user input, default to asking. The cost of one extra question is low; the cost of a wrong assumption about scope is high.

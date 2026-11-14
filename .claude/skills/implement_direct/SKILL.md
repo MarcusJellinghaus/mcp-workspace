@@ -7,6 +7,10 @@ allowed-tools:
   - "Bash(mcp-coder gh-tool *)"
   - mcp__mcp-workspace__read_file
   - mcp__mcp-tools-py__run_format_code
+  - mcp__mcp-tools-py__run_pylint_check
+  - mcp__mcp-tools-py__run_pytest_check
+  - mcp__mcp-tools-py__run_mypy_check
+  - mcp__mcp-tools-py__run_ruff_check
 ---
 
 # Implement Direct
@@ -31,6 +35,8 @@ If no issue number is provided:
    ```bash
    mcp-coder gh-tool checkout-issue-branch <issue_number>
    ```
+   If it exits with code 3 (ambiguous), stop: show the candidate branches from its log
+   output and ask the user which branch to use. Do not continue until they answer.
 
 3. **Understand context**
    - Read relevant source files referenced in the issue

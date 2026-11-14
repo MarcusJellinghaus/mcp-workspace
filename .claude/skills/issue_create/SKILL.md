@@ -38,11 +38,6 @@ Call `mcp__mcp-workspace__git` with command `"ls_remote"` and args `["--heads", 
 
 If no base branch is needed, omit this section entirely.
 
-**Create the issue using:**
-```python
-mcp__mcp-workspace__github_issue_create(title="TITLE", body="BODY")
-```
-
-The body is passed inline — no escaping, no heredoc, no temp file.
+**Create the issue:** call `mcp__mcp-workspace__github_issue_create` with `title` and `body`.
 
 If no prior discussion context is found, respond: "No discussion context found. Please discuss the feature or bug first before creating an issue."
