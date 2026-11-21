@@ -6,12 +6,16 @@ safe. The file is re-read on every call; nothing is cached.
 """
 
 import logging
+import re
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import AnyStr
 
-from pathspec import PathSpec, Pattern
+from pathspec import PathSpec, Pattern, RegexPattern
+from pathspec.patterns.gitignore.basic import GitIgnoreBasicPattern
+from pathspec.patterns.gitignore.spec import GitIgnoreSpecPattern
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +31,42 @@ _GLOB_CHARS = ("*", "?", "[", "\\")
 _reported: set[str] = set()
 
 
+class _CaseInsensitiveOnWin32(RegexPattern):
+    """Prefix the generated regex with ``(?i)`` on win32."""
+
+    @classmethod
+    def pattern_to_regex(cls, pattern: AnyStr) -> tuple[AnyStr | None, bool | None]:
+        """Convert the pattern, matching case-insensitively on win32.
+
+        Folding the pattern text instead would change what character
+        ranges mean (``[A-z]`` matches ``_``, ``[a-z]`` does not).
+
+        Args:
+            pattern: The pattern to convert, as ``str`` or ``bytes``.
+
+        Returns:
+            The base class's ``(regex, include)``; on win32 a non-``None``
+            regex starts with ``(?i)``.
+        """
+        regex, include = super().pattern_to_regex(pattern)
+        if sys.platform == "win32" and regex is not None:
+            regex = "(?i)" + regex if isinstance(regex, str) else b"(?i)" + regex
+        return regex, include
+
+
+class AccessRulePattern(_CaseInsensitiveOnWin32, GitIgnoreBasicPattern):
+    """Gitignore pattern for access rules, case-insensitive on win32."""
+
+
+class GlobPattern(_CaseInsensitiveOnWin32, GitIgnoreSpecPattern):
+    """Gitignore-spec pattern for search globs, case-insensitive on win32."""
+
+
 def _fold(text: str) -> str:
-    """Lower-case text on win32, where path matching ignores case.
+    """Lower-case text on win32 for the literal-prefix check in ``leads_into``.
 
     Args:
-        text: Pattern or path to fold.
+        text: Directory or literal prefix to fold.
 
     Returns:
         ``text`` lower-cased on win32, unchanged elsewhere.
@@ -91,7 +126,7 @@ class AccessRules:
         if self._spec is None:
             return None
         path = rel_path + "/" if is_dir else rel_path
-        index = self._spec.check_file(_fold(path)).index
+        index = self._spec.check_file(path).index
         return self.rules[index] if index is not None else None
 
     def leads_into(self, rel_dir: str) -> bool:
@@ -119,12 +154,13 @@ def _compiles(pattern: str) -> bool:
         pattern: A rule pattern as written in the rules file.
 
     Returns:
-        False if pathspec rejects the pattern or compiles it to nothing
+        False if pathspec rejects the pattern, the regex does not compile
+        (a reversed range such as ``[b-a]``), or it compiles to nothing
         (a comment), else True.
     """
     try:
-        spec = PathSpec.from_lines("gitignore", [pattern])
-    except ValueError:
+        spec = PathSpec.from_lines(AccessRulePattern, [pattern])
+    except (ValueError, re.error):
         return False
     return all(p.regex is not None for p in spec.patterns)
 
@@ -216,7 +252,7 @@ def load_access_rules(project_dir: Path) -> AccessRules:
         return AccessRules(problems=tuple(problems))
     if not rules:
         return AccessRules()
-    spec = PathSpec.from_lines("gitignore", [_fold(r.pattern) for r in rules])
+    spec = PathSpec.from_lines(AccessRulePattern, [r.pattern for r in rules])
     return AccessRules(rules=tuple(rules), _spec=spec)
 
 

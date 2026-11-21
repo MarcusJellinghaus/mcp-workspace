@@ -25,9 +25,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: Case-insensitive pattern classes; access-rules fix — [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: tests first (win32 fixture, `[b-a]x` invalid case, parametrized win32 match test, bytes/`GlobPattern` prefix test, semantics regression), then `_CaseInsensitiveOnWin32` mixin, `AccessRulePattern`, `GlobPattern`, `_compiles` catching `re.error`, no `_fold` in `load_access_rules` / `match`, `_fold` docstring, `docs/ARCHITECTURE.md` matching line
-- [ ] Quality checks (format, pylint, pytest, mypy, ruff, vulture, lint-imports) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests first (win32 fixture, `[b-a]x` invalid case, parametrized win32 match test, bytes/`GlobPattern` prefix test, semantics regression), then `_CaseInsensitiveOnWin32` mixin, `AccessRulePattern`, `GlobPattern`, `_compiles` catching `re.error`, no `_fold` in `load_access_rules` / `match`, `_fold` docstring, `docs/ARCHITECTURE.md` matching line
+- [x] Quality checks (format, pylint, pytest, mypy, ruff, vulture, lint-imports) — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `search_files` glob fix — [step_2.md](./steps/step_2.md)
 

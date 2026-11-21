@@ -170,7 +170,9 @@ toolset/_context.check_readable / check_writable    enforcement
 
 - `access_rules.py` parses the rules file into `AccessRules` (rules, or the
   problems that make it invalid) and matches with
-  `PathSpec.from_lines("gitignore", …)`, last match wins. Nothing is cached
+  `PathSpec.from_lines(AccessRulePattern, …)` (gitignore semantics;
+  case-insensitive on win32 through a `(?i)` regex prefix, not by
+  lower-casing), last match wins. Nothing is cached
   across calls, so a fixed file applies without a restart; walks and tree
   checks load it once and pass it down.
 - `file_access._access` is the one decision function: `.git` is hidden;
