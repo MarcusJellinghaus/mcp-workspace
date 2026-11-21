@@ -5,8 +5,10 @@
 > Read `pr_info/steps/summary.md`, then implement this step
 > (`pr_info/steps/step_1.md`). TDD: write the tests first, see them fail,
 > then implement. Run `run_format_code`, pylint, pytest
-> (`extra_args=["-n", "auto"]`), mypy and ruff; all must pass. Then make
-> exactly one commit. Do not touch `search.py` (that is step 2).
+> (`extra_args=["-n", "auto"]`), mypy, ruff, vulture
+> (`run_vulture_check`) and lint-imports (`run_lint_imports_check`); all
+> must pass. Then make exactly one commit. Do not touch `search.py` (that
+> is step 2).
 
 ## WHERE
 
@@ -34,9 +36,12 @@ class GlobPattern(_CaseInsensitiveOnWin32, GitIgnoreSpecPattern):
     """Gitignore-spec pattern for search globs, case-insensitive on win32."""
 ```
 
-(`GlobPattern` is added here because it shares the mixin; it is used in step 2.
-vulture may flag it as unused until then. If it does, keep it anyway: it is
-covered by the bytes / class test below, which references it.)
+(`GlobPattern` is added here because it shares the mixin; `search.py` starts
+using it in step 2. vulture scans src and tests, and the bytes / class test
+below references `GlobPattern`, so `run_vulture_check` should pass in this
+step. If it still reports `GlobPattern`, do not add a whitelist entry or
+`# noqa`, and do not move the class. Write one line to
+`pr_info/.blocked.txt` and stop.)
 
 Changed:
 
