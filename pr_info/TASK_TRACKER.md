@@ -23,4 +23,20 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 <!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
 
+### Step 1: Case-insensitive pattern classes; access-rules fix — [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation: tests first (win32 fixture, `[b-a]x` invalid case, parametrized win32 match test, bytes/`GlobPattern` prefix test, semantics regression), then `_CaseInsensitiveOnWin32` mixin, `AccessRulePattern`, `GlobPattern`, `_compiles` catching `re.error`, no `_fold` in `load_access_rules` / `match`, `_fold` docstring, `docs/ARCHITECTURE.md` matching line
+- [ ] Quality checks (format, pylint, pytest, mypy, ruff, vulture, lint-imports) — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: `search_files` glob fix — [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation: tests first (`[b-a]x` in glob validation, win32 fixture, `_match_glob` win32 case-insensitive and reversed-range tests), then `_match_glob` using `GlobPattern`, `_nothing_matches` helper, `re.error` → `ValueError`, remove `.lower()` / `import sys`, `docs/ARCHITECTURE.md` module line, `docs/release-notes.md` section
+- [ ] Quality checks (format, pylint, pytest incl. serial performance run, mypy, ruff, vulture, lint-imports) — fix all issues
+- [ ] Commit message prepared
+
 ## Pull Request
+
+- [ ] PR review: review the full branch diff against `main`
+- [ ] Write Obsidian `Field Notes/` entry (`Promote into [[mcp-workspace]]`) on case-insensitive matching no longer lower-casing
+- [ ] PR summary prepared
