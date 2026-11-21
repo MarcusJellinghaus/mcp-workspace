@@ -182,6 +182,8 @@ _._empty_trusted_commenters
 _._empty_enterprise_hosts
 # Fixture reached through pytest.mark.usefixtures("allow_test_ghes_hosts")
 _.allow_test_ghes_hosts
+# Fixture reached through pytest.mark.usefixtures("win32") (issue #405)
+_.win32
 # Fixtures for issue #342 untrusted base-branch tests, reached through their name= alias
 _._editor  # name="editor"
 _._token_login  # name="token_login"

@@ -1,5 +1,9 @@
 # Release notes
 
+## Next minor release — search_files glob fixes (#405)
+
+- `search_files` / `search_reference_files`: a glob with a reversed character range (e.g. `[b-a]x`) now raises the documented "matches nothing by construction" `ValueError` instead of `re.error`; on Windows, globs match case-insensitively without lower-casing the pattern, so ranges like `[A-z]` keep their meaning.
+
 ## Next minor release — file access rules via .mcp-file-access (#83)
 
 - New repo-root rules file `.mcp-file-access`: one `<level> <gitignore pattern>` per line, levels `read-only` / `read-write`, last match wins. Rules override the gitignore default: they make committed paths read-only and expose gitignored paths read-only or read-write. `.mcp-file-access` itself is always read-only; `.git` stays refused. An invalid file refuses every write and exposes nothing. No file → unchanged behaviour. See [file-access.md](file-access.md#access-rules-mcp-file-access).

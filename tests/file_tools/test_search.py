@@ -6,8 +6,14 @@ from pathlib import Path
 import pytest
 
 from mcp_workspace.file_tools.path_utils import normalize_path as real_normalize_path
-from mcp_workspace.file_tools.search import search_files
+from mcp_workspace.file_tools.search import _match_glob, search_files
 from tests.conftest import requires_symlinks
+
+
+@pytest.fixture
+def win32(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make spec builds take the win32 (case-insensitive) branch."""
+    monkeypatch.setattr(sys, "platform", "win32")
 
 
 class TestSearchFilesGlobOnly:
@@ -130,6 +136,26 @@ class TestSearchFilesGlobOnly:
         matched_basenames = {Path(f).name.lower() for f in result["files"]}
         assert "readme.md" in matched_basenames
 
+    @pytest.mark.usefixtures("win32")
+    @pytest.mark.parametrize(
+        ("glob", "path"),
+        [
+            ("README.md", "readme.md"),
+            ("[Z-a]x", "zx"),
+            ("[Z-a]x", "_x"),
+            ("[A-z]x", "_x"),
+        ],
+    )
+    def test_win32_glob_matches_case_insensitively(self, glob: str, path: str) -> None:
+        """On Windows, globs match case-insensitively without folding ranges."""
+        assert _match_glob(glob, [path]) == [path]
+
+    @pytest.mark.usefixtures("win32")
+    def test_win32_reversed_range_raises_value_error(self) -> None:
+        """A reversed character range raises the documented ValueError."""
+        with pytest.raises(ValueError, match="matches nothing by construction"):
+            _match_glob("[b-a]x", ["a.py"])
+
     def test_search_files_glob_respects_gitignore(self, project_dir: Path) -> None:
         """Files matching .gitignore patterns are excluded."""
         (project_dir / ".gitignore").write_text("*.log\n")
@@ -210,7 +236,9 @@ class TestSearchFilesGlobSemantics:
 class TestSearchFilesGlobValidation:
     """Globs that cannot match anything by construction raise ValueError."""
 
-    @pytest.mark.parametrize("glob", ["", "   ", "#*.py", "!*.py", "[", "[a-", "a[b"])
+    @pytest.mark.parametrize(
+        "glob", ["", "   ", "#*.py", "!*.py", "[", "[a-", "a[b", "[b-a]x"]
+    )
     def test_glob_matching_nothing_by_construction_raises(
         self, project_dir: Path, glob: str
     ) -> None:
