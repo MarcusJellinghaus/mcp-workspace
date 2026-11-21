@@ -158,7 +158,7 @@ Effective access to a path is the gitignore default overridden by the
 It is computed in `file_tools/` and enforced in `toolset/`:
 
 ```
-file_tools/access_rules.py            parse + match the rules file (pure)
+file_tools/access_rules.py            parse + match the rules file; pattern classes (pure)
 file_tools/directory_utils.py         gitignore default (rules, walk)
         │
         ▼
@@ -170,7 +170,10 @@ toolset/_context.check_readable / check_writable    enforcement
 
 - `access_rules.py` parses the rules file into `AccessRules` (rules, or the
   problems that make it invalid) and matches with
-  `PathSpec.from_lines("gitignore", …)`, last match wins. Nothing is cached
+  `PathSpec.from_lines(AccessRulePattern, …)` (gitignore semantics;
+  case-insensitive on win32 through a `(?i)` regex prefix, not by
+  lower-casing), last match wins. Its `GlobPattern` class gives
+  `search.py` globs the same win32 case-insensitivity. Nothing is cached
   across calls, so a fixed file applies without a restart; walks and tree
   checks load it once and pass it down.
 - `file_access._access` is the one decision function: `.git` is hidden;

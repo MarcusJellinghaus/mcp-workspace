@@ -11,7 +11,9 @@ from mcp_workspace.file_tools.access_rules import (
     READ_ONLY,
     READ_WRITE,
     AccessRule,
+    AccessRulePattern,
     AccessRules,
+    GlobPattern,
     access_rules_warning,
     load_access_rules,
     validate_access_rules,
@@ -29,6 +31,12 @@ def _load(project_dir: Path, content: str) -> AccessRules:
     """Write the rules file and load it."""
     _write_rules(project_dir, content)
     return load_access_rules(project_dir)
+
+
+@pytest.fixture
+def win32(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make spec builds take the win32 (case-insensitive) branch."""
+    monkeypatch.setattr(sys, "platform", "win32")
 
 
 def test_absent_file_gives_no_rules_and_no_problems(tmp_path: Path) -> None:
@@ -92,12 +100,55 @@ def test_match_directory_and_contents(tmp_path: Path) -> None:
     assert rules.match("sub/.scratch/x.py") is None
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="case-insensitive on win32 only")
-def test_match_is_case_insensitive_on_win32(tmp_path: Path) -> None:
-    """On Windows, rule matching ignores letter case."""
-    rules = _load(tmp_path, "read-only /.mcp.json\n")
+@pytest.mark.usefixtures("win32")
+@pytest.mark.parametrize(
+    ("pattern", "path"),
+    [
+        ("/.mcp.json", ".MCP.json"),
+        ("/[Z-a]x", "zx"),
+        ("/[Z-a]x", "_x"),
+        ("/[A-z]x", "_x"),
+    ],
+)
+def test_match_is_case_insensitive_on_win32(
+    tmp_path: Path, pattern: str, path: str
+) -> None:
+    """On Windows, rule matching ignores case without changing the pattern."""
+    rules = _load(tmp_path, f"read-only {pattern}\n")
 
-    assert rules.match(".MCP.json") is not None
+    assert rules.problems == ()
+    assert rules.match(path) is not None
+
+
+@pytest.mark.usefixtures("win32")
+def test_reversed_range_is_invalid_on_win32(tmp_path: Path) -> None:
+    """A reversed character range is reported, not raised, on Windows."""
+    rules = _load(tmp_path, "read-only /[b-a]x\n")
+
+    assert rules.problems == ("line 1: invalid pattern '/[b-a]x'",)
+
+
+@pytest.mark.usefixtures("win32")
+def test_win32_prefix_applies_to_bytes_patterns() -> None:
+    """Both pattern classes prefix the regex with (?i), for str and bytes."""
+    regex, _ = AccessRulePattern.pattern_to_regex(b"/A")
+    assert regex is not None
+    assert regex.startswith(b"(?i)")
+
+    glob_regex, _ = GlobPattern.pattern_to_regex("A")
+    assert glob_regex is not None
+    assert glob_regex.startswith("(?i)")
+
+
+def test_rule_semantics_unchanged(tmp_path: Path) -> None:
+    """An unclosed '[' stays valid and '*' does not cross directories."""
+    unclosed = tmp_path / "unclosed"
+    unclosed.mkdir()
+    star = tmp_path / "star"
+    star.mkdir()
+
+    assert _load(unclosed, "read-only /a[b\n").problems == ()
+    assert _load(star, "read-only config/*\n").match("config/sub/x.json") is None
 
 
 @pytest.mark.parametrize(
@@ -108,6 +159,7 @@ def test_match_is_case_insensitive_on_win32(tmp_path: Path) -> None:
         ("read-write !keep.txt\n", "line 1: negation '!' is not allowed"),
         ("read-only #comment\n", "line 1: invalid pattern '#comment'"),
         ("read-only foo\\\n", "line 1: invalid pattern 'foo\\'"),
+        ("read-only /[b-a]x\n", "line 1: invalid pattern '/[b-a]x'"),
     ],
 )
 def test_invalid_line_gives_problem_and_no_rules(

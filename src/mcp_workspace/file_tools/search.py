@@ -1,12 +1,12 @@
 """File search utilities for glob matching and content searching."""
 
 import re
-import sys
 from pathlib import Path
 from typing import Any
 
 from pathspec import GitIgnoreSpec, RegexPattern
 
+from mcp_workspace.file_tools.access_rules import GlobPattern
 from mcp_workspace.file_tools.file_access import list_accessible_files
 from mcp_workspace.file_tools.path_utils import normalize_path
 
@@ -38,6 +38,18 @@ def _glob_note(glob: str) -> str | None:
     return _BRACE_NOTE if "{" in glob else None
 
 
+def _nothing_matches(glob: str) -> ValueError:
+    """Build the error for a glob that cannot match anything.
+
+    Returns:
+        The error to raise, naming glob.
+    """
+    return ValueError(
+        f"Glob pattern {glob!r} matches nothing by construction "
+        "(gitignore comment, blank, negation-only, or unparseable pattern)"
+    )
+
+
 def _match_glob(glob: str, files: list[str]) -> list[str]:
     """Match project-relative paths against a gitignore-semantics glob.
 
@@ -52,24 +64,20 @@ def _match_glob(glob: str, files: list[str]) -> list[str]:
         ValueError: If the pattern cannot match anything by construction —
             a gitignore comment, a blank line, a negation-only pattern, or a
             pattern pathspec cannot compile (such as an unterminated ``[``).
-    """
-    win32 = sys.platform == "win32"
-    spec = GitIgnoreSpec.from_lines([glob.lower() if win32 else glob])
+    """  # noqa: DOC501, DOC502 - _nothing_matches returns the documented ValueError
+    try:
+        spec = GitIgnoreSpec.from_lines([glob], GlobPattern)
+    except re.error as exc:
+        raise _nothing_matches(glob) from exc
 
     usable = any(
         isinstance(p, RegexPattern) and p.regex is not None and p.include
         for p in spec.patterns
     )
     if not usable:
-        raise ValueError(
-            f"Glob pattern {glob!r} matches nothing by construction "
-            "(gitignore comment, blank, negation-only, or unparseable pattern)"
-        )
+        raise _nothing_matches(glob)
 
-    def _norm(p: str) -> str:
-        return p.lower() if win32 else p
-
-    return [f for f in files if spec.match_file(_norm(f))]
+    return [f for f in files if spec.match_file(f)]
 
 
 def _search_content(
