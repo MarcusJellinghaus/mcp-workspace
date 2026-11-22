@@ -41,6 +41,30 @@ class FileDiff:
 
 
 # ---------------------------------------------------------------------------
+# Line splitting
+# ---------------------------------------------------------------------------
+
+# Split on newlines only: str.splitlines() also breaks on \x0b, \x0c, \x1c-\x1e,
+# \x85, U+2028, U+2029 and a lone \r, which are diff line content.
+_LINE_SPLIT_RE = re.compile(r"\r?\n")
+
+
+def _split_diff_lines(text: str) -> list[str]:
+    r"""Split diff text into lines on \n / \r\n only, like splitlines() otherwise.
+
+    Args:
+        text: Raw diff string
+
+    Returns:
+        Lines without terminators. A trailing newline adds no empty line.
+    """
+    lines = _LINE_SPLIT_RE.split(text)
+    if lines and lines[-1] == "":
+        lines.pop()
+    return lines
+
+
+# ---------------------------------------------------------------------------
 # Layer 1: Parsing
 # ---------------------------------------------------------------------------
 
@@ -61,7 +85,7 @@ def parse_diff(text: str) -> list[FileDiff]:
     current_file: FileDiff | None = None
     current_hunk: Hunk | None = None
 
-    for line in text.splitlines():
+    for line in _split_diff_lines(text):
         if line.startswith("diff --git"):
             # Save previous hunk/file
             if current_hunk is not None and current_file is not None:
@@ -152,7 +176,7 @@ def extract_moved_blocks_ansi(ansi_diff: str) -> set[str]:
         Set of stripped content strings (without +/- prefix) for lines marked as moved.
     """
     moved: set[str] = set()
-    for line in ansi_diff.splitlines():
+    for line in _split_diff_lines(ansi_diff):
         if is_moved_line(line):
             plain = strip_ansi(line)
             # Strip the leading +/- sign and trailing whitespace, then add content

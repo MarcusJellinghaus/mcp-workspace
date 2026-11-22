@@ -20,6 +20,8 @@ from mcp_workspace.git_operations.read_operations import (
     git_status,
 )
 
+from .conftest import commit_files
+
 
 class TestRunGitText:
     """Unit guards for run_git_text() — the UTF-8 decode chokepoint (Bug 1).
@@ -377,6 +379,19 @@ class TestGitDiff:
         result = git_diff(project_dir, args=["--stat=80", "--staged"], compact=True)
         assert result != "No changes found"
         assert "|" in result
+
+    def test_diff_compact_form_feed_context_line(
+        self, git_repo_with_commit: tuple[Repo, Path]
+    ) -> None:
+        # The \x0c context line is followed by " b = 2", so it is not the
+        # last diff line (which GitPython's final-newline strip would hide).
+        repo, project_dir = git_repo_with_commit
+        repo.git.config("core.autocrlf", "false")
+        commit_files(repo, {"ff.py": b"a = 1\n\x0c\nb = 2\n"}, "add form feed file")
+        (project_dir / "ff.py").write_bytes(b"a = 2\n\x0c\nb = 2\n")
+        result = git_diff(project_dir)
+        assert "+a = 2" in result
+        assert "\x0c" in result
 
 
 @pytest.mark.git_integration

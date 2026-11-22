@@ -100,6 +100,15 @@ class TestFilterDiffOutput:
         result = filter_diff_output(SAMPLE_DIFF, "[unclosed")
         assert result.startswith("Invalid search pattern:")
 
+    def test_mid_line_separator_not_split(self) -> None:
+        diff = (
+            "diff --git a/f.py b/f.py\n--- a/f.py\n+++ b/f.py\n"
+            "@@ -1 +1 @@\n-x = 0\n+x = 1\x0c-fake"
+        )
+        lines = filter_diff_output(diff, "fake").split("\n")
+        assert "+x = 1\x0c-fake" in lines
+        assert "-fake" not in lines
+
 
 class TestFilterContentOutput:
     """Line-based content filtering tests."""
