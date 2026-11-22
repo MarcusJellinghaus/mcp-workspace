@@ -3,8 +3,10 @@
 import pytest
 
 from mcp_workspace.git_operations.compact_diffs import (
+    Hunk,
     parse_diff,
     render_compact_diff,
+    render_hunk,
 )
 
 # Characters str.splitlines() treats as line boundaries that are diff line content.
@@ -49,3 +51,11 @@ class TestSplitDiffLines:
         assert "+a" in lines
         assert " b" in lines
         assert not any(line.endswith("\r") for line in lines)
+
+
+class TestRenderHunkEmptyLine:
+    """Empty hunk lines (e.g. diff.suppressBlankEmpty) render as context."""
+
+    def test_empty_line_rendered_as_context(self) -> None:
+        hunk = Hunk(header="@@ -1,3 +1,3 @@", lines=[" a", "", " b"])
+        assert render_hunk(hunk, set()) == "@@ -1,3 +1,3 @@\n a\n\n b"

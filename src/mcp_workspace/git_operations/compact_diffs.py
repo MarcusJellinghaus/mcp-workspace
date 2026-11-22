@@ -464,8 +464,8 @@ def render_hunk(
     i = 0
     while i < len(lines):
         line = lines[i]
-        # Context lines are emitted as-is
-        if line.startswith(" ") or (line and line[0] not in ("+", "-")):
+        # Context lines (including empty ones, e.g. diff.suppressBlankEmpty) are emitted as-is
+        if not line or line[0] not in ("+", "-"):
             output.append(line)
             i += 1
             continue

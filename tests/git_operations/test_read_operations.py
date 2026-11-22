@@ -393,6 +393,19 @@ class TestGitDiff:
         assert "+a = 2" in result
         assert "\x0c" in result
 
+    def test_diff_compact_suppress_blank_empty(
+        self, git_repo_with_commit: tuple[Repo, Path]
+    ) -> None:
+        # git emits the blank context line as "", followed by " b = 2".
+        repo, project_dir = git_repo_with_commit
+        repo.git.config("core.autocrlf", "false")
+        repo.git.config("diff.suppressBlankEmpty", "true")
+        commit_files(repo, {"blank.py": b"a = 1\n\nb = 2\n"}, "add blank-line file")
+        (project_dir / "blank.py").write_bytes(b"a = 2\n\nb = 2\n")
+        result = git_diff(project_dir)
+        assert "+a = 2" in result
+        assert " b = 2" in result
+
 
 @pytest.mark.git_integration
 class TestGitStatus:
