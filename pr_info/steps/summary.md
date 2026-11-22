@@ -5,7 +5,7 @@
 `parse_diff` and `extract_moved_blocks_ansi` in
 `src/mcp_workspace/git_operations/compact_diffs.py` split diffs with
 `str.splitlines()`, which also breaks on lone `\r`, `\x0b`, `\x0c`,
-`\x1c`–`\x1e`, `\x85`, ` `, ` `.
+`\x1c`–`\x1e`, `\x85`, `\u2028`, `\u2029`.
 
 - A diff line ending in one of these (and followed by another line) yields an
   empty string inside a hunk → `render_hunk` reads `line[0]` → `IndexError`.

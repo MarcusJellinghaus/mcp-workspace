@@ -63,7 +63,7 @@ Module docstring in the style of `test_compact_diffs_header_only.py`. Imports:
 `mcp_workspace.git_operations.compact_diffs`.
 
 ```python
-_SEPARATORS = ["\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", " ", " "]
+_SEPARATORS = ["\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029"]
 
 
 def _diff(*hunk_lines: str) -> str:
