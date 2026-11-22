@@ -10,7 +10,16 @@ from mcp_workspace.git_operations.compact_diffs import (
 )
 
 # Characters str.splitlines() treats as line boundaries that are diff line content.
-_SEPARATORS = ["\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", " ", " "]
+_SEPARATORS = [
+    "\x0b",
+    "\x0c",
+    "\x1c",
+    "\x1d",
+    "\x1e",
+    "\x85",
+    "\N{LINE SEPARATOR}",
+    "\N{PARAGRAPH SEPARATOR}",
+]
 
 
 def _diff(*hunk_lines: str) -> str:
