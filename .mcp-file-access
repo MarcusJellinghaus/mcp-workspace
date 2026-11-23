@@ -1,5 +1,5 @@
-# MCP file access rules: <level> <gitignore pattern>; last match wins.
-# See README "Access rules (.mcp-file-access)".
+# mcp-workspace file access rules - see mcp-workspace docs/file-access.md
+# <level> <gitignore pattern>; levels: read-only, read-write; last match wins
 read-write  /.scratch/
 read-only   /.mcp.json
 read-only   /.mcp-file-access
