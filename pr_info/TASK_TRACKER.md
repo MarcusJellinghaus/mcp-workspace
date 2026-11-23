@@ -71,9 +71,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 9: `verify_file_access` and startup warning — [step_9.md](./steps/step_9.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks (pylint, pytest, mypy, vulture, lint-imports, tach) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks (pylint, pytest, mypy, vulture, lint-imports, tach) — fix all issues
+- [x] Commit message prepared
 
 ### Step 10: Docs — rules-file and missing-path notes — [step_10.md](./steps/step_10.md)
 

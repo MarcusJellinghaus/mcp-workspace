@@ -21,17 +21,29 @@ if TYPE_CHECKING:
         FileAccess as FileAccess,
     )
     from mcp_workspace.file_tools.file_access import (
+        FileAccessVerification as FileAccessVerification,
+    )
+    from mcp_workspace.file_tools.file_access import (
         get_file_access as get_file_access,
     )
     from mcp_workspace.file_tools.file_access import (
         validate_access_rules as validate_access_rules,
+    )
+    from mcp_workspace.file_tools.file_access import (
+        verify_file_access as verify_file_access,
     )
 
 logger = logging.getLogger(__name__)
 
 # Re-exported for mcp_coder, which imports from this module. file_access
 # imports this module, so the names are resolved lazily on first access.
-_FILE_ACCESS_EXPORTS = ("FileAccess", "get_file_access", "validate_access_rules")
+_FILE_ACCESS_EXPORTS = (
+    "FileAccess",
+    "FileAccessVerification",
+    "get_file_access",
+    "validate_access_rules",
+    "verify_file_access",
+)
 
 
 def __getattr__(name: str) -> Any:

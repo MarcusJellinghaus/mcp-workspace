@@ -34,6 +34,12 @@ from mcp_workspace.file_tools.path_utils import (
     normalize_path,
     resolves_into_git_dir,
 )
+from mcp_workspace.file_tools.verification import (
+    FileAccessVerification as FileAccessVerification,
+)
+from mcp_workspace.file_tools.verification import (
+    verify_file_access as verify_file_access,
+)
 from mcp_workspace.utils.git_paths import canonical_spelling, is_path_in_git_dir
 
 logger = logging.getLogger(__name__)

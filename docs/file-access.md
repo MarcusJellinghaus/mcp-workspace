@@ -91,6 +91,8 @@ In a reference project (`read_reference_file`) the hint names `that project's .m
 - as a `warning` key in `search_files` and `search_reference_files` results, in both file and content mode, with the same text as the listing warning;
 - as a log warning, once per distinct problem.
 
+To check a rules file by hand, look for the startup log warning, or the first line of `list_directory` / `list_reference_directory`.
+
 The file is re-read on every tool call, so a fix applies without a restart. Reference projects apply their own `.mcp-file-access`; there both levels mean readable.
 
 **Not a sandbox.** The rules cover the MCP file tools only. A client's native file and shell tools (e.g. Claude Code's `Write`, `Edit`, `Bash`) bypass them, and so do the git tools: `git show HEAD:<path>` prints any committed file, and switching branches with `git_branch` rewrites tracked files. Use the client's own deny rules for native tools.

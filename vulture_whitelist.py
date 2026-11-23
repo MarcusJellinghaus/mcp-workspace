@@ -106,6 +106,9 @@ _.severity
 _.install_hint
 _.token_fingerprint
 
+# Verification API (verify_file_access) - FileAccessVerification TypedDict field
+_.overall_ok
+
 # CI results manager - variables used in dict unpacking / data extraction
 _.run_ids
 _.workflow_name

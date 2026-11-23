@@ -8,6 +8,7 @@
 - `search_files` / `search_reference_files`: while `.mcp-file-access` is invalid, results carry a `warning` key with the same `WARNING: .mcp-file-access is invalid (…)` text as the listing's first line.
 - `list_directory`: a gitignored file exposed `read-only` by a rule is now labelled ` (read-only, not committed)`; a tracked read-only file keeps ` (read-only)`. No line is labelled while `.mcp-file-access` is invalid.
 - `list_reference_directory`: a gitignored file exposed by that project's `.mcp-file-access` is now labelled ` (not committed)`; no other label is shown, since every reference file is read-only. `search_files` / `search_reference_files` stay unmarked.
+- New public API `verify_file_access(project_dir) -> FileAccessVerification` (keys `rules_file`, a `CheckResult` row, and `overall_ok`) in `mcp_workspace.file_tools`, `file_tools.file_access` and `file_tools.directory_utils`. The server calls it at startup for the workspace and each existing reference project, so an invalid `.mcp-file-access` is logged before the first tool call.
 
 ## Next minor release — search_files glob fixes (#405)
 
