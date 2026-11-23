@@ -94,9 +94,9 @@ See [step_10.md](./steps/step_10.md)
 ### Step 11: Read and list read at the ref (`_reference_call`, fallback, notes)
 See [step_11.md](./steps/step_11.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks (pylint, pytest, mypy, lint-imports, vulture, serial performance tests) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks (pylint, pytest, mypy, lint-imports, vulture, serial performance tests) — fix all issues
+- [x] Commit message prepared
 
 ### Step 12: Search reads at the ref (`search_paths` with a blob reader, `freshness`, `skipped_files`)
 See [step_12.md](./steps/step_12.md)

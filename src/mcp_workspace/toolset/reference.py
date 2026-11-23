@@ -1,8 +1,10 @@
 """Tool group workspace.reference: read-only access to reference projects."""
 
+import asyncio
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, TypeVar
 
 from mcp_coder_utils.log_utils import log_function_call
 from mcp_coder_utils.tool_spec import ToolSink, tool_spec
@@ -16,15 +18,29 @@ from mcp_workspace.file_tools.file_access import (
     list_accessible_files,
     require_access,
 )
+from mcp_workspace.file_tools.file_operations import read_content
+from mcp_workspace.file_tools.path_utils import ref_relative_path
 from mcp_workspace.reference_projects import ensure_available
 from mcp_workspace.toolset._context import WorkspaceContext
-from mcp_workspace.toolset._reference_freshness import mark_fetched
+from mcp_workspace.toolset._reference_freshness import (
+    fallback_note,
+    fetch_failure_note,
+    fetch_if_stale,
+    mark_fetched,
+    with_notes,
+)
 from mcp_workspace.utils.url_credentials import scrub_credentials
+
+if TYPE_CHECKING:
+    # Type-only: does not execute, so GitPython stays off the startup import path
+    from mcp_workspace.git_operations.ref_snapshot import RefSnapshot
 
 logger = logging.getLogger(__name__)
 
 # Every reference file is read-only, so only "not committed" is worth a label
 _NOTE_EXPOSED = "(not committed)"
+
+T = TypeVar("T")
 
 
 async def reference_project_path(ctx: WorkspaceContext, name: str) -> Path:
@@ -50,6 +66,99 @@ async def reference_project_path(ctx: WorkspaceContext, name: str) -> Path:
     ):
         mark_fetched(ctx, name)  # a fresh clone counts as a fresh fetch
     return project.path
+
+
+def _notes(
+    ctx: WorkspaceContext, name: str, where: str | None, no_default: bool
+) -> list[str]:
+    """Return the notes for one reference read, fetch-failure first.
+
+    Args:
+        ctx: Context holding the interval and fetch records.
+        name: Reference project name.
+        where: Ref and short SHA that was read, or None when no ref is known.
+        no_default: True when the folder is a git repo without a usable
+            origin default branch and was read locally.
+
+    Returns:
+        The notes to attach; empty for a normal result.
+    """
+    notes = [note for note in (fetch_failure_note(ctx, name, where),) if note]
+    if no_default:
+        notes.append(fallback_note(name))
+    return notes
+
+
+def _run_reference_read(
+    ctx: WorkspaceContext,
+    name: str,
+    path: Path,
+    at_ref: Callable[["RefSnapshot"], T],
+    local: Callable[[Path], T],
+) -> tuple[T, list[str]]:
+    """Fetch if stale, then read at origin/<default> or the local folder (sync).
+
+    Args:
+        ctx: Context holding the reference state.
+        name: Reference project name.
+        path: Local folder of the reference project.
+        at_ref: Reads from a snapshot of origin/<default>.
+        local: Reads the local folder; used when there is no usable ref.
+
+    Returns:
+        The result and the notes to attach.
+
+    Raises:
+        Exception: The read's error, carrying the notes when there are any.
+    """  # noqa: DOC502 - re-raised from at_ref / local / open_ref_snapshot
+    # Lazy import: keeps GitPython off the server startup import path
+    from mcp_workspace.git_operations.ref_snapshot import (
+        RefFallback,
+        RefSnapshot,
+        open_ref_snapshot,
+    )
+
+    fetch_if_stale(ctx, name, path)
+    notes: list[str] = []
+    try:
+        with open_ref_snapshot(path, name) as snap:
+            if isinstance(snap, RefSnapshot):
+                notes = _notes(ctx, name, snap.where, no_default=False)
+                result = at_ref(snap)
+            else:
+                notes = _notes(
+                    ctx, name, None, no_default=snap is RefFallback.NO_DEFAULT
+                )
+                result = local(path)
+    except Exception as exc:  # pylint: disable=broad-exception-caught  # re-raised with the notes
+        notes = notes or _notes(ctx, name, None, no_default=False)
+        if not notes:
+            raise
+        error = with_notes(exc, notes)
+    else:
+        return result, notes
+    raise error  # outside the except block: no unscrubbed __context__
+
+
+async def _reference_call(
+    ctx: WorkspaceContext,
+    name: str,
+    at_ref: Callable[["RefSnapshot"], T],
+    local: Callable[[Path], T],
+) -> tuple[T, list[str]]:
+    """Run one reference read at origin/<default> (or the local folder) in a worker thread.
+
+    Args:
+        ctx: Context holding the reference projects and their state.
+        name: Reference project name.
+        at_ref: Reads from a snapshot of origin/<default>.
+        local: Reads the local folder; used when there is no usable ref.
+
+    Returns:
+        The result and the notes to attach (fetch-failure first, then fallback).
+    """
+    path = await reference_project_path(ctx, name)
+    return await asyncio.to_thread(_run_reference_read, ctx, name, path, at_ref, local)
 
 
 def reference_repo_url(ctx: WorkspaceContext, name: str) -> str:
@@ -191,20 +300,37 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             ValueError: If file_path is gitignored and not exposed by that
                 project's .mcp-file-access.
         """
-        ref_path = await reference_project_path(ctx, reference_name)
 
-        require_access(file_path, ref_path, FileAccess.READ_ONLY, reference=True)
+        def at_ref(snap: "RefSnapshot") -> str:
+            rel = ref_relative_path(
+                file_path, ctx.reference_projects[reference_name].path
+            )
+            return read_content(
+                snap.read_bytes(rel, file_path),
+                file_path,
+                start_line=start_line,
+                end_line=end_line,
+                with_line_numbers=with_line_numbers,
+                max_lines=ctx.read_max_lines,
+            )
 
-        # Call read_file_util with the reference project directory
-        # The utility function handles all parameter validation and security checks
-        return read_file_util(
-            file_path,
-            project_dir=ref_path,
-            start_line=start_line,
-            end_line=end_line,
-            with_line_numbers=with_line_numbers,
-            max_lines=ctx.read_max_lines,
-        )
+        def local(ref_path: Path) -> str:
+            require_access(file_path, ref_path, FileAccess.READ_ONLY, reference=True)
+            # The utility function handles all parameter validation and security checks
+            return read_file_util(
+                file_path,
+                project_dir=ref_path,
+                start_line=start_line,
+                end_line=end_line,
+                with_line_numbers=with_line_numbers,
+                max_lines=ctx.read_max_lines,
+            )
+
+        content, notes = await _reference_call(ctx, reference_name, at_ref, local)
+        if not notes:
+            return content
+        separator = "" if not content or content.endswith("\n") else "\n"
+        return content + separator + "\n".join(notes)
 
     @log_function_call
     async def list_reference_directory(
@@ -223,17 +349,25 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             to `read_reference_file`. When that rules file is invalid, the
             first line is a warning instead of a path.
         """
-        ref_path = await reference_project_path(ctx, reference_name)
 
-        listing = list_accessible_files(".", ref_path)
-        entries = [
-            f"{rel} {_NOTE_EXPOSED}" if rel in listing.exposed_ignored else rel
-            for rel in listing.files
-        ]
-        warning = access_rules_warning(listing.problems)
-        if warning is not None:
-            return [warning, *entries]
-        return entries
+        def at_ref(snap: "RefSnapshot") -> list[str]:
+            return snap.list_files()
+
+        def local(ref_path: Path) -> list[str]:
+            listing = list_accessible_files(".", ref_path)
+            entries = [
+                f"{rel} {_NOTE_EXPOSED}" if rel in listing.exposed_ignored else rel
+                for rel in listing.files
+            ]
+            warning = access_rules_warning(listing.problems)
+            if warning is not None:
+                return [warning, *entries]
+            return entries
+
+        files, notes = await _reference_call(ctx, reference_name, at_ref, local)
+        if not notes:
+            return files
+        return [*files, "\n".join(notes)]
 
     @log_function_call
     async def search_reference_files(
