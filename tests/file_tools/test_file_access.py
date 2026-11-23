@@ -14,6 +14,7 @@ from mcp_workspace.file_tools.file_access import (
     get_file_access,
     require_access,
 )
+from mcp_workspace.file_tools.path_utils import git_dir_error, normalize_path
 
 INVALID_REASON = ".mcp-file-access is invalid: line 1: unknown level 'readonly'"
 
@@ -166,6 +167,15 @@ class TestBuiltIn:
 
         assert get_file_access(path, project) is FileAccess.HIDDEN
 
+    def test_git_dir_reason(self, tmp_path: Path) -> None:
+        project = _project(tmp_path)
+        (project / ".git").mkdir()
+
+        assert _access(".git/config", project, load_access_rules(project)) == (
+            FileAccess.HIDDEN,
+            "git directory",
+        )
+
 
 class TestSpellings:
     """Every spelling of a path gets the most restrictive access."""
@@ -217,6 +227,28 @@ class TestRequireAccess:
 
         with pytest.raises(ValueError, match="excluded by .gitignore rules"):
             require_access("b.log", project, FileAccess.READ_ONLY)
+
+    @pytest.mark.parametrize("needed", [FileAccess.READ_ONLY, FileAccess.READ_WRITE])
+    def test_git_dir_raises_git_dir_message(
+        self, tmp_path: Path, needed: FileAccess
+    ) -> None:
+        project = _project(tmp_path)
+        (project / ".git").mkdir()
+
+        with pytest.raises(ValueError) as excinfo:
+            require_access(".git/config", project, needed)
+        message = str(excinfo.value)
+        assert message == str(git_dir_error(".git/config"))
+        assert ".gitignore" not in message
+        assert ACCESS_RULES_FILE not in message
+
+    def test_normalize_path_uses_git_dir_message(self, tmp_path: Path) -> None:
+        project = _project(tmp_path)
+        (project / ".git").mkdir()
+
+        with pytest.raises(ValueError) as excinfo:
+            normalize_path(".git/config", project)
+        assert str(excinfo.value) == str(git_dir_error(".git/config"))
 
     def test_read_only_refuses_write(self, tmp_path: Path) -> None:
         project = _project(tmp_path, "", "read-only /.mcp.json\n", (".mcp.json",))

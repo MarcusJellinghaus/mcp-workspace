@@ -1,5 +1,9 @@
 # Release notes
 
+## Next minor release — .mcp-file-access surfaced to agents (#404)
+
+- `.git` paths refused by `read_file`, the write tools and `read_reference_file` now give `Security error: Path '<p>' is inside a git directory, which the file tools do not access.` (was the gitignore message).
+
 ## Next minor release — search_files glob fixes (#405)
 
 - `search_files` / `search_reference_files`: a glob with a reversed character range (e.g. `[b-a]x`) now raises the documented "matches nothing by construction" `ValueError` instead of `re.error`; on Windows, globs match case-insensitively without lower-casing the pattern, so ranges like `[A-z]` keep their meaning.

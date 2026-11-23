@@ -328,13 +328,13 @@ def test_read_file_git_config(gitignore_project: Path, tools: ToolMap) -> None:
     git_dir = gitignore_project / ".git"
     git_dir.mkdir()
     (git_dir / "config").write_text("[core]")
-    with pytest.raises(ValueError, match="excluded by .gitignore"):
+    with pytest.raises(ValueError, match="inside a git directory"):
         tools["read_file"](".git/config")
 
 
 def test_save_file_git_hooks(gitignore_project: Path, tools: ToolMap) -> None:
     """save_file to .git/hooks/ is blocked."""
-    with pytest.raises(ValueError, match="excluded by .gitignore"):
+    with pytest.raises(ValueError, match="inside a git directory"):
         tools["save_file"](".git/hooks/pre-commit", "#!/bin/sh")
 
 

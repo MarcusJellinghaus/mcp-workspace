@@ -75,7 +75,7 @@ A path is checked under every spelling the gitignore check uses (as given, canon
 No write access to '<path>' (rule '<pattern>' in .mcp-file-access)
 ```
 
-The rules file itself gives `(built-in)` instead of the rule. Reading a hidden path keeps the gitignore message. `move_file` and `delete_directory` check every file in the tree — see [Move File](../README.md#move-file) and [Delete Directory](../README.md#delete-directory).
+The rules file itself gives `(built-in)` instead of the rule. Reading a hidden path keeps the gitignore message. A `.git` path is refused with `Security error: Path '<path>' is inside a git directory, which the file tools do not access.`, never with the gitignore message. `move_file` and `delete_directory` check every file in the tree — see [Move File](../README.md#move-file) and [Delete Directory](../README.md#delete-directory).
 
 **Invalid rules file** — an unknown level, an unparsable line or pattern, a `!` negation, an unreadable or non-UTF-8 file, or a directory at that path. The server fails safe: every write is refused, no gitignored path is exposed, and reads of non-ignored files still work. The problems are reported:
 

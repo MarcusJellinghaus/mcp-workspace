@@ -217,7 +217,7 @@ class TestSpellings:
         root = _project(tmp_path / "proj", "read-write /.git/\n")
         (root / ".git").mkdir()
         (root / ".git" / "config").write_bytes(ORIGINAL_BYTES)
-        with pytest.raises(ValueError, match=GITIGNORE_REFUSAL):
+        with pytest.raises(ValueError, match="inside a git directory"):
             make_tools(root)["save_file"](".git/config", "x\n")
         assert (root / ".git" / "config").read_bytes() == ORIGINAL_BYTES
 

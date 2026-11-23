@@ -30,12 +30,18 @@ from mcp_workspace.file_tools.directory_utils import (
     _spellings,
     is_path_gitignored,
 )
-from mcp_workspace.file_tools.path_utils import normalize_path, resolves_into_git_dir
+from mcp_workspace.file_tools.path_utils import (
+    git_dir_error,
+    normalize_path,
+    resolves_into_git_dir,
+)
 from mcp_workspace.utils.git_paths import canonical_spelling, is_path_in_git_dir
 
 logger = logging.getLogger(__name__)
 
 _BUILT_IN = "built-in"
+# Reason _access returns for a .git path, so callers can tell it from gitignore
+_GIT_DIR = "git directory"
 
 
 class FileAccess(IntEnum):
@@ -142,13 +148,14 @@ def _access(path: str, project_dir: Path, rules: AccessRules) -> tuple[FileAcces
         rules: The project's rules, loaded once per tool call.
 
     Returns:
-        The access level and its reason: empty for the default, else the
-        rule, ``built-in`` or the invalid rules file's problems.
+        The access level and its reason: ``git directory`` for ``.git`` and
+        below, empty for the default, else the rule, ``built-in`` or the
+        invalid rules file's problems.
     """
     if is_path_in_git_dir(path) or resolves_into_git_dir(
         project_dir / path, project_dir
     ):
-        return FileAccess.HIDDEN, ""
+        return FileAccess.HIDDEN, _GIT_DIR
     # Sorted, so ties between spellings always give the same reason
     return min(
         (
@@ -193,6 +200,8 @@ def require_access(file_path: str, project_dir: Path, needed: FileAccess) -> Non
         except ValueError:
             return
     access, reason = _access(file_path, project_dir, load_access_rules(project_dir))
+    if reason == _GIT_DIR:
+        raise git_dir_error(file_path)
     if access is FileAccess.HIDDEN:
         raise _excluded_error(file_path)
     if needed is FileAccess.READ_WRITE and access is FileAccess.READ_ONLY:
