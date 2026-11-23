@@ -64,6 +64,15 @@ async def test_absolute_gitignored_path_refused(
 
 
 @pytest.mark.asyncio
+async def test_gitignored_refusal_names_reference_rules_file(tools: ToolMap) -> None:
+    with pytest.raises(ValueError) as excinfo:
+        await tools["read_reference_file"]("ref", ".env")
+    message = str(excinfo.value)
+    assert "that project's .mcp-file-access" in message
+    assert "list_reference_directory()" in message
+
+
+@pytest.mark.asyncio
 async def test_link_to_gitignored_file_refused(reference: Path, tools: ToolMap) -> None:
     try:
         os.symlink(reference / ".env", reference / "envlink")

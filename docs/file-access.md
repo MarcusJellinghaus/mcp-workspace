@@ -75,11 +75,18 @@ A path is checked under every spelling the gitignore check uses (as given, canon
 No write access to '<path>' (rule '<pattern>' in .mcp-file-access)
 ```
 
-The rules file itself gives `(built-in)` instead of the rule. Reading a hidden path keeps the gitignore message. A `.git` path is refused with `Security error: Path '<path>' is inside a git directory, which the file tools do not access.`, never with the gitignore message. `move_file` and `delete_directory` check every file in the tree — see [Move File](../README.md#move-file) and [Delete Directory](../README.md#delete-directory).
+The rules file itself gives `(built-in)` instead of the rule. Accessing a hidden path fails with:
+
+```
+Path '<path>' is excluded by .gitignore rules and cannot be accessed. The user can expose it with a rule in .mcp-file-access. Use list_directory() to see available files.
+```
+
+In a reference project (`read_reference_file`) the hint names `that project's .mcp-file-access` and `list_reference_directory()` instead. A `.git` path is refused with `Security error: Path '<path>' is inside a git directory, which the file tools do not access.`, never with the gitignore message. `move_file` and `delete_directory` check every file in the tree — see [Move File](../README.md#move-file) and [Delete Directory](../README.md#delete-directory).
 
 **Invalid rules file** — an unknown level, an unparsable line or pattern, a `!` negation, an unreadable or non-UTF-8 file, or a directory at that path. The server fails safe: every write is refused, no gitignored path is exposed, and reads of non-ignored files still work. The problems are reported:
 
 - in the write error: `No write access to '<path>' (.mcp-file-access is invalid: line 3: unknown level 'readonly')`;
+- in the gitignore refusal, which carries the problems instead of the hint: `Path '<path>' is excluded by .gitignore rules and cannot be accessed; .mcp-file-access is invalid (<problems>), so no rule exposes it. Use list_directory() to see available files.` The text is the same whether the path exists or not; in a reference project it names `that project's .mcp-file-access` and `list_reference_directory()`;
 - as the first line of `list_directory` output (outside its line cap) and of `list_reference_directory` output: `WARNING: .mcp-file-access is invalid (<problems>) - writes are refused and no gitignored path is exposed.` No suffixes are shown while the file is invalid;
 - as a log warning, once per distinct problem.
 

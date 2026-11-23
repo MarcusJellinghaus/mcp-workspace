@@ -269,6 +269,13 @@ class TestBodyFile:
         with pytest.raises(ValueError, match="No write access to '.mcp.json'"):
             check_body_target(self._ctx(root), ".mcp.json")
 
+    def test_check_body_target_refusal_hints_at_rules_file(
+        self, tmp_path: Path
+    ) -> None:
+        root = _project(tmp_path / "proj")
+        with pytest.raises(ValueError, match="The user can expose it"):
+            check_body_target(self._ctx(root), "app.log")
+
     def test_check_body_target_accepts_scratch(self, tmp_path: Path) -> None:
         root = _project(tmp_path / "proj", "read-write /.scratch/\n")
         abs_path, rel_path = check_body_target(self._ctx(root), ".scratch/body.md")

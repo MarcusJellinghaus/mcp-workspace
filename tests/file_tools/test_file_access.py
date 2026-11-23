@@ -12,6 +12,7 @@ from mcp_workspace.file_tools.file_access import (
     FileAccess,
     _access,
     get_file_access,
+    list_accessible_files,
     require_access,
 )
 from mcp_workspace.file_tools.path_utils import git_dir_error, normalize_path
@@ -288,6 +289,79 @@ class TestRequireAccess:
         with pytest.raises(ValueError) as excinfo:
             require_access("a.txt", project, FileAccess.READ_WRITE)
         assert str(excinfo.value) == f"No write access to 'a.txt' ({INVALID_REASON})"
+
+
+HEAD = "Path 'b.log' is excluded by .gitignore rules and cannot be accessed"
+
+
+class TestExcludedRefusal:
+    """The gitignore refusal hints at the rules file, or shows its problems."""
+
+    @pytest.mark.parametrize(
+        ("rules", "reference", "expected"),
+        [
+            (
+                "",
+                False,
+                f"{HEAD}. The user can expose it with a rule in .mcp-file-access."
+                " Use list_directory() to see available files.",
+            ),
+            (
+                "",
+                True,
+                f"{HEAD}. The user can expose it with a rule in that project's"
+                " .mcp-file-access. Use list_reference_directory() to see"
+                " available files.",
+            ),
+            (
+                "readonly /x\n",
+                False,
+                f"{HEAD}; .mcp-file-access is invalid (line 1: unknown level"
+                " 'readonly'), so no rule exposes it. Use list_directory() to see"
+                " available files.",
+            ),
+            (
+                "readonly /x\n",
+                True,
+                f"{HEAD}; that project's .mcp-file-access is invalid (line 1:"
+                " unknown level 'readonly'), so no rule exposes it. Use"
+                " list_reference_directory() to see available files.",
+            ),
+        ],
+    )
+    def test_exact_message(
+        self, tmp_path: Path, rules: str, reference: bool, expected: str
+    ) -> None:
+        project = _project(tmp_path, "*.log\n", rules, ("b.log",))
+
+        with pytest.raises(ValueError) as excinfo:
+            require_access("b.log", project, FileAccess.READ_ONLY, reference=reference)
+        assert str(excinfo.value) == expected
+
+    def test_invalid_rules_message_does_not_reveal_existence(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "a").mkdir()
+        (tmp_path / "b").mkdir()
+        with_dir = _project(tmp_path / "a", "secret/\n", "readonly /x\n")
+        (with_dir / "secret").mkdir()
+        without_dir = _project(tmp_path / "b", "secret/\n", "readonly /x\n")
+
+        with pytest.raises(ValueError) as existing:
+            require_access("secret", with_dir, FileAccess.READ_ONLY)
+        with pytest.raises(ValueError) as missing:
+            list_accessible_files("secret", without_dir)
+        assert str(existing.value) == str(missing.value)
+        assert "is invalid (" in str(existing.value)
+
+    def test_ignored_invalid_rules_file_shows_problems(self, tmp_path: Path) -> None:
+        project = _project(tmp_path, f"{ACCESS_RULES_FILE}\n", "readonly /x\n")
+
+        with pytest.raises(ValueError) as excinfo:
+            require_access(ACCESS_RULES_FILE, project, FileAccess.READ_ONLY)
+        message = str(excinfo.value)
+        assert "is invalid (" in message
+        assert "The user can expose" not in message
 
 
 @pytest.mark.parametrize(

@@ -7,7 +7,7 @@ builds on lives in ``directory_utils``.
 
 import logging
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
@@ -23,7 +23,6 @@ from mcp_workspace.file_tools.access_rules import (
 )
 from mcp_workspace.file_tools.directory_utils import (
     _discover_files,
-    _excluded_error,
     _gitignore_skip,
     _matches_rules,
     _resolved_relative,
@@ -179,7 +178,41 @@ def get_file_access(path: str, project_dir: Path) -> FileAccess:
     return _access(path, project_dir, load_access_rules(project_dir))[0]
 
 
-def require_access(file_path: str, project_dir: Path, needed: FileAccess) -> None:
+def _excluded_error(
+    file_path: str, problems: Sequence[str] = (), reference: bool = False
+) -> ValueError:
+    """Build the refusal for a path hidden by gitignore rules.
+
+    The text tells the user how to expose the path, or, while the rules file
+    is invalid, shows its problems instead. It never depends on whether the
+    path exists.
+
+    Args:
+        file_path: The refused path, as the caller spelled it.
+        problems: The rules file's problems; empty when it is valid.
+        reference: True for a reference project: names that project's rules
+            file and ``list_reference_directory()``.
+
+    Returns:
+        The error to raise, naming file_path.
+    """
+    rules_file = (
+        f"that project's {ACCESS_RULES_FILE}" if reference else ACCESS_RULES_FILE
+    )
+    list_tool = "list_reference_directory()" if reference else "list_directory()"
+    head = f"Path '{file_path}' is excluded by .gitignore rules and cannot be accessed"
+    if problems:
+        middle = (
+            f"; {rules_file} is invalid ({'; '.join(problems)}), so no rule exposes it."
+        )
+    else:
+        middle = f". The user can expose it with a rule in {rules_file}."
+    return ValueError(f"{head}{middle} Use {list_tool} to see available files.")
+
+
+def require_access(
+    file_path: str, project_dir: Path, needed: FileAccess, *, reference: bool = False
+) -> None:
     """Raise ValueError unless a path grants the needed access.
 
     An absolute path is checked relative to project_dir. One that is not below
@@ -189,6 +222,8 @@ def require_access(file_path: str, project_dir: Path, needed: FileAccess) -> Non
         file_path: Path to check, relative to project_dir or absolute.
         project_dir: Project root directory.
         needed: ``READ_ONLY`` to read, ``READ_WRITE`` to write.
+        reference: True for a reference project: names that project's rules
+            file and ``list_reference_directory()``.
 
     Raises:
         ValueError: If the path is hidden, or read-only and a write is needed.
@@ -199,11 +234,12 @@ def require_access(file_path: str, project_dir: Path, needed: FileAccess) -> Non
             file_path = path.relative_to(project_dir).as_posix()
         except ValueError:
             return
-    access, reason = _access(file_path, project_dir, load_access_rules(project_dir))
+    rules = load_access_rules(project_dir)
+    access, reason = _access(file_path, project_dir, rules)
     if reason == _GIT_DIR:
         raise git_dir_error(file_path)
     if access is FileAccess.HIDDEN:
-        raise _excluded_error(file_path)
+        raise _excluded_error(file_path, rules.problems, reference)
     if needed is FileAccess.READ_WRITE and access is FileAccess.READ_ONLY:
         raise ValueError(f"No write access to '{file_path}' ({reason})")
 
@@ -511,7 +547,7 @@ def list_accessible_files(directory: str | Path, project_dir: Path) -> AccessLis
 
     # Before the existence check, which would reveal whether a hidden path exists
     if rel_path != "." and not _enterable(rel_path, project_dir, rules):
-        raise _excluded_error(str(directory))
+        raise _excluded_error(str(directory), rules.problems)
     if not abs_path.exists():
         raise FileNotFoundError(f"Directory '{directory}' does not exist")
     if not abs_path.is_dir():

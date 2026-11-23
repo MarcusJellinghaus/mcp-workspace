@@ -138,7 +138,7 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             # Validate path — normalize_path handles traversal attacks
             abs_path, rel_path = normalize_path(path, ctx.project_dir)
 
-            # A hidden file keeps the gitignore message
+            # A hidden file gets read_file's refusal
             if abs_path.is_file():
                 check_readable(ctx, path)
                 raise ValueError(

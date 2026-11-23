@@ -207,18 +207,6 @@ def _spellings(path: str, project_dir: Path) -> set[str]:
     return spellings
 
 
-def _excluded_error(file_path: str) -> ValueError:
-    """Build the refusal for a path hidden by gitignore rules.
-
-    Returns:
-        The error to raise, naming file_path.
-    """
-    return ValueError(
-        f"Path '{file_path}' is excluded by .gitignore rules and cannot be "
-        "accessed. Use list_directory() to see available files."
-    )
-
-
 def _discover_files(
     directory: Path, project_dir: Path, skip: Callable[[Path], bool] | None = None
 ) -> list[str]:

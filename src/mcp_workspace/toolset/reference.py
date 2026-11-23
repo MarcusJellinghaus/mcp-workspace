@@ -180,7 +180,7 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
         """
         ref_path = await reference_project_path(ctx, reference_name)
 
-        require_access(file_path, ref_path, FileAccess.READ_ONLY)
+        require_access(file_path, ref_path, FileAccess.READ_ONLY, reference=True)
 
         # Call read_file_util with the reference project directory
         # The utility function handles all parameter validation and security checks
