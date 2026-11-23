@@ -219,29 +219,6 @@ def _excluded_error(file_path: str) -> ValueError:
     )
 
 
-def check_path_not_gitignored(file_path: str, project_dir: Path) -> None:
-    """Raise ValueError if a path is excluded by gitignore rules or inside .git.
-
-    An absolute path is checked relative to project_dir. One that is not below
-    project_dir is left for ``normalize_path`` to refuse.
-
-    Args:
-        file_path: Path to check, relative to project_dir or absolute.
-        project_dir: Project root directory.
-
-    Raises:
-        ValueError: If the path is excluded.
-    """  # noqa: DOC501, DOC502 - _excluded_error returns the documented ValueError
-    path = Path(file_path)
-    if path.is_absolute():
-        try:
-            file_path = path.relative_to(project_dir).as_posix()
-        except ValueError:
-            return
-    if is_path_gitignored(file_path, project_dir):
-        raise _excluded_error(file_path)
-
-
 def _discover_files(
     directory: Path, project_dir: Path, skip: Callable[[Path], bool] | None = None
 ) -> list[str]:

@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: Remove `check_path_not_gitignored` — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation (precondition check + removal + docs)
-- [ ] Quality checks (pylint, pytest, mypy, vulture) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (precondition check + removal + docs)
+- [x] Quality checks (pylint, pytest, mypy, vulture) — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: Gitignore refusal hint and invalid-file note — [step_3.md](./steps/step_3.md)
 

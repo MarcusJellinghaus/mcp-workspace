@@ -188,9 +188,8 @@ toolset/_context.check_readable / check_writable    enforcement
 - `toolset/_context.check_readable` / `check_writable` wrap `require_access`
   for the workspace tools; `toolset/reference.py` calls `require_access`
   directly for `read_reference_file`.
-- `is_path_gitignored`, `check_path_not_gitignored` and `list_files` stay
-  gitignore-only in `directory_utils`, for `check_file_size` and library
-  callers.
+- `is_path_gitignored` and `list_files` stay gitignore-only in
+  `directory_utils`, for `check_file_size` and library callers.
 - `file_access` imports from `directory_utils`, never the reverse at import
   time; `directory_utils` re-exports `FileAccess`, `get_file_access` and
   `validate_access_rules` through a lazy module `__getattr__`.
