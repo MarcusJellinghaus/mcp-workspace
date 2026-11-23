@@ -13,7 +13,7 @@ Two kinds of path are rejected that earlier versions accepted:
 
 One limitation: if the operating system cannot resolve a path at all, validation falls back to the lexical checks alone — the path must contain no `..` and must lie under the project directory by name — so a symlink pointing outside the project is not detected in that case.
 
-Reference projects are read at their `origin/<default>` branch (see [Reading at origin/\<default\>](../README.md#reading-at-origindefault)). There a path is checked lexically by `path_utils.ref_relative_path`, without touching the local checkout: a `..` segment, a NUL byte, a `.git` entry under any spelling, or an absolute path outside the reference directory is rejected, and only tracked files at the ref exist. When the reference project is read as a local folder instead (not a git repository, or no usable origin default branch), it is validated as described in this section, against its own directory.
+Reference projects are read at their `origin/<default>` branch (see [Reading at origin/\<default\>](reference-projects.md#reading-at-origindefault)). There a path is checked lexically by `path_utils.ref_relative_path`, without touching the local checkout: a `..` segment, a NUL byte, a `.git` entry under any spelling, or an absolute path outside the reference directory is rejected, and only tracked files at the ref exist. When the reference project is read as a local folder instead (not a git repository, or no usable origin default branch), it is validated as described in this section, against its own directory.
 
 File tools also refuse `.git` entries and gitignored paths:
 
