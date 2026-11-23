@@ -82,6 +82,12 @@ def test_search_tool_description_mentions_warning(name: str, tmp_path: Path) -> 
     assert ".mcp-file-access" in description
 
 
+def test_list_directory_description_lists_labels(tmp_path: Path) -> None:
+    description = _description(tmp_path, "list_directory")
+    assert "(read-only, not committed)" in description
+    assert "omitted while" in description
+
+
 @pytest.mark.parametrize("name", WRITE_TOOLS)
 def test_write_tool_description_mentions_file_access(name: str, tmp_path: Path) -> None:
     description = _description(tmp_path, name)

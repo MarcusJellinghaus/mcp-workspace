@@ -6,6 +6,7 @@
 - Removed `file_tools.directory_utils.check_path_not_gitignored` (no callers; it ignored `.mcp-file-access`).
 - New gitignore refusal wording: `Path '<p>' is excluded by .gitignore rules and cannot be accessed. The user can expose it with a rule in .mcp-file-access. Use list_directory() to see available files.` In a reference project: `… with a rule in that project's .mcp-file-access. Use list_reference_directory() to see available files.` While the rules file is invalid: `Path '<p>' is excluded by .gitignore rules and cannot be accessed; .mcp-file-access is invalid (<problems>), so no rule exposes it. Use list_directory() to see available files.` (reference: `that project's …`, `list_reference_directory()`).
 - `search_files` / `search_reference_files`: while `.mcp-file-access` is invalid, results carry a `warning` key with the same `WARNING: .mcp-file-access is invalid (…)` text as the listing's first line.
+- `list_directory`: a gitignored file exposed `read-only` by a rule is now labelled ` (read-only, not committed)`; a tracked read-only file keeps ` (read-only)`. No line is labelled while `.mcp-file-access` is invalid.
 
 ## Next minor release — search_files glob fixes (#405)
 
@@ -14,7 +15,7 @@
 ## Next minor release — file access rules via .mcp-file-access (#83)
 
 - New repo-root rules file `.mcp-file-access`: one `<level> <gitignore pattern>` per line, levels `read-only` / `read-write`, last match wins. Rules override the gitignore default: they make committed paths read-only and expose gitignored paths read-only or read-write. `.mcp-file-access` itself is always read-only; `.git` stays refused. An invalid file refuses every write and exposes nothing. No file → unchanged behaviour. See [file-access.md](file-access.md#access-rules-mcp-file-access).
-- `list_directory` lists exposed paths; file lines that differ from the default end in ` (read-only)` or ` (read-write, not committed)`. An invalid rules file adds a `WARNING:` first line. Listing an ignored directory is allowed when the walk scope reaches it.
+- `list_directory` lists exposed paths; file lines that differ from the default end in ` (read-only)` or ` (read-write, not committed)`. An invalid rules file adds a `WARNING:` first line. Listing an ignored directory is allowed when the walk scope reaches it. Changed in #404, see above.
 - `search_files`, `search_reference_files` and `list_reference_directory` include exposed paths, unmarked. `check_file_size` is unchanged and still excludes every gitignored file.
 - New refusal: `No write access to '<path>' (rule '<pattern>' in .mcp-file-access)`, `(built-in)` for the rules file, `(.mcp-file-access is invalid: …)` for an invalid file. `body_file` targets of `github_issue_view` get the same write check.
 - `move_file` and `delete_directory` check every file in the tree: refused when any file is read-only by rule; `move_file` is also refused with `Move refused: …` when a hidden file would become accessible at the destination.

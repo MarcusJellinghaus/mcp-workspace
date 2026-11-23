@@ -127,9 +127,11 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             collapsed summaries (``dir/ (N files)``), or a truncation line
             when output exceeds the internal limit. Paths are forward-slash
             separated on every platform. A file line may end in
-            `` (read-only)`` or `` (read-write, not committed)``; strip that
-            suffix before passing the path to `read_file`. The first line may
-            be a ``WARNING:`` about an invalid ``.mcp-file-access``.
+            `` (read-only)``, `` (read-only, not committed)`` or
+            `` (read-write, not committed)``; strip that suffix before passing
+            the path to `read_file`. Labels are omitted while
+            ``.mcp-file-access`` is invalid. The first line may be a
+            ``WARNING:`` about an invalid ``.mcp-file-access``.
 
         Raises:
             ValueError: If the path points to a file instead of a directory,

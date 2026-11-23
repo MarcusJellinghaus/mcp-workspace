@@ -67,7 +67,7 @@ A path is checked under every spelling the gitignore check uses (as given, canon
 - `read-only /logs/` — files under `logs/` are listed, found by `search_files` and readable; every write tool refuses them.
 - `read-only *.log` — `logs/app.log` is readable by exact path, but neither listed nor searched: the walk never enters the ignored `logs/`.
 
-**Listing.** `list_directory` marks file lines whose access differs from the default with ` (read-only)` or ` (read-write, not committed)`; strip the suffix before passing the path to another tool. Collapsed `dir/ (N files)` lines and `dirs_only` output stay unmarked. `search_files`, `list_reference_directory` and `search_reference_files` include exposed paths, unmarked. `check_file_size` still excludes every gitignored file, exposed or not.
+**Listing.** `list_directory` marks file lines whose access differs from the default with ` (read-only)`, ` (read-only, not committed)` or ` (read-write, not committed)`; a gitignored file a rule exposes read-only gets ` (read-only, not committed)`, a tracked read-only file plain ` (read-only)`. Strip the suffix before passing the path to another tool. While the rules file is invalid, no line is labelled. Collapsed `dir/ (N files)` lines and `dirs_only` output stay unmarked. `search_files`, `list_reference_directory` and `search_reference_files` include exposed paths, unmarked. `check_file_size` still excludes every gitignored file, exposed or not.
 
 **Refusals.** A write to a read-only path fails with:
 

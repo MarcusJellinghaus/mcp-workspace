@@ -410,6 +410,7 @@ def check_tree_access(src_path: str, dest_path: str | None, project_dir: Path) -
 
 
 _NOTE_READ_ONLY = "(read-only)"
+_NOTE_READ_ONLY_NOT_COMMITTED = "(read-only, not committed)"
 _NOTE_NOT_COMMITTED = "(read-write, not committed)"
 
 
@@ -419,9 +420,9 @@ class AccessListing:
 
     Attributes:
         files: Project-relative paths, forward-slash separated, in walk order.
-        notes: Path to ``(read-only)`` or ``(read-write, not committed)`` for
-            files whose access differs from the default; empty when the rules
-            file is invalid.
+        notes: Path to ``(read-only)``, ``(read-only, not committed)`` or
+            ``(read-write, not committed)`` for files whose access differs
+            from the default; empty when the rules file is invalid.
         problems: The rules file's problems; empty when it is valid.
     """
 
@@ -495,7 +496,9 @@ def _exposure_skip(
             return
         level = _rule_access(rel, rules)[0]
         if level is FileAccess.READ_ONLY:
-            notes[rel] = _NOTE_READ_ONLY
+            notes[rel] = (
+                _NOTE_READ_ONLY_NOT_COMMITTED if is_ignored else _NOTE_READ_ONLY
+            )
         elif level is FileAccess.READ_WRITE and is_ignored:
             notes[rel] = _NOTE_NOT_COMMITTED
 
