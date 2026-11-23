@@ -2,7 +2,7 @@
 
 import logging
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from mcp_workspace.utils.git_paths import is_path_in_git_dir
 
@@ -179,3 +179,70 @@ def normalize_path(path: str, project_dir: Path) -> tuple[Path, str]:
         raise git_dir_error(path)
 
     return joined_path, relative_posix
+
+
+def _segments(path: str) -> list[str]:
+    """Split a path on either separator, dropping empty and '.' segments.
+
+    Returns:
+        The meaningful segments in order.
+    """
+    return [x for x in path.replace("\\", "/").split("/") if x not in ("", ".")]
+
+
+def _folded(segments: list[str]) -> list[str]:
+    """Fold segments for comparison the way the local filesystem would.
+
+    Returns:
+        The segments casefolded on Windows, unchanged elsewhere.
+    """
+    if os.name == "nt":
+        return [x.casefold() for x in segments]
+    return segments
+
+
+def ref_relative_path(path: str, root: Path) -> str:
+    """Turn a caller's path into a repo-relative, forward-slash path for a tree lookup.
+
+    Lexical only: nothing is resolved against the local checkout (``normalize_path``
+    would resolve symlinks and reject paths that are valid upstream). An absolute
+    path must start with the segments of ``root`` - resolved or as given - compared
+    segment by segment, with empty and '.' segments dropped on both sides.
+
+    Args:
+        path: Path as the caller wrote it, relative to ``root`` or absolute.
+        root: The reference project's directory.
+
+    Returns:
+        The relative path with forward slashes; "" for the root itself.
+
+    Raises:
+        ValueError: '..' segment, NUL byte, a .git entry under any spelling, or an
+            absolute path outside ``root`` — with the same texts as ``normalize_path``.
+    """  # noqa: DOC501 - _outside_error returns the documented ValueError
+    if "\0" in path:
+        raise _outside_error(path, root, _UNRESOLVABLE)
+
+    parts = _segments(path)
+    if ".." in parts:
+        raise _outside_error(path, root, "contains '..' traversal and would escape")
+
+    if PureWindowsPath(path).drive or path.replace("\\", "/").startswith("/"):
+        folded_parts = _folded(parts)
+        # Resolved first, then lexical: either spelling of the root is accepted.
+        roots = [_segments(str(root.resolve())), _segments(str(root))]
+        prefix = next(
+            (r for r in roots if folded_parts[: len(r)] == _folded(r)),
+            None,
+        )
+        if prefix is None:
+            raise _outside_error(path, root, "resolves to a location")
+        parts = parts[len(prefix) :]
+
+    relative = "/".join(parts)
+    if is_path_in_git_dir(relative):
+        raise ValueError(
+            f"Security error: Path '{path}' is inside a git directory, "
+            "which the file tools do not access."
+        )
+    return relative
