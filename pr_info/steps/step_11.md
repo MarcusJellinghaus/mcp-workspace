@@ -118,10 +118,15 @@ Use the bare-origin fixtures; interval `0` unless the test is about fetching.
 - Dangling `origin/HEAD` → reads `origin/main`.
 - Read at the ref: CRLF and lone-CR files give the same line numbers / slices / truncation as
   `read_file` on the same bytes.
-- Plain folder, broken `.git`, folder nested in a checkout → local content, no note, no
-  fetch (patch `fetch_origin` / `run_git_timed` and assert not called for the nested folder).
+- Plain folder, broken `.git`, folder nested in a checkout → local content, no note.
 - Git repo without `origin` → local content + fallback note in the read line and in the list
-  trailing entry (after any `WARNING` first line); no fetch runs.
+  trailing entry (after any `WARNING` first line).
+- No fetch subprocess, parametrised over plain folder, broken `.git`, folder nested in a
+  checkout, and git repo without `origin`: build the tools with
+  `reference_fetch_interval_minutes=15` (not the default `0`, which would make the check
+  vacuous), patch `run_git_timed` where `origin_fetch` looks it up (do **not** patch
+  `fetch_origin` — it is called and returns `attempted=False`), call read and list, and
+  assert `run_git_timed` was never called.
 - Corrupt ref target (step 6 setup) → error result, not a local fallback.
 - Not-found names the caller's path, ref + short SHA; case mismatch names the correct
   spelling; directory → `IsADirectoryError` "is not a file"; symlink / gitlink absent from

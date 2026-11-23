@@ -66,6 +66,10 @@ Use the bare-origin fixtures; interval `0` unless the test is about fetching.
 - A blob that can't be read (patch `RefSnapshot.read_bytes` to raise `ValueError` for one
   path) → that path in `skipped_files`, others still searched; a binary blob → silently
   skipped.
+- Really missing blob, no patching of `RefSnapshot.read_bytes`: in a work clone, delete the
+  loose object file of one upstream file's blob (same setup as step 6's missing-blob test;
+  skip if the object stays packed) → a content search (`pattern` matching every file) lists
+  that path in `skipped_files` and still returns matches from the other files.
 - CRLF / lone-CR files: search line numbers equal the read tool's line numbers.
 - Symlink / gitlink pushed upstream → absent from search results.
 - Tracked file matching `.gitignore` is found at the ref; an untracked local file is not.

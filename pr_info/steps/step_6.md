@@ -35,6 +35,8 @@ class RefSnapshot:
     ref: str       # e.g. "origin/main"
     sha: str       # full SHA, resolved once per call
 
+    @cached_property
+    def tree(self) -> Tree: ...            # root tree of `sha`, resolved once per snapshot
     @property
     def where(self) -> str: ...            # "origin/main @ 03d1741"
     def list_files(self) -> list[str]: ...
@@ -63,6 +65,11 @@ def open_ref_snapshot(path: Path, name: str) -> Iterator[RefSnapshot | RefFallba
   `conflicts.list_tree` (one level, own Repo).
 - `read_bytes` reads via the object database (`blob.data_stream.read()`), never via
   `run_git_timed` (it would alter content).
+- `tree` = `self.repo.commit(self.sha).tree`, computed on first use and cached on the
+  snapshot (`functools.cached_property` writes to the instance `__dict__`, so it works on
+  the frozen dataclass; no `__slots__`). Every `read_bytes` lookup reuses it, so a search
+  over N files does not re-resolve the commit N times. The snapshot stays pinned to its one
+  `sha`. GitPython failures while resolving it map to `ValueError` like the others.
 
 ## ALGORITHM
 
@@ -79,7 +86,7 @@ _label: origin/HEAD → `run_git_raw(repo, "symbolic_ref", "-q", full)` target m
 read_bytes(path, display_path=None):
     shown = display_path if display_path is not None else path   # caller's text, as today
     if path == "": raise IsADirectoryError(f"Path '{shown}' is not a file")
-    obj = commit(sha).tree[path]  (KeyError → None)
+    obj = self.tree[path]  (KeyError → None)     # cached root tree, never re-walked from commit(sha)
     if obj is None or obj.type == "submodule" or obj.mode == 0o120000: raise _not_found(path, shown)
     if obj.type == "tree": raise IsADirectoryError(f"Path '{shown}' is not a file")
     return obj.data_stream.read()
@@ -132,6 +139,14 @@ Use the bare-origin fixtures in `tests/conftest.py` (`_origin_remote`, `make_clo
   `read_bytes("src", "./src/")` → `IsADirectoryError` text exactly `"Path './src/' is not a file"`;
   `read_bytes("", "./")` → exactly `"Path './' is not a file"` (never a substituted `'.'`);
   without `display_path`, messages use `path`.
+- Missing blob object: push a file upstream, fetch, then delete that blob's loose object
+  file (`.git/objects/<sha[:2]>/<sha[2:]>`, the work clone not packed — e.g. fetch from a
+  local bare origin with `transfer.unpackLimit` high or use `git unpack-objects`; skip if
+  the object stays packed) → `read_bytes(path)` raises `ValueError` (no GitPython
+  exception type escapes).
+- Root tree resolved once: on one snapshot, call `read_bytes` for three different paths
+  with `snap.repo.commit` patched with `wraps=` → called exactly once; `snap.tree` is the
+  same object on repeated access.
 - `snap.repo.git.environment()` contains `GIT_TERMINAL_PROMPT == "0"`.
 - No `git cat-file` process left after the context exits (repo closed): assert
   `_close_repo_safely` is called (patch it with `wraps=`).
