@@ -1,0 +1,126 @@
+# Step 6 — `ref_snapshot`: reading at `origin/<default>` via GitPython
+
+## LLM prompt
+
+> Read `pr_info/steps/summary.md`, then implement **only** `pr_info/steps/step_6.md`.
+> Write the tests first, then the implementation. Use the MCP tools from `.claude/CLAUDE.md`.
+> Run pylint, pytest (`extra_args: ["-n", "auto"]`), mypy and lint-imports; all must pass.
+> Run `run_format_code`, then make exactly one commit for this step.
+
+## WHERE
+
+- `src/mcp_workspace/git_operations/ref_snapshot.py` (new; nothing else imports it yet)
+- `tests/git_operations/test_ref_snapshot.py` (new)
+
+## Preconditions
+
+- Check with `get_library_source` that `git.exc` re-exports `BadName` and `ODBError` from
+  `gitdb.exc`; import them from `git.exc`.
+- The design relies on `repo.commit("refs/remotes/origin/HEAD")` raising `BadName` when
+  `origin/HEAD` is dangling (points at a missing branch). Probe it first (scratch probe, see
+  `.claude/CLAUDE.md`). If it raises anything else, write one line to `pr_info/.blocked.txt`
+  and stop.
+
+## WHAT
+
+```python
+class RefFallback(Enum):
+    NOT_A_REPO = "not_a_repo"   # plain folder, broken/incomplete .git, missing path
+    NO_DEFAULT = "no_default"   # git repo without origin, or no default ref resolves
+
+@dataclass(frozen=True)
+class RefSnapshot:
+    repo: Repo
+    name: str      # reference project name, for messages
+    ref: str       # e.g. "origin/main"
+    sha: str       # full SHA, resolved once per call
+
+    @property
+    def where(self) -> str: ...            # "origin/main @ 03d1741"
+    def list_files(self) -> list[str]: ...
+    def read_bytes(self, path: str) -> bytes: ...   # path from ref_relative_path
+
+@contextmanager
+def open_ref_snapshot(path: Path, name: str) -> Iterator[RefSnapshot | RefFallback]: ...
+```
+
+## HOW
+
+- Open with `Repo(path, search_parent_directories=False)`; `InvalidGitRepositoryError` /
+  `NoSuchPathError` **at open only** → yield `RefFallback.NOT_A_REPO`. Do not wrap the
+  `yield` in that `try` (exceptions from the caller's body must pass through untouched).
+- Right after opening: `repo.git.update_environment(**GIT_NONINTERACTIVE_ENV)` (before any
+  object access). Close with `core._close_repo_safely(repo)` in `finally`.
+- Origin check: `any(r.name == "origin" for r in repo.remotes)`; none → `NO_DEFAULT`.
+- Resolution uses full ref names only (a short `origin/main` can be shadowed).
+- Every GitPython failure (`GitCommandError`, `ODBError`, `ValueError`) is turned into
+  `ValueError(scrub_credentials(...))` raised **outside** the `except` block. `FileNotFoundError`
+  and `IsADirectoryError` are raised directly. No GitPython exception type leaves this module.
+- `list_files` uses `core.run_git_raw(self.repo, "ls_tree", "-r", "-z", self.sha)` and
+  `porcelain_parsers.parse_ls_tree_z` — not `traverse()` (breadth-first) and not
+  `conflicts.list_tree` (one level, own Repo).
+- `read_bytes` reads via the object database (`blob.data_stream.read()`), never via
+  `run_git_timed` (it would alter content).
+
+## ALGORITHM
+
+```
+_resolve_origin_default(repo):                      # -> (ref_label, sha) | None
+    for full in ("refs/remotes/origin/HEAD", "refs/remotes/origin/main", "refs/remotes/origin/master"):
+        try: commit = repo.commit(full)
+        except BadName: continue                     # missing or dangling → next
+        return _label(repo, full), commit.hexsha     # other errors propagate → ValueError
+    return None
+_label: origin/HEAD → `run_git_raw(repo, "symbolic_ref", "-q", full)` target minus
+        "refs/remotes/" (fallback "origin/HEAD"); others → full minus "refs/remotes/"
+
+read_bytes(path):
+    if path == "": raise IsADirectoryError("Path '.' is not a file")
+    obj = commit(sha).tree[path]  (KeyError → None)
+    if obj is None or obj.type == "submodule" or obj.mode == 0o120000: raise _not_found(path)
+    if obj.type == "tree": raise IsADirectoryError(f"Path '{path}' is not a file")
+    return obj.data_stream.read()
+
+_not_found(path):
+    hint = first f in list_files() with f.casefold() == path.casefold()
+    msg = f"File '{path}' is not in {where} of reference '{name}'"
+    return FileNotFoundError(msg + (f"; did you mean '{hint}'?" if hint else "."))
+
+list_files():
+    rc, out, err = run_git_raw(repo, "ls_tree", "-r", "-z", sha);  rc != 0 → ValueError(scrubbed err)
+    return [e["path"] for e in parse_ls_tree_z(out) if e["type"] == "blob" and e["mode"] != "120000"]
+```
+
+## DATA
+
+- Not-found: `File 'src/x.py' is not in origin/main @ 03d1741 of reference 'mcp-workspace'.`
+- Case hint: `File 'claude.md' is not in origin/main @ 03d1741 of reference 'mcp-workspace'; did you mean 'CLAUDE.md'?`
+- Directory: `Path 'src' is not a file` (`IsADirectoryError`).
+
+## Tests (write first)
+
+Use the bare-origin fixtures in `tests/conftest.py` (`_origin_remote`, `make_clone`,
+`origin_clone`); push upstream changes from a second clone made with `make_clone`.
+
+- Upstream content wins: (a) work clone on a feature branch with a different commit,
+  (b) dirty working tree, (c) work clone behind origin after a manual `git fetch` → `read_bytes`
+  returns the origin/main bytes; `snap.ref == "origin/main"`, `snap.sha` = origin/main SHA.
+- Dangling `origin/HEAD` (`symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/gone`)
+  → falls through to `origin/main`.
+- Only `refs/remotes/origin/master` present (delete `origin/HEAD` and `origin/main`) →
+  `snap.ref == "origin/master"`.
+- `NO_DEFAULT`: repo without remotes; repo with `origin` but no remote-tracking refs;
+  `.git` with `HEAD`, `objects/`, `refs/` but no `config`.
+- `NOT_A_REPO`: plain folder; missing path; empty `.git` dir; `.git` file pointing nowhere;
+  `.git` with only `HEAD`; plain folder nested inside a checkout.
+- Corrupt: `refs/remotes/origin/HEAD` target file overwritten with a SHA of a missing object
+  → `open_ref_snapshot` raises `ValueError` (not a fallback).
+- `list_files` order == `git ls-tree -r --name-only <sha>`; a symlink entry
+  (`update-index --add --cacheinfo 120000,<blob>,link`) and a gitlink
+  (`--cacheinfo 160000,<sha>,sub`) pushed upstream are absent; reading either →
+  `FileNotFoundError`.
+- `read_bytes` keeps CRLF bytes exactly; not-found message names ref, short SHA and
+  reference name; case hint; directory → `IsADirectoryError` "Path 'src' is not a file".
+- `snap.repo.git.environment()` contains `GIT_TERMINAL_PROMPT == "0"`.
+- No `git cat-file` process left after the context exits (repo closed): assert
+  `_close_repo_safely` is called (patch it with `wraps=`).
