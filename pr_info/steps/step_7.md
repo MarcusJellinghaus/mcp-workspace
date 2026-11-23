@@ -52,7 +52,11 @@ elif level is READ_WRITE and is_ignored:
 - **`tests/test_file_access_listing.py`:**
   - The assertion on the `read-only /logs/` listing (`logs/sub/b.log (read-only)`,
     `logs/a.log (read-only)`) changes to the new label.
-  - Tracked read-only files (`uv.lock`, `.mcp.json`, `.mcp-file-access`) keep ` (read-only)`.
+  - In the `suffix_tools` fixture, `uv.lock` is gitignored and exposed `read-only`, so it now
+    renders as `uv.lock (read-only, not committed)`. Update the assertion at
+    `tests/test_file_access_listing.py:46` to that string.
+  - Only the tracked read-only files `.mcp.json` and `.mcp-file-access` keep the plain
+    ` (read-only)` suffix.
 - **`tests/file_tools/test_accessible_listing.py`:**
   - Add `READ_ONLY_NOT_COMMITTED_NOTE = "(read-only, not committed)"`.
   - Update the notes assertions for gitignored read-only files, and add one asserting a tracked

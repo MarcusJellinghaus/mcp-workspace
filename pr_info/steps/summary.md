@@ -93,7 +93,7 @@ would be wrong there.
 - `vulture_whitelist.py`
 
 ### Modified — tests
-- `tests/file_tools/test_file_access.py`, `tests/file_tools/test_accessible_listing.py`
+- `tests/file_tools/test_file_access.py`, `tests/file_tools/test_accessible_listing.py`, `tests/file_tools/test_search.py`
 - `tests/test_server.py`, `tests/test_reference_path_rules.py`, `tests/test_file_access_tools.py`
 - `tests/test_file_access_listing.py`, `tests/test_tool_descriptions.py`
 - `tests/test_server_instructions.py`, `tests/test_main.py`
