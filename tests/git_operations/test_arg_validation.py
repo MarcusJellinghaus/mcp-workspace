@@ -28,6 +28,44 @@ class TestValidateArgsLogAllowed:
         validate_args("log", ["--oneline", "--graph", "--all", "-n10"])
 
 
+class TestValidateArgsLogPickaxe:
+    """Pickaxe flags take an attached value; the separate form is refused."""
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ["-Sfoo"],
+            ["-Gfo+o"],
+            ["-Sline1\nline2"],
+            ["-Sfoo", "--pickaxe-all"],
+            ["-Gx", "--pickaxe-regex"],
+        ],
+    )
+    def test_attached_value_passes(self, args: list[str]) -> None:
+        validate_args("log", args)
+
+    @pytest.mark.parametrize("flag", ["-S", "-G"])
+    def test_separate_value_refused_with_attached_hint(self, flag: str) -> None:
+        with pytest.raises(ValueError) as exc_info:
+            validate_args("log", [flag, "foo"])
+        message = str(exc_info.value)
+        assert f"needs its value attached, e.g. '{flag}" in message
+        assert "separate form is not accepted" in message
+        assert "security allowlist" not in message
+
+    def test_s_message_names_example(self) -> None:
+        with pytest.raises(ValueError, match="'-SLINKED_VIA_PR'"):
+            validate_args("log", ["-S", "foo"])
+
+    def test_g_message_names_example(self) -> None:
+        with pytest.raises(ValueError, match="'-G<regex>'"):
+            validate_args("log", ["-G", "foo"])
+
+    def test_diff_rejects_pickaxe(self) -> None:
+        with pytest.raises(ValueError, match="security allowlist"):
+            validate_args("diff", ["-Sfoo"])
+
+
 class TestValidateArgsDiffAllowed:
     """Allowed diff flags pass through silently."""
 

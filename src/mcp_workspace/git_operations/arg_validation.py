@@ -53,6 +53,10 @@ LOG_ALLOWED_FLAGS: frozenset[str] = frozenset(
         "-U",
         "--no-ext-diff",
         "--no-textconv",
+        "-S",
+        "-G",
+        "--pickaxe-regex",
+        "--pickaxe-all",
         "-<int>",
     }
 )
@@ -293,11 +297,12 @@ _PATH_SEPARATORS = re.compile(r"[\\/]")
 
 _COUNT = re.compile(r"[0-9]*")
 _SIMILARITY = re.compile(r"[0-9]*\.?[0-9]*%?")
+_ANY_VALUE = re.compile(r".+", re.DOTALL)
 
 # Short flags that take a value in the same argument, with the value's format.
 # Every other short flag is a switch, and a cluster of them must all be listed.
 _ATTACHED_VALUE_FLAGS: dict[str, dict[str, re.Pattern[str]]] = {
-    "log": {"-n": _COUNT, "-U": _COUNT},
+    "log": {"-n": _COUNT, "-U": _COUNT, "-S": _ANY_VALUE, "-G": _ANY_VALUE},
     "diff": {"-U": _COUNT, "-M": _SIMILARITY, "-C": _SIMILARITY},
     "show": {"-U": _COUNT, "-M": _SIMILARITY, "-C": _SIMILARITY},
     "status": {"-u": re.compile(r"(no|normal|all)?")},
@@ -324,6 +329,9 @@ _SEPARATE_VALUE_FLAGS: dict[str, frozenset[str]] = {
     "ls_files": frozenset({"--exclude"}),
     "ls_remote": frozenset({"--sort"}),
 }
+
+# git log pickaxe flags, with the attached form shown when the value is separate.
+_PICKAXE_EXAMPLES: dict[str, str] = {"-S": "-SLINKED_VIA_PR", "-G": "-G<regex>"}
 
 # With one of these, git branch treats other arguments as patterns to list.
 # Without one, it treats them as names to create.
@@ -557,7 +565,8 @@ def validate_args(command: str, args: list[str]) -> None:
         args: List of CLI arguments to validate.
 
     Raises:
-        ValueError: If ``--`` is in args, command is unknown, or a
+        ValueError: If ``--`` is in args, command is unknown, a git log
+            pickaxe flag (``-S``, ``-G``) has no attached value, or a
             flag is not in the allowlist.
     """
     if "--" in args:
@@ -568,6 +577,11 @@ def validate_args(command: str, args: list[str]) -> None:
         raise ValueError(msg)
 
     for arg in args:
+        if command == "log" and arg in _PICKAXE_EXAMPLES:
+            raise ValueError(
+                f"git log: '{arg}' needs its value attached, e.g. "
+                f"'{_PICKAXE_EXAMPLES[arg]}' (separate form is not accepted)"
+            )
         if not arg.startswith("-") or _is_allowed_flag(command, arg):
             continue
 
