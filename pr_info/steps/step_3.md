@@ -37,8 +37,9 @@ def decode_lines(data: bytes) -> list[str]: ...
 ## HOW
 
 - `read_file` calls `_validate_read_args`, keeps its path / exists / is-file checks, then
-  `_render_lines(open(abs_path, encoding="utf-8"), …)` inside its existing `try`, so its
-  error handling (UnicodeDecodeError → today's ValueError text) is unchanged.
+  `with open(abs_path, encoding="utf-8") as fh: content = _render_lines(fh, …)` inside its
+  existing `try` (the context manager stays, so the handle is closed at once — Windows file
+  locks), so its error handling (UnicodeDecodeError → today's ValueError text) is unchanged.
 - `read_content` and `decode_lines` decode with
   `io.TextIOWrapper(io.BytesIO(data), encoding="utf-8")` — the same universal-newline
   semantics as `open()`. Never `str.splitlines()` (see #410).

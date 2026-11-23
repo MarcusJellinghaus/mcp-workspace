@@ -46,12 +46,14 @@ def run_server(project_dir, ..., read_max_lines=DEFAULT_READ_MAX_LINES,
 - `run_server` logs it with the other settings and forwards it to `create_server(...)`
   (which forwards `**settings` to `tool_specs` unchanged).
 - `main.py`:
-  - `parser.add_argument("--reference-fetch-interval-minutes", type=int, default=None, help=...)`
-    next to `--reference-project`; help: "Minutes between automatic `git fetch origin` of a
+  - `parser.add_argument("--reference-fetch-interval-minutes", type=int,
+    default=DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES, help=...)` next to
+    `--reference-project`; help: "Minutes between automatic `git fetch origin` of a
     reference project before it is read (0 = off; defaults to 15)."
   - Validation next to `--read-max-lines`: negative →
     `ValueError("--reference-fetch-interval-minutes must be a non-negative integer: N")`.
-  - `run_server(..., reference_fetch_interval_minutes=<value or DEFAULT_…>)`.
+  - `run_server(..., reference_fetch_interval_minutes=args.reference_fetch_interval_minutes)`
+    — passed straight through. Never `value or DEFAULT_…`: that turns `0` (off) into 15.
   - While here, fix the `--reference-project` help / usage text if it still shows the old
     `NAME=/path` format (the help in `main.py` already shows `name=…,path=…`; check the
     module docstring / usage line).
@@ -65,4 +67,5 @@ def run_server(project_dir, ..., read_max_lines=DEFAULT_READ_MAX_LINES,
 - `tests/test_server.py`: `run_server(..., reference_fetch_interval_minutes=7)` forwards 7
   to `create_server` / `tool_specs` (follow the existing `read_max_lines` forwarding test).
 - `tests/test_main.py`: the flag parses; a negative value fails at startup with the message
-  above; when omitted, `run_server` receives 15 (follow the existing `--read-max-lines` tests).
+  above; when omitted, `run_server` receives 15; `--reference-fetch-interval-minutes 0`
+  reaches `run_server` as `0` (not 15) (follow the existing `--read-max-lines` tests).

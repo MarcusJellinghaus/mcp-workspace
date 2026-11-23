@@ -1,68 +1,84 @@
-# Step 12 — Tool docstrings, server instructions, description tests
+# Step 12 — Search reads at the ref
 
 ## LLM prompt
 
 > Read `pr_info/steps/summary.md`, then implement **only** `pr_info/steps/step_12.md`.
 > Write the tests first, then the implementation. Use the MCP tools from `.claude/CLAUDE.md`.
-> Run pylint, pytest (`extra_args: ["-n", "auto"]`) and mypy; all must pass. Run
+> Run pylint, pytest (`extra_args: ["-n", "auto"]`), mypy, lint-imports and vulture; all
+> must pass. Also run the performance tests serially
+> (`run_pytest_check(markers=["performance"], extra_args=["-n", "0"])`). Run
 > `run_format_code`, then make exactly one commit for this step.
 
 ## WHERE
 
-- `src/mcp_workspace/toolset/reference.py` — docstrings and Field descriptions of
-  `read_reference_file`, `search_reference_files`, `list_reference_directory`
-- `src/mcp_workspace/toolset/git.py` — `reference_name` Field description
-- `src/mcp_workspace/server.py` — `_INSTRUCTIONS`
-- `tests/test_tool_descriptions.py`, `tests/test_server_instructions.py`
+- `src/mcp_workspace/toolset/reference.py`: `search_reference_files` only
+- `tests/test_reference_reads_at_ref.py` (add the search cases)
+- Existing tests to adapt (search only):
+  - `tests/test_reference_search_mcp_tools.py`
+  - `tests/test_tool_refusals_mcp_layer.py`: `test_search_tools_return_no_protected_content`
+    (the `search_reference_files` rows)
+  - `tests/test_reference_path_rules.py`: the search assertions
+  - any other search test using a real git repo (pass `reference_fetch_interval_minutes=0`
+    where the test is not about fetching)
 
-## WHAT — required content ("Docstrings must say" in #340)
+## WHAT
 
-All three read tools:
-- Content comes from the reference's `origin/<default>` (`origin/HEAD`, else `origin/main`,
-  else `origin/master`), fetched automatically, at most one fetch interval old.
-- Only tracked files exist there: tracked files matching `.gitignore` are visible; untracked
-  or gitignored local files are not. A folder that is not a git repo is read as-is.
-- Other refs: `git(command="show", args=["<ref>:<path>"], reference_name=…)` — output defaults
-  to 100 lines, pass `max_lines` for more.
-- "When was X added upstream": `git(command="log", args=["-S<text>", "origin/main"], reference_name=…)`.
-- A note line / entry appears only when the fetch failed or the repo has no usable origin
-  default branch.
-- Known limitations (one short sentence each): after an upstream default-branch rename,
-  reads follow the old branch until `git remote set-head origin --auto`; with
-  `core.autocrlf=true` content has LF where the working tree has CRLF; Git LFS files show
-  pointer text; partial clones download missing blobs on read.
+```python
+# search_reference_files, via step 11's _reference_call
+at_ref = lambda snap: search_paths(
+    snap.list_files(), lambda p: decode_lines(snap.read_bytes(p)),
+    glob, pattern, context_lines, max_results, max_result_lines,
+)
+local  = lambda path: search_files_util(project_dir=path, glob=..., ...)   # today's call
+result, notes = await _reference_call(ctx, reference_name, at_ref, local)
+if notes: result["freshness"] = "\n".join(notes)
+return result
+```
 
-Per tool:
-- `list_reference_directory` Returns: paths can be passed back to `read_reference_file`;
-  the **last entry may be a note** instead of a path (and, for a local folder, the first
-  line may be a `WARNING:` as today).
-- `search_reference_files` Returns: lists the `freshness` key (present only when a note
-  applies). Glob description: replace the `git ls-files` advice with
-  `git(command="ls_tree", args=["-r", "--name-only", "origin/main"], reference_name=…)`
-  (the ref named in the tool's notes and errors), mentioning `max_lines` or a pathspec
-  (output defaults to 100 lines).
-- `git` `reference_name`: "…runs git against that project instead of the workspace, after
-  the same automatic fetch of origin as the reference read tools; a failed fetch adds a
-  trailing note and never fails the call."
-- `_INSTRUCTIONS`: one sentence that reference files are read from the upstream default
-  branch, auto-fetched — without naming tools other than those
-  `tests/test_server_instructions.py` already allows.
+(The docstring's Returns section, which lists `freshness`, is updated in step 13.)
 
 ## HOW
 
-Keep `search_files`' glob description unchanged (its `git ls-files` advice stays correct
-for the workspace). Schema snapshots in `tests/toolset/tool_schemas/` strip descriptions and
-no parameters change, so they need no update; if they fail, regenerate only after checking
-the diff is description-free.
+- `search_paths` and `decode_lines` are plain `file_tools` imports. The search, blob decode
+  and line splitting run inside `_reference_call`'s worker thread, like read and list.
+- Tree paths come straight from `snap.list_files()` (`git ls-tree -r` order) and never go
+  through filesystem normalisation.
+- Blob-read failures from `read_bytes` are `ValueError` / `OSError`, so `search_paths` puts
+  them in `skipped_files`. A non-UTF-8 blob raises `UnicodeDecodeError` in `decode_lines`,
+  which is a silent skip, as today.
+- The local fallback keeps calling `search_files_util` by its current name, so existing
+  patches keep working.
+- `freshness` is a string; when both notes apply they are joined by `\n`, fetch-failure first
+  (the order comes from `_reference_call`).
 
-## Tests (write first)
+## DATA
 
-- `tests/test_tool_descriptions.py`: split `GLOB_DOC_PHRASES` into a shared list
-  (`gitignore`, `brace expansion is not supported`, `any depth`, `case-insensitive`,
-  `glob_note`) plus per-tool phrases: `search_files` → `git ls-files`;
-  `search_reference_files` → `ls_tree`, `--name-only`, `origin/main`, `max_lines`.
-- New description tests (lower-cased substring checks) for each read tool: `origin/`,
-  `fetched automatically` (or the chosen wording), `tracked`, `git(command="show"`,
-  `max_lines`, `-s<text>`; `list_reference_directory` → `last entry may be a note`;
-  `search_reference_files` → `freshness`; `git` tool `reference_name` field → `fetch`.
-- `tests/test_server_instructions.py`: instructions mention the upstream default branch.
+`{..., "freshness": "[reference x: …]"}` — key present only when there are notes.
+
+## Tests (write first): `tests/test_reference_reads_at_ref.py`
+
+Use the bare-origin fixtures; interval `0` unless the test is about fetching.
+- Feature branch, dirty working tree, and behind-origin checkouts: search returns the
+  origin/main content (a symbol present only upstream is found; a local-only one is not);
+  no `freshness` key.
+- Search at the ref matches working-tree semantics: glob (win32 case-insensitive), regex,
+  `context_lines`, `max_results` truncation in `git ls-tree -r` order, `glob_note`.
+- A blob that can't be read (patch `RefSnapshot.read_bytes` to raise `ValueError` for one
+  path) → that path in `skipped_files`, others still searched; a binary blob → silently
+  skipped.
+- CRLF / lone-CR files: search line numbers equal the read tool's line numbers.
+- Symlink / gitlink pushed upstream → absent from search results.
+- Tracked file matching `.gitignore` is found at the ref; an untracked local file is not.
+- Git repo without `origin` → local search result + `freshness` with the fallback note.
+- Plain folder → local search result, no `freshness` key.
+- Fetch failure (patched `fetch_origin` → `FetchOutcome(True, "boom")`) → `freshness` holds
+  the fetch-failure note; with origin present + fetch failed + no default ref → `freshness`
+  holds both notes joined by `\n`, fetch-failure first.
+
+Existing tests: `tests/test_reference_search_mcp_tools.py` patches `search_files_util` on
+non-existent paths and keeps passing (silent fallback). The `search_reference_files` rows of
+`tests/test_tool_refusals_mcp_layer.py` use git references without `origin`; they now get a
+`freshness` key, so adjust any exact-dict assertions (protected content must still be
+absent). `tests/test_reference_path_rules.py`'s `.git` holds only `config`, so its search
+assertions should stay unchanged; if one fails, adjust it to the fallback note rather than
+changing the fixture.

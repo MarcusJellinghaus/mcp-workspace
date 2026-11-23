@@ -29,8 +29,9 @@ open_ref_snapshot(path, name)  (context manager, sync, one Repo per call, closed
 - Default ref: `refs/remotes/origin/HEAD` → `…/origin/main` → `…/origin/master`, falling
   through only on `BadName`. The SHA is resolved once per call (it is a field of the snapshot).
 - `list_files()` = `ls-tree -r -z <sha>` order, blobs only (symlinks `120000` and gitlinks skipped).
-- `read_bytes()` raises `FileNotFoundError` (names ref + short SHA, case hint), `IsADirectoryError`
-  (today's text), or `ValueError` for any git failure — never a GitPython exception type.
+- `read_bytes(path, display_path)` raises `FileNotFoundError` (names the caller's path, ref +
+  short SHA, case hint), `IsADirectoryError` (today's text, caller's path), or `ValueError`
+  for any git failure — never a GitPython exception type.
 
 ### 2. `file_tools` works on injected content (no GitPython in `file_tools`)
 
@@ -154,6 +155,7 @@ Default constant `DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES = 15` in `reference_p
 8. Clone state moves into `WorkspaceContext`; `ensure_available` reports a clone
 9. `reference_fetch_interval_minutes` setting (tool_specs, server, CLI)
 10. Throttled auto-fetch + notes; `git` tool uses it
-11. Read, list and search read at the ref
-12. Tool docstrings, server instructions, description tests
-13. Documentation
+11. Read and list read at the ref (`_reference_call`, fallback, notes)
+12. Search reads at the ref (`search_paths` with a blob reader, `freshness`, `skipped_files`)
+13. Tool docstrings, server instructions, description tests
+14. Documentation

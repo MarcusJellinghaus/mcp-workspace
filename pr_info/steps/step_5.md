@@ -42,18 +42,26 @@ Reuse `_outside_error` and `is_path_in_git_dir` from the same module; same messa
 ## ALGORITHM
 
 ```
+_segments(s) = [x for x in s.replace("\\", "/").split("/") if x not in ("", ".")]
+
 if "\0" in path: raise NUL error
-p = path.replace("\\", "/")
-if PureWindowsPath(path).drive or p.startswith("/"):            # absolute (or drive-relative)
-    base = str(root.resolve()).replace("\\", "/").rstrip("/") + "/"
-    fold = str.casefold if os.name == "nt" else (lambda s: s)
-    if not fold(p).startswith(fold(base)): raise outside error
-    p = p[len(base):]
-parts = [s for s in p.split("/") if s not in ("", ".")]
+parts = _segments(path)
 if ".." in parts: raise traversal error
+if PureWindowsPath(path).drive or path.replace("\\", "/").startswith("/"):   # absolute
+    fold = str.casefold if os.name == "nt" else (lambda s: s)
+    roots = [_segments(str(root.resolve())), _segments(str(root))]   # resolved, then lexical
+    prefix = next((r for r in roots
+                   if [fold(x) for x in parts[:len(r)]] == [fold(x) for x in r]), None)
+    if prefix is None: raise outside error
+    parts = parts[len(prefix):]
 rel = "/".join(parts);  if is_path_in_git_dir(rel): raise .git error
 return rel
 ```
+
+Segment-wise comparison, with `""`/`"."` segments dropped on both sides. An absolute path
+built from the unresolved root (a `.` segment, a symlinked parent such as macOS `tmp_path`)
+matches the lexical root, and one built from the resolved root matches the resolved root.
+`..` is rejected before the prefix check, so it can never be stripped away.
 
 ## DATA
 
@@ -62,8 +70,12 @@ return rel
 ## Tests (write first)
 
 - `"src/x.py"`, `"src\\x.py"`, `"./src/x.py"`, `".\\src\\x.py"` → `"src/x.py"`.
-- `str(root / "src" / "x.py")` → `"src/x.py"`; with an unresolved `root` (e.g. containing a
-  `.` segment, or a symlinked parent where available) → still `"src/x.py"`.
+- `str(root / "src" / "x.py")` → `"src/x.py"`.
+- Unresolved root, parametrised: `root = tmp / "a" / "." / "ref"` and (`skipif` symlinks are
+  unavailable) `root = <symlink to a dir>/ref` — the input built from that unresolved root
+  (`str(root / "src" / "x.py")`) and the input built from `root.resolve()` both give
+  `"src/x.py"`. On macOS, plain `tmp_path` (under the `/var` → `/private/var` symlink)
+  covers the symlinked-parent case.
 - win32 only (`skipif`): different drive-letter case and mixed separators of the absolute
   path → `"src/x.py"`.
 - `"."` → `""`.

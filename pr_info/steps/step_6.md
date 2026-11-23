@@ -38,7 +38,9 @@ class RefSnapshot:
     @property
     def where(self) -> str: ...            # "origin/main @ 03d1741"
     def list_files(self) -> list[str]: ...
-    def read_bytes(self, path: str) -> bytes: ...   # path from ref_relative_path
+    def read_bytes(self, path: str, display_path: str | None = None) -> bytes: ...
+        # path: from ref_relative_path (tree lookup); display_path: the caller's original
+        # file_path, used verbatim in error messages (defaults to path)
 
 @contextmanager
 def open_ref_snapshot(path: Path, name: str) -> Iterator[RefSnapshot | RefFallback]: ...
@@ -74,16 +76,17 @@ _resolve_origin_default(repo):                      # -> (ref_label, sha) | None
 _label: origin/HEAD → `run_git_raw(repo, "symbolic_ref", "-q", full)` target minus
         "refs/remotes/" (fallback "origin/HEAD"); others → full minus "refs/remotes/"
 
-read_bytes(path):
-    if path == "": raise IsADirectoryError("Path '.' is not a file")
+read_bytes(path, display_path=None):
+    shown = display_path if display_path is not None else path   # caller's text, as today
+    if path == "": raise IsADirectoryError(f"Path '{shown}' is not a file")
     obj = commit(sha).tree[path]  (KeyError → None)
-    if obj is None or obj.type == "submodule" or obj.mode == 0o120000: raise _not_found(path)
-    if obj.type == "tree": raise IsADirectoryError(f"Path '{path}' is not a file")
+    if obj is None or obj.type == "submodule" or obj.mode == 0o120000: raise _not_found(path, shown)
+    if obj.type == "tree": raise IsADirectoryError(f"Path '{shown}' is not a file")
     return obj.data_stream.read()
 
-_not_found(path):
-    hint = first f in list_files() with f.casefold() == path.casefold()
-    msg = f"File '{path}' is not in {where} of reference '{name}'"
+_not_found(path, shown):
+    hint = first f in list_files() with f.casefold() == path.casefold()   # lookup on the tree path
+    msg = f"File '{shown}' is not in {where} of reference '{name}'"
     return FileNotFoundError(msg + (f"; did you mean '{hint}'?" if hint else "."))
 
 list_files():
@@ -96,6 +99,8 @@ list_files():
 - Not-found: `File 'src/x.py' is not in origin/main @ 03d1741 of reference 'mcp-workspace'.`
 - Case hint: `File 'claude.md' is not in origin/main @ 03d1741 of reference 'mcp-workspace'; did you mean 'CLAUDE.md'?`
 - Directory: `Path 'src' is not a file` (`IsADirectoryError`).
+- Messages name the caller's `display_path` verbatim (today's `read_file` texts name the
+  caller's `file_path`); the case hint names the tree's spelling.
 
 ## Tests (write first)
 
@@ -121,6 +126,12 @@ Use the bare-origin fixtures in `tests/conftest.py` (`_origin_remote`, `make_clo
   `FileNotFoundError`.
 - `read_bytes` keeps CRLF bytes exactly; not-found message names ref, short SHA and
   reference name; case hint; directory → `IsADirectoryError` "Path 'src' is not a file".
+- Exact error texts use `display_path`, parametrised:
+  `read_bytes("src/x.py", "src\\x.py")` → `FileNotFoundError` text exactly
+  `"File 'src\\x.py' is not in origin/main @ <short> of reference '<name>'."`;
+  `read_bytes("src", "./src/")` → `IsADirectoryError` text exactly `"Path './src/' is not a file"`;
+  `read_bytes("", "./")` → exactly `"Path './' is not a file"` (never a substituted `'.'`);
+  without `display_path`, messages use `path`.
 - `snap.repo.git.environment()` contains `GIT_TERMINAL_PROMPT == "0"`.
 - No `git cat-file` process left after the context exits (repo closed): assert
   `_close_repo_safely` is called (patch it with `wraps=`).
