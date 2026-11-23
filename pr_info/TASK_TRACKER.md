@@ -66,9 +66,9 @@ See [step_6.md](./steps/step_6.md)
 ### Step 7: `origin_fetch` — fetch with retry
 See [step_7.md](./steps/step_7.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks (pylint, pytest, mypy, lint-imports) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks (pylint, pytest, mypy, lint-imports) — fix all issues
+- [x] Commit message prepared
 
 ### Step 8: Clone state moves into `WorkspaceContext`; `ensure_available` reports a clone
 See [step_8.md](./steps/step_8.md)
