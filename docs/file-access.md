@@ -25,7 +25,7 @@ Known differences from git:
 - A nested repository or submodule checkout inside `project_dir` gets the outer rules; its own `info/exclude` is not read.
 - Ignore rules apply to committed files too.
 - Global excludes (`core.excludesFile`) are not applied.
-- A path that does not exist yet is refused by a directory-only rule: under `out/`, a new `out` is refused even though git would ignore it only as a directory.
+- A path that does not exist yet is refused by a directory-only rule: under `out/`, a new `out` is refused even though git would ignore it only as a directory. The same holds for `.mcp-file-access` rules: a missing path is matched as a directory, so `read-only /cache/` refuses `save_file("cache")` for a file that does not exist yet.
 
 The `git` tool checks its arguments separately. Paths must be relative and stay inside the repository, and `fetch` and `ls_remote` accept only configured remote names. See [SECURITY.md](../SECURITY.md#intended-restrictions).
 
@@ -55,7 +55,7 @@ Effective access:
 
 Built in, not overridable:
 
-- `.mcp-file-access` itself is read-only, also when it does not exist: the file tools can neither create nor change it.
+- `.mcp-file-access` itself is read-only, also when it does not exist: the file tools can neither create nor change it. A gitignored `.mcp-file-access` with no matching rule stays hidden: the built-in rule caps it at read-only, it does not expose it.
 - `.git` stays refused whatever the rules say.
 
 A path is checked under every spelling the gitignore check uses (as given, canonical, through links); the most restrictive result wins, so `.MCP.json` on Windows or a symlink cannot bypass a rule.

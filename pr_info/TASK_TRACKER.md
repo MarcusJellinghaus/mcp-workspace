@@ -77,9 +77,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 10: Docs — rules-file and missing-path notes — [step_10.md](./steps/step_10.md)
 
-- [ ] Implementation (docs + final acceptance check)
-- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (docs + final acceptance check)
+- [x] Quality checks (pylint, pytest, mypy) — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 
