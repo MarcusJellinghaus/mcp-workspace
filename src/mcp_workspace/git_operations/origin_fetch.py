@@ -8,11 +8,8 @@ switched off for the call so it does not rewrite the object store.
 from pathlib import Path
 from typing import NamedTuple
 
-from git import Repo
-from git.exc import InvalidGitRepositoryError, NoSuchPathError
-
 from ._subprocess_git import GitOutput, run_git_timed
-from .core import _close_repo_safely
+from .core import _close_repo_safely, has_origin, open_repo_if_any
 
 FETCH_ARGS: tuple[str, ...] = (
     "-c",
@@ -47,12 +44,11 @@ def has_origin_remote(path: Path) -> bool:
     Returns:
         True when the repository at ``path`` has a remote named ``origin``.
     """
-    try:
-        repo = Repo(path, search_parent_directories=False)
-    except (InvalidGitRepositoryError, NoSuchPathError):
+    repo = open_repo_if_any(path)
+    if repo is None:
         return False
     try:
-        return any(remote.name == "origin" for remote in repo.remotes)
+        return has_origin(repo)
     finally:
         _close_repo_safely(repo)
 

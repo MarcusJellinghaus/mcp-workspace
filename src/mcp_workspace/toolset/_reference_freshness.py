@@ -4,11 +4,15 @@ Synchronous: called from the worker thread that also reads the reference
 project, so the fetch and the read never block the event loop.
 """
 
+import logging
 import threading
 import time
 from pathlib import Path
 
 from mcp_workspace.toolset._context import FetchRecord, WorkspaceContext
+from mcp_workspace.utils.url_credentials import scrub_credentials
+
+logger = logging.getLogger(__name__)
 
 FETCH_TIMEOUT_S = 10.0
 
@@ -45,7 +49,10 @@ def fetch_if_stale(ctx: WorkspaceContext, name: str, path: Path) -> None:
     """Fetch ``origin`` of a reference project if the last fetch is too old.
 
     The per-project lock is held for the fetch and its retry; readers queued
-    behind it re-check staleness and use the fresh result.
+    behind it re-check staleness and use the fresh result. Never raises: an
+    unexpected error on the fetch path (e.g. an unreadable git config) is
+    recorded as a failed attempt, so it becomes a note instead of failing
+    the caller's read.
 
     Args:
         ctx: Context holding the interval, fetch locks and fetch records.
@@ -61,9 +68,23 @@ def fetch_if_stale(ctx: WorkspaceContext, name: str, path: Path) -> None:
         # Lazy import: keeps GitPython off the server startup import path
         from mcp_workspace.git_operations.origin_fetch import fetch_origin
 
-        outcome = fetch_origin(path, timeout=FETCH_TIMEOUT_S)
+        try:
+            outcome = fetch_origin(path, timeout=FETCH_TIMEOUT_S)
+        except Exception as exc:  # pylint: disable=broad-exception-caught  # a fetch failure never fails a read
+            reason = _error_reason(exc)
+            logger.warning("Auto-fetch of reference '%s' failed: %s", name, reason)
+            state.fetch_records[name] = FetchRecord(time.monotonic(), reason)
+            return
         if outcome.attempted:
             state.fetch_records[name] = FetchRecord(time.monotonic(), outcome.failure)
+
+
+def _error_reason(exc: Exception) -> str:
+    """Return the first non-empty line of ``exc``'s scrubbed message, else its type."""
+    for line in scrub_credentials(str(exc)).splitlines():
+        if line.strip():
+            return line.strip()
+    return type(exc).__name__
 
 
 def fetch_failure_note(

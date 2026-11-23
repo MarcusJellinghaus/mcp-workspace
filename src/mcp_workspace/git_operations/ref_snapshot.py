@@ -15,13 +15,7 @@ from pathlib import Path
 from typing import ParamSpec, TypeVar
 
 from git import Repo
-from git.exc import (
-    BadName,
-    GitCommandError,
-    InvalidGitRepositoryError,
-    NoSuchPathError,
-    ODBError,
-)
+from git.exc import BadName, GitCommandError, ODBError
 from git.objects import Blob, Submodule, Tree
 
 from mcp_workspace.utils.url_credentials import scrub_credentials
@@ -30,6 +24,8 @@ from .core import (
     GIT_NONINTERACTIVE_ENV,
     GIT_SHORT_HASH_LENGTH,
     _close_repo_safely,
+    has_origin,
+    open_repo_if_any,
     run_git_raw,
 )
 from .porcelain_parsers import parse_ls_tree_z
@@ -99,11 +95,6 @@ def _blob_bytes(blob: Blob) -> bytes:
     """Return a blob's content from the object database, unaltered."""
     data: bytes = blob.data_stream.read()
     return data
-
-
-def _has_origin(repo: Repo) -> bool:
-    """Return True if the repository has a remote named ``origin``."""
-    return any(remote.name == "origin" for remote in repo.remotes)
 
 
 def _label(repo: Repo, full: str) -> str:
@@ -220,18 +211,6 @@ class RefSnapshot:
         return FileNotFoundError(message + suffix)
 
 
-def _open_repo(path: Path) -> Repo | None:
-    """Open ``path`` as a repository without searching parent directories.
-
-    Returns:
-        The repository, or None for a plain, broken or missing folder.
-    """
-    try:
-        return Repo(path, search_parent_directories=False)
-    except (InvalidGitRepositoryError, NoSuchPathError):
-        return None
-
-
 @contextmanager
 def open_ref_snapshot(path: Path, name: str) -> Iterator[RefSnapshot | RefFallback]:
     """Open a reference project for reading at ``origin/<default>``.
@@ -251,7 +230,7 @@ def open_ref_snapshot(path: Path, name: str) -> Iterator[RefSnapshot | RefFallba
     Raises:
         ValueError: If git fails while resolving the default ref.
     """  # noqa: DOC502 - raised by _guarded
-    repo = _open_repo(path)
+    repo = open_repo_if_any(path)
     if repo is None:
         yield RefFallback.NOT_A_REPO
         return
@@ -259,7 +238,7 @@ def open_ref_snapshot(path: Path, name: str) -> Iterator[RefSnapshot | RefFallba
         repo.git.update_environment(**GIT_NONINTERACTIVE_ENV)
         resolved = (
             _guarded(name, _resolve_origin_default, repo)
-            if _guarded(name, _has_origin, repo)
+            if _guarded(name, has_origin, repo)
             else None
         )
         if resolved is None:

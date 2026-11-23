@@ -354,6 +354,29 @@ def _chunk_paths(paths: list[str], max_chars: int = 24000) -> list[list[str]]:
     return chunks
 
 
+def open_repo_if_any(path: Path) -> Repo | None:
+    """Open ``path`` itself as a repository, without searching parent directories.
+
+    A plain folder inside a checkout is therefore not a repository here.
+
+    Args:
+        path: Folder to open
+
+    Returns:
+        The repository (the caller closes it), or None for a plain, broken
+        or missing folder.
+    """
+    try:
+        return Repo(path, search_parent_directories=False)
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        return None
+
+
+def has_origin(repo: Repo) -> bool:
+    """Return True if the repository has a remote named ``origin``."""
+    return any(remote.name == "origin" for remote in repo.remotes)
+
+
 @contextmanager
 def open_repo_for_query(project_dir: Path) -> Iterator[Repo]:
     """Open a repository for a plain-value query.

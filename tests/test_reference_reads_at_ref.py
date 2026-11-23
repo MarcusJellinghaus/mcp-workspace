@@ -318,6 +318,47 @@ class TestReadsAtRef:
         with pytest.raises(FileNotFoundError):
             await read_ref(tools, "local_only.txt")
 
+    async def test_empty_path_is_an_argument_error(
+        self, ref_work: Path, make_tools: MakeTools
+    ) -> None:
+        tools = ref_tools(make_tools, ref_work)
+        with pytest.raises(ValueError, match="File path must be a non-empty string"):
+            await read_ref(tools, "")
+
+    @pytest.mark.parametrize(
+        ("kwargs", "message"),
+        [
+            ({"start_line": 2}, "must both be provided or both omitted"),
+            ({"start_line": 3, "end_line": 1}, r"end_line \(1\) must be >= start_line"),
+        ],
+    )
+    async def test_bad_range_on_missing_file_is_an_argument_error(
+        self,
+        ref_work: Path,
+        make_tools: MakeTools,
+        kwargs: dict[str, int],
+        message: str,
+    ) -> None:
+        tools = ref_tools(make_tools, ref_work)
+        # ValueError, not the FileNotFoundError a missing file would give
+        with pytest.raises(ValueError, match=message):
+            await read_ref(tools, "nope.txt", **kwargs)
+
+    async def test_fetch_path_error_becomes_a_note(
+        self, origin_clone: Path, make_tools: MakeTools
+    ) -> None:
+        tools = ref_tools(make_tools, origin_clone, interval=15)
+        with patch(
+            "mcp_workspace.git_operations.origin_fetch.has_origin_remote",
+            side_effect=OSError("config unreadable\nsecond line"),
+        ):
+            content = await read_ref(tools, "README.md")
+        note = (
+            f"[reference ref: fetch failed (config unreadable) — read "
+            f"{short_main(origin_clone)}]"
+        )
+        assert content == f"# Test Project\n{note}"
+
     async def test_list_matches_ls_tree(
         self, ref_work: Path, make_tools: MakeTools
     ) -> None:

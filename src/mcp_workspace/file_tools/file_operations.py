@@ -72,7 +72,7 @@ def read_file(
             *start_line* / *end_line* are invalid, or if *max_lines* is
             negative or not an integer
     """
-    _validate_read_args(file_path, start_line, end_line, max_lines)
+    validate_read_args(file_path, start_line, end_line, max_lines)
 
     # Validate project_dir parameter
     if project_dir is None:
@@ -137,7 +137,7 @@ def read_content(
     Raises:
         ValueError: If the arguments are invalid or *data* is not UTF-8.
     """
-    _validate_read_args(file_path, start_line, end_line, max_lines)
+    validate_read_args(file_path, start_line, end_line, max_lines)
     with io.TextIOWrapper(io.BytesIO(data), encoding="utf-8") as stream:
         try:
             return _render_lines(
@@ -168,13 +168,22 @@ def decode_lines(data: bytes) -> list[str]:
         return stream.readlines()
 
 
-def _validate_read_args(
+def validate_read_args(
     file_path: str,
     start_line: int | None,
     end_line: int | None,
     max_lines: int | None,
 ) -> None:
     """Validate the path, line-range and limit arguments of a read.
+
+    Callers that fetch content before :func:`read_content` call this first,
+    so a bad argument is reported before any not-found error.
+
+    Args:
+        file_path: Path as the caller wrote it; must be a non-empty string.
+        start_line: First line to return (1-based), or None.
+        end_line: Last line to return (1-based), or None.
+        max_lines: Full-read limit; None or a non-negative integer.
 
     Raises:
         ValueError: If any argument is invalid.

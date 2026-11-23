@@ -18,7 +18,11 @@ from mcp_workspace.file_tools.file_access import (
     list_accessible_files,
     require_access,
 )
-from mcp_workspace.file_tools.file_operations import decode_lines, read_content
+from mcp_workspace.file_tools.file_operations import (
+    decode_lines,
+    read_content,
+    validate_read_args,
+)
 from mcp_workspace.file_tools.path_utils import ref_relative_path
 from mcp_workspace.file_tools.search import search_paths
 from mcp_workspace.reference_projects import ensure_available
@@ -322,6 +326,8 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
         """
 
         def at_ref(snap: "RefSnapshot") -> str:
+            # Argument errors win over path and not-found errors, as for read_file
+            validate_read_args(file_path, start_line, end_line, ctx.read_max_lines)
             rel = ref_relative_path(
                 file_path, ctx.reference_projects[reference_name].path
             )
