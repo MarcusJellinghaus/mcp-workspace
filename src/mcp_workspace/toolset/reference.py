@@ -18,8 +18,9 @@ from mcp_workspace.file_tools.file_access import (
     list_accessible_files,
     require_access,
 )
-from mcp_workspace.file_tools.file_operations import read_content
+from mcp_workspace.file_tools.file_operations import decode_lines, read_content
 from mcp_workspace.file_tools.path_utils import ref_relative_path
+from mcp_workspace.file_tools.search import search_paths
 from mcp_workspace.reference_projects import ensure_available
 from mcp_workspace.toolset._context import WorkspaceContext
 from mcp_workspace.toolset._reference_freshness import (
@@ -442,16 +443,32 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
                 comment, blank, negation-only, or unparseable pattern such as an
                 unterminated "[").
         """
-        ref_path = await reference_project_path(ctx, reference_name)
 
-        return search_files_util(
-            project_dir=ref_path,
-            glob=glob,
-            pattern=pattern,
-            context_lines=context_lines,
-            max_results=max_results,
-            max_result_lines=max_result_lines,
-        )
+        def at_ref(snap: "RefSnapshot") -> dict[str, Any]:
+            return search_paths(
+                snap.list_files(),
+                lambda path: decode_lines(snap.read_bytes(path)),
+                glob,
+                pattern,
+                context_lines,
+                max_results,
+                max_result_lines,
+            )
+
+        def local(ref_path: Path) -> dict[str, Any]:
+            return search_files_util(
+                project_dir=ref_path,
+                glob=glob,
+                pattern=pattern,
+                context_lines=context_lines,
+                max_results=max_results,
+                max_result_lines=max_result_lines,
+            )
+
+        result, notes = await _reference_call(ctx, reference_name, at_ref, local)
+        if notes:
+            result["freshness"] = "\n".join(notes)
+        return result
 
     for fn in (
         get_reference_projects,

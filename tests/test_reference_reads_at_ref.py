@@ -1,8 +1,12 @@
-"""read_reference_file and list_reference_directory read at origin/<default>."""
+"""The reference file tools read, list and search at origin/<default>."""
 
+import os
+import stat
+import sys
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,6 +14,7 @@ from git import Repo
 
 from mcp_workspace.file_tools import read_file as read_file_util
 from mcp_workspace.git_operations.origin_fetch import FetchOutcome
+from mcp_workspace.git_operations.ref_snapshot import RefSnapshot
 from mcp_workspace.reference_projects import ReferenceProject
 from tests.conftest import ToolMap
 
@@ -99,6 +104,23 @@ async def _read(tools: ToolMap, path: str, **kwargs: object) -> str:
 async def _list(tools: ToolMap) -> list[str]:
     result: list[str] = await tools["list_reference_directory"]("ref")
     return result
+
+
+async def _search(tools: ToolMap, **kwargs: object) -> dict[str, Any]:
+    result: dict[str, Any] = await tools["search_reference_files"]("ref", **kwargs)
+    return result
+
+
+def _hit_files(result: dict[str, Any]) -> list[str]:
+    """Files of a content search's matches, in result order, without repeats."""
+    return list(dict.fromkeys(match["file"] for match in result["details"]))
+
+
+def _ls_tree(path: Path) -> list[str]:
+    """Paths at origin/main of ``path`` in ``git ls-tree -r`` order."""
+    return _git(
+        path, "ls-tree", "-r", "--name-only", "refs/remotes/origin/main"
+    ).splitlines()
 
 
 # Local folders that are not read at a ref -----------------------------------
@@ -445,6 +467,274 @@ class TestReadsAtRef:
         assert await _list(tools) == [n for n in names if n not in {"link", "sub"}]
 
 
+_SYMBOLS = "UPSTREAM_SYMBOL|LOCAL_SYMBOL"
+
+
+class TestSearchUpstreamContentWins:
+    """Search returns origin/main, whatever the checkout's state."""
+
+    async def test_feature_branch(
+        self, make_clone: MakeClone, make_tools: MakeTools
+    ) -> None:
+        _upstream(make_clone, {"up.py": b"UPSTREAM_SYMBOL\n"})
+        work = make_clone("work")
+        _git(work, "checkout", "-q", "-b", "feature")
+        _commit(work, {"up.py": b"LOCAL_SYMBOL\n", "feat.py": b"LOCAL_SYMBOL\n"})
+        tools = _tools(make_tools, work)
+
+        result = await _search(tools, pattern=_SYMBOLS)
+        assert result["details"] == [
+            {"file": "up.py", "line": 1, "text": "UPSTREAM_SYMBOL"}
+        ]
+        assert "freshness" not in result
+
+    async def test_dirty_working_tree(
+        self, make_clone: MakeClone, make_tools: MakeTools
+    ) -> None:
+        _upstream(make_clone, {"up.py": b"UPSTREAM_SYMBOL\n"})
+        work = make_clone("work")
+        (work / "up.py").write_bytes(b"LOCAL_SYMBOL\n")
+        (work / "untracked.py").write_bytes(b"LOCAL_SYMBOL\n")
+        tools = _tools(make_tools, work)
+
+        result = await _search(tools, pattern=_SYMBOLS)
+        assert _hit_files(result) == ["up.py"]
+        assert result["details"][0]["text"] == "UPSTREAM_SYMBOL"
+        assert "freshness" not in result
+
+    async def test_behind_origin(
+        self, make_clone: MakeClone, make_tools: MakeTools
+    ) -> None:
+        work = make_clone("work")
+        _upstream(make_clone, {"up.py": b"UPSTREAM_SYMBOL\n"})
+        _git(work, "fetch", "-q", "origin")
+        tools = _tools(make_tools, work)
+
+        result = await _search(tools, pattern=_SYMBOLS)
+        assert _hit_files(result) == ["up.py"]
+        assert (await _search(tools, glob="*.py"))["files"] == ["up.py"]
+        assert not (work / "up.py").exists()
+        assert "freshness" not in result
+
+
+@pytest.fixture
+def hits_work(make_clone: MakeClone) -> Path:
+    """Work clone whose origin/main holds several files containing ``hit``."""
+    _upstream(
+        make_clone,
+        {
+            "c.txt": b"hit c\n",
+            "a/x.txt": b"hit x\n",
+            "b.txt": b"hit b\n",
+            "ctx.txt": b"one\ntwo\nthree\nfour\n",
+            "src/Mod.py": b"print('mod')\n",
+        },
+    )
+    return make_clone("work")
+
+
+class TestSearchSemanticsAtRef:
+    """Search at the ref behaves as the working-tree search does."""
+
+    async def test_glob_case(self, hits_work: Path, make_tools: MakeTools) -> None:
+        tools = _tools(make_tools, hits_work)
+
+        assert (await _search(tools, glob="*.py"))["files"] == ["src/Mod.py"]
+        expected = ["src/Mod.py"] if sys.platform == "win32" else []
+        assert (await _search(tools, glob="SRC/mod.PY"))["files"] == expected
+
+    async def test_glob_note(self, hits_work: Path, make_tools: MakeTools) -> None:
+        tools = _tools(make_tools, hits_work)
+
+        result = await _search(tools, glob="{a,b}.txt")
+        assert result["files"] == []
+        assert "Brace expansion is not supported" in result["glob_note"]
+
+    async def test_glob_matching_nothing_by_construction(
+        self, hits_work: Path, make_tools: MakeTools
+    ) -> None:
+        tools = _tools(make_tools, hits_work)
+
+        with pytest.raises(ValueError, match="matches nothing by construction"):
+            await _search(tools, glob="!x")
+
+    async def test_regex_and_context_lines(
+        self, hits_work: Path, make_tools: MakeTools
+    ) -> None:
+        tools = _tools(make_tools, hits_work)
+
+        result = await _search(tools, pattern="^t.o$", context_lines=1)
+        assert result["details"] == [
+            {"file": "ctx.txt", "line": 2, "text": "one\ntwo\nthree"}
+        ]
+
+    async def test_combined_glob_and_pattern(
+        self, hits_work: Path, make_tools: MakeTools
+    ) -> None:
+        tools = _tools(make_tools, hits_work)
+
+        result = await _search(tools, glob="a/*", pattern="hit")
+        assert _hit_files(result) == ["a/x.txt"]
+
+    async def test_content_truncation_in_ls_tree_order(
+        self, hits_work: Path, make_tools: MakeTools
+    ) -> None:
+        tools = _tools(make_tools, hits_work)
+        order = [f for f in _ls_tree(hits_work) if f in {"a/x.txt", "b.txt", "c.txt"}]
+
+        result = await _search(tools, pattern="hit", max_results=2)
+        assert _hit_files(result) == order[:2]
+        assert result["truncated"] is True
+        assert result["total_matches"] == 3
+        assert [m["file"] for m in result["matched_files"]] == order
+
+    async def test_file_search_truncation_in_ls_tree_order(
+        self, hits_work: Path, make_tools: MakeTools
+    ) -> None:
+        tools = _tools(make_tools, hits_work)
+        order = [f for f in _ls_tree(hits_work) if f.endswith(".txt")]
+
+        result = await _search(tools, glob="*.txt", max_results=2)
+        assert result["files"] == order[:2]
+        assert result["total_files"] == len(order)
+        assert result["truncated"] is True
+
+
+class TestSearchSkippedFilesAtRef:
+    """Unreadable blobs are reported; binary blobs are skipped silently."""
+
+    async def test_unreadable_blob_in_skipped_files(
+        self, hits_work: Path, make_tools: MakeTools
+    ) -> None:
+        tools = _tools(make_tools, hits_work)
+        original = RefSnapshot.read_bytes
+
+        def failing(
+            self: RefSnapshot, path: str, display_path: str | None = None
+        ) -> bytes:
+            if path == "b.txt":
+                raise ValueError("cannot read")
+            return original(self, path, display_path)
+
+        with patch.object(RefSnapshot, "read_bytes", failing):
+            result = await _search(tools, pattern="hit")
+        assert result["skipped_files"] == ["b.txt"]
+        assert sorted(_hit_files(result)) == ["a/x.txt", "c.txt"]
+
+    async def test_binary_blob_skipped_silently(
+        self, make_clone: MakeClone, make_tools: MakeTools
+    ) -> None:
+        _upstream(make_clone, {"bin.dat": b"\xff\xfehit\n", "text.txt": b"hit\n"})
+        tools = _tools(make_tools, make_clone("work"))
+
+        result = await _search(tools, pattern="hit")
+        assert _hit_files(result) == ["text.txt"]
+        assert "skipped_files" not in result
+
+    async def test_missing_blob_object_in_skipped_files(
+        self, make_clone: MakeClone, make_tools: MakeTools
+    ) -> None:
+        work = make_clone("work")
+        _upstream(make_clone, {"gone.txt": b"gone\n", "kept.txt": b"kept\n"})
+        _git(work, "config", "fetch.unpackLimit", "100000")
+        _git(work, "config", "transfer.unpackLimit", "100000")
+        _git(work, "fetch", "-q", "origin")
+        blob = _git(work, "rev-parse", "refs/remotes/origin/main:gone.txt")
+        loose = work / ".git" / "objects" / blob[:2] / blob[2:]
+        if not loose.exists():
+            pytest.skip("blob object stayed packed")
+        os.chmod(loose, stat.S_IREAD | stat.S_IWRITE)
+        loose.unlink()
+        tools = _tools(make_tools, work)
+
+        result = await _search(tools, pattern=".")
+        assert result["skipped_files"] == ["gone.txt"]
+        assert sorted(_hit_files(result)) == ["README.md", "kept.txt"]
+
+
+class TestSearchAtRefTree:
+    """Line numbers, link entries and tracked-only content at the ref."""
+
+    @pytest.mark.parametrize(
+        "data",
+        [b"a\r\nb\r\nc\r\nd\r\n", b"a\rb\rc\rd\r", b"a\r\nb\rc\nd"],
+        ids=["crlf", "lone-cr", "mixed"],
+    )
+    async def test_line_numbers_match_read(
+        self, make_clone: MakeClone, make_tools: MakeTools, data: bytes
+    ) -> None:
+        _upstream(make_clone, {"eol.txt": data})
+        tools = _tools(make_tools, make_clone("work"))
+
+        for letter in "abcd":
+            result = await _search(tools, glob="eol.txt", pattern=f"^{letter}$")
+            [match] = result["details"]
+            line = match["line"]
+            read = await _read(
+                tools,
+                "eol.txt",
+                start_line=line,
+                end_line=line,
+                with_line_numbers=False,
+            )
+            assert read.rstrip("\n") == letter, (letter, line)
+
+    async def test_symlink_and_gitlink_absent(
+        self, ref_work: Path, make_tools: MakeTools
+    ) -> None:
+        tools = _tools(make_tools, ref_work)
+
+        files = (await _search(tools, glob="**/*"))["files"]
+        assert "link" not in files
+        assert "sub" not in files
+        assert _hit_files(await _search(tools, pattern="^z$")) == ["z.txt"]
+
+    async def test_tracked_ignored_file_found(
+        self, ref_work: Path, make_tools: MakeTools
+    ) -> None:
+        tools = _tools(make_tools, ref_work)
+
+        result = await _search(tools, pattern="tracked but ignored")
+        assert _hit_files(result) == ["secret.txt"]
+
+    async def test_untracked_local_file_absent(
+        self, ref_work: Path, make_tools: MakeTools
+    ) -> None:
+        (ref_work / "local_only.txt").write_text("LOCAL_ONLY\n", encoding="utf-8")
+        tools = _tools(make_tools, ref_work)
+
+        assert (await _search(tools, pattern="LOCAL_ONLY"))["details"] == []
+        assert (await _search(tools, glob="local_only.txt"))["files"] == []
+
+
+class TestSearchLocalFallback:
+    """Folders that cannot be searched at a ref are searched locally."""
+
+    async def test_repo_without_origin_adds_fallback_note(
+        self, tmp_path: Path, make_tools: MakeTools
+    ) -> None:
+        path = _init_repo(tmp_path / "repo")
+        (path / "untracked.txt").write_text("u\n", encoding="utf-8")
+        tools = _tools(make_tools, path)
+
+        result = await _search(tools, glob="*.txt")
+        assert sorted(result["files"]) == ["local.txt", "untracked.txt"]
+        assert result["freshness"] == _FALLBACK
+
+    async def test_plain_folder_has_no_freshness(
+        self, tmp_path: Path, make_tools: MakeTools
+    ) -> None:
+        tools = _tools(make_tools, _plain_folder(tmp_path))
+
+        result = await _search(tools, glob="*.txt")
+        assert result == {
+            "mode": "file_search",
+            "files": ["file.txt"],
+            "total_files": 1,
+            "truncated": False,
+        }
+
+
 @patch(_FETCH_TARGET, new=MagicMock(return_value=FetchOutcome(True, "boom")))
 class TestFetchFailureNotes:
     """A failed fetch reads the last-fetched state and says so."""
@@ -511,6 +801,31 @@ class TestFetchFailureNotes:
         with pytest.raises(FileNotFoundError) as info:
             await _read(tools, "nope.txt")
         assert str(info.value) == f"File 'nope.txt' does not exist\n{notes}"
+
+    async def test_search_carries_fetch_failure_note(
+        self, origin_clone: Path, make_tools: MakeTools
+    ) -> None:
+        tools = _tools(make_tools, origin_clone, interval=15)
+        note = (
+            f"[reference ref: fetch failed (boom) — read {_short_main(origin_clone)}]"
+        )
+
+        result = await _search(tools, glob="*.md")
+        assert result["files"] == ["README.md"]
+        assert result["freshness"] == note
+
+    async def test_search_no_default_ref_gets_both_notes(
+        self, tmp_path: Path, make_tools: MakeTools
+    ) -> None:
+        path = _init_repo(tmp_path / "repo")
+        _git(path, "remote", "add", "origin", "https://example.invalid/x.git")
+        tools = _tools(make_tools, path, interval=15)
+
+        result = await _search(tools, pattern="local")
+        assert _hit_files(result) == ["local.txt"]
+        assert result["freshness"] == (
+            f"[reference ref: fetch failed (boom)]\n{_FALLBACK}"
+        )
 
 
 async def test_get_reference_projects_unchanged(
