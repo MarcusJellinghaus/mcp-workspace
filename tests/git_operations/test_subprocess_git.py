@@ -10,6 +10,7 @@ from git import Repo
 
 from mcp_workspace.git_operations._subprocess_git import (
     GIT_NETWORK_TIMEOUT,
+    _subcommand_name,
     run_git_timed,
 )
 
@@ -145,6 +146,51 @@ class TestRunGitTimed:
         _run_patched(tmp_path, run_mock, "push")
 
         assert run_mock.call_args.kwargs["env"]["GCM_INTERACTIVE"] == "never"
+
+
+class TestSubcommandName:
+    """The subcommand is named after any leading ``-c key=value`` pairs."""
+
+    def test_skips_leading_config_pairs(self) -> None:
+        """Leading ``-c`` pairs are skipped."""
+        args = ("-c", "a=b", "-c", "c=d", "fetch", "origin")
+        assert _subcommand_name(args) == "fetch"
+
+    def test_plain_subcommand(self) -> None:
+        """Without ``-c`` pairs the first argument is the subcommand."""
+        assert _subcommand_name(("push",)) == "push"
+
+    def test_empty_args(self) -> None:
+        """No arguments give an empty name."""
+        assert _subcommand_name(()) == ""
+
+
+class TestRunGitTimedConfigPairs:
+    """Error texts name the subcommand after leading ``-c`` pairs."""
+
+    def test_timeout_names_subcommand(self, tmp_path: Path) -> None:
+        """A timeout names ``fetch``, not ``-c``."""
+        run_mock = MagicMock(
+            side_effect=subprocess.TimeoutExpired(cmd="git", timeout=10)
+        )
+
+        result = _run_patched(
+            tmp_path, run_mock, "-c", "gc.auto=0", "fetch", "origin", timeout=10
+        )
+
+        assert result["error"] == "git fetch timed out after 10 s"
+        assert result["returncode"] is None
+
+    def test_nonzero_exit_names_subcommand(self, tmp_path: Path) -> None:
+        """A non-zero exit names ``fetch``, not ``-c``."""
+        run_mock = MagicMock(return_value=_completed(1))
+
+        result = _run_patched(
+            tmp_path, run_mock, "-c", "gc.auto=0", "fetch", "origin", timeout=10
+        )
+
+        assert result["error"] == "git fetch failed (exit 1)"
+        assert result["returncode"] == 1
 
 
 @pytest.mark.git_integration
