@@ -177,6 +177,10 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             configured limit (default 2000 lines) is cut, followed by a note
             giving the next start_line/end_line; an explicit range is returned
             in full.
+
+        Raises:
+            ValueError: If file_path is gitignored and not exposed by that
+                project's .mcp-file-access.
         """
         ref_path = await reference_project_path(ctx, reference_name)
 

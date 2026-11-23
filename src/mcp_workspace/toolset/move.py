@@ -44,9 +44,11 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             True if successful
 
         Raises:
-            ValueError: If inputs are invalid; if the source or destination
-                path of any moved file is read-only by .mcp-file-access; or if
-                the move would make a file hidden by .gitignore accessible
+            ValueError: If inputs are invalid; if the source or destination is
+                gitignored and not exposed read-write by .mcp-file-access, or
+                the source or destination path of any moved file is read-only
+                by it ("No write access to '<path>' (…)"); or if the move
+                would make a file hidden by .gitignore accessible
             FileNotFoundError: If source doesn't exist
             FileExistsError: If destination already exists
             PermissionError: If permission is denied

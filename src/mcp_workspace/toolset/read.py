@@ -210,7 +210,8 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             in full.
 
         Raises:
-            ValueError: If file_path is not a non-empty string.
+            ValueError: If file_path is not a non-empty string, or is
+                gitignored and not exposed by the project's .mcp-file-access.
         """
         if not file_path or not isinstance(file_path, str):
             logger.error("Invalid file path parameter: %s", file_path)

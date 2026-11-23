@@ -42,7 +42,9 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             True if the file was deleted successfully
 
         Raises:
-            ValueError: If file_path is not a non-empty string.
+            ValueError: If file_path is not a non-empty string, or file_path
+                is gitignored and not exposed read-write by .mcp-file-access,
+                or read-only by it ("No write access to '<path>' (…)").
         """
         # delete_file does not work with Claude Desktop (!!!)  ;-)
         # Validate the file_path parameter
@@ -91,11 +93,12 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
 
         Raises:
             ValueError: If dir_path is not a non-empty string, the path is
-                excluded by .gitignore, the path or any file in the tree
-                (also inside ignored subdirectories) is read-only by
-                .mcp-file-access, or the underlying deletion is rejected
-                (outside project, project root, path-is-a-file, or non-empty
-                without recursive).
+                gitignored and not exposed read-write by .mcp-file-access,
+                the path or any file in the tree (also inside ignored
+                subdirectories) is read-only by .mcp-file-access
+                ("No write access to '<path>' (…)"), or the underlying
+                deletion is rejected (outside project, project root,
+                path-is-a-file, or non-empty without recursive).
         """
         if not dir_path or not isinstance(dir_path, str):
             logger.error("Invalid directory path parameter: %s", dir_path)
