@@ -73,9 +73,9 @@ See [step_7.md](./steps/step_7.md)
 ### Step 8: Clone state moves into `WorkspaceContext`; `ensure_available` reports a clone
 See [step_8.md](./steps/step_8.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks (pylint, pytest, mypy, vulture) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks (pylint, pytest, mypy, vulture) — fix all issues
+- [x] Commit message prepared
 
 ### Step 9: `reference_fetch_interval_minutes` setting (tool_specs, server, CLI)
 See [step_9.md](./steps/step_9.md)

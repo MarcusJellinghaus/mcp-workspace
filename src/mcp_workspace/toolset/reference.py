@@ -42,7 +42,11 @@ async def reference_project_path(ctx: WorkspaceContext, name: str) -> Path:
     if name not in ctx.reference_projects:
         raise ValueError(f"Reference project '{name}' not found")
     project = ctx.reference_projects[name]
-    await ensure_available(project)
+    await ensure_available(
+        project,
+        locks=ctx.reference_state.clone_locks,
+        failures=ctx.reference_state.clone_failures,
+    )
     return project.path
 
 

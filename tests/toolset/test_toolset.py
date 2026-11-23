@@ -209,6 +209,28 @@ def test_two_factories_have_separate_file_locks(tmp_path: Path) -> None:
         assert list(ctx.file_locks) == [str((root / "f.txt").resolve())]
 
 
+def test_two_factories_do_not_share_clone_failures(tmp_path: Path) -> None:
+    project = ReferenceProject(
+        name="ref", path=tmp_path / "missing", url="https://github.com/org/repo"
+    )
+    a = _specs(tmp_path, reference_projects={"ref": project})
+    b = _specs(tmp_path, reference_projects={"ref": project})
+    kwargs = {"reference_name": "ref", "file_path": "f.txt"}
+
+    with patch(
+        "mcp_workspace.git_operations.remotes.clone_repo",
+        side_effect=ValueError("auth required"),
+    ) as mock_clone:
+        with pytest.raises(ValueError, match="Failed to clone"):
+            _call(a["read_reference_file"], **kwargs)
+        with pytest.raises(ValueError, match="Clone previously failed"):
+            _call(a["read_reference_file"], **kwargs)
+        with pytest.raises(ValueError, match="Failed to clone"):
+            _call(b["read_reference_file"], **kwargs)
+
+    assert mock_clone.call_count == 2
+
+
 def test_read_file_default_truncates_at_default_read_max_lines(
     tmp_path: Path,
 ) -> None:

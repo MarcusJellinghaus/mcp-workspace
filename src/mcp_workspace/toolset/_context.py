@@ -8,6 +8,20 @@ from mcp_workspace.file_tools.file_access import FileAccess, require_access
 from mcp_workspace.reference_projects import ReferenceProject
 
 
+@dataclass
+class ReferenceState:
+    """Mutable per-context reference state (the context itself is frozen).
+
+    Attributes:
+        clone_locks: Per-project locks that keep a lazy clone single.
+        clone_failures: Cached clone errors by project name; a failed
+            clone is not retried for the life of the context.
+    """
+
+    clone_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
+    clone_failures: dict[str, str] = field(default_factory=dict)
+
+
 @dataclass(frozen=True)
 class WorkspaceContext:
     """Per-factory state shared by the tool closures of one tool_specs() call.
@@ -25,6 +39,8 @@ class WorkspaceContext:
         file_locks: Per-file locks for concurrent edit safety.
         git_write_lock: Serialises the git write tools, so writes issued in
             the same turn run in order.
+        reference_state: Clone locks and the clone-failure cache, so two
+            tool_specs() calls never share them.
     """
 
     project_dir: Path
@@ -35,6 +51,7 @@ class WorkspaceContext:
     enforce_base_branch_format: bool
     file_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
     git_write_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    reference_state: ReferenceState = field(default_factory=ReferenceState)
 
 
 def check_readable(ctx: WorkspaceContext, file_path: str) -> None:
