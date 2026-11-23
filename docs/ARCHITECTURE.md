@@ -136,7 +136,9 @@ tools, and `C:/Users/...` reads worse than it helps.
 The rule is enforced at two sources, not per call site:
 
 - `directory_utils._discover_files` — every listing and search tool
-  (`list_directory`, `search_files`, and their reference-project variants).
+  (`list_directory`, `search_files`, and their reference-project variants
+  when they read a local folder; at `origin/<default>` paths come from the
+  git tree, which is forward-slash already).
   It takes an optional `skip` callback, called for every entry; `list_files`
   uses it to drop gitignored entries and prune gitignored directories during
   the walk. `list_accessible_files` wraps the same gitignore predicate so an
@@ -187,8 +189,10 @@ toolset/_context.check_readable / check_writable    enforcement
   `delete_directory` tree) and `list_accessible_files` (the listing / search
   walk).
 - `toolset/_context.check_readable` / `check_writable` wrap `require_access`
-  for the workspace tools; `toolset/reference.py` calls `require_access`
-  directly for `read_reference_file`.
+  for the workspace tools. The reference tools use the access layer only in
+  their local-folder fallback, where `toolset/reference.py` calls
+  `require_access` directly for `read_reference_file` (see
+  [Reference Reads](#8-reference-reads)).
 - `is_path_gitignored` and `list_files` stay gitignore-only in
   `directory_utils`, for `check_file_size` and library callers.
 - `file_access` imports from `directory_utils`, never the reverse at import
@@ -197,6 +201,47 @@ toolset/_context.check_readable / check_writable    enforcement
   through a lazy module `__getattr__`.
 - Keep the module path `mcp_workspace.file_tools.directory_utils`: mcp_coder
   imports from it and silences its logger by name.
+
+### 8. Reference Reads
+
+`read_reference_file`, `list_reference_directory` and `search_reference_files`
+read a reference project's `origin/<default>` from git objects, not its working
+tree. Every call goes through `toolset/reference._reference_call`:
+
+```
+toolset/reference._reference_call
+  await reference_project_path        lazy clone (ensure_available); a fresh clone counts as fetched
+  asyncio.to_thread(one worker thread):
+    toolset/_reference_freshness.fetch_if_stale    throttled `git fetch origin`
+            │                                       (git_operations/origin_fetch.fetch_origin)
+            ▼
+    git_operations/ref_snapshot.open_ref_snapshot
+            │
+            ├─ RefSnapshot   → file_tools: read_content / decode_lines + search_paths,
+            │                  paths via path_utils.ref_relative_path
+            └─ RefFallback   → local folder: read_file / list_accessible_files /
+                               search_files under the access layer (gitignore + .mcp-file-access)
+    notes (fetch failure, no usable default branch) attached by _reference_freshness
+```
+
+- `git_operations/ref_snapshot.py` owns all GitPython access for reads at the
+  ref: default-ref resolution (`origin/HEAD` → `origin/main` →
+  `origin/master`), one SHA per call, `list_files()` and `read_bytes()`. It
+  raises only `FileNotFoundError`, `IsADirectoryError` or `ValueError`. Each
+  call opens and closes its own `Repo`; nothing is cached.
+- `git_operations/origin_fetch.py` runs the fetch through `run_git_timed`,
+  retrying once unless it timed out. It opens the folder itself (no parent
+  search) and skips a repository without `origin`.
+- `toolset/_reference_freshness.py` holds the throttle and the notes. The
+  interval, clone locks, clone-failure cache, fetch locks and fetch records live
+  in `WorkspaceContext` (`reference_fetch_interval_minutes`,
+  `reference_state`), so they belong to one `tool_specs(...)` call.
+- `file_tools` never imports GitPython: it works on injected bytes
+  (`read_content`, `decode_lines`) and an injected file list and reader
+  (`search_paths`). `toolset` imports `git_operations` lazily inside functions,
+  keeping server startup free of GitPython.
+- `git(..., reference_name=...)` (`toolset/git.py`) uses the same
+  `fetch_if_stale` before running its command.
 
 ## Architecture Enforcement Tools
 

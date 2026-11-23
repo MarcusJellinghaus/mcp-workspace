@@ -115,9 +115,9 @@ See [step_13.md](./steps/step_13.md)
 ### Step 14: Documentation
 See [step_14.md](./steps/step_14.md)
 
-- [ ] Implementation (docs; leftover-statement search per step)
-- [ ] Quality checks (pytest) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (docs; leftover-statement search per step)
+- [x] Quality checks (pytest) — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

@@ -4,7 +4,7 @@ How the file tools confine paths, and how a `.mcp-file-access` rules file overri
 
 ## Path Confinement
 
-Every path is validated against the project directory before any file operation. Validation resolves symlinks and rejects the path if the resolved location lies outside the project directory. A `..` segment is rejected outright rather than followed. Reference projects are validated the same way against their own directory.
+Every path is validated against the project directory before any file operation. Validation resolves symlinks and rejects the path if the resolved location lies outside the project directory. A `..` segment is rejected outright rather than followed.
 
 Two kinds of path are rejected that earlier versions accepted:
 
@@ -13,10 +13,12 @@ Two kinds of path are rejected that earlier versions accepted:
 
 One limitation: if the operating system cannot resolve a path at all, validation falls back to the lexical checks alone — the path must contain no `..` and must lie under the project directory by name — so a symlink pointing outside the project is not detected in that case.
 
+Reference projects are read at their `origin/<default>` branch (see [Reading at origin/\<default\>](../README.md#reading-at-origindefault)). There a path is checked lexically by `path_utils.ref_relative_path`, without touching the local checkout: a `..` segment, a NUL byte, a `.git` entry under any spelling, or an absolute path outside the reference directory is rejected, and only tracked files at the ref exist. When the reference project is read as a local folder instead (not a git repository, or no usable origin default branch), it is validated as described in this section, against its own directory.
+
 File tools also refuse `.git` entries and gitignored paths:
 
 - **`.git`**: A path naming a `.git` file or directory at any depth, in any letter case or Windows alias, or resolving to one through a link, is rejected. So is deleting or moving a whole directory that contains one.
-- **Gitignored paths**: Paths matched by the gitignore rules are hidden, including a link into a gitignored location, unless `.mcp-file-access` exposes them — see [Access rules](#access-rules-mcp-file-access). The rules come from every `.gitignore` from the project root down plus `.git/info/exclude` (also for a worktree or submodule checkout), with git's precedence: a deeper file overrides a shallower one, the last matching line wins, and a `.gitignore` inside an ignored directory is not read. Reference projects apply their own rules the same way.
+- **Gitignored paths**: Paths matched by the gitignore rules are hidden, including a link into a gitignored location, unless `.mcp-file-access` exposes them — see [Access rules](#access-rules-mcp-file-access). The rules come from every `.gitignore` from the project root down plus `.git/info/exclude` (also for a worktree or submodule checkout), with git's precedence: a deeper file overrides a shallower one, the last matching line wins, and a `.gitignore` inside an ignored directory is not read. A reference project read as a local folder applies its own rules the same way; at `origin/<default>` no gitignore rule applies, since only tracked content exists there.
 - **Listing an ignored directory** is refused, unless the [walk scope](#access-rules-mcp-file-access) reaches it; it then shows only the exposed paths. A directory whose files are all ignored lists as empty.
 
 Known differences from git:
@@ -67,7 +69,7 @@ A path is checked under every spelling the gitignore check uses (as given, canon
 - `read-only /logs/` — files under `logs/` are listed, found by `search_files` and readable; every write tool refuses them.
 - `read-only *.log` — `logs/app.log` is readable by exact path, but neither listed nor searched: the walk never enters the ignored `logs/`.
 
-**Listing.** `list_directory` marks file lines whose access differs from the default with ` (read-only)`, ` (read-only, not committed)` or ` (read-write, not committed)`; a gitignored file a rule exposes read-only gets ` (read-only, not committed)`, a tracked read-only file plain ` (read-only)`. Strip the suffix before passing the path to another tool. While the rules file is invalid, no line is labelled. Collapsed `dir/ (N files)` lines and `dirs_only` output stay unmarked. `list_reference_directory` marks an exposed gitignored file ` (not committed)` and nothing else, since every reference file is read-only; strip the suffix before passing the path to `read_reference_file`. `search_files` and `search_reference_files` include exposed paths, unmarked. `check_file_size` still excludes every gitignored file, exposed or not.
+**Listing.** `list_directory` marks file lines whose access differs from the default with ` (read-only)`, ` (read-only, not committed)` or ` (read-write, not committed)`; a gitignored file a rule exposes read-only gets ` (read-only, not committed)`, a tracked read-only file plain ` (read-only)`. Strip the suffix before passing the path to another tool. While the rules file is invalid, no line is labelled. Collapsed `dir/ (N files)` lines and `dirs_only` output stay unmarked. When `list_reference_directory` reads a reference project as a local folder, it marks an exposed gitignored file ` (not committed)` and nothing else, since every reference file is read-only; strip the suffix before passing the path to `read_reference_file`. `search_files` includes exposed paths, unmarked; so does `search_reference_files` when it reads a reference project as a local folder. `check_file_size` still excludes every gitignored file, exposed or not.
 
 **Refusals.** A write to a read-only path fails with:
 
@@ -81,18 +83,18 @@ The rules file itself gives `(built-in)` instead of the rule. Accessing a hidden
 Path '<path>' is excluded by .gitignore rules and cannot be accessed. The user can expose it with a rule in .mcp-file-access. Use list_directory() to see available files.
 ```
 
-In a reference project (`read_reference_file`) the hint names `that project's .mcp-file-access` and `list_reference_directory()` instead. A `.git` path is refused with `Security error: Path '<path>' is inside a git directory, which the file tools do not access.`, never with the gitignore message. `move_file` and `delete_directory` check every file in the tree — see [Move File](../README.md#move-file) and [Delete Directory](../README.md#delete-directory).
+In a reference project read as a local folder (`read_reference_file`) the hint names `that project's .mcp-file-access` and `list_reference_directory()` instead. A `.git` path is refused with `Security error: Path '<path>' is inside a git directory, which the file tools do not access.`, never with the gitignore message. `move_file` and `delete_directory` check every file in the tree — see [Move File](../README.md#move-file) and [Delete Directory](../README.md#delete-directory).
 
 **Invalid rules file** — an unknown level, an unparsable line or pattern, a `!` negation, an unreadable or non-UTF-8 file, or a directory at that path. The server fails safe: every write is refused, no gitignored path is exposed, and reads of non-ignored files still work. The problems are reported:
 
 - in the write error: `No write access to '<path>' (.mcp-file-access is invalid: line 3: unknown level 'readonly')`;
-- in the gitignore refusal, which carries the problems instead of the hint: `Path '<path>' is excluded by .gitignore rules and cannot be accessed; .mcp-file-access is invalid (<problems>), so no rule exposes it. Use list_directory() to see available files.` The text is the same whether the path exists or not; in a reference project it names `that project's .mcp-file-access` and `list_reference_directory()`;
-- as the first line of `list_directory` output (outside its line cap) and of `list_reference_directory` output: `WARNING: .mcp-file-access is invalid (<problems>) - writes are refused and no gitignored path is exposed.` No suffixes are shown while the file is invalid;
-- as a `warning` key in `search_files` and `search_reference_files` results, in both file and content mode, with the same text as the listing warning;
+- in the gitignore refusal, which carries the problems instead of the hint: `Path '<path>' is excluded by .gitignore rules and cannot be accessed; .mcp-file-access is invalid (<problems>), so no rule exposes it. Use list_directory() to see available files.` The text is the same whether the path exists or not; in a reference project read as a local folder it names `that project's .mcp-file-access` and `list_reference_directory()`;
+- as the first line of `list_directory` output (outside its line cap) and of `list_reference_directory` output when it reads the local folder: `WARNING: .mcp-file-access is invalid (<problems>) - writes are refused and no gitignored path is exposed.` No suffixes are shown while the file is invalid;
+- as a `warning` key in `search_files` results, and in `search_reference_files` results when it reads the local folder, in both file and content mode, with the same text as the listing warning;
 - as a log warning, once per distinct problem.
 
-To check a rules file by hand, look for the startup log warning, or the first line of `list_directory` / `list_reference_directory`.
+To check a rules file by hand, look for the startup log warning, or the first line of `list_directory` / `list_reference_directory` (local folder).
 
-The file is re-read on every tool call, so a fix applies without a restart. Reference projects apply their own `.mcp-file-access`; there both levels mean readable.
+The file is re-read on every tool call, so a fix applies without a restart. A reference project read as a local folder applies its own `.mcp-file-access`; there both levels mean readable. At `origin/<default>` the rules file is not consulted.
 
 **Not a sandbox.** The rules cover the MCP file tools only. A client's native file and shell tools (e.g. Claude Code's `Write`, `Edit`, `Bash`) bypass them, and so do the git tools: `git show HEAD:<path>` prints any committed file, and switching branches with `git_branch` rewrites tracked files. Use the client's own deny rules for native tools.
