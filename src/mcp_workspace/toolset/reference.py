@@ -18,6 +18,7 @@ from mcp_workspace.file_tools.file_access import (
 )
 from mcp_workspace.reference_projects import ensure_available
 from mcp_workspace.toolset._context import WorkspaceContext
+from mcp_workspace.toolset._reference_freshness import mark_fetched
 from mcp_workspace.utils.url_credentials import scrub_credentials
 
 logger = logging.getLogger(__name__)
@@ -42,11 +43,12 @@ async def reference_project_path(ctx: WorkspaceContext, name: str) -> Path:
     if name not in ctx.reference_projects:
         raise ValueError(f"Reference project '{name}' not found")
     project = ctx.reference_projects[name]
-    await ensure_available(
+    if await ensure_available(
         project,
         locks=ctx.reference_state.clone_locks,
         failures=ctx.reference_state.clone_failures,
-    )
+    ):
+        mark_fetched(ctx, name)  # a fresh clone counts as a fresh fetch
     return project.path
 
 

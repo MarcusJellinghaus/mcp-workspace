@@ -5,9 +5,118 @@ from pathlib import Path
 from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
+from git import Repo
 
+from mcp_workspace.git_operations.origin_fetch import FetchOutcome
+from mcp_workspace.reference_projects import ReferenceProject
 from mcp_workspace.toolset._context import WorkspaceContext
 from tests.conftest import ToolMap
+
+_FETCH_TARGET = "mcp_workspace.git_operations.origin_fetch.fetch_origin"
+_GIT_IMPL = "mcp_workspace.git_operations.read_operations.git"
+
+
+def _ref_tools(
+    make_tools: Callable[..., ToolMap], path: Path, interval: int = 15
+) -> ToolMap:
+    """Tools with one reference project ``ref`` at ``path``."""
+    return make_tools(
+        reference_projects={"ref": ReferenceProject(name="ref", path=path)},
+        reference_fetch_interval_minutes=interval,
+    )
+
+
+class TestGitReferenceAutoFetch:
+    """git(..., reference_name=...) fetches the reference project when stale."""
+
+    @pytest.mark.git_integration
+    @pytest.mark.asyncio
+    async def test_log_origin_main_shows_upstream_commit(
+        self, make_clone: Callable[[str], Path], make_tools: Callable[..., ToolMap]
+    ) -> None:
+        work = make_clone("work")
+        up = make_clone("up")
+        (up / "new.txt").write_text("new\n")
+        repo = Repo(up)
+        try:
+            repo.index.add(["new.txt"])
+            repo.index.commit("upstream change")
+            repo.git.push("origin", "HEAD:refs/heads/main")
+        finally:
+            repo.close()
+
+        tools = _ref_tools(make_tools, work)
+        result = await tools["git"](
+            command="log", args=["--oneline", "origin/main"], reference_name="ref"
+        )
+
+        assert "upstream change" in result
+        assert "[reference" not in result
+
+    @pytest.mark.asyncio
+    async def test_fetch_failure_adds_trailing_note(
+        self, tmp_path: Path, make_tools: Callable[..., ToolMap]
+    ) -> None:
+        tools = _ref_tools(make_tools, tmp_path)
+        with (
+            patch(_FETCH_TARGET, return_value=FetchOutcome(True, "boom")),
+            patch(_GIT_IMPL, return_value="commit abc123"),
+        ):
+            result = await tools["git"](command="log", reference_name="ref")
+        assert result == "commit abc123\n[reference ref: fetch failed (boom)]"
+
+    @pytest.mark.asyncio
+    async def test_fetch_failure_and_git_error(
+        self, tmp_path: Path, make_tools: Callable[..., ToolMap]
+    ) -> None:
+        tools = _ref_tools(make_tools, tmp_path)
+        with (
+            patch(_FETCH_TARGET, return_value=FetchOutcome(True, "boom")),
+            patch(_GIT_IMPL, side_effect=RuntimeError("fatal: bad revision")),
+        ):
+            with pytest.raises(ValueError) as exc_info:
+                await tools["git"](command="log", reference_name="ref")
+        assert str(exc_info.value) == (
+            "fatal: bad revision\n[reference ref: fetch failed (boom)]"
+        )
+        assert exc_info.value.__context__ is None
+        assert exc_info.value.__cause__ is None
+
+    @pytest.mark.asyncio
+    async def test_git_error_without_failure_is_unchanged(
+        self, tmp_path: Path, make_tools: Callable[..., ToolMap]
+    ) -> None:
+        tools = _ref_tools(make_tools, tmp_path)
+        error = RuntimeError("fatal: bad revision")
+        with (
+            patch(_FETCH_TARGET, return_value=FetchOutcome(True, None)),
+            patch(_GIT_IMPL, side_effect=error),
+        ):
+            with pytest.raises(RuntimeError) as exc_info:
+                await tools["git"](command="log", reference_name="ref")
+        assert exc_info.value is error
+
+    @pytest.mark.asyncio
+    async def test_interval_zero_does_not_fetch(
+        self, tmp_path: Path, make_tools: Callable[..., ToolMap]
+    ) -> None:
+        tools = _ref_tools(make_tools, tmp_path, interval=0)
+        with (
+            patch(_FETCH_TARGET) as fetch,
+            patch(_GIT_IMPL, return_value="out"),
+        ):
+            result = await tools["git"](command="log", reference_name="ref")
+        fetch.assert_not_called()
+        assert result == "out"
+
+    @pytest.mark.asyncio
+    async def test_workspace_call_does_not_fetch(self, tools: ToolMap) -> None:
+        with (
+            patch(_FETCH_TARGET) as fetch,
+            patch(_GIT_IMPL, return_value="out"),
+        ):
+            assert await tools["git"](command="status") == "out"
+        fetch.assert_not_called()
 
 
 class TestGitReferenceProject:

@@ -87,9 +87,9 @@ See [step_9.md](./steps/step_9.md)
 ### Step 10: Throttled auto-fetch + notes; `git` tool uses it
 See [step_10.md](./steps/step_10.md)
 
-- [ ] Implementation (tests + production code)
-- [ ] Quality checks (pylint, pytest, mypy, lint-imports, vulture, serial performance tests) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code)
+- [x] Quality checks (pylint, pytest, mypy, lint-imports, vulture, serial performance tests) — fix all issues
+- [x] Commit message prepared
 
 ### Step 11: Read and list read at the ref (`_reference_call`, fallback, notes)
 See [step_11.md](./steps/step_11.md)
