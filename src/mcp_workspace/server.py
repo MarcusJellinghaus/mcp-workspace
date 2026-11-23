@@ -21,7 +21,9 @@ logger = logging.getLogger(__name__)
 _INSTRUCTIONS = (
     "This server provides file operations in one workspace directory. It "
     "also exposes reference projects: sibling codebases configured at "
-    "startup, whose files are readable and searchable read-only. Most are "
+    "startup, whose files are readable and searchable read-only. A git "
+    "reference project's files are read from its upstream default branch, "
+    "fetched automatically, not from the local working tree. Most are "
     "local checkouts of GitHub repositories, so their history is available "
     "through git() and their GitHub issues and pull requests are reachable, "
     "with issues writable. Answer questions about another repo from its "

@@ -291,15 +291,34 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
     ) -> str:
         """Read a reference-project file, or a line slice via start_line/end_line.
 
+        Content comes from the reference's origin/<default> (origin/HEAD,
+        else origin/main, else origin/master), fetched automatically, at most
+        one fetch interval old. Only tracked files exist there: tracked files
+        matching .gitignore are visible; untracked or gitignored local files
+        are not. A folder that is not a git repo is read as-is.
+
+        Other refs: git(command="show", args=["<ref>:<path>"],
+        reference_name=...) — output defaults to 100 lines, pass max_lines for
+        more. When was X added upstream: git(command="log",
+        args=["-S<text>", "origin/main"], reference_name=...).
+
+        Known limitations: after an upstream default-branch rename, reads
+        follow the old branch until `git remote set-head origin --auto`. With
+        core.autocrlf=true, content has LF where the working tree has CRLF.
+        Git LFS files show pointer text. Partial clones download missing
+        blobs on read.
+
         Returns:
             The contents of the file as a string. A full read beyond the
             configured limit (default 2000 lines) is cut, followed by a note
             giving the next start_line/end_line; an explicit range is returned
-            in full.
+            in full. A note line follows the content only when the fetch
+            failed or the repo has no usable origin default branch (the local
+            folder is then read).
 
         Raises:
-            ValueError: If file_path is gitignored and not exposed by that
-                project's .mcp-file-access.
+            ValueError: If the local folder is read and file_path is gitignored
+                and not exposed by that project's .mcp-file-access.
         """
 
         def at_ref(snap: "RefSnapshot") -> str:
@@ -339,16 +358,35 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             str, Field(description="Name of the reference project to list")
         ],
     ) -> list[str]:
-        """List files and directories in a reference project directory.
+        """List the files of a reference project.
+
+        Content comes from the reference's origin/<default> (origin/HEAD,
+        else origin/main, else origin/master), fetched automatically, at most
+        one fetch interval old. Only tracked files exist there: tracked files
+        matching .gitignore are visible; untracked or gitignored local files
+        are not. A folder that is not a git repo is read as-is.
+
+        Other refs: git(command="show", args=["<ref>:<path>"],
+        reference_name=...) — output defaults to 100 lines, pass max_lines for
+        more. When was X added upstream: git(command="log",
+        args=["-S<text>", "origin/main"], reference_name=...).
+
+        Known limitations: after an upstream default-branch rename, reads
+        follow the old branch until `git remote set-head origin --auto`. With
+        core.autocrlf=true, content has LF where the working tree has CRLF.
+        Git LFS files show pointer text. Partial clones download missing
+        blobs on read.
 
         Returns:
-            A list of filenames in the reference project directory, including
-            the gitignored paths its .mcp-file-access exposes. Paths are
-            forward-slash separated on every platform. A file line ends in
-            `` (not committed)`` for a gitignored file that project's
-            .mcp-file-access exposes; strip that suffix before passing the path
-            to `read_reference_file`. When that rules file is invalid, the
-            first line is a warning instead of a path.
+            A list of file paths. Paths are forward-slash separated on every
+            platform and can be passed straight back to `read_reference_file`.
+            The last entry may be a note instead of a path — only when the
+            fetch failed or the repo has no usable origin default branch (the
+            local folder is then read). A local folder's listing includes the
+            gitignored paths its .mcp-file-access exposes, each ending in
+            `` (not committed)``; strip that suffix before passing the path to
+            `read_reference_file`. When that rules file is invalid, the first
+            line is a WARNING: instead of a path.
         """
 
         def at_ref(snap: "RefSnapshot") -> list[str]:
@@ -386,8 +424,12 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
                     'or widen to "*" and filter. A bare "*.py" is unanchored and '
                     "matches at any depth, unlike a shell glob. On Windows, "
                     "matching is case-insensitive by design, so a glob cannot "
-                    "detect a filename casing mismatch — use `git ls-files`, "
-                    "which reports the name as recorded in the index."
+                    "detect a filename casing mismatch — use git(command="
+                    '"ls_tree", args=["-r", "--name-only", "origin/main"], '
+                    "reference_name=...) with the ref named in this tool's "
+                    "notes and errors, which reports the name as recorded at "
+                    "that ref; output defaults to 100 lines, so pass max_lines "
+                    "or a pathspec."
                 )
             ),
         ] = None,
@@ -424,6 +466,23 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             - Content search: provide `pattern` (regex) to search inside files (like grep)
             - Combined: both to search content within matching files
 
+        Content comes from the reference's origin/<default> (origin/HEAD,
+        else origin/main, else origin/master), fetched automatically, at most
+        one fetch interval old. Only tracked files exist there: tracked files
+        matching .gitignore are visible; untracked or gitignored local files
+        are not. A folder that is not a git repo is read as-is.
+
+        Other refs: git(command="show", args=["<ref>:<path>"],
+        reference_name=...) — output defaults to 100 lines, pass max_lines for
+        more. When was X added upstream: git(command="log",
+        args=["-S<text>", "origin/main"], reference_name=...).
+
+        Known limitations: after an upstream default-branch rename, reads
+        follow the old branch until `git remote set-head origin --auto`. With
+        core.autocrlf=true, content has LF where the working tree has CRLF.
+        Git LFS files show pointer text. Partial clones download missing
+        blobs on read.
+
         Returns:
             Dict with matches (content search) or file list (file search),
             plus truncated flag if results were capped.
@@ -433,8 +492,11 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             A content search adds a "skipped_files" key listing project-relative
             paths that could not be read — a path rejected by the security check,
             or an unreadable file — present only when non-empty.
-            Gitignored paths that .mcp-file-access exposes are included; a
-            "warning" key appears while that rules file is invalid.
+            Adds a "freshness" key only when the fetch failed or the repo has
+            no usable origin default branch (the local folder is then read).
+            A local-folder search includes the gitignored paths its
+            .mcp-file-access exposes; a "warning" key appears while that rules
+            file is invalid.
             Paths are forward-slash separated on every platform and can be
             passed straight back to `read_reference_file`.
 

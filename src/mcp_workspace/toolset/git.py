@@ -89,7 +89,9 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             Field(
                 description=(
                     "Optional reference project name. When set, runs git against "
-                    "that project instead of the workspace."
+                    "that project instead of the workspace, after the same "
+                    "automatic fetch of origin as the reference read tools; a "
+                    "failed fetch adds a trailing note and never fails the call."
                 )
             ),
         ] = None,
