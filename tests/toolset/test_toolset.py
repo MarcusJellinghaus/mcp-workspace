@@ -11,7 +11,10 @@ import pytest
 from mcp_coder_utils.tool_spec import ToolSpec
 
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
-from mcp_workspace.reference_projects import ReferenceProject
+from mcp_workspace.reference_projects import (
+    DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES,
+    ReferenceProject,
+)
 from mcp_workspace.toolset import tool_specs
 from mcp_workspace.toolset._context import WorkspaceContext
 
@@ -229,6 +232,39 @@ def test_two_factories_do_not_share_clone_failures(tmp_path: Path) -> None:
             _call(b["read_reference_file"], **kwargs)
 
     assert mock_clone.call_count == 2
+
+
+def _context_of(root: Path, **settings: Any) -> WorkspaceContext:
+    """Build one factory and return the WorkspaceContext it created."""
+    contexts: list[WorkspaceContext] = []
+
+    def _record(**kwargs: Any) -> WorkspaceContext:
+        ctx = WorkspaceContext(**kwargs)
+        contexts.append(ctx)
+        return ctx
+
+    with patch("mcp_workspace.toolset.WorkspaceContext", side_effect=_record):
+        tool_specs(root, **settings)
+
+    assert len(contexts) == 1
+    return contexts[0]
+
+
+def test_reference_fetch_interval_defaults_to_15(tmp_path: Path) -> None:
+    assert DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES == 15
+    assert _context_of(tmp_path).reference_fetch_interval_minutes == 15
+
+
+@pytest.mark.parametrize("minutes", [0, 5])
+def test_reference_fetch_interval_reaches_context(tmp_path: Path, minutes: int) -> None:
+    ctx = _context_of(tmp_path, reference_fetch_interval_minutes=minutes)
+
+    assert ctx.reference_fetch_interval_minutes == minutes
+
+
+def test_reference_fetch_interval_negative_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="reference_fetch_interval_minutes"):
+        tool_specs(tmp_path, reference_fetch_interval_minutes=-1)
 
 
 def test_read_file_default_truncates_at_default_read_max_lines(

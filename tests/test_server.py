@@ -10,7 +10,10 @@ from mcp.server.fastmcp import FastMCP
 from mcp_coder_utils.tool_spec import tool_spec
 
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
-from mcp_workspace.reference_projects import ReferenceProject
+from mcp_workspace.reference_projects import (
+    DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES,
+    ReferenceProject,
+)
 from mcp_workspace.server import FastMCPSink, create_server, run_server
 from mcp_workspace.toolset._context import WorkspaceContext, check_readable
 from tests.conftest import ToolMap
@@ -581,6 +584,46 @@ class TestRunServer:
                 run_server(project_dir)
 
         assert mock_specs.call_args.kwargs["read_max_lines"] == DEFAULT_READ_MAX_LINES
+
+    def test_run_server_threads_reference_fetch_interval(
+        self, project_dir: Path
+    ) -> None:
+        """run_server passes reference_fetch_interval_minutes through to tool_specs."""
+        with patch("mcp_workspace.server.FastMCP.run"):
+            with patch(
+                "mcp_workspace.server.tool_specs", return_value=()
+            ) as mock_specs:
+                run_server(project_dir, reference_fetch_interval_minutes=7)
+
+        assert mock_specs.call_args.kwargs["reference_fetch_interval_minutes"] == 7
+
+    def test_run_server_threads_reference_fetch_interval_zero(
+        self, project_dir: Path
+    ) -> None:
+        """0 (auto-fetch off) reaches tool_specs unchanged."""
+        with patch("mcp_workspace.server.FastMCP.run"):
+            with patch(
+                "mcp_workspace.server.tool_specs", return_value=()
+            ) as mock_specs:
+                run_server(project_dir, reference_fetch_interval_minutes=0)
+
+        assert mock_specs.call_args.kwargs["reference_fetch_interval_minutes"] == 0
+
+    def test_run_server_defaults_reference_fetch_interval(
+        self, project_dir: Path
+    ) -> None:
+        """Without the setting, tool_specs gets the 15-minute default."""
+        with patch("mcp_workspace.server.FastMCP.run"):
+            with patch(
+                "mcp_workspace.server.tool_specs", return_value=()
+            ) as mock_specs:
+                run_server(project_dir)
+
+        assert (
+            mock_specs.call_args.kwargs["reference_fetch_interval_minutes"]
+            == DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES
+            == 15
+        )
 
     def test_run_server_logs_reference_projects(
         self, project_dir: Path, caplog: pytest.LogCaptureFixture

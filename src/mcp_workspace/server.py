@@ -9,7 +9,10 @@ from mcp_coder_utils.log_utils import log_function_call
 from mcp_coder_utils.tool_spec import ToolSpec
 
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
-from mcp_workspace.reference_projects import ReferenceProject
+from mcp_workspace.reference_projects import (
+    DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES,
+    ReferenceProject,
+)
 from mcp_workspace.toolset import tool_specs
 
 # Initialize loggers
@@ -69,6 +72,7 @@ def run_server(
     fail_on_reviews: bool = False,
     enforce_base_branch_format: bool = True,
     read_max_lines: int | None = DEFAULT_READ_MAX_LINES,
+    reference_fetch_interval_minutes: int = DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES,
 ) -> None:
     """Run the MCP server with the given project directory and optional reference projects.
 
@@ -81,17 +85,21 @@ def run_server(
             Base Branch section in github_issue_create / github_issue_edit
         read_max_lines: Full-read line limit for read_file and
             read_reference_file; None or 0 means no limit
+        reference_fetch_interval_minutes: Minutes between automatic fetches
+            of a reference project before it is read; 0 turns auto-fetch off
     """
     logger.debug("Entering run_server function")
 
     logger.info(
         "Server settings: project_dir=%s, file_size_limit=%s, read_max_lines=%s, "
-        "fail_on_reviews=%s, enforce_base_branch_format=%s",
+        "fail_on_reviews=%s, enforce_base_branch_format=%s, "
+        "reference_fetch_interval_minutes=%s",
         project_dir,
         file_size_limit,
         read_max_lines,
         fail_on_reviews,
         enforce_base_branch_format,
+        reference_fetch_interval_minutes,
     )
     for project_name, project in (reference_projects or {}).items():
         logger.info("Reference project '%s' set to: %s", project_name, project.path)
@@ -103,6 +111,7 @@ def run_server(
         fail_on_reviews=fail_on_reviews,
         enforce_base_branch_format=enforce_base_branch_format,
         read_max_lines=read_max_lines,
+        reference_fetch_interval_minutes=reference_fetch_interval_minutes,
     )
 
     # Run the server

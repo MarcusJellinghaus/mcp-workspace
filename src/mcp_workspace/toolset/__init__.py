@@ -8,7 +8,10 @@ from pathlib import Path
 from mcp_coder_utils.tool_spec import ToolCollector, ToolSink, ToolSpec
 
 from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
-from mcp_workspace.reference_projects import ReferenceProject
+from mcp_workspace.reference_projects import (
+    DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES,
+    ReferenceProject,
+)
 from mcp_workspace.toolset import (
     checks,
     delete,
@@ -48,6 +51,7 @@ def tool_specs(
     file_size_limit: int | None = None,
     fail_on_reviews: bool = False,
     enforce_base_branch_format: bool = True,
+    reference_fetch_interval_minutes: int = DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES,
 ) -> tuple[ToolSpec, ...]:
     """Build the workspace tools bound to one project directory.
 
@@ -64,10 +68,20 @@ def tool_specs(
         fail_on_reviews: Default for check_branch_status' review gate.
         enforce_base_branch_format: Whether a malformed Base Branch section
             is rejected by github_issue_create / github_issue_edit.
+        reference_fetch_interval_minutes: Minutes between automatic fetches
+            of a reference project before it is read; 0 turns auto-fetch off.
 
     Returns:
         The tool specs, in registration order.
+
+    Raises:
+        ValueError: If reference_fetch_interval_minutes is negative.
     """
+    if reference_fetch_interval_minutes < 0:
+        raise ValueError(
+            "reference_fetch_interval_minutes must be >= 0, "
+            f"got {reference_fetch_interval_minutes}"
+        )
     ctx = WorkspaceContext(
         project_dir=Path(project_dir),
         reference_projects=dict(reference_projects or {}),
@@ -75,6 +89,7 @@ def tool_specs(
         file_size_limit=file_size_limit,
         fail_on_reviews=fail_on_reviews,
         enforce_base_branch_format=enforce_base_branch_format,
+        reference_fetch_interval_minutes=reference_fetch_interval_minutes,
     )
     collector = ToolCollector()
     for register in _GROUPS:

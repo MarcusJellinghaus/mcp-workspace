@@ -11,6 +11,9 @@ from mcp_workspace.utils.url_credentials import scrub_credentials
 
 logger = logging.getLogger(__name__)
 
+# Minutes between automatic fetches of a reference project; 0 turns it off.
+DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES = 15
+
 
 @dataclass
 class ReferenceProject:

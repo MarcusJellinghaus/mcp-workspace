@@ -5,7 +5,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from mcp_workspace.file_tools.file_access import FileAccess, require_access
-from mcp_workspace.reference_projects import ReferenceProject
+from mcp_workspace.reference_projects import (
+    DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES,
+    ReferenceProject,
+)
 
 
 @dataclass
@@ -36,6 +39,8 @@ class WorkspaceContext:
         fail_on_reviews: Default for check_branch_status' review gate.
         enforce_base_branch_format: Whether a malformed Base Branch section
             is rejected by github_issue_create / github_issue_edit.
+        reference_fetch_interval_minutes: Minutes between automatic fetches
+            of a reference project before it is read; 0 turns auto-fetch off.
         file_locks: Per-file locks for concurrent edit safety.
         git_write_lock: Serialises the git write tools, so writes issued in
             the same turn run in order.
@@ -49,6 +54,7 @@ class WorkspaceContext:
     file_size_limit: int | None
     fail_on_reviews: bool
     enforce_base_branch_format: bool
+    reference_fetch_interval_minutes: int = DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES
     file_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
     git_write_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     reference_state: ReferenceState = field(default_factory=ReferenceState)
