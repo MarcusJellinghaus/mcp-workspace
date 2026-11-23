@@ -75,6 +75,13 @@ def test_read_tool_description_mentions_file_access(name: str, tmp_path: Path) -
     assert "not exposed by" in description
 
 
+@pytest.mark.parametrize("name", ["search_files", "search_reference_files"])
+def test_search_tool_description_mentions_warning(name: str, tmp_path: Path) -> None:
+    description = _description(tmp_path, name)
+    assert '"warning" key' in description
+    assert ".mcp-file-access" in description
+
+
 @pytest.mark.parametrize("name", WRITE_TOOLS)
 def test_write_tool_description_mentions_file_access(name: str, tmp_path: Path) -> None:
     description = _description(tmp_path, name)

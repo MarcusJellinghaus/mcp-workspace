@@ -88,6 +88,7 @@ In a reference project (`read_reference_file`) the hint names `that project's .m
 - in the write error: `No write access to '<path>' (.mcp-file-access is invalid: line 3: unknown level 'readonly')`;
 - in the gitignore refusal, which carries the problems instead of the hint: `Path '<path>' is excluded by .gitignore rules and cannot be accessed; .mcp-file-access is invalid (<problems>), so no rule exposes it. Use list_directory() to see available files.` The text is the same whether the path exists or not; in a reference project it names `that project's .mcp-file-access` and `list_reference_directory()`;
 - as the first line of `list_directory` output (outside its line cap) and of `list_reference_directory` output: `WARNING: .mcp-file-access is invalid (<problems>) - writes are refused and no gitignored path is exposed.` No suffixes are shown while the file is invalid;
+- as a `warning` key in `search_files` and `search_reference_files` results, in both file and content mode, with the same text as the listing warning;
 - as a log warning, once per distinct problem.
 
 The file is re-read on every tool call, so a fix applies without a restart. Reference projects apply their own `.mcp-file-access`; there both levels mean readable.

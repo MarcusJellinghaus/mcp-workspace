@@ -5,6 +5,7 @@
 - `.git` paths refused by `read_file`, the write tools and `read_reference_file` now give `Security error: Path '<p>' is inside a git directory, which the file tools do not access.` (was the gitignore message).
 - Removed `file_tools.directory_utils.check_path_not_gitignored` (no callers; it ignored `.mcp-file-access`).
 - New gitignore refusal wording: `Path '<p>' is excluded by .gitignore rules and cannot be accessed. The user can expose it with a rule in .mcp-file-access. Use list_directory() to see available files.` In a reference project: `… with a rule in that project's .mcp-file-access. Use list_reference_directory() to see available files.` While the rules file is invalid: `Path '<p>' is excluded by .gitignore rules and cannot be accessed; .mcp-file-access is invalid (<problems>), so no rule exposes it. Use list_directory() to see available files.` (reference: `that project's …`, `list_reference_directory()`).
+- `search_files` / `search_reference_files`: while `.mcp-file-access` is invalid, results carry a `warning` key with the same `WARNING: .mcp-file-access is invalid (…)` text as the listing's first line.
 
 ## Next minor release — search_files glob fixes (#405)
 

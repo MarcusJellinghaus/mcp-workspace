@@ -280,3 +280,13 @@ class TestReferenceListing:
         )
         assert "logs/a.log" not in result
         assert "plain.txt" in result[1:]
+
+    @pytest.mark.asyncio
+    async def test_search_reference_files_invalid_rules_file_warning(
+        self, reference: Path, ref_tools: ToolMap
+    ) -> None:
+        (reference / ACCESS_RULES_FILE).write_text("readonly /logs/\n", "utf-8")
+
+        result = await ref_tools["search_reference_files"]("ref", glob="**/*.log")
+
+        assert "warning" in result

@@ -283,6 +283,8 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             A content search adds a "skipped_files" key listing project-relative
             paths that could not be read — a path rejected by the security check,
             or an unreadable file — present only when non-empty.
+            Gitignored paths that .mcp-file-access exposes are included; a
+            "warning" key appears while that rules file is invalid.
             Paths are forward-slash separated on every platform and can be
             passed straight back to `read_reference_file`.
 
