@@ -1,6 +1,8 @@
 """File search utilities for glob matching and content searching."""
 
+import functools
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -83,12 +85,22 @@ def _match_glob(glob: str, files: list[str]) -> list[str]:
 def _search_content(
     files: list[str],
     compiled: "re.Pattern[str]",
-    project_dir: Path,
+    read_lines: Callable[[str], list[str]],
     context_lines: int,
     max_results: int,
     max_result_lines: int,
 ) -> dict[str, Any]:
     """Search file contents for regex matches.
+
+    Args:
+        files: Paths to search, in result order.
+        compiled: Compiled content pattern.
+        read_lines: Returns the lines of one path. ``UnicodeDecodeError`` is a
+            silent skip; any other ``ValueError`` or ``OSError`` reports the
+            path in ``skipped_files``.
+        context_lines: Number of context lines around matches.
+        max_results: Maximum number of results to return.
+        max_result_lines: Maximum total lines in result output.
 
     Returns:
         content_search result dict. Carries a ``skipped_files`` key listing
@@ -105,9 +117,7 @@ def _search_content(
 
     for rel_path in files:
         try:
-            abs_path, _ = normalize_path(rel_path, project_dir)
-            with open(abs_path, encoding="utf-8") as f:
-                file_lines = f.readlines()
+            file_lines = read_lines(rel_path)
         except UnicodeDecodeError:
             # Must precede the next handler: UnicodeDecodeError is a subclass
             # of ValueError. Binary files stay a silent skip.
@@ -164,6 +174,106 @@ def _search_content(
     return result
 
 
+def _read_local_lines(project_dir: Path, rel_path: str) -> list[str]:
+    """Read one working-tree file as UTF-8 lines.
+
+    Args:
+        project_dir: Project root directory.
+        rel_path: Project-relative path.
+
+    Returns:
+        The file's lines, newlines kept.
+    """
+    abs_path, _ = normalize_path(rel_path, project_dir)
+    with open(abs_path, encoding="utf-8") as f:
+        return f.readlines()
+
+
+def search_paths(
+    files: list[str],
+    read_lines: Callable[[str], list[str]],
+    glob: str | None = None,
+    pattern: str | None = None,
+    context_lines: int = 0,
+    max_results: int = 50,
+    max_result_lines: int = 200,
+) -> dict[str, Any]:
+    """Search a given file list by glob and/or content regex.
+
+    The engine behind ``search_files``, on an injected file list and reader.
+
+    Args:
+        files: Relative, forward-slash paths to consider, in result order.
+        read_lines: Returns the lines of one path, newlines kept. Raising
+            ``UnicodeDecodeError`` skips the path silently; any other
+            ``ValueError`` or ``OSError`` reports it in ``skipped_files``.
+        glob: Glob pattern with gitignore/wildmatch semantics; see
+            ``search_files``.
+        pattern: Python regex to match file contents. Invalid regex patterns
+            are automatically treated as literal text.
+        context_lines: Number of context lines around matches.
+        max_results: Maximum number of results to return.
+        max_result_lines: Maximum total lines in result output.
+
+    Returns:
+        Dictionary with search results, with the same keys as
+        ``search_files``.
+
+    Raises:
+        ValueError: If neither glob nor pattern is provided, or if the glob
+            matches nothing by construction (gitignore comment, blank,
+            negation-only, or unparseable pattern).
+    """
+    if glob is None and pattern is None:
+        raise ValueError("At least one of 'glob' or 'pattern' must be provided")
+
+    matched = _match_glob(glob, files) if glob is not None else files
+    glob_note = _glob_note(glob) if glob is not None and not matched else None
+
+    # Content search mode: pattern provided
+    if pattern is not None:
+        try:
+            compiled = re.compile(pattern)
+            note = None
+        except re.error:
+            compiled = re.compile(re.escape(pattern))
+            note = (
+                "Pattern treated as literal text (invalid regex). "
+                "Use Python re syntax for regex search."
+            )
+
+        result = _search_content(
+            matched,
+            compiled,
+            read_lines,
+            context_lines,
+            max_results,
+            max_result_lines,
+        )
+
+        if note is not None:
+            result["note"] = note
+        if glob_note is not None:
+            result["glob_note"] = glob_note
+
+        return result
+
+    # File search mode: glob only
+    total = len(matched)
+    truncated = total > max_results
+
+    file_result: dict[str, Any] = {
+        "mode": "file_search",
+        "files": matched[:max_results],
+        "total_files": total,
+        "truncated": truncated,
+    }
+    if glob_note is not None:
+        file_result["glob_note"] = glob_note
+
+    return file_result
+
+
 def search_files(
     project_dir: Path,
     glob: str | None = None,
@@ -215,52 +325,16 @@ def search_files(
     all_files = listing.files
     warning = access_rules_warning(listing.problems)
 
-    matched = _match_glob(glob, all_files) if glob is not None else all_files
-    glob_note = _glob_note(glob) if glob is not None and not matched else None
-
-    # Content search mode: pattern provided
-    if pattern is not None:
-        try:
-            compiled = re.compile(pattern)
-            note = None
-        except re.error:
-            compiled = re.compile(re.escape(pattern))
-            note = (
-                "Pattern treated as literal text (invalid regex). "
-                "Use Python re syntax for regex search."
-            )
-
-        result = _search_content(
-            matched,
-            compiled,
-            project_dir,
-            context_lines,
-            max_results,
-            max_result_lines,
-        )
-
-        if note is not None:
-            result["note"] = note
-        if glob_note is not None:
-            result["glob_note"] = glob_note
-        if warning is not None:
-            result["warning"] = warning
-
-        return result
-
-    # File search mode: glob only
-    total = len(matched)
-    truncated = total > max_results
-
-    file_result: dict[str, Any] = {
-        "mode": "file_search",
-        "files": matched[:max_results],
-        "total_files": total,
-        "truncated": truncated,
-    }
-    if glob_note is not None:
-        file_result["glob_note"] = glob_note
+    result = search_paths(
+        all_files,
+        functools.partial(_read_local_lines, project_dir),
+        glob,
+        pattern,
+        context_lines,
+        max_results,
+        max_result_lines,
+    )
     if warning is not None:
-        file_result["warning"] = warning
+        result["warning"] = warning
 
-    return file_result
+    return result
