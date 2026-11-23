@@ -79,6 +79,21 @@ class TestListAccessibleFiles:
         assert listing.notes["logs/sub/b.log"] == READ_ONLY_NOT_COMMITTED_NOTE
         assert "plain.txt" not in listing.notes
 
+    def test_exposed_ignored(self, tmp_path: Path) -> None:
+        project = _logs_project(tmp_path, "read-only /logs/\nread-only /plain.txt\n")
+
+        listing = list_accessible_files(".", project)
+
+        assert listing.exposed_ignored == frozenset({"logs/a.log", "logs/sub/b.log"})
+        assert "plain.txt" not in listing.exposed_ignored
+
+    def test_exposed_ignored_empty_while_invalid(self, tmp_path: Path) -> None:
+        project = _logs_project(tmp_path, "readonly /logs/\n")
+
+        listing = list_accessible_files(".", project)
+
+        assert listing.exposed_ignored == frozenset()
+
     def test_logs_are_searched(self, tmp_path: Path) -> None:
         project = _logs_project(tmp_path, "read-only /logs/\n")
 
@@ -267,10 +282,12 @@ class TestReferenceListing:
     ) -> None:
         result = await ref_tools["list_reference_directory"]("ref")
 
-        assert "logs/a.log" in result
-        assert "logs/sub/b.log" in result
-        assert "x.log" not in result
-        assert not any("(read-only)" in entry for entry in result)
+        assert "logs/a.log (not committed)" in result
+        assert "logs/sub/b.log (not committed)" in result
+        assert "plain.txt" in result
+        assert not any(entry.startswith("x.log") for entry in result)
+        assert not any("(read-only" in entry for entry in result)
+        assert not any("(read-write" in entry for entry in result)
 
     @pytest.mark.asyncio
     async def test_search_reference_files_includes_exposed(

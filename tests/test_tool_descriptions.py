@@ -88,6 +88,12 @@ def test_list_directory_description_lists_labels(tmp_path: Path) -> None:
     assert "omitted while" in description
 
 
+def test_list_reference_directory_description_lists_label(tmp_path: Path) -> None:
+    description = _description(tmp_path, "list_reference_directory")
+    assert "(not committed)" in description
+    assert "strip that suffix" in description
+
+
 @pytest.mark.parametrize("name", WRITE_TOOLS)
 def test_write_tool_description_mentions_file_access(name: str, tmp_path: Path) -> None:
     description = _description(tmp_path, name)

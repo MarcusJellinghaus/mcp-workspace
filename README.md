@@ -591,6 +591,7 @@ read_reference_file("examples", "src/components/Button.tsx")
 
 **Features:**
 - Automatic gitignore filtering (same as main project)
+- Gitignored files exposed by that project's `.mcp-file-access` end in ` (not committed)`; strip the suffix before passing the path to `read_reference_file`. No other label is shown, since every reference file is read-only
 - Excludes .git directories
 - Returns relative paths within the reference project
 - Validates reference project exists

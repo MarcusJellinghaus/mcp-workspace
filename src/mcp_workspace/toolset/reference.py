@@ -22,6 +22,9 @@ from mcp_workspace.utils.url_credentials import scrub_credentials
 
 logger = logging.getLogger(__name__)
 
+# Every reference file is read-only, so only "not committed" is worth a label
+_NOTE_EXPOSED = "(not committed)"
+
 
 async def reference_project_path(ctx: WorkspaceContext, name: str) -> Path:
     """Resolve a reference project name to its local path, ensuring availability.
@@ -208,17 +211,23 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
         Returns:
             A list of filenames in the reference project directory, including
             the gitignored paths its .mcp-file-access exposes. Paths are
-            forward-slash separated on every platform and can be passed straight
-            back to `read_reference_file`. When that rules file is invalid, the
+            forward-slash separated on every platform. A file line ends in
+            `` (not committed)`` for a gitignored file that project's
+            .mcp-file-access exposes; strip that suffix before passing the path
+            to `read_reference_file`. When that rules file is invalid, the
             first line is a warning instead of a path.
         """
         ref_path = await reference_project_path(ctx, reference_name)
 
         listing = list_accessible_files(".", ref_path)
+        entries = [
+            f"{rel} {_NOTE_EXPOSED}" if rel in listing.exposed_ignored else rel
+            for rel in listing.files
+        ]
         warning = access_rules_warning(listing.problems)
         if warning is not None:
-            return [warning, *listing.files]
-        return listing.files
+            return [warning, *entries]
+        return entries
 
     @log_function_call
     async def search_reference_files(

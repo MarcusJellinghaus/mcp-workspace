@@ -424,11 +424,14 @@ class AccessListing:
             ``(read-write, not committed)`` for files whose access differs
             from the default; empty when the rules file is invalid.
         problems: The rules file's problems; empty when it is valid.
+        exposed_ignored: The listed gitignored files a rule exposes; empty
+            when the rules file is invalid. Used by ``list_reference_directory``.
     """
 
     files: list[str]
     notes: dict[str, str]
     problems: list[str]
+    exposed_ignored: frozenset[str] = frozenset()
 
 
 def _exposes_dir(rel_dir: str, rules: AccessRules) -> bool:
@@ -471,7 +474,11 @@ def _enterable(rel_dir: str, project_dir: Path, rules: AccessRules) -> bool:
 
 
 def _exposure_skip(
-    start: Path, project_dir: Path, rules: AccessRules, notes: dict[str, str]
+    start: Path,
+    project_dir: Path,
+    rules: AccessRules,
+    notes: dict[str, str],
+    exposed: set[str],
 ) -> Callable[[Path], bool]:
     """Build a skip predicate that lets the paths the rules expose through.
 
@@ -485,6 +492,8 @@ def _exposure_skip(
         rules: The project's rules, loaded once per tool call.
         notes: Filled with the note of every kept entry that differs from the
             default; may hold directories, which the caller drops.
+        exposed: Filled with every gitignored file a rule lets through; all of
+            them are listed, and none while the rules file is invalid.
 
     Returns:
         A predicate that is True for an entry the listing leaves out.
@@ -518,6 +527,7 @@ def _exposure_skip(
             _access(rel, project_dir, rules)[0] is FileAccess.HIDDEN
         ):
             return True
+        exposed.add(rel)
         note(rel, is_ignored=True)
         return False
 
@@ -557,12 +567,16 @@ def list_accessible_files(directory: str | Path, project_dir: Path) -> AccessLis
         raise NotADirectoryError(f"Path '{directory}' is not a directory")
 
     notes: dict[str, str] = {}
+    exposed: set[str] = set()
     files = _discover_files(
-        abs_path, project_dir, _exposure_skip(abs_path, project_dir, rules, notes)
+        abs_path,
+        project_dir,
+        _exposure_skip(abs_path, project_dir, rules, notes, exposed),
     )
     logger.debug("Discovered %s accessible files in %s", len(files), rel_path)
     return AccessListing(
         files=files,
         notes={rel: notes[rel] for rel in files if rel in notes},
         problems=list(rules.problems),
+        exposed_ignored=frozenset(exposed),
     )
