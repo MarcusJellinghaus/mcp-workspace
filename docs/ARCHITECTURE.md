@@ -160,6 +160,7 @@ It is computed in `file_tools/` and enforced in `toolset/`:
 ```
 file_tools/access_rules.py            parse + match the rules file; pattern classes (pure)
 file_tools/directory_utils.py         gitignore default (rules, walk)
+file_tools/verification.py            verify_file_access: rules-file check (startup)
         │
         ▼
 file_tools/file_access._access        gitignore default + rules override
@@ -188,12 +189,12 @@ toolset/_context.check_readable / check_writable    enforcement
 - `toolset/_context.check_readable` / `check_writable` wrap `require_access`
   for the workspace tools; `toolset/reference.py` calls `require_access`
   directly for `read_reference_file`.
-- `is_path_gitignored`, `check_path_not_gitignored` and `list_files` stay
-  gitignore-only in `directory_utils`, for `check_file_size` and library
-  callers.
+- `is_path_gitignored` and `list_files` stay gitignore-only in
+  `directory_utils`, for `check_file_size` and library callers.
 - `file_access` imports from `directory_utils`, never the reverse at import
-  time; `directory_utils` re-exports `FileAccess`, `get_file_access` and
-  `validate_access_rules` through a lazy module `__getattr__`.
+  time; `directory_utils` re-exports `FileAccess`, `get_file_access`,
+  `validate_access_rules`, `verify_file_access` and `FileAccessVerification`
+  through a lazy module `__getattr__`.
 - Keep the module path `mcp_workspace.file_tools.directory_utils`: mcp_coder
   imports from it and silences its logger by name.
 

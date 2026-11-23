@@ -21,3 +21,12 @@ def test_server_instructions_describe_reference_projects(tmp_path: Path) -> None
     assert not re.search(r"[A-Za-z]:[\\/]", text), "drive-letter path in instructions"
     assert "\\" not in text, "backslash path separator in instructions"
     assert not re.search(r"(?:\A|\s)~?/\S", text), "absolute POSIX path in instructions"
+
+
+def test_server_instructions_mention_access_rules(tmp_path: Path) -> None:
+    """Server instructions name .mcp-file-access and that only the user changes it."""
+    text = create_server(tmp_path).instructions
+    assert text is not None
+    assert ".mcp-file-access" in text
+    assert "read-only" in text
+    assert "only the user can change" in text

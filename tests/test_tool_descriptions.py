@@ -49,3 +49,53 @@ def test_tool_description_documents_glob_semantics(
     get_text: Callable[[Path], str], phrase: str, tmp_path: Path
 ) -> None:
     assert phrase in get_text(tmp_path).lower()
+
+
+READ_TOOLS = ["read_file", "read_reference_file"]
+WRITE_TOOLS = [
+    "save_file",
+    "append_file",
+    "edit_file",
+    "delete_this_file",
+    "move_file",
+    "delete_directory",
+]
+
+
+def _description(project_dir: Path, name: str) -> str:
+    """Return a tool's description, lowercased."""
+    spec = next(s for s in tool_specs(project_dir) if s.name == name)
+    return spec.description.lower()
+
+
+@pytest.mark.parametrize("name", READ_TOOLS)
+def test_read_tool_description_mentions_file_access(name: str, tmp_path: Path) -> None:
+    description = _description(tmp_path, name)
+    assert ".mcp-file-access" in description
+    assert "not exposed by" in description
+
+
+@pytest.mark.parametrize("name", ["search_files", "search_reference_files"])
+def test_search_tool_description_mentions_warning(name: str, tmp_path: Path) -> None:
+    description = _description(tmp_path, name)
+    assert '"warning" key' in description
+    assert ".mcp-file-access" in description
+
+
+def test_list_directory_description_lists_labels(tmp_path: Path) -> None:
+    description = _description(tmp_path, "list_directory")
+    assert "(read-only, not committed)" in description
+    assert "omitted while" in description
+
+
+def test_list_reference_directory_description_lists_label(tmp_path: Path) -> None:
+    description = _description(tmp_path, "list_reference_directory")
+    assert "(not committed)" in description
+    assert "strip that suffix" in description
+
+
+@pytest.mark.parametrize("name", WRITE_TOOLS)
+def test_write_tool_description_mentions_file_access(name: str, tmp_path: Path) -> None:
+    description = _description(tmp_path, name)
+    assert "not exposed read-write by .mcp-file-access" in description
+    assert "no write access" in description

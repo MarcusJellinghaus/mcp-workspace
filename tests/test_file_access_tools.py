@@ -217,7 +217,7 @@ class TestSpellings:
         root = _project(tmp_path / "proj", "read-write /.git/\n")
         (root / ".git").mkdir()
         (root / ".git" / "config").write_bytes(ORIGINAL_BYTES)
-        with pytest.raises(ValueError, match=GITIGNORE_REFUSAL):
+        with pytest.raises(ValueError, match="inside a git directory"):
             make_tools(root)["save_file"](".git/config", "x\n")
         assert (root / ".git" / "config").read_bytes() == ORIGINAL_BYTES
 
@@ -268,6 +268,13 @@ class TestBodyFile:
         root = _project(tmp_path / "proj", "read-only /.mcp.json\n")
         with pytest.raises(ValueError, match="No write access to '.mcp.json'"):
             check_body_target(self._ctx(root), ".mcp.json")
+
+    def test_check_body_target_refusal_hints_at_rules_file(
+        self, tmp_path: Path
+    ) -> None:
+        root = _project(tmp_path / "proj")
+        with pytest.raises(ValueError, match="The user can expose it"):
+            check_body_target(self._ctx(root), "app.log")
 
     def test_check_body_target_accepts_scratch(self, tmp_path: Path) -> None:
         root = _project(tmp_path / "proj", "read-write /.scratch/\n")

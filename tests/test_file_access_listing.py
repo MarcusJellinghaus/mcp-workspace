@@ -43,7 +43,7 @@ def test_suffixes_mark_access_that_differs_from_default(
     """Exposed and read-only files carry a suffix; unmatched files do not."""
     result = suffix_tools["list_directory"]()
 
-    assert "uv.lock (read-only)" in result
+    assert "uv.lock (read-only, not committed)" in result
     assert ".scratch/p.py (read-write, not committed)" in result
     assert ".mcp.json (read-only)" in result
     assert "plain.txt" in result
@@ -91,7 +91,10 @@ def test_hidden_directory_with_rule_lists_exposed_paths(
 
     result = make_tools(root)["list_directory"]("logs")
 
-    assert result == ["logs/sub/b.log (read-only)", "logs/a.log (read-only)"]
+    assert result == [
+        "logs/sub/b.log (read-only, not committed)",
+        "logs/a.log (read-only, not committed)",
+    ]
 
 
 def test_hidden_directory_without_rule_is_refused(

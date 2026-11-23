@@ -6,7 +6,7 @@ from typing import Any
 
 from pathspec import GitIgnoreSpec, RegexPattern
 
-from mcp_workspace.file_tools.access_rules import GlobPattern
+from mcp_workspace.file_tools.access_rules import GlobPattern, access_rules_warning
 from mcp_workspace.file_tools.file_access import list_accessible_files
 from mcp_workspace.file_tools.path_utils import normalize_path
 
@@ -199,6 +199,8 @@ def search_files(
         A content search carries a ``skipped_files`` key listing
         project-relative paths that could not be read — a path rejected by the
         security check, or an unreadable file — present only when non-empty.
+        Carries a "warning" key with the invalid-rules warning while
+        .mcp-file-access is invalid.
 
     Raises:
         ValueError: If neither glob nor pattern is provided, or if the glob
@@ -209,7 +211,9 @@ def search_files(
         raise ValueError("At least one of 'glob' or 'pattern' must be provided")
 
     # Includes the gitignored paths .mcp-file-access exposes, unmarked
-    all_files = list_accessible_files(".", project_dir).files
+    listing = list_accessible_files(".", project_dir)
+    all_files = listing.files
+    warning = access_rules_warning(listing.problems)
 
     matched = _match_glob(glob, all_files) if glob is not None else all_files
     glob_note = _glob_note(glob) if glob is not None and not matched else None
@@ -239,6 +243,8 @@ def search_files(
             result["note"] = note
         if glob_note is not None:
             result["glob_note"] = glob_note
+        if warning is not None:
+            result["warning"] = warning
 
         return result
 
@@ -254,5 +260,7 @@ def search_files(
     }
     if glob_note is not None:
         file_result["glob_note"] = glob_note
+    if warning is not None:
+        file_result["warning"] = warning
 
     return file_result

@@ -21,17 +21,29 @@ if TYPE_CHECKING:
         FileAccess as FileAccess,
     )
     from mcp_workspace.file_tools.file_access import (
+        FileAccessVerification as FileAccessVerification,
+    )
+    from mcp_workspace.file_tools.file_access import (
         get_file_access as get_file_access,
     )
     from mcp_workspace.file_tools.file_access import (
         validate_access_rules as validate_access_rules,
+    )
+    from mcp_workspace.file_tools.file_access import (
+        verify_file_access as verify_file_access,
     )
 
 logger = logging.getLogger(__name__)
 
 # Re-exported for mcp_coder, which imports from this module. file_access
 # imports this module, so the names are resolved lazily on first access.
-_FILE_ACCESS_EXPORTS = ("FileAccess", "get_file_access", "validate_access_rules")
+_FILE_ACCESS_EXPORTS = (
+    "FileAccess",
+    "FileAccessVerification",
+    "get_file_access",
+    "validate_access_rules",
+    "verify_file_access",
+)
 
 
 def __getattr__(name: str) -> Any:
@@ -205,41 +217,6 @@ def _spellings(path: str, project_dir: Path) -> set[str]:
     if resolved is not None:
         spellings.add(resolved)
     return spellings
-
-
-def _excluded_error(file_path: str) -> ValueError:
-    """Build the refusal for a path hidden by gitignore rules.
-
-    Returns:
-        The error to raise, naming file_path.
-    """
-    return ValueError(
-        f"Path '{file_path}' is excluded by .gitignore rules and cannot be "
-        "accessed. Use list_directory() to see available files."
-    )
-
-
-def check_path_not_gitignored(file_path: str, project_dir: Path) -> None:
-    """Raise ValueError if a path is excluded by gitignore rules or inside .git.
-
-    An absolute path is checked relative to project_dir. One that is not below
-    project_dir is left for ``normalize_path`` to refuse.
-
-    Args:
-        file_path: Path to check, relative to project_dir or absolute.
-        project_dir: Project root directory.
-
-    Raises:
-        ValueError: If the path is excluded.
-    """  # noqa: DOC501, DOC502 - _excluded_error returns the documented ValueError
-    path = Path(file_path)
-    if path.is_absolute():
-        try:
-            file_path = path.relative_to(project_dir).as_posix()
-        except ValueError:
-            return
-    if is_path_gitignored(file_path, project_dir):
-        raise _excluded_error(file_path)
 
 
 def _discover_files(

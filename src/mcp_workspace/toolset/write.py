@@ -49,7 +49,9 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
 
         Raises:
             ValueError: If file_path is not a non-empty string or content is
-                not a string.
+                not a string, or file_path is gitignored and
+                not exposed read-write by .mcp-file-access, or read-only by it
+                ("No write access to '<path>' (…)").
         """
         if not file_path or not isinstance(file_path, str):
             logger.error("Invalid file path parameter: %s", file_path)
@@ -97,7 +99,9 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
 
         Raises:
             ValueError: If file_path is not a non-empty string or content is
-                not a string.
+                not a string, or file_path is gitignored and
+                not exposed read-write by .mcp-file-access, or read-only by it
+                ("No write access to '<path>' (…)").
         """
         if not file_path or not isinstance(file_path, str):
             logger.error("Invalid file path parameter: %s", file_path)
@@ -158,7 +162,9 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             if the edit was already applied.
 
         Raises:
-            ValueError: If file_path is not a non-empty string.
+            ValueError: If file_path is not a non-empty string, or file_path
+                is gitignored and not exposed read-write by .mcp-file-access,
+                or read-only by it ("No write access to '<path>' (…)").
         """
         if not file_path or not isinstance(file_path, str):
             raise ValueError(

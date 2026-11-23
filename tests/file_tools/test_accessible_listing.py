@@ -19,6 +19,7 @@ from mcp_workspace.reference_projects import ReferenceProject
 from tests.conftest import ToolMap
 
 READ_ONLY_NOTE = "(read-only)"
+READ_ONLY_NOT_COMMITTED_NOTE = "(read-only, not committed)"
 NOT_COMMITTED_NOTE = "(read-write, not committed)"
 
 
@@ -74,9 +75,24 @@ class TestListAccessibleFiles:
         assert "logs/a.log" in listing.files
         assert "logs/sub/b.log" in listing.files
         assert "x.log" not in listing.files
-        assert listing.notes["logs/a.log"] == READ_ONLY_NOTE
-        assert listing.notes["logs/sub/b.log"] == READ_ONLY_NOTE
+        assert listing.notes["logs/a.log"] == READ_ONLY_NOT_COMMITTED_NOTE
+        assert listing.notes["logs/sub/b.log"] == READ_ONLY_NOT_COMMITTED_NOTE
         assert "plain.txt" not in listing.notes
+
+    def test_exposed_ignored(self, tmp_path: Path) -> None:
+        project = _logs_project(tmp_path, "read-only /logs/\nread-only /plain.txt\n")
+
+        listing = list_accessible_files(".", project)
+
+        assert listing.exposed_ignored == frozenset({"logs/a.log", "logs/sub/b.log"})
+        assert "plain.txt" not in listing.exposed_ignored
+
+    def test_exposed_ignored_empty_while_invalid(self, tmp_path: Path) -> None:
+        project = _logs_project(tmp_path, "readonly /logs/\n")
+
+        listing = list_accessible_files(".", project)
+
+        assert listing.exposed_ignored == frozenset()
 
     def test_logs_are_searched(self, tmp_path: Path) -> None:
         project = _logs_project(tmp_path, "read-only /logs/\n")
@@ -98,7 +114,7 @@ class TestListAccessibleFiles:
         assert "logs/a.log" not in listing.files
         assert "logs/sub/b.log" not in listing.files
         assert "x.log" in listing.files
-        assert listing.notes["x.log"] == READ_ONLY_NOTE
+        assert listing.notes["x.log"] == READ_ONLY_NOT_COMMITTED_NOTE
         found = {match["file"] for match in result["details"]}
         assert "logs/a.log" not in found
         assert get_file_access("logs/a.log", project) is FileAccess.READ_ONLY
@@ -138,6 +154,19 @@ class TestListAccessibleFiles:
         assert listing.notes["plain.txt"] == READ_ONLY_NOTE
         assert "other.txt" in listing.files
         assert "other.txt" not in listing.notes
+
+    def test_tracked_read_only_keeps_plain_note(self, tmp_path: Path) -> None:
+        project = _project(
+            tmp_path,
+            "uv.lock\n",
+            "read-only /uv.lock\nread-only /plain.txt\n",
+            ("uv.lock", "plain.txt"),
+        )
+
+        listing = list_accessible_files(".", project)
+
+        assert listing.notes["plain.txt"] == READ_ONLY_NOTE
+        assert listing.notes["uv.lock"] == READ_ONLY_NOT_COMMITTED_NOTE
 
     def test_root_rules_file_is_read_only(self, tmp_path: Path) -> None:
         project = _project(tmp_path, "", "read-write /.scratch/\n", ("a.txt",))
@@ -188,8 +217,8 @@ class TestListAccessibleFiles:
 
         assert listing.files == ["logs/a.log", "logs/sub/b.log"]
         assert listing.notes == {
-            "logs/a.log": READ_ONLY_NOTE,
-            "logs/sub/b.log": READ_ONLY_NOTE,
+            "logs/a.log": READ_ONLY_NOT_COMMITTED_NOTE,
+            "logs/sub/b.log": READ_ONLY_NOT_COMMITTED_NOTE,
         }
 
     def test_list_directory_reached_by_anchored_prefix(self, tmp_path: Path) -> None:
@@ -253,10 +282,12 @@ class TestReferenceListing:
     ) -> None:
         result = await ref_tools["list_reference_directory"]("ref")
 
-        assert "logs/a.log" in result
-        assert "logs/sub/b.log" in result
-        assert "x.log" not in result
-        assert not any("(read-only)" in entry for entry in result)
+        assert "logs/a.log (not committed)" in result
+        assert "logs/sub/b.log (not committed)" in result
+        assert "plain.txt" in result
+        assert not any(entry.startswith("x.log") for entry in result)
+        assert not any("(read-only" in entry for entry in result)
+        assert not any("(read-write" in entry for entry in result)
 
     @pytest.mark.asyncio
     async def test_search_reference_files_includes_exposed(
@@ -280,3 +311,13 @@ class TestReferenceListing:
         )
         assert "logs/a.log" not in result
         assert "plain.txt" in result[1:]
+
+    @pytest.mark.asyncio
+    async def test_search_reference_files_invalid_rules_file_warning(
+        self, reference: Path, ref_tools: ToolMap
+    ) -> None:
+        (reference / ACCESS_RULES_FILE).write_text("readonly /logs/\n", "utf-8")
+
+        result = await ref_tools["search_reference_files"]("ref", glob="**/*.log")
+
+        assert "warning" in result

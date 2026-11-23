@@ -7,7 +7,7 @@ builds on lives in ``directory_utils``.
 
 import logging
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
@@ -23,19 +23,30 @@ from mcp_workspace.file_tools.access_rules import (
 )
 from mcp_workspace.file_tools.directory_utils import (
     _discover_files,
-    _excluded_error,
     _gitignore_skip,
     _matches_rules,
     _resolved_relative,
     _spellings,
     is_path_gitignored,
 )
-from mcp_workspace.file_tools.path_utils import normalize_path, resolves_into_git_dir
+from mcp_workspace.file_tools.path_utils import (
+    git_dir_error,
+    normalize_path,
+    resolves_into_git_dir,
+)
+from mcp_workspace.file_tools.verification import (
+    FileAccessVerification as FileAccessVerification,
+)
+from mcp_workspace.file_tools.verification import (
+    verify_file_access as verify_file_access,
+)
 from mcp_workspace.utils.git_paths import canonical_spelling, is_path_in_git_dir
 
 logger = logging.getLogger(__name__)
 
 _BUILT_IN = "built-in"
+# Reason _access returns for a .git path, so callers can tell it from gitignore
+_GIT_DIR = "git directory"
 
 
 class FileAccess(IntEnum):
@@ -142,13 +153,14 @@ def _access(path: str, project_dir: Path, rules: AccessRules) -> tuple[FileAcces
         rules: The project's rules, loaded once per tool call.
 
     Returns:
-        The access level and its reason: empty for the default, else the
-        rule, ``built-in`` or the invalid rules file's problems.
+        The access level and its reason: ``git directory`` for ``.git`` and
+        below, empty for the default, else the rule, ``built-in`` or the
+        invalid rules file's problems.
     """
     if is_path_in_git_dir(path) or resolves_into_git_dir(
         project_dir / path, project_dir
     ):
-        return FileAccess.HIDDEN, ""
+        return FileAccess.HIDDEN, _GIT_DIR
     # Sorted, so ties between spellings always give the same reason
     return min(
         (
@@ -172,7 +184,41 @@ def get_file_access(path: str, project_dir: Path) -> FileAccess:
     return _access(path, project_dir, load_access_rules(project_dir))[0]
 
 
-def require_access(file_path: str, project_dir: Path, needed: FileAccess) -> None:
+def _excluded_error(
+    file_path: str, problems: Sequence[str] = (), reference: bool = False
+) -> ValueError:
+    """Build the refusal for a path hidden by gitignore rules.
+
+    The text tells the user how to expose the path, or, while the rules file
+    is invalid, shows its problems instead. It never depends on whether the
+    path exists.
+
+    Args:
+        file_path: The refused path, as the caller spelled it.
+        problems: The rules file's problems; empty when it is valid.
+        reference: True for a reference project: names that project's rules
+            file and ``list_reference_directory()``.
+
+    Returns:
+        The error to raise, naming file_path.
+    """
+    rules_file = (
+        f"that project's {ACCESS_RULES_FILE}" if reference else ACCESS_RULES_FILE
+    )
+    list_tool = "list_reference_directory()" if reference else "list_directory()"
+    head = f"Path '{file_path}' is excluded by .gitignore rules and cannot be accessed"
+    if problems:
+        middle = (
+            f"; {rules_file} is invalid ({'; '.join(problems)}), so no rule exposes it."
+        )
+    else:
+        middle = f". The user can expose it with a rule in {rules_file}."
+    return ValueError(f"{head}{middle} Use {list_tool} to see available files.")
+
+
+def require_access(
+    file_path: str, project_dir: Path, needed: FileAccess, *, reference: bool = False
+) -> None:
     """Raise ValueError unless a path grants the needed access.
 
     An absolute path is checked relative to project_dir. One that is not below
@@ -182,6 +228,8 @@ def require_access(file_path: str, project_dir: Path, needed: FileAccess) -> Non
         file_path: Path to check, relative to project_dir or absolute.
         project_dir: Project root directory.
         needed: ``READ_ONLY`` to read, ``READ_WRITE`` to write.
+        reference: True for a reference project: names that project's rules
+            file and ``list_reference_directory()``.
 
     Raises:
         ValueError: If the path is hidden, or read-only and a write is needed.
@@ -192,9 +240,12 @@ def require_access(file_path: str, project_dir: Path, needed: FileAccess) -> Non
             file_path = path.relative_to(project_dir).as_posix()
         except ValueError:
             return
-    access, reason = _access(file_path, project_dir, load_access_rules(project_dir))
+    rules = load_access_rules(project_dir)
+    access, reason = _access(file_path, project_dir, rules)
+    if reason == _GIT_DIR:
+        raise git_dir_error(file_path)
     if access is FileAccess.HIDDEN:
-        raise _excluded_error(file_path)
+        raise _excluded_error(file_path, rules.problems, reference)
     if needed is FileAccess.READ_WRITE and access is FileAccess.READ_ONLY:
         raise ValueError(f"No write access to '{file_path}' ({reason})")
 
@@ -365,6 +416,7 @@ def check_tree_access(src_path: str, dest_path: str | None, project_dir: Path) -
 
 
 _NOTE_READ_ONLY = "(read-only)"
+_NOTE_READ_ONLY_NOT_COMMITTED = "(read-only, not committed)"
 _NOTE_NOT_COMMITTED = "(read-write, not committed)"
 
 
@@ -374,15 +426,18 @@ class AccessListing:
 
     Attributes:
         files: Project-relative paths, forward-slash separated, in walk order.
-        notes: Path to ``(read-only)`` or ``(read-write, not committed)`` for
-            files whose access differs from the default; empty when the rules
-            file is invalid.
+        notes: Path to ``(read-only)``, ``(read-only, not committed)`` or
+            ``(read-write, not committed)`` for files whose access differs
+            from the default; empty when the rules file is invalid.
         problems: The rules file's problems; empty when it is valid.
+        exposed_ignored: The listed gitignored files a rule exposes; empty
+            when the rules file is invalid. Used by ``list_reference_directory``.
     """
 
     files: list[str]
     notes: dict[str, str]
     problems: list[str]
+    exposed_ignored: frozenset[str] = frozenset()
 
 
 def _exposes_dir(rel_dir: str, rules: AccessRules) -> bool:
@@ -425,7 +480,11 @@ def _enterable(rel_dir: str, project_dir: Path, rules: AccessRules) -> bool:
 
 
 def _exposure_skip(
-    start: Path, project_dir: Path, rules: AccessRules, notes: dict[str, str]
+    start: Path,
+    project_dir: Path,
+    rules: AccessRules,
+    notes: dict[str, str],
+    exposed: set[str],
 ) -> Callable[[Path], bool]:
     """Build a skip predicate that lets the paths the rules expose through.
 
@@ -439,6 +498,8 @@ def _exposure_skip(
         rules: The project's rules, loaded once per tool call.
         notes: Filled with the note of every kept entry that differs from the
             default; may hold directories, which the caller drops.
+        exposed: Filled with every gitignored file a rule lets through; all of
+            them are listed, and none while the rules file is invalid.
 
     Returns:
         A predicate that is True for an entry the listing leaves out.
@@ -450,7 +511,9 @@ def _exposure_skip(
             return
         level = _rule_access(rel, rules)[0]
         if level is FileAccess.READ_ONLY:
-            notes[rel] = _NOTE_READ_ONLY
+            notes[rel] = (
+                _NOTE_READ_ONLY_NOT_COMMITTED if is_ignored else _NOTE_READ_ONLY
+            )
         elif level is FileAccess.READ_WRITE and is_ignored:
             notes[rel] = _NOTE_NOT_COMMITTED
 
@@ -470,6 +533,7 @@ def _exposure_skip(
             _access(rel, project_dir, rules)[0] is FileAccess.HIDDEN
         ):
             return True
+        exposed.add(rel)
         note(rel, is_ignored=True)
         return False
 
@@ -502,19 +566,23 @@ def list_accessible_files(directory: str | Path, project_dir: Path) -> AccessLis
 
     # Before the existence check, which would reveal whether a hidden path exists
     if rel_path != "." and not _enterable(rel_path, project_dir, rules):
-        raise _excluded_error(str(directory))
+        raise _excluded_error(str(directory), rules.problems)
     if not abs_path.exists():
         raise FileNotFoundError(f"Directory '{directory}' does not exist")
     if not abs_path.is_dir():
         raise NotADirectoryError(f"Path '{directory}' is not a directory")
 
     notes: dict[str, str] = {}
+    exposed: set[str] = set()
     files = _discover_files(
-        abs_path, project_dir, _exposure_skip(abs_path, project_dir, rules, notes)
+        abs_path,
+        project_dir,
+        _exposure_skip(abs_path, project_dir, rules, notes, exposed),
     )
     logger.debug("Discovered %s accessible files in %s", len(files), rel_path)
     return AccessListing(
         files=files,
         notes={rel: notes[rel] for rel in files if rel in notes},
         problems=list(rules.problems),
+        exposed_ignored=frozenset(exposed),
     )

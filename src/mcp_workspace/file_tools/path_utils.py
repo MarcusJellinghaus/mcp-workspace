@@ -43,6 +43,22 @@ def _outside_error(path: str, project_dir: Path, reason: str) -> ValueError:
     )
 
 
+def git_dir_error(path: str) -> ValueError:
+    """Build the refusal for a path that is a ``.git`` entry or below one.
+
+    Args:
+        path: The path as it was requested
+
+    Returns:
+        The ValueError to raise; its message names no rules file and gives no
+        hint, since no rule can expose ``.git``.
+    """
+    return ValueError(
+        f"Security error: Path '{path}' is inside a git directory, "
+        "which the file tools do not access."
+    )
+
+
 def resolves_into_git_dir(path: Path, project_dir: Path) -> bool:
     """Check whether a path reaches a ``.git`` entry once the OS has resolved it.
 
@@ -160,9 +176,6 @@ def normalize_path(path: str, project_dir: Path) -> tuple[Path, str]:
     if is_path_in_git_dir(relative_posix) or resolves_into_git_dir(
         joined_path, project_dir
     ):
-        raise ValueError(
-            f"Security error: Path '{path}' is inside a git directory, "
-            "which the file tools do not access."
-        )
+        raise git_dir_error(path)
 
     return joined_path, relative_posix

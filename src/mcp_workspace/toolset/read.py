@@ -85,6 +85,8 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             A content search adds a "skipped_files" key listing project-relative
             paths that could not be read — a path rejected by the security check,
             or an unreadable file — present only when non-empty.
+            Gitignored paths that .mcp-file-access exposes are included; a
+            "warning" key appears while that rules file is invalid.
             Paths are forward-slash separated on every platform and can be
             passed straight back to `read_file`.
 
@@ -125,9 +127,11 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             collapsed summaries (``dir/ (N files)``), or a truncation line
             when output exceeds the internal limit. Paths are forward-slash
             separated on every platform. A file line may end in
-            `` (read-only)`` or `` (read-write, not committed)``; strip that
-            suffix before passing the path to `read_file`. The first line may
-            be a ``WARNING:`` about an invalid ``.mcp-file-access``.
+            `` (read-only)``, `` (read-only, not committed)`` or
+            `` (read-write, not committed)``; strip that suffix before passing
+            the path to `read_file`. Labels are omitted while
+            ``.mcp-file-access`` is invalid. The first line may be a
+            ``WARNING:`` about an invalid ``.mcp-file-access``.
 
         Raises:
             ValueError: If the path points to a file instead of a directory,
@@ -138,7 +142,7 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             # Validate path — normalize_path handles traversal attacks
             abs_path, rel_path = normalize_path(path, ctx.project_dir)
 
-            # A hidden file keeps the gitignore message
+            # A hidden file gets read_file's refusal
             if abs_path.is_file():
                 check_readable(ctx, path)
                 raise ValueError(
@@ -210,7 +214,8 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             in full.
 
         Raises:
-            ValueError: If file_path is not a non-empty string.
+            ValueError: If file_path is not a non-empty string, or is
+                gitignored and not exposed by the project's .mcp-file-access.
         """
         if not file_path or not isinstance(file_path, str):
             logger.error("Invalid file path parameter: %s", file_path)

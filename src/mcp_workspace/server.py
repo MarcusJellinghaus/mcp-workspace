@@ -23,7 +23,9 @@ _INSTRUCTIONS = (
     "through git() and their GitHub issues and pull requests are reachable, "
     "with issues writable. Answer questions about another repo from its "
     "reference project instead of asking the user; call get_reference_projects() "
-    "for the names, then pass one as reference_name."
+    "for the names, then pass one as reference_name. Gitignored paths are "
+    "refused unless the project's .mcp-file-access exposes them; its rules can "
+    "also make paths read-only, and only the user can change that file."
 )
 
 

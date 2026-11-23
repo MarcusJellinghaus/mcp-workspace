@@ -408,7 +408,7 @@ The server exposes the following MCP tools:
 #### List Directory
 - Returns a list of file and directory names
 - Applies the same access rules as the other file tools: gitignored entries are left out unless `.mcp-file-access` exposes them, and an ignored directory is refused unless the [walk scope](docs/file-access.md#access-rules-mcp-file-access) reaches it
-- File lines whose access differs from the default end in ` (read-only)` or ` (read-write, not committed)`; strip the suffix before passing the path on. Collapsed `dir/ (N files)` lines and `dirs_only` output are unmarked
+- File lines whose access differs from the default end in ` (read-only)`, ` (read-only, not committed)` (gitignored, exposed read-only) or ` (read-write, not committed)`; strip the suffix before passing the path on. Collapsed `dir/ (N files)` lines and `dirs_only` output are unmarked, and no line is labelled while `.mcp-file-access` is invalid
 - When `.mcp-file-access` is invalid, the first line is a `WARNING: .mcp-file-access is invalid (…)` line, outside the line cap
 - `.git` folders are excluded
 
@@ -591,6 +591,7 @@ read_reference_file("examples", "src/components/Button.tsx")
 
 **Features:**
 - Automatic gitignore filtering (same as main project)
+- Gitignored files exposed by that project's `.mcp-file-access` end in ` (not committed)`; strip the suffix before passing the path to `read_reference_file`. No other label is shown, since every reference file is read-only
 - Excludes .git directories
 - Returns relative paths within the reference project
 - Validates reference project exists

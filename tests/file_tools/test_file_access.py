@@ -12,8 +12,10 @@ from mcp_workspace.file_tools.file_access import (
     FileAccess,
     _access,
     get_file_access,
+    list_accessible_files,
     require_access,
 )
+from mcp_workspace.file_tools.path_utils import git_dir_error, normalize_path
 
 INVALID_REASON = ".mcp-file-access is invalid: line 1: unknown level 'readonly'"
 
@@ -166,6 +168,15 @@ class TestBuiltIn:
 
         assert get_file_access(path, project) is FileAccess.HIDDEN
 
+    def test_git_dir_reason(self, tmp_path: Path) -> None:
+        project = _project(tmp_path)
+        (project / ".git").mkdir()
+
+        assert _access(".git/config", project, load_access_rules(project)) == (
+            FileAccess.HIDDEN,
+            "git directory",
+        )
+
 
 class TestSpellings:
     """Every spelling of a path gets the most restrictive access."""
@@ -218,6 +229,28 @@ class TestRequireAccess:
         with pytest.raises(ValueError, match="excluded by .gitignore rules"):
             require_access("b.log", project, FileAccess.READ_ONLY)
 
+    @pytest.mark.parametrize("needed", [FileAccess.READ_ONLY, FileAccess.READ_WRITE])
+    def test_git_dir_raises_git_dir_message(
+        self, tmp_path: Path, needed: FileAccess
+    ) -> None:
+        project = _project(tmp_path)
+        (project / ".git").mkdir()
+
+        with pytest.raises(ValueError) as excinfo:
+            require_access(".git/config", project, needed)
+        message = str(excinfo.value)
+        assert message == str(git_dir_error(".git/config"))
+        assert ".gitignore" not in message
+        assert ACCESS_RULES_FILE not in message
+
+    def test_normalize_path_uses_git_dir_message(self, tmp_path: Path) -> None:
+        project = _project(tmp_path)
+        (project / ".git").mkdir()
+
+        with pytest.raises(ValueError) as excinfo:
+            normalize_path(".git/config", project)
+        assert str(excinfo.value) == str(git_dir_error(".git/config"))
+
     def test_read_only_refuses_write(self, tmp_path: Path) -> None:
         project = _project(tmp_path, "", "read-only /.mcp.json\n", (".mcp.json",))
 
@@ -258,6 +291,79 @@ class TestRequireAccess:
         assert str(excinfo.value) == f"No write access to 'a.txt' ({INVALID_REASON})"
 
 
+HEAD = "Path 'b.log' is excluded by .gitignore rules and cannot be accessed"
+
+
+class TestExcludedRefusal:
+    """The gitignore refusal hints at the rules file, or shows its problems."""
+
+    @pytest.mark.parametrize(
+        ("rules", "reference", "expected"),
+        [
+            (
+                "",
+                False,
+                f"{HEAD}. The user can expose it with a rule in .mcp-file-access."
+                " Use list_directory() to see available files.",
+            ),
+            (
+                "",
+                True,
+                f"{HEAD}. The user can expose it with a rule in that project's"
+                " .mcp-file-access. Use list_reference_directory() to see"
+                " available files.",
+            ),
+            (
+                "readonly /x\n",
+                False,
+                f"{HEAD}; .mcp-file-access is invalid (line 1: unknown level"
+                " 'readonly'), so no rule exposes it. Use list_directory() to see"
+                " available files.",
+            ),
+            (
+                "readonly /x\n",
+                True,
+                f"{HEAD}; that project's .mcp-file-access is invalid (line 1:"
+                " unknown level 'readonly'), so no rule exposes it. Use"
+                " list_reference_directory() to see available files.",
+            ),
+        ],
+    )
+    def test_exact_message(
+        self, tmp_path: Path, rules: str, reference: bool, expected: str
+    ) -> None:
+        project = _project(tmp_path, "*.log\n", rules, ("b.log",))
+
+        with pytest.raises(ValueError) as excinfo:
+            require_access("b.log", project, FileAccess.READ_ONLY, reference=reference)
+        assert str(excinfo.value) == expected
+
+    def test_invalid_rules_message_does_not_reveal_existence(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "a").mkdir()
+        (tmp_path / "b").mkdir()
+        with_dir = _project(tmp_path / "a", "secret/\n", "readonly /x\n")
+        (with_dir / "secret").mkdir()
+        without_dir = _project(tmp_path / "b", "secret/\n", "readonly /x\n")
+
+        with pytest.raises(ValueError) as existing:
+            require_access("secret", with_dir, FileAccess.READ_ONLY)
+        with pytest.raises(ValueError) as missing:
+            list_accessible_files("secret", without_dir)
+        assert str(existing.value) == str(missing.value)
+        assert "is invalid (" in str(existing.value)
+
+    def test_ignored_invalid_rules_file_shows_problems(self, tmp_path: Path) -> None:
+        project = _project(tmp_path, f"{ACCESS_RULES_FILE}\n", "readonly /x\n")
+
+        with pytest.raises(ValueError) as excinfo:
+            require_access(ACCESS_RULES_FILE, project, FileAccess.READ_ONLY)
+        message = str(excinfo.value)
+        assert "is invalid (" in message
+        assert "The user can expose" not in message
+
+
 @pytest.mark.parametrize(
     "module", ["mcp_workspace.file_tools.file_access", "mcp_workspace.file_tools"]
 )
@@ -268,6 +374,11 @@ def test_public_api_importable(module: str) -> None:
     assert callable(imported.get_file_access)
     assert imported.FileAccess.READ_ONLY == 1
 
+    from mcp_workspace.file_tools import file_access
+
+    assert imported.verify_file_access is file_access.verify_file_access
+    assert imported.FileAccessVerification is file_access.FileAccessVerification
+
 
 def test_public_api_reexported_from_directory_utils() -> None:
     """mcp_coder imports the public API from directory_utils."""
@@ -276,14 +387,22 @@ def test_public_api_reexported_from_directory_utils() -> None:
         FileAccess as ReexportedFileAccess,
     )
     from mcp_workspace.file_tools.directory_utils import (
+        FileAccessVerification as ReexportedFileAccessVerification,
+    )
+    from mcp_workspace.file_tools.directory_utils import (
         get_file_access as reexported_get_file_access,
     )
     from mcp_workspace.file_tools.directory_utils import (
         validate_access_rules as reexported_validate_access_rules,
     )
+    from mcp_workspace.file_tools.directory_utils import (
+        verify_file_access as reexported_verify_file_access,
+    )
 
     assert ReexportedFileAccess is file_access.FileAccess
     assert reexported_get_file_access is file_access.get_file_access
     assert reexported_validate_access_rules is file_access.validate_access_rules
+    assert reexported_verify_file_access is file_access.verify_file_access
+    assert ReexportedFileAccessVerification is file_access.FileAccessVerification
     with pytest.raises(AttributeError):
         _ = directory_utils.no_such_name

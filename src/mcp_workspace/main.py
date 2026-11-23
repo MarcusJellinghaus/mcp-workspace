@@ -421,8 +421,14 @@ def _main() -> None:
         )
 
     # Import here to avoid circular imports (after logging is configured)
-    from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES
+    from mcp_workspace.file_tools import DEFAULT_READ_MAX_LINES, verify_file_access
     from mcp_workspace.server import run_server
+
+    # Log any problem in a rules file now, not on the first tool call
+    verify_file_access(project_dir)
+    for project in reference_projects.values():
+        if project.path.exists():
+            verify_file_access(project.path)
 
     # Resolve read max lines: CLI > config.toml > built-in default
     read_max_lines: int | None = args.read_max_lines
