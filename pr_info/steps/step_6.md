@@ -17,7 +17,7 @@ valid or absent, there is no such key. Both tool descriptions say this in one Re
 - `src/mcp_workspace/file_tools/search.py` — `search_files`
 - `src/mcp_workspace/toolset/read.py` — `search_files` description
 - `src/mcp_workspace/toolset/reference.py` — `search_reference_files` description
-- `tests/file_tools/test_accessible_listing.py`, `tests/test_tool_descriptions.py`
+- `tests/file_tools/test_search.py`, `tests/file_tools/test_accessible_listing.py`, `tests/test_tool_descriptions.py`
 - `docs/file-access.md`, `docs/release-notes.md`
 
 ## WHAT
@@ -59,12 +59,12 @@ rules file is invalid.`
 
 ## Tests (write first)
 
-- **`tests/file_tools/test_accessible_listing.py`:** call `search_files` directly on a project whose
-  rules file is invalid.
+- **`tests/file_tools/test_search.py`** (mirrors `file_tools/search.py`): call `search_files`
+  directly on a project whose rules file is invalid.
   - File mode (`glob="*.txt"`) and content mode (`pattern="MARKER"`) both have
     `result["warning"] == access_rules_warning(load_access_rules(project).problems)`.
   - A valid rules file and an absent one both give `"warning" not in result`.
-- **Same file, `TestReferenceListing`:** `search_reference_files("ref", glob="**/*.log")` with an
+- **`tests/file_tools/test_accessible_listing.py`, `TestReferenceListing`** (tool-level case only): `search_reference_files("ref", glob="**/*.log")` with an
   invalid reference rules file returns a result with a `"warning"` key.
 - **`tests/test_tool_descriptions.py`:** for `search_files` and `search_reference_files`, the
   description contains `"warning" key` and `.mcp-file-access`.

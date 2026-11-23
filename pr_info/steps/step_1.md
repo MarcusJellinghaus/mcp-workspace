@@ -15,7 +15,7 @@ gitignore wording and no hint. One helper builds that message for both callers.
 
 - `src/mcp_workspace/file_tools/path_utils.py`
 - `src/mcp_workspace/file_tools/file_access.py`
-- `tests/file_tools/test_file_access.py`, `tests/test_server.py`
+- `tests/file_tools/test_file_access.py`, `tests/test_server.py`, `tests/test_file_access_tools.py`
 - `docs/file-access.md`, `docs/release-notes.md`
 
 ## WHAT
@@ -67,8 +67,12 @@ if needed is READ_WRITE and access is READ_ONLY:
   - `str(normalize_path` error for `.git/config`) equals `str(git_dir_error(".git/config"))`.
 - **`tests/test_server.py`:** `test_read_file_git_config` and `test_save_file_git_hooks` change their
   `match=` from `"excluded by .gitignore"` to `"inside a git directory"`.
+- **`tests/test_file_access_tools.py`:** `test_git_dir_stays_hidden_under_read_write_rule` asserts
+  `save_file(".git/config")` against `GITIGNORE_REFUSAL`; change it to match
+  `"inside a git directory"`. With the two `tests/test_server.py` tests, this is the third of the
+  about 3 sites.
 - Update any other test that now fails because it expected the gitignore message on a `.git`
-  path; there should be about 3 sites.
+  path.
 
 ## Docs
 
