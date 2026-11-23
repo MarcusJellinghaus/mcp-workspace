@@ -252,6 +252,45 @@ class TestMain:
             (Path("/path/to/proj2").resolve(),),
         ]
 
+    @patch("mcp_workspace.main.detect_and_verify_url", return_value=None)
+    @patch("mcp_workspace.file_tools.verify_file_access")
+    @patch("mcp_workspace.server.run_server")
+    @patch("mcp_workspace.main.Path.exists", autospec=True)
+    @patch("mcp_workspace.main.Path.is_dir")
+    def test_main_skips_rules_check_for_missing_reference_path(
+        self,
+        mock_is_dir: MagicMock,
+        mock_exists: MagicMock,
+        mock_run_server: MagicMock,
+        mock_verify: MagicMock,
+        mock_detect: MagicMock,
+    ) -> None:
+        """A reference project not cloned yet gets no rules-file check."""
+        missing = Path("/path/to/missing").resolve()
+        mock_exists.side_effect = lambda path: path != missing
+        mock_is_dir.return_value = True
+
+        test_args = [
+            "script.py",
+            "--project-dir",
+            "/test/project",
+            "--reference-project",
+            "name=proj1,path=/path/to/proj1",
+            "--reference-project",
+            "name=missing,path=/path/to/missing,url=https://example.com/o/r.git",
+        ]
+
+        with patch("sys.argv", test_args):
+            with patch("mcp_workspace.main.setup_logging"):
+                main()
+
+        mock_run_server.assert_called_once()
+        assert "missing" in mock_run_server.call_args[1]["reference_projects"]
+        assert [c.args for c in mock_verify.call_args_list] == [
+            (Path("/test/project").resolve(),),
+            (Path("/path/to/proj1").resolve(),),
+        ]
+
     @patch("mcp_workspace.server.run_server")
     @patch("mcp_workspace.main.Path.exists")
     @patch("mcp_workspace.main.Path.is_dir")
