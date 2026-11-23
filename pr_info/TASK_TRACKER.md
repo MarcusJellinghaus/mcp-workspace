@@ -21,6 +21,67 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: `.git` refusal uses `normalize_path`'s message — [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Remove `check_path_not_gitignored` — [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation (precondition check + removal + docs)
+- [ ] Quality checks (pylint, pytest, mypy, vulture) — fix all issues
+- [ ] Commit message prepared
+
+### Step 3: Gitignore refusal hint and invalid-file note — [step_3.md](./steps/step_3.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
+- [ ] Commit message prepared
+
+### Step 4: Raises clauses in tool descriptions — [step_4.md](./steps/step_4.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
+- [ ] Commit message prepared
+
+### Step 5: Server instructions sentence — [step_5.md](./steps/step_5.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
+- [ ] Commit message prepared
+
+### Step 6: Search `warning` key — [step_6.md](./steps/step_6.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
+- [ ] Commit message prepared
+
+### Step 7: Workspace label ` (read-only, not committed)` — [step_7.md](./steps/step_7.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
+- [ ] Commit message prepared
+
+### Step 8: Reference label ` (not committed)` — [step_8.md](./steps/step_8.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
+- [ ] Commit message prepared
+
+### Step 9: `verify_file_access` and startup warning — [step_9.md](./steps/step_9.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks (pylint, pytest, mypy, vulture, lint-imports, tach) — fix all issues
+- [ ] Commit message prepared
+
+### Step 10: Docs — rules-file and missing-path notes — [step_10.md](./steps/step_10.md)
+
+- [ ] Implementation (docs + final acceptance check)
+- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review: review the full branch diff against `main` and the issue's acceptance list
+- [ ] PR summary prepared
