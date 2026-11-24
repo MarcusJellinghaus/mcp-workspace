@@ -11,7 +11,7 @@
 - *What it does* — one sentence.
 - *Why MCP doesn't* — which tool you'd have used, and what stops it.
 
-If you can't name the gap, use the MCP tool. Exempt: the approved git/gh commands under Git operations.
+If you can't name the gap, use the MCP tool. Exempt: the approved commands under Git operations.
 
 **Protected files** (`.mcp*.json`, `.claude/settings*.json`, `.mcp-file-access`): MCP refuses writes to them by design. Stop and ask the user to edit the file — a refusal is not a gap, so never fall back to Edit/Write, Bash or PowerShell.
 
@@ -76,7 +76,7 @@ If you can't name the gap, use the MCP tool. Exempt: the approved git/gh command
 
 **`git_commit`:** always pass `paths`, never `all=True` — `all` is `git add -A`, which commits every untracked file that isn't gitignored (stray downloads, notes, files other sessions left behind).
 
-Sibling repos are readable in full via the reference tools, `git` with `reference_name`, and the GitHub read tools with `reference_name` (`get_reference_projects` lists them). Their issues are also writable with `reference_name` — create, edit and comment. Check there before asking about another repo.
+Sibling repos are readable in full via the reference tools, `git` with `reference_name`, and the GitHub read tools with `reference_name` (`get_reference_projects` lists them). Their issues are also writable with `reference_name` — create, edit and comment. Check there before asking about another repo. That is the only cross-repo route; for repos that aren't reference projects, stop and report.
 
 ## Code quality checks
 
@@ -117,20 +117,15 @@ Never use `python -c` via Bash. If you reason instead of running, label the conc
 
 **Compact diff:** `mcp__mcp-workspace__git` with command `"diff"` includes compact diff by default — detects moved code, collapses unchanged blocks. Use `compact=False` for raw output.
 
-**Allowed commands via Bash tool.** These have no MCP equivalent — use Bash directly. Skills that instruct bash commands (e.g. `git commit`) must also use Bash.
+**Allowed commands via Bash tool.** These have no MCP equivalent — use Bash directly. Skills that instruct bash commands (e.g. `git rebase`) must also use Bash.
 
 ```
 git add / rebase / push --force-with-lease (rebase conflict resolution: git add <file> + git rebase --continue)
-gh issue comment --repo owner/repo (only for a repo that is not a configured reference project — otherwise use the MCP tool with reference_name)
-gh issue view --repo owner/repo (only for a repo that is not a configured reference project — otherwise use the MCP tool with reference_name)
-gh run view
 ```
 
-**Status labels:** `github_issue_create` and `github_issue_edit` reject `status-*` labels; use `mcp__mcp-workspace__github_issue_set_status` to change issue workflow status (`from_status` guards the current status; `reference_name` for reference projects). Never use raw `gh issue edit` with label flags.
+**Status labels:** `github_issue_create` and `github_issue_edit` reject `status-*` labels; use `mcp__mcp-workspace__github_issue_set_status` to change issue workflow status (`from_status` guards the current status; `reference_name` for reference projects).
 
 **Privileged agents:** `commit-pusher`, `issue-updater` and `issue-approver` each carry a frontmatter `PreToolUse` hook that allows their extra tools without a prompt — `git_commit` and `git_push` for `commit-pusher`, `github_issue_edit` for `issue-updater`, `github_issue_set_status` for `issue-approver`. No `bypassPermissions`. Frontmatter hooks are skipped in untrusted folders and under `-p` → there the tools prompt (interactive) or are denied (`-p`). That is an ergonomics device, not access control — any session can launch them. None of the three has `Bash`. Rationale and limits: `docs/repository-setup/agent-permissions.md` in the mcp-coder repository.
-
-**Slash-prefixed `gh` arguments:** prefix with `MSYS_NO_PATHCONV=1` — Git Bash rewrites a leading `/` into a Windows path.
 
 **Before every commit:** run `mcp__mcp-tools-py__run_format_code`, then commit with `mcp__mcp-workspace__git_commit`.
 
