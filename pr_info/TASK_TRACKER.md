@@ -32,9 +32,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared: `feat(github_operations): add github_security_rows`
 
 ### Step 3: `execute_verify` — [step_3.md](./steps/step_3.md)
-- [ ] Implementation: `tests/cli/test_verify.py` first, then `cli/verify.py`
-- [ ] Quality checks (format, ruff, pylint, mypy, pytest, lint-imports, tach, vulture) — fix all issues
-- [ ] Commit message prepared: `feat(cli): add execute_verify`
+- [x] Implementation: `tests/cli/test_verify.py` first, then `cli/verify.py`
+- [x] Quality checks (format, ruff, pylint, mypy, pytest, lint-imports, tach, vulture) — fix all issues
+- [x] Commit message prepared: `feat(cli): add execute_verify`
 
 ### Step 4: `main.py` reference validation split and `verify` dispatch — [step_4.md](./steps/step_4.md)
 - [ ] Implementation: extend `tests/test_main_validate_reference_projects.py` and create `tests/test_main_verify.py` first, then `main.py` changes
