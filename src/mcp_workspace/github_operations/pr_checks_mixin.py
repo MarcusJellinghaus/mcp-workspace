@@ -25,21 +25,26 @@ logger = logging.getLogger(__name__)
 _PASSING_CHECK_CONCLUSIONS: frozenset[str] = frozenset(
     {"success", "neutral", "skipped"}
 )
-PERMISSION_ERROR_TEXT = "token lacks permission (Checks: read / Commit statuses: read)"
+PERMISSION_ERROR_TEXT = "token lacks permission (Commit statuses: read; fine-grained PATs cannot read check runs)"
+TOKEN_REJECTED_ERROR_TEXT = "token rejected (401)"  # noqa: S105 -- user-facing error text, not a credential
 
 
 def _classify_lookup_error(e: BaseException) -> str:
     """Describe a failed check lookup: rate limit, permission, or generic error.
 
     Returns:
-        The rate-limit message, ``PERMISSION_ERROR_TEXT`` for 401/403, or the
-        generic formatted error message.
+        The rate-limit message, ``PERMISSION_ERROR_TEXT`` for 403,
+        ``TOKEN_REJECTED_ERROR_TEXT`` for 401, or the generic formatted error
+        message.
     """
     msg = format_rate_limit_error(e)
     if msg is not None:
         return msg
-    if isinstance(e, GithubException) and e.status in (401, 403):
-        return PERMISSION_ERROR_TEXT
+    if isinstance(e, GithubException):
+        if e.status == 403:
+            return PERMISSION_ERROR_TEXT
+        if e.status == 401:
+            return TOKEN_REJECTED_ERROR_TEXT
     return _format_error_message(e)
 
 

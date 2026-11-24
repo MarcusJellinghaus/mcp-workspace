@@ -11,7 +11,7 @@ from mcp_workspace.checks.branch_status_rendering import (
 )
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 
-_REASON = "token lacks permission (Checks: read / Commit statuses: read)"
+_REASON = "token lacks permission (Commit statuses: read; fine-grained PATs cannot read check runs)"
 
 
 def _make_report(

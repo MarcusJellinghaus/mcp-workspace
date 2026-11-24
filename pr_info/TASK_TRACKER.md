@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: Check-lookup 403/401 texts and skill row — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation (tests + production code + skill row)
-- [ ] Quality checks (pylint, pytest, mypy, ruff) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation (tests + production code + skill row)
+- [x] Quality checks (pylint, pytest, mypy, ruff) — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 
