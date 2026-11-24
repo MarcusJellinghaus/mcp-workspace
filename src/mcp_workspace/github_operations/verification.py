@@ -446,7 +446,15 @@ def verify_github(project_dir: Path) -> dict[str, object]:
     # auto_delete_branches (repo-level setting)
     # ------------------------------------------------------------------
     if repo_is_ok and repo is not None:
-        if repo.delete_branch_on_merge:
+        delete_on_merge: bool | None = repo.delete_branch_on_merge
+        if delete_on_merge is None:
+            result["auto_delete_branches"] = CheckResult(
+                ok=None,
+                value="not accessible — token lacks Contents: Read and write",
+                severity="warning",
+                error="merge settings not returned by GitHub",
+            )
+        elif delete_on_merge:
             result["auto_delete_branches"] = CheckResult(
                 ok=True,
                 value="auto-delete on merge",
