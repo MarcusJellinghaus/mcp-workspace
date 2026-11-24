@@ -37,9 +37,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 4: One push for 120 branches ([step_4.md](./steps/step_4.md))
-- [ ] Implementation: replace 119 `update_ref` + `push --all` in `test_many_branches_not_truncated` with a single push of 120 refspecs; run `test_remote_queries.py`
-- [ ] Quality checks (pylint, mypy, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: replace 119 `update_ref` + `push --all` in `test_many_branches_not_truncated` with a single push of 120 refspecs; run `test_remote_queries.py`
+- [x] Quality checks (pylint, mypy, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 5: Fewer `Repo` objects in test helpers ([step_5.md](./steps/step_5.md))
 - [ ] Implementation: convert `repo.git.<cmd>`-only helpers to `git.Git`, one `Repo` per test for object-model helpers, replace throwaway `Repo.init(...).close()`, apply decision 4; run changed test files; `.scratch/` removed

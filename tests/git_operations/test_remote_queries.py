@@ -117,11 +117,11 @@ class TestListRemoteBranches:
     ) -> None:
         """All 120 heads on origin are returned."""
         repo, project_dir, _ = git_repo_with_remote
-        head_sha = repo.git.rev_parse("HEAD")
-        expected = {f"feature-{i:03d}" for i in range(119)} | {"main"}
-        for name in expected - {"main"}:
-            repo.git.update_ref(f"refs/heads/{name}", head_sha)
-        repo.git.push("--all", "origin")
+        features = [f"feature-{i:03d}" for i in range(119)]
+        expected = set(features) | {"main"}
+        repo.git.push(
+            "origin", "main", *[f"HEAD:refs/heads/{name}" for name in features]
+        )
 
         result = list_remote_branches(project_dir)
 
