@@ -5,8 +5,7 @@ argument-hint: "<issue-number> [--repo owner/repo]"
 allowed-tools:
   - mcp__mcp-workspace__github_issue_view
   - mcp__mcp-workspace__git
-  - "Bash(mcp-coder gh-tool set-status *)"
-  - mcp__mcp-workspace__github_issue_comment
+  - mcp__mcp-workspace__github_issue_set_status
   - mcp__mcp-workspace__get_reference_projects
   - mcp__mcp-workspace__read_file
 ---
@@ -34,7 +33,6 @@ If no issue number is provided:
   and pick the entry whose `url` normalises (as above) to `owner/repo`. Use its `name` as
   `reference_name` on every GitHub tool call. Entries with a null `url` never match.
 - No matching entry → stop and report "not a reference project". There is no other route.
-- **Never** pass a repo to `set-status`.
 
 ## Instructions
 
@@ -45,7 +43,7 @@ If no issue number is provided:
    else → "approval failed: <result>".
 
    Note its status labels (labels prefixed `status-`) — step 3 uses them for the promotable
-   check and the `--from-status` value.
+   check and the `from_status` value.
 
 2. Validate that the issue is ready for approval:
    - Issue has been analyzed/discussed
@@ -66,29 +64,20 @@ If no issue number is provided:
      status labels: X, Y)".
    - Current status not in the table (including no status label) → don't promote; report
      "nothing to approve".
-   - Cross-repo → call
-     `mcp__mcp-workspace__github_issue_comment(number=…, reference_name=…, body="/approve")`
-     and report "approval requested, not confirmed". No polling.
-   - Otherwise run from the project directory (no `--project-dir`, no output redirection —
-     the result is printed on stderr):
-     ```bash
-     mcp-coder gh-tool set-status <next> --from-status <current> --issue <issue_number> --force
-     ```
-     `--force` only skips the clean-tree check, irrelevant for a label change.
+   - Otherwise call
+     `mcp__mcp-workspace__github_issue_set_status(number=<issue_number>, status=<next>, from_status=<current>)`,
+     plus `reference_name` for cross-repo issues only.
      Do **not** also comment `/approve` — the Action would race this call.
 
 4. **Report** the issue number and the outcome:
 
-   | `set-status` result | Report |
+   | `github_issue_set_status` result | Report |
    |---|---|
-   | exit 0, `Updated issue #N to <next>` | `<current> → <next>` |
-   | exit 0, `Skipped set-status to '…': current label is 'X', expected 'Y'` | "not approved (current status X)" |
-   | non-zero exit | "approval failed: <error output>" — stop; no retry, no `/approve` fallback |
+   | starts with `Issue #N status:` (a trailing `Note: issue #N is closed.` is still success) | `<current> → <next>` |
+   | starts with `Status of issue #N not changed:` (guard refused) | "not approved (current status X)" — stop |
+   | anything else (incl. `Label … not found`, `Error:`) | "approval failed: <result verbatim>" — stop; no retry, no `/approve` fallback |
 
-   | Cross-repo comment result | Report |
-   |---|---|
-   | starts with `Added comment to issue #` | "approval requested, not confirmed" |
-   | anything else | "approval failed: <result>" — no retry |
+   If the call prompts, is refused or fails, stop and report — never fall back to Bash.
 
    Not-called outcomes are reported as stated in step 3.
 

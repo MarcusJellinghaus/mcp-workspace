@@ -7,7 +7,12 @@ tools:
   - mcp__mcp-workspace__git_push
   - mcp__mcp-tools-py__run_format_code
   - mcp__mcp-workspace__read_file
-permissionMode: bypassPermissions
+hooks:
+  PreToolUse:
+    - matcher: "mcp__mcp-workspace__git_commit|mcp__mcp-workspace__git_push"
+      hooks:
+        - type: command
+          command: "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\"}}'"
 ---
 
 # Commit-Pusher Agent
@@ -28,6 +33,3 @@ On top of that process:
   both the old and the new path in `paths`.
 - **Message** — use the one from your launch prompt.
 - **Report** the commit SHA, the files committed, and the push result.
-
-Runs with `bypassPermissions`. Rationale and limits:
-`docs/repository-setup/agent-permissions.md` in the mcp-coder repository.

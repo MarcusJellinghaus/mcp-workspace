@@ -35,6 +35,7 @@ Anything else is a code change: stop and report.
 - **Map each test to the module it calls**, not the one it patches. Misplaced tests move to their module's test file.
 - **Check the hard constraints first:** a file that is one big class, a single unit larger than the size budget, file-local fixtures that tests depend on, definitions that must stay above their users. Choose a layout that respects them; if none can, stop and report.
 - **Prefer layouts that keep shared helpers in place and move only whole classes or functions.**
+- **Import cycles:** pylint `R0401` counts function-local imports as edges, but not `if TYPE_CHECKING:` imports. Keep the lazy import on one side and import type-only on the other. A runtime value both sides need (e.g. a NamedTuple) goes into a dependency-free module such as `types.py`.
 
 ## Verify
 

@@ -11,7 +11,6 @@ allowed-tools:
   - "Bash(git rm *)"
   - "Bash(git checkout --ours *)"
   - "Bash(git checkout --theirs *)"
-  - "Bash(git remote get-url *)"
   - "Bash(git restore *)"
   - "Bash(git stash *)"
   - "Bash(git push --force-with-lease *)"
@@ -59,7 +58,7 @@ If the base branch is not `main` or `master`, ask the user to confirm before pro
 1. Working directory is clean (no uncommitted changes)
 2. Not already in rebase/merge state
 3. Not on main/master branch
-4. Remote origin exists
+4. MCP `git` `ls_remote` `--get-url origin` returns a URL
 5. `pr_info/` does not exist on the base branch — if it does, abort with error: `"pr_info/ exists on <BASE_BRANCH>. This folder should only exist on feature branches. Check your branch setup."`
 
 ## Workflow
@@ -113,6 +112,7 @@ Use `refs/remotes/origin/<branch>`, not the bare name: a tag named `origin/<bran
 | `pr_info/` files | Auto-resolve with `--theirs` (keep feature branch version) |
 | Code files (`.py`, `.js`, etc.) | Keep both sides, merge imports |
 | Test files | Keep all tests from both sides |
+| Protected config files (`.mcp*.json`, `.claude/settings*.json`, `.mcp-file-access`) | Pick a side with `git checkout --ours/--theirs`, or stop and ask the user to edit the file — never fall back to Edit/Write, Bash or PowerShell |
 | Config files | Merge additively, prefer HEAD for same keys |
 | Lockfiles (`*-lock.json`, `*.lock`) | Accept theirs (`--theirs`), notify user to regenerate after rebase |
 

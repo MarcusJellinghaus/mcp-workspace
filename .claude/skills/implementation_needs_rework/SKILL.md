@@ -2,7 +2,8 @@
 description: Return issue to plan-ready status for re-implementation after major review issues
 disable-model-invocation: true
 allowed-tools:
-  - "Bash(mcp-coder gh-tool set-status *)"
+  - mcp__mcp-workspace__github_issue_set_status
+  - mcp__mcp-workspace__git
 ---
 
 # Return to plan-ready after major review issues
@@ -24,11 +25,15 @@ Transitions the issue back to `plan-ready` status for re-implementation when cod
 
 ## Instructions
 
-```bash
-mcp-coder gh-tool set-status status-05:plan-ready
-```
+1. Call `mcp__mcp-workspace__git` with command `status`, args `["--porcelain"]`. Any tracked or untracked change other than `uv.lock` → stop and report the uncommitted changes.
+2. Call `mcp__mcp-workspace__git` with command `branch`, args `["--show-current"]`. Take the issue number from the leading digits of the branch name (`^\d+-`). No leading digits → stop and report.
+3. Call `mcp__mcp-workspace__github_issue_set_status(number=<issue number>, status="status-05:plan-ready", from_status="status-07:code-review")`.
+4. Confirm the status change was successful:
+   - Result starts with `Issue #N status:` → success (a trailing `Note: issue #N is closed.` is still success).
+   - Result starts with `Status of issue #N not changed:` → the guard refused (wrong current status); report it and stop.
+   - Anything else (incl. `Label … not found`, `Error:`) → failed; report the result verbatim and stop.
 
-Confirm the status change was successful. If it fails, report the error. Do not use `--force` unless explicitly asked.
+If the call prompts, is refused or fails, stop and report — never fall back to Bash.
 
 ## Next Steps
 
