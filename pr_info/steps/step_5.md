@@ -7,9 +7,9 @@ Read `pr_info/steps/summary.md`, then implement this step (`pr_info/steps/step_5
 ## WHERE
 
 Primary:
-- `tests/git_operations/test_ref_snapshot.py`: `_git` (line ~43), `_repo` (line ~34)
+- `tests/git_operations/test_ref_snapshot.py`: `_git` (line ~43), `_repo` (line ~34), `_init_repo` (line ~73)
 
-Candidate helpers (module-level functions that open `Repo(path)`). Convert only those whose `Repo` is used **solely** for `repo.git.<cmd>(...)`:
+Candidate helpers (module-level functions that open `Repo(path)`). Convert to `git.Git` only those whose `Repo` is used **solely** for `repo.git.<cmd>(...)`. Apply the one-`Repo`-per-test rule (HOW) to the others:
 - `tests/_reference_at_ref_helpers.py` (~24)
 - `tests/git_operations/test_origin_fetch.py` (~26)
 - `tests/git_operations/test_push_current_branch.py` (~216)
@@ -29,12 +29,14 @@ def _git(path: Path, *args: str) -> str:
     return str(git.Git(path).execute(["git", *args]))
 ```
 
-Other converted helpers keep their signature and return type.
+Helpers converted to `git.Git` keep their signature and return type. Helpers switched to one `Repo` per test change their first parameter from `project_dir: Path` to `repo: Repo`, and keep their return type.
 
 ## HOW
 
 - `Repo(p).git.<cmd>(*a)` → `git.Git(p).<cmd>(*a)`: same git process and same `str` output, but no `Repo` object (so no `gc.collect()`).
-- **Do not convert** helpers that use the object model (`.branches`, `.active_branch`, `.head.commit`, `.untracked_files`, `.index`, `config_writer()`). Those read files without starting git, and converting them to git commands would add a process. Where one test calls such helpers repeatedly, passing in one `Repo` opened per test is allowed, but not required.
+- **Do not convert** helpers to `git.Git` when they need the object model (`.branches`, `.active_branch`, `.head.commit`, `.untracked_files`, `.index`, `config_writer()`). `git.Git` has no object model. Some of these start git themselves (`.head.commit` → `git cat-file`, `.untracked_files` → `git status`; see summary), so the test's marker stays as it is.
+- **One `Repo` per test:** if an object-model helper is called 2 or more times in one test (e.g. `_current` / `_upstream` in `tests/git_operations/test_branch_writes.py` and `tests/toolset/test_git_branch.py`), open one `Repo` in the test and pass it to the helper. Change the helper's parameter from `project_dir: Path` to `repo: Repo` and update all its callers. A helper that no test calls more than once stays unchanged.
+- `test_ref_snapshot._init_repo`: replace `Repo.init(path).close()` with `path.mkdir(parents=True, exist_ok=True)` followed by `git.Git(path).init()`, so no throwaway `Repo` object is created. The `mkdir` is needed because `Repo.init` creates the directory itself, while `git.Git(path)` needs it to exist as its working directory.
 - A `with Repo(...)` block is **not** a fix (root cause 1).
 - `test_ref_snapshot`: delete `_repo` if `_git` was its only user. Otherwise keep it for the remaining users. `_close_repo_safely` call counts are unaffected: they count `src` calls, not test helper closes.
 - Import style: `import git` (module) where `git.Git` is used. Drop `from git import Repo` if unused.
@@ -47,6 +49,8 @@ Other converted helpers keep their signature and return type.
 for each candidate helper:
     if Repo used only as repo.git.<cmd>:
         replace Repo(path).git.<cmd>(...) with git.Git(path).<cmd>(...)
+    elif called >= 2 times in one test:
+        take repo: Repo; callers open one Repo per test and pass it
     else:
         leave unchanged
 remove helpers/imports that became unused

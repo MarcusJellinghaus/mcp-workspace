@@ -20,8 +20,8 @@ Marker edits only: `pytestmark = pytest.mark.git_integration`, a class decorator
 
 ## HOW
 
-- For each test, decide by reading the code ("How to tell by reading that a test starts git" in the summary): repo fixtures, `Repo.init`/clone, `repo.git.*`, `git.Git`, `subprocess` git, or unmocked `src` code that runs git.
-- Apply the marker scope rule (module → class → per-test, fewest edits; no moving tests between classes).
+- For each test, decide by reading the code ("How to tell by reading that a test starts git" in the summary): repo fixtures, `Repo.init`/clone, `repo.git.*`, `git.Git`, `subprocess` git, GitPython object reads (`.head.commit`, `index.commit()`, … → `git cat-file`), `.untracked_files` (→ `git status`), or unmocked `src` code that runs git. If unsure, count it as starting git.
+- Apply the marker scope rule in the summary (decision 1): keep the scope marker unless most of the scope's tests start no git. In that case, use per-test markers on the ones that do. No moving tests between classes.
 - Partly marked modules: extend the existing markers to the unmarked tests that start git. Where a module-level `pytestmark` becomes correct, replace the per-scope decorators with it.
 - Decision 2: `github_integration` / `performance` tests get no `git_integration`, even if they start git. Search the changed files for tests carrying two of `git_integration`, `github_integration`, `performance` and fix any found.
 - Tests skipped on Windows: judge by reading the code, same rule.
@@ -31,10 +31,12 @@ Marker edits only: `pytestmark = pytest.mark.git_integration`, a class decorator
 
 ```
 for module in list:
-    starts = {test: reads_as_starting_git(test) for test in module}
-    if all(starts): set module pytestmark
-    else per class: all → class marker; none → no marker; mixed → per-test markers
-    remove markers from scopes where none start git
+    starts = {test: reads_as_starting_git(test) for test in module}   # unsure → True
+    for scope in (module, each class):
+        none start git          → no marker on the scope
+        most start git          → scope marker (module pytestmark / class decorator)
+        most start no git       → no scope marker; per-test markers on those that start git
+    assert every test with starts[test] is under a marker
 ```
 
 ## DATA

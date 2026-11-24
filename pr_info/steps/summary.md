@@ -29,12 +29,11 @@ Tasks 0–4 of the issue (automated implementation). Task 5 (baseline/final meas
 
 ### Marker scope rule (used in steps 2, 3, 6)
 
-Pick the scope that is correct with the fewest edits:
-- every test in the module starts git → module `pytestmark = pytest.mark.git_integration`
-- every test in the class starts git → class decorator
-- otherwise → per-test `@pytest.mark.git_integration` (no moving tests between classes)
+Decision 1: a marked scope (module, class, function) must contain at least one test that starts git, and an unmarked test must start none. For each scope that contains at least one git-starting test:
+- most of its tests start git → keep or set the scope marker (module `pytestmark = pytest.mark.git_integration`, or a class decorator)
+- most of its tests start no git → no scope marker; per-test `@pytest.mark.git_integration` on the tests that do (no moving tests between classes)
 
-A scope where no test starts git loses the marker.
+A scope where no test starts git loses the marker. Every test that starts git ends up under a marker (its own, its class's or its module's).
 
 ### How to tell by reading that a test starts git
 
@@ -43,8 +42,10 @@ It starts git if it (directly or via fixtures) does any of these:
 - calls `git.Repo.init` / `Repo.clone_from` / `repo.git.<cmd>` / `git.Git(...)`
 - calls `subprocess` with `git`
 - calls `src` code that runs git and isn't mocked
+- reads git objects through GitPython: `.head.commit`, `.commit(...)`, `.tree()`, `index.commit()`, `iter_commits`, blob/tree reads. GitPython's default object DB (`GitCmdObjectDB`) runs a persistent `git cat-file` process for these
+- reads `.untracked_files` or calls `is_dirty(untracked_files=True)`. These run `git status`
 
-Merely constructing `Repo(path)` on an existing repo, or reading `.active_branch` / `.head`, does not start git.
+Only these are git-free: constructing `Repo(path)` on an existing repo, `.active_branch`, `.branches`, and `tracking_branch()` (they read files under `.git/`). When unsure, treat the test as starting git and mark it.
 
 ## Test-running rules for this issue (override CLAUDE.md)
 
