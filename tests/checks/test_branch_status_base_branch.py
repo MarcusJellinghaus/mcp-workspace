@@ -21,8 +21,8 @@ from mcp_workspace.github_operations.issues.base import (
 )
 from mcp_workspace.workflows.task_tracker import TaskTrackerStatus
 from tests.github_operations._issue_test_helpers import (
+    make_issue_manager,
     make_untrusted_issue,
-    real_issue_manager,
 )
 
 _EDITOR_PATH = (
@@ -293,10 +293,10 @@ class TestUntrustedBaseBranchEndToEnd:
     """A real IssueManager drops an untrusted malformed section before the report."""
 
     def test_no_malformed_line_or_review_gate_block(
-        self, status_mocks: dict[str, MagicMock], tmp_path: Path
+        self, status_mocks: dict[str, MagicMock]
     ) -> None:
+        manager = make_issue_manager()
         with (
-            real_issue_manager(tmp_path) as manager,
             patch.object(manager, "get_comments", return_value=[]),
             patch(_EDITOR_PATH, return_value=None),
         ):

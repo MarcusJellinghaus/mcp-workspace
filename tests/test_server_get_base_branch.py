@@ -15,8 +15,8 @@ from mcp_workspace.github_operations import IssueIdentityMismatchError
 from mcp_workspace.toolset._github_common import resolve_base_branch
 from tests.conftest import ToolMap
 from tests.github_operations._issue_test_helpers import (
+    make_issue_manager,
     make_untrusted_issue,
-    real_issue_manager,
 )
 
 DETECT = "mcp_workspace.git_operations.base_branch.detect_base_branch"
@@ -212,15 +212,13 @@ class TestGetBaseBranch:
         assert result == "main"
         mock_detect.assert_not_called()
 
-    def test_untrusted_malformed_section_is_not_an_error(
-        self, tmp_path: Path, tools: ToolMap
-    ) -> None:
+    def test_untrusted_malformed_section_is_not_an_error(self, tools: ToolMap) -> None:
         """A real IssueManager ignores an untrusted malformed section."""
         editor = (
             "mcp_workspace.github_operations.issues.base_branch_trust.fetch_body_editor"
         )
+        manager = make_issue_manager()
         with (
-            real_issue_manager(tmp_path) as manager,
             patch(editor, return_value=None),
             patch(PR_MANAGER),
             patch(CURRENT_BRANCH, return_value=BRANCH),

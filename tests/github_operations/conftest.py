@@ -6,7 +6,6 @@ from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import git
 import pytest
 from requests.exceptions import RetryError
 from urllib3.exceptions import MaxRetryError, ResponseError
@@ -16,6 +15,8 @@ from mcp_workspace.github_operations._network import _reset_network_diagnostics_
 from mcp_workspace.github_operations.caching import _store
 from mcp_workspace.github_operations.issues import CacheData, IssueData, IssueManager
 from mcp_workspace.github_operations.issues import manager as manager_module
+
+from ._issue_test_helpers import make_issue_manager
 
 
 @pytest.fixture
@@ -168,45 +169,10 @@ def mock_cache_issue_manager() -> Mock:
 
 
 @pytest.fixture
-def mock_issue_manager(tmp_path: Path) -> Generator[IssueManager, None, None]:
-    """Create a real IssueManager with mocked GitHub API for unit testing.
+def mock_issue_manager() -> IssueManager:
+    """Real IssueManager with a mocked GitHub repository (no git repo needed).
 
-    This fixture creates a real IssueManager instance with:
-    - A temporary git repository
-    - Mocked GitHub API client and repository
-    - All IssueManager logic runs normally, only GitHub API calls are mocked
-
-    This allows tests to verify that IssueManager correctly transforms
-    GitHub API responses into IssueData/CommentData/EventData structures.
-
-    Tests access the mocked repository via manager._repository attribute.
+    All IssueManager logic runs normally; only GitHub API calls are mocked.
+    Tests access the mocked repository via ``manager._repository``.
     """
-    # Create temporary git directory
-    git_dir = tmp_path / "test_repo"
-    git_dir.mkdir()
-    repo = git.Repo.init(git_dir)
-    repo.create_remote("origin", "https://github.com/test/repo.git")
-
-    # Patch GitHub client and config
-    with patch(
-        "mcp_workspace.github_operations.base_manager.get_github_token",
-        return_value="test-token",
-    ):
-        with patch(
-            "mcp_workspace.github_operations.base_manager.Github"
-        ) as mock_github:
-            mock_repo_obj = Mock()
-            mock_repo_obj.full_name = "test/repo"
-            mock_github_client = Mock()
-            mock_github_client.get_repo.return_value = mock_repo_obj
-            mock_github.return_value = mock_github_client
-
-            # Create real IssueManager instance
-            manager = IssueManager(git_dir)
-
-            # Store mocked repository for test access
-            # Note: _repository is Optional, so tests must assert it's not None before use
-            # or accept union-attr warnings from mypy
-            manager._repository = mock_repo_obj
-
-            yield manager
+    return make_issue_manager()

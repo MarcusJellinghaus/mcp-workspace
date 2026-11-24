@@ -13,7 +13,6 @@ from mcp_workspace.github_operations.issues import IssueManager
 from .._issue_test_helpers import make_mock_issue
 
 
-@pytest.mark.git_integration
 class TestIssueManagerComments:
     """Unit tests for IssueManager comment operations with mocked dependencies."""
 

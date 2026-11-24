@@ -26,7 +26,6 @@ def _make_issue(number: int) -> MagicMock:
     return mock_issue
 
 
-@pytest.mark.git_integration
 class TestIssueManagerSubIssues:
     """Unit tests for IssueManager sub-issue operations with mocked dependencies."""
 

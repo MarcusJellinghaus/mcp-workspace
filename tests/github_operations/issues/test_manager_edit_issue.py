@@ -38,7 +38,6 @@ def _make_editable_issue(
     return issue
 
 
-@pytest.mark.git_integration
 class TestIssueManagerEditIssue:
     """Unit tests for the combined edit_issue operation."""
 

@@ -27,9 +27,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 2: Issue manager fixtures in repo_url mode + markers ([step_2.md](./steps/step_2.md))
-- [ ] Implementation: add `make_issue_manager()`, remove `real_issue_manager`, simplify `mock_issue_manager`, update the two former callers, fix `git_integration` markers; run the listed test files
-- [ ] Quality checks (ruff, vulture, pylint, mypy, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add `make_issue_manager()`, remove `real_issue_manager`, simplify `mock_issue_manager`, update the two former callers, fix `git_integration` markers; run the listed test files
+- [x] Quality checks (ruff, vulture, pylint, mypy, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: PR manager fixtures in repo_url mode + markers ([step_3.md](./steps/step_3.md))
 - [ ] Implementation: rewrite the six PullRequestManager fixtures to repo_url mode, drop token patches and unused imports, remove `git_integration` from the six classes; run the six test files
