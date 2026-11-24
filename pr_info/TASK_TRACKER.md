@@ -47,9 +47,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 6: Marker audit of remaining modules ([step_6.md](./steps/step_6.md))
-- [ ] Implementation: add/narrow/remove `git_integration` markers per decision 1, no double group markers (decision 2); verify with `--collect-only` and run changed files
-- [ ] Quality checks (pylint, mypy, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add/narrow/remove `git_integration` markers per decision 1, no double group markers (decision 2); verify with `--collect-only` and run changed files
+- [x] Quality checks (pylint, mypy, format) — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 - [ ] PR review: review full branch diff against `main`, address findings

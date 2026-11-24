@@ -26,12 +26,14 @@ def repo_with_token_remote(tmp_path: Path) -> Path:
     return tmp_path
 
 
+@pytest.mark.git_integration
 def test_ls_remote_get_url_scrubbed(repo_with_token_remote: Path) -> None:
     output = git("ls_remote", repo_with_token_remote, args=["--get-url", "origin"])
     assert SECRET not in output
     assert "github.com/owner/repo" in output
 
 
+@pytest.mark.git_integration
 def test_git_error_with_credentials_scrubbed(repo_with_token_remote: Path) -> None:
     error = GitCommandError(
         ["git", "fetch"], 128, stderr=f"fatal: unable to access '{URL}'"
@@ -48,6 +50,7 @@ def test_git_error_with_credentials_scrubbed(repo_with_token_remote: Path) -> No
     assert exc_info.value.__cause__ is None
 
 
+@pytest.mark.git_integration
 def test_git_error_without_credentials_unchanged(
     repo_with_token_remote: Path,
 ) -> None:
@@ -60,6 +63,7 @@ def test_git_error_without_credentials_unchanged(
             git("fetch", repo_with_token_remote, args=["origin"])
 
 
+@pytest.mark.git_integration
 def test_diff_output_not_scrubbed(tmp_path: Path) -> None:
     repo = Repo.init(tmp_path)
     (tmp_path / "a.txt").write_text("old\n", encoding="utf-8")

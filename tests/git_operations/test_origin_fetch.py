@@ -16,6 +16,8 @@ from mcp_workspace.git_operations.origin_fetch import (
     has_origin_remote,
 )
 
+pytestmark = pytest.mark.git_integration
+
 _RUN_TARGET = "mcp_workspace.git_operations.origin_fetch.run_git_timed"
 _TIMEOUT_ERROR = "git fetch timed out after 10 s"
 
@@ -55,7 +57,6 @@ def repo_with_origin(tmp_path: Path) -> Path:
     return path
 
 
-@pytest.mark.git_integration
 class TestRealFetch:
     """Fetching from a real local origin."""
 
@@ -110,7 +111,6 @@ class TestSkipped:
             assert fetch_origin(tmp_path / "missing") == FetchOutcome(False, None)
         run.assert_not_called()
 
-    @pytest.mark.git_integration
     def test_folder_nested_in_checkout(self, origin_clone: Path) -> None:
         """A plain folder inside a checkout never fetches the parent repository."""
         nested = origin_clone / "nested"

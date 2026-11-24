@@ -161,6 +161,7 @@ def test_target_newline_without_project_dir_uses_platform(
     assert not calls
 
 
+@pytest.mark.git_integration
 def test_target_newline_reads_gitattributes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

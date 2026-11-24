@@ -2,10 +2,13 @@
 
 from pathlib import Path
 
+import pytest
 from git import Repo
 
 from mcp_workspace.git_operations import list_tree
 from tests.git_operations.conftest import commit_files
+
+pytestmark = pytest.mark.git_integration
 
 
 def _pr_info_repo(git_repo: tuple[Repo, Path]) -> tuple[Repo, Path]:

@@ -176,6 +176,7 @@ def test_save_file_tie_uses_platform(
     assert (tmp_path / "f.txt").read_bytes() == b"x" + nl + b"y" + nl
 
 
+@pytest.mark.git_integration
 @pytest.mark.parametrize(
     ("name", "platform", "nl"),
     [("run.sh", "\r\n", b"\n"), ("run.bat", "\n", b"\r\n")],
