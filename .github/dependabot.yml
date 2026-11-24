@@ -9,9 +9,13 @@ updates:
     labels:
       - "dependencies"
       - "python"
-    versioning-strategy: "auto"
+    # Keep minimums as hard floors: only touch a requirement when a new
+    # release falls outside it (e.g. a <3 cap), never raise a >= floor.
+    versioning-strategy: "increase-if-necessary"
     allow:
       - dependency-type: "all"
+    cooldown:
+      default-days: 7
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -20,3 +24,5 @@ updates:
     target-branch: "main"
     labels:
       - "dependencies"
+    cooldown:
+      default-days: 7
