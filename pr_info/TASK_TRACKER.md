@@ -27,9 +27,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared: `feat(cli): add verify section formatters`
 
 ### Step 2: `github_security_rows` and PyYAML — [step_2.md](./steps/step_2.md)
-- [ ] Implementation: `tests/github_operations/test_security_rows.py` first, then `github_operations/security_rows.py`, `__init__.py` re-export, `pyproject.toml` (PyYAML, types-PyYAML), `.importlinter` yaml contract
-- [ ] Quality checks (format, ruff, pylint, mypy, pytest, lint-imports, tach, deptry, vulture) — fix all issues
-- [ ] Commit message prepared: `feat(github_operations): add github_security_rows`
+- [x] Implementation: `tests/github_operations/test_security_rows.py` first, then `github_operations/security_rows.py`, `__init__.py` re-export, `pyproject.toml` (PyYAML, types-PyYAML), `.importlinter` yaml contract
+- [x] Quality checks (format, ruff, pylint, mypy, pytest, lint-imports, tach, deptry, vulture) — fix all issues
+- [x] Commit message prepared: `feat(github_operations): add github_security_rows`
 
 ### Step 3: `execute_verify` — [step_3.md](./steps/step_3.md)
 - [ ] Implementation: `tests/cli/test_verify.py` first, then `cli/verify.py`

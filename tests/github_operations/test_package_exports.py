@@ -8,6 +8,7 @@ from mcp_workspace.github_operations import (
     IssueIdentityMismatchError,
     MergeResult,
     PullRequestData,
+    github_security_rows,
     verify_github_security,
 )
 
@@ -25,6 +26,12 @@ def test_issue_identity_mismatch_error_exported() -> None:
     assert IssueIdentityMismatchError is not None
     assert issubclass(IssueIdentityMismatchError, ValueError)
     assert "IssueIdentityMismatchError" in github_operations.__all__
+
+
+def test_github_security_rows_exported() -> None:
+    """github_security_rows is importable and in __all__."""
+    assert github_security_rows is not None
+    assert "github_security_rows" in github_operations.__all__
 
 
 def test_verify_github_security_exported() -> None:

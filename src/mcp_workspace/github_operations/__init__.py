@@ -22,6 +22,7 @@ from .ci_results_manager import CIResultsManager, CIStatusData
 from .labels_manager import LabelData, LabelsManager
 from .pr_manager import PullRequestManager
 from .pr_types import MergeResult, PullRequestData
+from .security_rows import github_security_rows
 from .trust import is_trusted_author
 from .verification import CheckResult, verify_github
 
@@ -53,6 +54,7 @@ __all__ = [
     "format_rate_limit_error",
     "get_authenticated_username",
     "get_trusted_commenters",
+    "github_security_rows",
     "is_trusted_author",
     "verify_github",
     "verify_github_security",
