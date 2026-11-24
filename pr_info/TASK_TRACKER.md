@@ -21,6 +21,19 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: `auto_delete_branches` reports "not accessible" when unreadable — [step_1.md](./steps/step_1.md)
+
+- [ ] Implementation (tests + production code)
+- [ ] Quality checks (pylint, pytest, mypy) — fix all issues
+- [ ] Commit message prepared
+
+### Step 2: Check-lookup 403/401 texts and skill row — [step_2.md](./steps/step_2.md)
+
+- [ ] Implementation (tests + production code + skill row)
+- [ ] Quality checks (pylint, pytest, mypy, ruff) — fix all issues
+- [ ] Commit message prepared
 
 ## Pull Request
+
+- [ ] PR review — all steps implemented, all checks pass
+- [ ] PR summary prepared
