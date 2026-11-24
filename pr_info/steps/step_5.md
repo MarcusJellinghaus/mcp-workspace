@@ -36,7 +36,12 @@ Helpers converted to `git.Git` keep their signature and return type. Helpers swi
 - `Repo(p).git.<cmd>(*a)` → `git.Git(p).<cmd>(*a)`: same git process and same `str` output, but no `Repo` object (so no `gc.collect()`).
 - **Do not convert** helpers to `git.Git` when they need the object model (`.branches`, `.active_branch`, `.head.commit`, `.untracked_files`, `.index`, `config_writer()`). `git.Git` has no object model. Some of these start git themselves (`.head.commit` → `git cat-file`, `.untracked_files` → `git status`; see summary), so the test's marker stays as it is.
 - **One `Repo` per test:** if an object-model helper is called 2 or more times in one test (e.g. `_current` / `_upstream` in `tests/git_operations/test_branch_writes.py` and `tests/toolset/test_git_branch.py`), open one `Repo` in the test and pass it to the helper. Change the helper's parameter from `project_dir: Path` to `repo: Repo` and update all its callers. A helper that no test calls more than once stays unchanged.
-- `test_ref_snapshot._init_repo`: replace `Repo.init(path).close()` with `path.mkdir(parents=True, exist_ok=True)` followed by `git.Git(path).init()`, so no throwaway `Repo` object is created. The `mkdir` is needed because `Repo.init` creates the directory itself, while `git.Git(path)` needs it to exist as its working directory.
+- **Throwaway `Repo.init`:** in every helper or fixture in the modules listed under WHERE, replace `Repo.init(path).close()` with `path.mkdir(parents=True, exist_ok=True)` followed by `git.Git(path).init()`, so no throwaway `Repo` object is created. The `mkdir` is needed because `Repo.init` creates the directory itself, while `git.Git(path)` needs it to exist as its working directory. Known sites:
+  - `tests/git_operations/test_ref_snapshot.py` `_init_repo` (~73)
+  - `tests/_reference_at_ref_helpers.py` `init_repo` (~62). It already calls `path.mkdir(parents=True)`, so only the `Repo.init` line changes.
+  - `tests/git_operations/test_origin_fetch.py` `repo_with_origin` fixture (~63)
+
+  Inline `Repo.init(...).close()` calls inside test bodies are left alone (see below).
 - A `with Repo(...)` block is **not** a fix (root cause 1).
 - `test_ref_snapshot`: delete `_repo` if `_git` was its only user. Otherwise keep it for the remaining users. `_close_repo_safely` call counts are unaffected: they count `src` calls, not test helper closes.
 - Import style: `import git` (module) where `git.Git` is used. Drop `from git import Repo` if unused.
@@ -53,6 +58,8 @@ for each candidate helper:
         take repo: Repo; callers open one Repo per test and pass it
     else:
         leave unchanged
+for each helper/fixture with Repo.init(path).close():
+    path.mkdir(parents=True, exist_ok=True); git.Git(path).init()
 remove helpers/imports that became unused
 ```
 
