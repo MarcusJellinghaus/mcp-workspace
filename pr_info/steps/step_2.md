@@ -4,7 +4,7 @@
 
 > Read `pr_info/steps/summary.md`, then implement `pr_info/steps/step_2.md` exactly.
 > Follow TDD: write the test changes first, then the code and skill changes. Use the exact strings given.
-> Run pylint, pytest (`extra_args: ["-n", "auto"]`) and mypy; all must pass.
+> Run pylint, pytest (`extra_args: ["-n", "auto"]`), mypy and `run_ruff_check`; all must pass.
 > Run `run_format_code`, then make one commit.
 
 ## Precondition
@@ -25,7 +25,7 @@
 PERMISSION_ERROR_TEXT = (
     "token lacks permission (Commit statuses: read; fine-grained PATs cannot read check runs)"
 )
-TOKEN_REJECTED_ERROR_TEXT = "token rejected (401)"
+TOKEN_REJECTED_ERROR_TEXT = "token rejected (401)"  # noqa: S105 -- user-facing error text, not a credential
 
 def _classify_lookup_error(e: BaseException) -> str  # signature unchanged
 ```
