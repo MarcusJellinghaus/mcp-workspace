@@ -5,10 +5,8 @@ Tests merged-PR lookup by head commit SHA using mocked GitHub API.
 
 from collections.abc import Iterator
 from datetime import UTC, datetime
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import git
 import pytest
 from github.GithubException import GithubException
 
@@ -38,20 +36,14 @@ def fixture_mock_repo() -> Iterator[MagicMock]:
 
 
 @pytest.fixture(name="manager")
-def fixture_manager(tmp_path: Path) -> Iterator[PullRequestManager]:
-    """PullRequestManager on a local repo with a GitHub origin."""
-    git_dir = tmp_path / "git_dir"
-    git_dir.mkdir()
-    repo = git.Repo.init(git_dir)
-    repo.create_remote("origin", "https://github.com/testowner/testrepo.git")
-    with patch(
-        "mcp_workspace.github_operations.base_manager.get_github_token",
-        return_value="dummy-token",
-    ):
-        yield PullRequestManager(git_dir)
+def fixture_manager() -> PullRequestManager:
+    """PullRequestManager in repo_url mode (no git repo needed)."""
+    return PullRequestManager(
+        repo_url="https://github.com/testowner/testrepo.git",
+        github_token="dummy-token",
+    )
 
 
-@pytest.mark.git_integration
 class TestFindMergedPrByHeadSha:
     """Tests for find_merged_pr_by_head_sha() method."""
 

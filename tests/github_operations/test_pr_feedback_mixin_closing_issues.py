@@ -1,33 +1,22 @@
 """Unit tests for PullRequestManager.get_closing_issue_numbers() method."""
 
-from pathlib import Path
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-import git
 import pytest
 
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
 
 
-@pytest.mark.git_integration
 class TestGetClosingIssueNumbers:
     """Tests for PullRequestManager.get_closing_issue_numbers() method."""
 
     @pytest.fixture
-    def mock_manager(self, tmp_path: Path) -> PullRequestManager:
-        """Create a PullRequestManager with mocked dependencies."""
-        git_dir = tmp_path / "git_dir"
-        git_dir.mkdir()
-        repo = git.Repo.init(git_dir)
-        repo.create_remote("origin", "https://github.com/test/repo.git")
-
-        with patch(
-            "mcp_workspace.github_operations.base_manager.get_github_token",
-            return_value="dummy-token",
-        ):
-            manager = PullRequestManager(git_dir)
-            return manager
+    def mock_manager(self) -> PullRequestManager:
+        """Create a PullRequestManager in repo_url mode (no git repo needed)."""
+        return PullRequestManager(
+            repo_url="https://github.com/test/repo.git", github_token="dummy-token"
+        )
 
     def _setup_graphql_mock(
         self, manager: PullRequestManager, response: dict[str, Any]

@@ -32,9 +32,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 3: PR manager fixtures in repo_url mode + markers ([step_3.md](./steps/step_3.md))
-- [ ] Implementation: rewrite the six PullRequestManager fixtures to repo_url mode, drop token patches and unused imports, remove `git_integration` from the six classes; run the six test files
-- [ ] Quality checks (ruff, vulture, pylint, mypy, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: rewrite the six PullRequestManager fixtures to repo_url mode, drop token patches and unused imports, remove `git_integration` from the six classes; run the six test files
+- [x] Quality checks (ruff, vulture, pylint, mypy, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: One push for 120 branches ([step_4.md](./steps/step_4.md))
 - [ ] Implementation: replace 119 `update_ref` + `push --all` in `test_many_branches_not_truncated` with a single push of 120 refspecs; run `test_remote_queries.py`
