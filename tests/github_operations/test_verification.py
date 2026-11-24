@@ -110,7 +110,7 @@ def _patch_all_ok(
     repo_full_name: str = "owner/repo",
     default_branch: str = "main",
     protection: Mock | None = None,
-    delete_branch_on_merge: bool = True,
+    delete_branch_on_merge: bool | None = True,
     token_source: Literal["env", "config"] = "env",  # noqa: S107 -- names a source
 ) -> dict[str, object]:
     """Run verify_github with all dependencies mocked to succeed."""
@@ -136,7 +136,7 @@ def _run_all_ok_with_branch(
     default_branch: str = "main",
     protection: Mock | None = None,
     protection_error: Exception | None = None,
-    delete_branch_on_merge: bool = True,
+    delete_branch_on_merge: bool | None = True,
     token_source: Literal["env", "config"] = "env",  # noqa: S107 -- names a source
 ) -> tuple[dict[str, object], Mock]:
     """Like ``_patch_all_ok``, but also return the branch mock.
@@ -843,6 +843,14 @@ class TestAutoDeleteBranches:
         assert check["ok"] is False
         assert check["value"] == "not enabled"
         assert check["severity"] == "warning"
+
+    def test_not_accessible(self, tmp_path: Path) -> None:
+        result = _patch_all_ok(tmp_path, delete_branch_on_merge=None)
+        check: CheckResult = result["auto_delete_branches"]  # type: ignore[assignment]
+        assert check["ok"] is None
+        assert check["value"] == "not accessible — token lacks Contents: Read and write"
+        assert check["severity"] == "warning"
+        assert check["error"] == "merge settings not returned by GitHub"
 
     def test_present_when_no_branch_protection(self, tmp_path: Path) -> None:
         mock_user = Mock()

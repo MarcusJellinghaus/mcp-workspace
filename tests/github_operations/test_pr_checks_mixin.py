@@ -13,7 +13,10 @@ import git
 import pytest
 from github.GithubException import GithubException
 
-from mcp_workspace.github_operations.pr_checks_mixin import PERMISSION_ERROR_TEXT
+from mcp_workspace.github_operations.pr_checks_mixin import (
+    PERMISSION_ERROR_TEXT,
+    TOKEN_REJECTED_ERROR_TEXT,
+)
 from mcp_workspace.github_operations.pr_manager import PullRequestManager
 
 
@@ -184,6 +187,21 @@ class TestGetNonGreenChecks:
         assert manager.get_non_green_checks(1, head_sha="abc") == (
             (),
             PERMISSION_ERROR_TEXT,
+        )
+
+    def test_token_rejected_error(
+        self, checks_env: tuple[PullRequestManager, MagicMock]
+    ) -> None:
+        """401 without rate-limit headers -> TOKEN_REJECTED_ERROR_TEXT."""
+        manager, mock_repo = checks_env
+        commit = _set_checks(mock_repo, [], [])
+        commit.get_check_runs.side_effect = GithubException(
+            401, {"message": "Bad credentials"}, headers={}
+        )
+
+        assert manager.get_non_green_checks(1, head_sha="abc") == (
+            (),
+            TOKEN_REJECTED_ERROR_TEXT,
         )
 
     def test_rate_limit_error(
