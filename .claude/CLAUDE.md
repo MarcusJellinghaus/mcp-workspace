@@ -13,6 +13,8 @@
 
 If you can't name the gap, use the MCP tool. Exempt: the approved git/gh commands under Git operations.
 
+**Protected files** (`.mcp*.json`, `.claude/settings*.json`, `.mcp-file-access`): MCP refuses writes to them by design. Stop and ask the user to edit the file — a refusal is not a gap, so never fall back to Edit/Write, Bash or PowerShell.
+
 **No session scratchpad.** MCP tools can't write outside the project. Temporary files go in `.scratch/`.
 
 ### Tool mapping
@@ -40,9 +42,12 @@ If you can't name the gap, use the MCP tool. Exempt: the approved git/gh command
 | Run ruff check | `mcp__mcp-tools-py__run_ruff_check` |
 | Run ruff fix | `mcp__mcp-tools-py__run_ruff_fix` |
 | Run bandit | `mcp__mcp-tools-py__run_bandit_check` |
+| Run tach | `mcp__mcp-tools-py__run_tach_check` |
+| Run deptry | `mcp__mcp-tools-py__run_deptry_check` |
 | Format code (project's configured formatter) | `mcp__mcp-tools-py__run_format_code` |
 | Check a Python semantic before claiming it | scratch probe — see [Scratch probes](#scratch-probes) |
-| Get library source | `mcp__mcp-tools-py__get_library_source` |
+| Get library source of installed deps (never `python -c "__file__"` + cat site-packages) | `mcp__mcp-tools-py__get_library_source` |
+| Search installed deps / stdlib source | `mcp__mcp-tools-py__search_library_files` |
 | Refactoring | `mcp__mcp-tools-py__move_symbol`, `move_module`, `rename_symbol`, `list_symbols`, `find_references` |
 | Git (read-only) | `mcp__mcp-workspace__git` |
 | Create / switch branch | `mcp__mcp-workspace__git_branch` |
@@ -68,6 +73,8 @@ If you can't name the gap, use the MCP tool. Exempt: the approved git/gh command
 | Unlink a sub-issue | `mcp__mcp-workspace__github_subissue_remove` |
 | Create GitHub PR | `mcp__mcp-workspace__github_pr_create` |
 | List GitHub labels | `mcp__mcp-workspace__github_label_list` |
+
+**`git_commit`:** always pass `paths`, never `all=True` — `all` is `git add -A`, which commits every untracked file that isn't gitignored (stray downloads, notes, files other sessions left behind).
 
 Sibling repos are readable in full via the reference tools, `git` with `reference_name`, and the GitHub read tools with `reference_name` (`get_reference_projects` lists them). Their issues are also writable with `reference_name` — create, edit and comment. Check there before asking about another repo.
 
@@ -113,20 +120,21 @@ Never use `python -c` via Bash. If you reason instead of running, label the conc
 **Allowed commands via Bash tool.** These have no MCP equivalent — use Bash directly. Skills that instruct bash commands (e.g. `git commit`) must also use Bash.
 
 ```
-git add / rebase (rebase conflict resolution: git add <file> + git rebase --continue)
+git add / rebase / push --force-with-lease (rebase conflict resolution: git add <file> + git rebase --continue)
 gh issue comment --repo owner/repo (only for a repo that is not a configured reference project — otherwise use the MCP tool with reference_name)
 gh issue view --repo owner/repo (only for a repo that is not a configured reference project — otherwise use the MCP tool with reference_name)
 gh run view
-mcp-coder gh-tool set-status <label>
 ```
 
-**Status labels:** use `mcp__mcp-workspace__github_issue_set_status` to change issue workflow status (works for reference projects too). Skills that still call `mcp-coder gh-tool set-status` may keep using it. Never use raw `gh issue edit` with label flags.
+**Status labels:** `github_issue_create` and `github_issue_edit` reject `status-*` labels; use `mcp__mcp-workspace__github_issue_set_status` to change issue workflow status (`from_status` guards the current status; `reference_name` for reference projects). Never use raw `gh issue edit` with label flags.
+
+**Privileged agents:** `commit-pusher`, `issue-updater` and `issue-approver` each carry a frontmatter `PreToolUse` hook that allows their extra tools without a prompt — `git_commit` and `git_push` for `commit-pusher`, `github_issue_edit` for `issue-updater`, `github_issue_set_status` for `issue-approver`. No `bypassPermissions`. Frontmatter hooks are skipped in untrusted folders and under `-p` → there the tools prompt (interactive) or are denied (`-p`). That is an ergonomics device, not access control — any session can launch them. None of the three has `Bash`. Rationale and limits: `docs/repository-setup/agent-permissions.md` in the mcp-coder repository.
 
 **Slash-prefixed `gh` arguments:** prefix with `MSYS_NO_PATHCONV=1` — Git Bash rewrites a leading `/` into a Windows path.
 
 **Before every commit:** run `mcp__mcp-tools-py__run_format_code`, then commit with `mcp__mcp-workspace__git_commit`.
 
-**Bash discipline:** no `cd` prefix. Don't chain approved with unapproved commands. Run them separately.
+**Bash discipline:** no `cd` prefix, no `git -C` — commands already run in the project directory. Don't chain approved with unapproved commands. Run them separately.
 
 **Commit messages:** standard format. See Writing style for length. No attribution footers.
 
