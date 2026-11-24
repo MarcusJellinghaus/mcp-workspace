@@ -125,8 +125,9 @@ contention inflates per-test time 2–15×, #416):
 
 The mcp-coder `implement_final` gate runs `check@standard` (mypy, pylint),
 then `test@quick` (= row 2, all `*integration` markers excluded) with
-mcp-tools-py's 300 s default — row 2 measured 348 s, and this repo sets no
-`pytest-timeout` in `[tool.mcp-tools-py]` (mcp_coder sets 1800).
+mcp-tools-py's 300 s default — row 2 measured 348–376 s, so this branch sets
+`pytest-timeout = 1800` in `[tool.mcp-tools-py]` (as mcp_coder does; it
+overrides every test depth, and the non-quick depths already default to 1800).
 
 | # | Selection | Measured (`-n auto`, 2026-11-24, after rebase) | `timeout_seconds` |
 |---|---|---|---|
