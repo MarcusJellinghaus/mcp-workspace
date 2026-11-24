@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import git
 import pytest
 from git import Repo
 
@@ -144,7 +145,7 @@ def _feature_branch(project_dir: Path, filename: str = "feature.txt") -> Repo:
 
 def _origin_heads(project_dir: Path) -> str:
     """Return origin's ``feature`` head as listed by ls-remote."""
-    return str(Repo(project_dir).git.ls_remote("--heads", "origin", "feature"))
+    return str(git.Git(project_dir).ls_remote("--heads", "origin", "feature"))
 
 
 @pytest.mark.git_integration

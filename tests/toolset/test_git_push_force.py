@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import git
 import pytest
 from git import GitCommandError, Repo
 
@@ -130,7 +131,7 @@ def _pushed_feature_branch(project_dir: Path) -> Repo:
 
 def _origin_feature(project_dir: Path) -> str:
     """Return the SHA of origin's ``feature`` branch."""
-    heads = Repo(project_dir).git.ls_remote("origin", "refs/heads/feature")
+    heads = git.Git(project_dir).ls_remote("origin", "refs/heads/feature")
     return str(heads).split()[0]
 
 

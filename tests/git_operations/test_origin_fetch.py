@@ -1,10 +1,10 @@
 """Tests for fetching ``origin`` with one retry."""
 
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import git
 import pytest
 from git import Repo
 
@@ -20,20 +20,9 @@ _RUN_TARGET = "mcp_workspace.git_operations.origin_fetch.run_git_timed"
 _TIMEOUT_ERROR = "git fetch timed out after 10 s"
 
 
-@contextmanager
-def _repo(path: Path) -> Iterator[Repo]:
-    """Open a repository for a test helper and close it afterwards."""
-    repo = Repo(path)
-    try:
-        yield repo
-    finally:
-        repo.close()
-
-
 def _git(path: Path, *args: str) -> str:
     """Run a git command in ``path`` and return its stdout."""
-    with _repo(path) as repo:
-        return str(repo.git.execute(["git", *args]))
+    return str(git.Git(path).execute(["git", *args]))
 
 
 def _ok() -> GitOutput:
@@ -60,7 +49,8 @@ def _timed_out() -> GitOutput:
 def repo_with_origin(tmp_path: Path) -> Path:
     """A repository whose ``origin`` is never contacted (run_git_timed is mocked)."""
     path = tmp_path / "repo"
-    Repo.init(path).close()
+    path.mkdir(parents=True, exist_ok=True)
+    git.Git(path).init()
     _git(path, "remote", "add", "origin", "https://example.invalid/x.git")
     return path
 

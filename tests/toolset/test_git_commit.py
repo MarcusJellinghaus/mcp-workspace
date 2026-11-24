@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import git
 import pytest
 from git import Repo
 
@@ -290,7 +291,7 @@ def _seed(project_dir: Path, *names: str) -> None:
 
 def _head_files(project_dir: Path) -> list[str]:
     """Return the paths changed by HEAD."""
-    out = Repo(project_dir).git.diff_tree("--no-commit-id", "--name-only", "-r", "HEAD")
+    out = git.Git(project_dir).diff_tree("--no-commit-id", "--name-only", "-r", "HEAD")
     return str(out).splitlines()
 
 
@@ -301,7 +302,7 @@ def _untracked(project_dir: Path) -> list[str]:
 
 def _staged(project_dir: Path) -> list[str]:
     """Return the paths staged relative to HEAD."""
-    return str(Repo(project_dir).git.diff("--cached", "--name-only")).splitlines()
+    return str(git.Git(project_dir).diff("--cached", "--name-only")).splitlines()
 
 
 def _install_failing_hook(project_dir: Path, tmp_path: Path) -> None:

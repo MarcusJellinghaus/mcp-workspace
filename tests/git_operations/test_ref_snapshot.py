@@ -6,13 +6,12 @@
 
 import os
 import stat
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import patch
 
+import git
 import pytest
-from git import Repo
 from git.exc import InvalidGitRepositoryError, NoSuchPathError
 
 from mcp_workspace.git_operations import core
@@ -30,20 +29,9 @@ _CLOSE_TARGET = "mcp_workspace.git_operations.ref_snapshot._close_repo_safely"
 _REAL_CLOSE = core._close_repo_safely  # pylint: disable=protected-access
 
 
-@contextmanager
-def _repo(path: Path) -> Iterator[Repo]:
-    """Open a repository for a test helper and close it afterwards."""
-    repo = Repo(path)
-    try:
-        yield repo
-    finally:
-        repo.close()
-
-
 def _git(path: Path, *args: str) -> str:
     """Run a git command in ``path`` and return its stdout."""
-    with _repo(path) as repo:
-        return str(repo.git.execute(["git", *args]))
+    return str(git.Git(path).execute(["git", *args]))
 
 
 def _commit(clone: Path, files: dict[str, bytes], message: str = "change") -> str:
@@ -70,7 +58,8 @@ def _origin_main(path: Path) -> str:
 
 def _init_repo(path: Path) -> Path:
     """Create a repository with one commit and no remotes."""
-    Repo.init(path).close()
+    path.mkdir(parents=True, exist_ok=True)
+    git.Git(path).init()
     _git(path, "config", "user.name", "Test User")
     _git(path, "config", "user.email", "test@example.com")
     _git(path, "config", "commit.gpgsign", "false")

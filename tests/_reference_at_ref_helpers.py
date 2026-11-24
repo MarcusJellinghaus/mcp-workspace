@@ -1,11 +1,10 @@
 """Shared helpers for the reference-tool tests at origin/<default>."""
 
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from git import Repo
+import git
 
 from mcp_workspace.reference_projects import ReferenceProject
 from tests.conftest import ToolMap
@@ -18,20 +17,9 @@ FALLBACK_NOTE = (
 )
 
 
-@contextmanager
-def _repo(path: Path) -> Iterator[Repo]:
-    """Open a repository for a test helper and close it afterwards."""
-    repo = Repo(path)
-    try:
-        yield repo
-    finally:
-        repo.close()
-
-
 def git_cmd(path: Path, *args: str) -> str:
     """Run a git command in ``path`` and return its stdout."""
-    with _repo(path) as repo:
-        return str(repo.git.execute(["git", *args]))
+    return str(git.Git(path).execute(["git", *args]))
 
 
 def commit_files(clone: Path, files: dict[str, bytes], message: str = "change") -> str:
@@ -59,7 +47,7 @@ def short_main(path: Path) -> str:
 def init_repo(path: Path) -> Path:
     """Create a repository with one commit (``local.txt``) and no remotes."""
     path.mkdir(parents=True)
-    Repo.init(path).close()
+    git.Git(path).init()
     git_cmd(path, "config", "user.name", "Test User")
     git_cmd(path, "config", "user.email", "test@example.com")
     git_cmd(path, "config", "commit.gpgsign", "false")

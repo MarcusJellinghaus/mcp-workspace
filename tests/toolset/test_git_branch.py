@@ -177,14 +177,14 @@ class TestGitBranchUnit:
         assert result == "Error: boom https://github.com/o/r"
 
 
-def _current(project_dir: Path) -> str:
+def _current(repo: Repo) -> str:
     """Return the checked-out branch name."""
-    return Repo(project_dir).active_branch.name
+    return repo.active_branch.name
 
 
-def _upstream(project_dir: Path, name: str) -> str | None:
+def _upstream(repo: Repo, name: str) -> str | None:
     """Return the upstream of a local branch as ``origin/<b>``, or None."""
-    tracking = Repo(project_dir).branches[name].tracking_branch()
+    tracking = repo.branches[name].tracking_branch()
     return tracking.name if tracking is not None else None
 
 
@@ -198,18 +198,19 @@ class TestGitBranchIntegration:
         result = _git_branch(origin_clone, name=name, create=True)
 
         assert result == f"Error: invalid branch name: {name!r}"
-        assert _current(origin_clone) == "main"
+        assert _current(Repo(origin_clone)) == "main"
 
     def test_create_then_switch_back(self, origin_clone: Path) -> None:
         """Create from HEAD, then switch back to main."""
-        head = Repo(origin_clone).head.commit.hexsha
+        repo = Repo(origin_clone)
+        head = repo.head.commit.hexsha
 
         created = _git_branch(origin_clone, name="feature", create=True)
         assert created == f"Created feature from HEAD ({head[:7]})"
-        assert _current(origin_clone) == "feature"
+        assert _current(repo) == "feature"
 
         assert _git_branch(origin_clone, name="main") == "Switched to main"
-        assert _current(origin_clone) == "main"
+        assert _current(repo) == "main"
 
     def test_switch_to_branch_only_on_origin(
         self, origin_clone: Path, make_clone: Callable[[str], Path]
@@ -217,12 +218,13 @@ class TestGitBranchIntegration:
         """A branch present only as origin/<name> becomes a tracking branch."""
         other = make_clone("other")
         Repo(other).git.push("origin", "main:refs/heads/remote-only")
-        Repo(origin_clone).git.fetch("origin")
+        repo = Repo(origin_clone)
+        repo.git.fetch("origin")
 
         result = _git_branch(origin_clone, name="remote-only")
 
         assert result == "Switched to remote-only"
-        assert _upstream(origin_clone, "remote-only") == "origin/remote-only"
+        assert _upstream(repo, "remote-only") == "origin/remote-only"
 
     def test_switch_typo(self, origin_clone: Path) -> None:
         """An unknown name is an error and creates nothing."""
@@ -239,4 +241,4 @@ class TestGitBranchIntegration:
         )
 
         assert result.startswith("Created feature from origin/main (")
-        assert _upstream(origin_clone, "feature") is None
+        assert _upstream(Repo(origin_clone), "feature") is None

@@ -42,9 +42,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared
 
 ### Step 5: Fewer `Repo` objects in test helpers ([step_5.md](./steps/step_5.md))
-- [ ] Implementation: convert `repo.git.<cmd>`-only helpers to `git.Git`, one `Repo` per test for object-model helpers, replace throwaway `Repo.init(...).close()`, apply decision 4; run changed test files; `.scratch/` removed
-- [ ] Quality checks (ruff, vulture, pylint, mypy, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: convert `repo.git.<cmd>`-only helpers to `git.Git`, one `Repo` per test for object-model helpers, replace throwaway `Repo.init(...).close()`, apply decision 4; run changed test files; `.scratch/` removed
+- [x] Quality checks (ruff, vulture, pylint, mypy, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 6: Marker audit of remaining modules ([step_6.md](./steps/step_6.md))
 - [ ] Implementation: add/narrow/remove `git_integration` markers per decision 1, no double group markers (decision 2); verify with `--collect-only` and run changed files
