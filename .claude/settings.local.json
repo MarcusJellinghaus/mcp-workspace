@@ -89,7 +89,6 @@
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "mcp-tools-py",
-    "mcp-workspace",
-    "obsidian-wiki"
+    "mcp-workspace"
   ]
 }
