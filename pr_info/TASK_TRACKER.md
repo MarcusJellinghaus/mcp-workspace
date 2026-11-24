@@ -21,6 +21,31 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ## Tasks
 
-<!-- Tasks populated from pr_info/steps/ by prepare_task_tracker -->
+### Step 1: `cli` package and section formatters — [step_1.md](./steps/step_1.md)
+- [ ] Implementation: `tests/cli/test_verify_formatting.py` first, then `cli/__init__.py`, `cli/verify_formatting.py`, `.importlinter` and `tach.toml` updates
+- [ ] Quality checks (format, ruff, pylint, mypy, pytest, lint-imports, tach, vulture) — fix all issues
+- [ ] Commit message prepared: `feat(cli): add verify section formatters`
+
+### Step 2: `github_security_rows` and PyYAML — [step_2.md](./steps/step_2.md)
+- [ ] Implementation: `tests/github_operations/test_security_rows.py` first, then `github_operations/security_rows.py`, `__init__.py` re-export, `pyproject.toml` (PyYAML, types-PyYAML), `.importlinter` yaml contract
+- [ ] Quality checks (format, ruff, pylint, mypy, pytest, lint-imports, tach, deptry, vulture) — fix all issues
+- [ ] Commit message prepared: `feat(github_operations): add github_security_rows`
+
+### Step 3: `execute_verify` — [step_3.md](./steps/step_3.md)
+- [ ] Implementation: `tests/cli/test_verify.py` first, then `cli/verify.py`
+- [ ] Quality checks (format, ruff, pylint, mypy, pytest, lint-imports, tach, vulture) — fix all issues
+- [ ] Commit message prepared: `feat(cli): add execute_verify`
+
+### Step 4: `main.py` reference validation split and `verify` dispatch — [step_4.md](./steps/step_4.md)
+- [ ] Implementation: extend `tests/test_main_validate_reference_projects.py` and create `tests/test_main_verify.py` first, then `main.py` changes
+- [ ] Quality checks (format, ruff, pylint, mypy, pytest parallel + serial performance run, lint-imports, tach, vulture) — fix all issues
+- [ ] Commit message prepared: `feat(main): add mcp-workspace verify subcommand`
+
+### Step 5: Documentation — [step_5.md](./steps/step_5.md)
+- [ ] Implementation: `docs/verify.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/file-access.md`, `docs/release-notes.md`
+- [ ] Quality checks (check_file_size README ≤ 750 lines, pytest) — fix all issues
+- [ ] Commit message prepared: `docs: document mcp-workspace verify`
 
 ## Pull Request
+- [ ] PR review: review the full branch diff against `main`
+- [ ] PR summary prepared
