@@ -94,6 +94,9 @@ markers = [
 [tool.mcp-tools-py]
 # Formatter for run_format_code and mcp-coder workflows: ruff (import sorting + ruff format)
 formatter = "ruff"
+# Timeout (s) for run_pytest_check. Must stay >= 1800: it outranks the 1800 s the
+# toolkit sets for its longer test depths (test@standard, test@unattended).
+pytest-timeout = 2400
 
 [tool.ruff]
 target-version = "py311"

@@ -22,9 +22,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ## Tasks
 
 ### Step 1: Pytest timeout config — `pytest-timeout = 2400` ([step_1.md](./steps/step_1.md))
-- [ ] Implementation: add `pytest-timeout = 2400` to `[tool.mcp-tools-py]` in `pyproject.toml`; confirm config loads with one small test file
-- [ ] Quality checks (pylint, mypy, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: add `pytest-timeout = 2400` to `[tool.mcp-tools-py]` in `pyproject.toml`; confirm config loads with one small test file
+- [x] Quality checks (pylint, mypy, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: Issue manager fixtures in repo_url mode + markers ([step_2.md](./steps/step_2.md))
 - [ ] Implementation: add `make_issue_manager()`, remove `real_issue_manager`, simplify `mock_issue_manager`, update the two former callers, fix `git_integration` markers; run the listed test files
