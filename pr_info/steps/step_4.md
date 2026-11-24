@@ -83,8 +83,9 @@ def _verify_main(argv):
     args = _verify_parser().parse_args(argv)                      # SystemExit(0/2) propagates
     try:
         setup_logging(args.log_level, None)                       # console (stderr) only
-        project_dir = _resolve_project_dir(args.project_dir or str(Path.cwd()))
-        if project_dir is None: raise ValueError(f"--project-dir must be an existing directory: {args.project_dir!r}")
+        candidate = args.project_dir or str(Path.cwd())
+        project_dir = _resolve_project_dir(candidate)
+        if project_dir is None: raise ValueError(f"--project-dir must be an existing directory: {candidate!r}")
         valid, rejected = _check_reference_projects(args.reference_project or [], project_dir)
         from mcp_workspace.cli.verify import execute_verify
         return execute_verify(project_dir, valid, rejected)
@@ -124,10 +125,14 @@ as the existing tests do):
 - `--project-dir` omitted → current directory (`monkeypatch.chdir(tmp_path)`).
 - `--project-dir` not an existing directory → exit 1, `Error: …` on stderr,
   no `logs/mcp_workspace_startup_error.log` created (chdir to `tmp_path`).
+- `--project-dir` omitted and the cwd not usable (patch
+  `mcp_workspace.main._resolve_project_dir` to return `None`) → exit 1; the
+  `Error: …` message contains `str(Path.cwd())` and not `None`.
 - `execute_verify` raising → exit 1, `Error: …`.
 - URL mismatch (`detect_and_verify_url` raising `ValueError`) → exit 1, `Error: …`.
 - unknown option after verify (`verify --log-file x`) → exit 2.
-- `--log-level debug` accepted (upper-cased); `--log-level nope` → exit 2.
+- `--log-level debug` accepted: patch `mcp_workspace.main.setup_logging` and
+  assert it is called with `"DEBUG"` (and `None` as log file); `--log-level nope` → exit 2.
 - `verify --help` → exit 0, stdout contains `mcp-workspace verify`
   and `--reference-project`, not the server description.
 - server `--help` output mentions `verify` (epilog).

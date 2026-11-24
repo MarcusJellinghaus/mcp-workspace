@@ -61,7 +61,7 @@ entry = result["rules_file"]; ok = entry.get("ok")
 marker = symbols["success"] if ok is True else symbols["failure"] if ok is False else symbols["warning"]
 value = str(entry.get("value", ""))
 if ok is False and entry.get("error"): value = f"{value} ({entry['error']})"
-return [Row(label, marker, value, wrap=True)]
+return [Row(label, marker, value, wrap=ok is False)]   # only the invalid row wraps
 ```
 
 ## DATA
