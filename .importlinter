@@ -28,7 +28,7 @@ exclude_type_checking_imports = True
 # Contract: Layered Architecture
 # -----------------------------------------------------------------------------
 # Ensures dependencies flow in one direction:
-#   main -> server -> toolset -> checks -> file_tools / ... -> utilities
+#   main -> server / cli -> toolset -> checks -> file_tools / ... -> utilities
 #
 # Why this matters:
 # - Prevents circular dependencies
@@ -42,7 +42,7 @@ name = Layered Architecture
 type = layers
 layers =
     mcp_workspace.main
-    mcp_workspace.server
+    mcp_workspace.server | mcp_workspace.cli
     mcp_workspace.toolset
     mcp_workspace.checks
     mcp_workspace.file_tools | mcp_workspace.github_operations | mcp_workspace.reference_projects

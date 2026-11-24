@@ -22,9 +22,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ## Tasks
 
 ### Step 1: `cli` package and section formatters — [step_1.md](./steps/step_1.md)
-- [ ] Implementation: `tests/cli/test_verify_formatting.py` first, then `cli/__init__.py`, `cli/verify_formatting.py`, `.importlinter` and `tach.toml` updates
-- [ ] Quality checks (format, ruff, pylint, mypy, pytest, lint-imports, tach, vulture) — fix all issues
-- [ ] Commit message prepared: `feat(cli): add verify section formatters`
+- [x] Implementation: `tests/cli/test_verify_formatting.py` first, then `cli/__init__.py`, `cli/verify_formatting.py`, `.importlinter` and `tach.toml` updates
+- [x] Quality checks (format, ruff, pylint, mypy, pytest, lint-imports, tach, vulture) — fix all issues
+- [x] Commit message prepared: `feat(cli): add verify section formatters`
 
 ### Step 2: `github_security_rows` and PyYAML — [step_2.md](./steps/step_2.md)
 - [ ] Implementation: `tests/github_operations/test_security_rows.py` first, then `github_operations/security_rows.py`, `__init__.py` re-export, `pyproject.toml` (PyYAML, types-PyYAML), `.importlinter` yaml contract
