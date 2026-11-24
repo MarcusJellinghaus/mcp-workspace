@@ -148,6 +148,8 @@ Before sending, cut any sentence that doesn't tell the reader something new or c
 
 Don't restate investigation the tool calls already show (file reads, searches, test runs). In chat, give the conclusion and the decision points only — not a narrated walkthrough of how you got there.
 
+Code comments and docstrings, tests included, say what the code does and why it must stay that way — not what changed or which issue changed it; that belongs in the commit message.
+
 ## Progress during loops
 
 Repeating the same action across 3+ items (e.g. files, issues, repos) → one short line per item as it completes, not just a final summary.
@@ -160,7 +162,7 @@ Never use the AskUserQuestion tool. Ask questions as plain text in the chat.
 
 Shared knowledge base across my repos (`obsidian-dev-wiki`), via the `obsidian-wiki` MCP server.
 
-**Read at the start of non-trivial work:** `Home.md` (index), the `Repos/<current repo>.md` note, and any `Processes/` note matching the task. If a process note covers the task, follow it rather than improvising.
+**Read at the start of non-trivial work:** `Home.md` (index), the `Repos/<current repo>.md` note, and any `Processes/` or `Technologies/` note matching the task. If a process note covers the task, follow it rather than improvising.
 
 **Write only what passes all three tests:**
 
@@ -170,7 +172,7 @@ Shared knowledge base across my repos (`obsidian-dev-wiki`), via the `obsidian-w
 
 Existing homes, check before writing: code and docstrings; the repo's `docs/`; CLAUDE.md for how-I-work rules; the GitHub issue for a single defect's root cause; git history for what changed when.
 
-**Always write to `Field Notes/`**, for Marcus to promote. Only edit `Repos/`, `Processes/`, or `Plans/` when Marcus explicitly asks for it. If an existing note already covers the topic, name it in the Field Note (`Promote into [[Note Name]]`) instead of editing that note. Follow `Conventions.md` for frontmatter and naming.
+**Always write to `Field Notes/`**, for Marcus to promote. Only edit `Repos/`, `Processes/`, `Plans/` or `Technologies/` when Marcus explicitly asks for it. If an existing note already covers the topic, name it in the Field Note (`Promote into [[Note Name]]`) instead of editing that note. Follow `Conventions.md` for frontmatter and naming.
 
 ## MCP server issues
 
