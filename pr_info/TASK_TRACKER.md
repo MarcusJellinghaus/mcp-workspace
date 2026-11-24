@@ -37,9 +37,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared: `feat(cli): add execute_verify`
 
 ### Step 4: `main.py` reference validation split and `verify` dispatch — [step_4.md](./steps/step_4.md)
-- [ ] Implementation: extend `tests/test_main_validate_reference_projects.py` and create `tests/test_main_verify.py` first, then `main.py` changes
-- [ ] Quality checks (format, ruff, pylint, mypy, pytest parallel + serial performance run, lint-imports, tach, vulture) — fix all issues
-- [ ] Commit message prepared: `feat(main): add mcp-workspace verify subcommand`
+- [x] Implementation: extend `tests/test_main_validate_reference_projects.py` and create `tests/test_main_verify.py` first, then `main.py` changes
+- [x] Quality checks (format, ruff, pylint, mypy, pytest parallel + serial performance run, lint-imports, tach, vulture) — fix all issues
+- [x] Commit message prepared: `feat(main): add mcp-workspace verify subcommand`
 
 ### Step 5: Documentation — [step_5.md](./steps/step_5.md)
 - [ ] Implementation: `docs/verify.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/file-access.md`, `docs/release-notes.md`
