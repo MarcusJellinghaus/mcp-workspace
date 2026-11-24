@@ -4,23 +4,12 @@ import logging
 import os
 from pathlib import Path
 
+from mcp_coder_utils.fs import count_line_endings
+
 logger = logging.getLogger(__name__)
 
 # Read at call time so tests can monkeypatch it
 PLATFORM_NEWLINE: str = os.linesep
-
-
-def count_line_endings(data: bytes) -> tuple[int, int, int]:
-    """Count the line endings in raw bytes.
-
-    Args:
-        data: Raw file content
-
-    Returns:
-        (crlf, lone lf, lone cr) counts
-    """
-    crlf = data.count(b"\r\n")
-    return crlf, data.count(b"\n") - crlf, data.count(b"\r") - crlf
 
 
 def describe_line_endings(text: str) -> str:

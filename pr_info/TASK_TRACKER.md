@@ -23,9 +23,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: Shared normalisation and counting from `mcp_coder_utils.fs` — [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: tach entry for `mcp_coder_utils.fs`; `normalize_line_endings` / `count_line_endings` imported from `fs`; `_normalize_newlines` delegates; duplicate tests deleted; ARCHITECTURE.md Shared Libs row
-- [ ] Quality checks (pylint, pytest, mypy, ruff, tach, lint-imports, vulture) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tach entry for `mcp_coder_utils.fs`; `normalize_line_endings` / `count_line_endings` imported from `fs`; `_normalize_newlines` delegates; duplicate tests deleted; ARCHITECTURE.md Shared Libs row
+- [x] Quality checks (pylint, pytest, mypy, ruff, tach, lint-imports, vulture) — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: `edit_file` / `append_file` write via `fs.write_text` — [step_2.md](./steps/step_2.md)
 

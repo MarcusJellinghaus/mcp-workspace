@@ -8,23 +8,9 @@ from git import Repo
 import mcp_workspace.git_operations
 from mcp_workspace.file_tools import line_endings
 from mcp_workspace.file_tools.line_endings import (
-    count_line_endings,
     describe_line_endings,
     target_newline,
 )
-
-
-@pytest.mark.parametrize(
-    ("data", "expected"),
-    [
-        (b"a\r\nb\nc\rd\r\n\r\r\n\n", (3, 2, 2)),
-        (b"\r\r\n", (1, 0, 1)),
-        (b"", (0, 0, 0)),
-    ],
-)
-def test_count_line_endings(data: bytes, expected: tuple[int, int, int]) -> None:
-    """CRLF pairs are not counted again as lone CR or lone LF."""
-    assert count_line_endings(data) == expected
 
 
 @pytest.mark.parametrize(

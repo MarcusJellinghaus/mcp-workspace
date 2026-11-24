@@ -9,17 +9,6 @@ from mcp_workspace.utils.git_paths import is_path_in_git_dir
 logger = logging.getLogger(__name__)
 
 
-def normalize_line_endings(text: str) -> str:
-    r"""Convert all line endings to Unix style (\n).
-
-    Returns:
-        The text with CRLF and CR line endings converted to LF.
-    """
-    text = text.replace("\r\n", "\n")
-    text = text.replace("\r", "\n")
-    return text
-
-
 # Reason text for a path the OS refuses to resolve at all. Unvalidatable means
 # rejected, so it is reported as a security error like any other escape.
 _UNRESOLVABLE = "cannot be resolved and is rejected as potentially"

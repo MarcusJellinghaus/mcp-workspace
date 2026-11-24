@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 # Import functions directly from the module
-from mcp_workspace.file_tools.path_utils import normalize_line_endings, normalize_path
+from mcp_workspace.file_tools.path_utils import normalize_path
 from tests.conftest import TEST_DIR, requires_symlinks
 
 # A payload builder turns the layout fixture into the path string under test.
@@ -40,27 +40,6 @@ def link_layout(layout: dict[str, Path]) -> dict[str, Path]:
     (project / "link").symlink_to(outside, target_is_directory=True)
     (project / "inside_link.txt").symlink_to(project / "inside.txt")
     return layout
-
-
-def test_normalize_line_endings_crlf() -> None:
-    """Test normalizing CRLF line endings."""
-    text_with_crlf = "line1\r\nline2\r\nline3"
-    normalized = normalize_line_endings(text_with_crlf)
-    assert normalized == "line1\nline2\nline3"
-
-
-def test_normalize_line_endings_standalone_cr() -> None:
-    """Test normalizing standalone CR line endings."""
-    text_with_cr = "line1\rline2\rline3"
-    normalized = normalize_line_endings(text_with_cr)
-    assert normalized == "line1\nline2\nline3"
-
-
-def test_normalize_line_endings_mixed() -> None:
-    """Test normalizing mixed line endings."""
-    text_mixed = "a\r\nb\rc\n"
-    normalized = normalize_line_endings(text_mixed)
-    assert normalized == "a\nb\nc\n"
 
 
 def test_normalize_path_relative() -> None:

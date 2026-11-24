@@ -80,6 +80,7 @@ depends_on = [
     { path = "mcp_workspace.utils" },
     { path = "mcp_coder_utils.log_utils" },
     { path = "mcp_coder_utils.tool_spec" },
+    { path = "mcp_coder_utils.fs" },
 ]
 
 # =============================================================================
@@ -91,6 +92,7 @@ path = "mcp_workspace.file_tools"
 layer = "tools"
 depends_on = [
     { path = "mcp_coder_utils.log_utils" },
+    { path = "mcp_coder_utils.fs" },
     { path = "mcp_workspace.git_operations" },
 ]
 
@@ -176,6 +178,11 @@ depends_on = []
 
 [[modules]]
 path = "mcp_coder_utils.tool_spec"
+layer = "utilities"
+depends_on = []
+
+[[modules]]
+path = "mcp_coder_utils.fs"
 layer = "utilities"
 depends_on = []
 

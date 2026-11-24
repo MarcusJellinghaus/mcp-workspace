@@ -9,8 +9,10 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from mcp_coder_utils.fs import normalize_line_endings
+
 from mcp_workspace.file_tools.line_endings import target_newline
-from mcp_workspace.file_tools.path_utils import normalize_line_endings, normalize_path
+from mcp_workspace.file_tools.path_utils import normalize_path
 from mcp_workspace.utils.git_paths import is_path_in_git_dir
 
 logger = logging.getLogger(__name__)

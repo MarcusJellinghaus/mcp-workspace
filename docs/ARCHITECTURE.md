@@ -35,7 +35,7 @@ The project follows a layered architecture pattern:
 | **Tools (upper)** | file_tools, github_operations | git_operations, Utilities |
 | **Tools (lower)** | git_operations | Utilities only |
 | **Utilities** | config, constants, utils | N/A (leaf modules) |
-| **Shared Libs** | Logging via `mcp_coder_utils` (external package) | N/A (external) |
+| **Shared Libs** | Logging and filesystem helpers (`fs`: line endings, path containment) via `mcp_coder_utils` (external package) | N/A (external) |
 
 ## Architectural Principles
 

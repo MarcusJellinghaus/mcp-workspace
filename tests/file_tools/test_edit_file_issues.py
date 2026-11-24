@@ -5,18 +5,10 @@ from pathlib import Path
 import pytest
 
 from mcp_workspace.file_tools.edit_file import edit_file
-from mcp_workspace.file_tools.path_utils import normalize_line_endings
 
 
 class TestEditFileIndentationIssues(unittest.TestCase):
     """Tests specifically designed to test simplified indentation handling."""
-
-    def test_normalize_line_endings(self) -> None:
-        """Test line ending normalization."""
-        text_with_mixed = "line1\r\nline2\nline3\r\n"
-        normalized = normalize_line_endings(text_with_mixed)
-        expected = "line1\nline2\nline3\n"
-        self.assertEqual(normalized, expected)
 
     def setUp(self) -> None:
         # Create a temporary directory and file for testing

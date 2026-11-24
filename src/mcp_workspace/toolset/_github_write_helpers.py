@@ -3,6 +3,8 @@
 from pathlib import Path
 from typing import Any
 
+from mcp_coder_utils.fs import normalize_line_endings
+
 from mcp_workspace.file_tools import normalize_path
 from mcp_workspace.file_tools.line_endings import describe_line_endings
 from mcp_workspace.toolset._context import (
@@ -141,7 +143,7 @@ def _normalize_newlines(text: str | None) -> str:
     Returns:
         The text with "\r\n" and "\r" replaced by "\n"; "" when text is None.
     """
-    return (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    return normalize_line_endings(text or "")
 
 
 def edit_change_lines(
