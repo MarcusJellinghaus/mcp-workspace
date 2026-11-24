@@ -338,3 +338,25 @@ def test_append_file_missing_file_raises(tmp_path: Path) -> None:
         append_file("missing.txt", "a\n", project_dir=tmp_path)
 
     assert not (tmp_path / "missing.txt").exists()
+
+
+def test_append_file_unencodable_content_keeps_bytes(tmp_path: Path) -> None:
+    """Unencodable content raises the encoding ValueError; the file is untouched."""
+    original = b"a\nb\n"
+    (tmp_path / "f.txt").write_bytes(original)
+
+    with pytest.raises(ValueError, match="cannot be encoded"):
+        append_file("f.txt", "x\ud800", project_dir=tmp_path)
+
+    assert (tmp_path / "f.txt").read_bytes() == original
+
+
+def test_edit_file_unencodable_content_keeps_bytes(tmp_path: Path) -> None:
+    """Unencodable new_string raises UnicodeEncodeError; the file is untouched."""
+    original = b"a\nb\n"
+    (tmp_path / "f.txt").write_bytes(original)
+
+    with pytest.raises(UnicodeEncodeError):
+        edit_file("f.txt", "b", "\ud800", project_dir=tmp_path)
+
+    assert (tmp_path / "f.txt").read_bytes() == original

@@ -4,7 +4,7 @@ import difflib
 import logging
 from pathlib import Path
 
-from mcp_coder_utils.fs import normalize_line_endings
+from mcp_coder_utils.fs import normalize_line_endings, write_text
 
 from mcp_workspace.file_tools.line_endings import target_newline
 from mcp_workspace.file_tools.path_utils import normalize_path
@@ -68,8 +68,10 @@ def edit_file(
     # Empty old_string → prepend new_string
     if not old_string:
         modified_content = new_string + original_content
-        _write_file(
-            abs_path, modified_content, target_newline(raw, rel_path, project_dir)
+        write_text(
+            abs_path,
+            modified_content,
+            newline=target_newline(raw, rel_path, project_dir),
         )
         return _create_diff(original_content, modified_content, file_path)
 
@@ -94,8 +96,10 @@ def edit_file(
         else:
             modified_content = original_content.replace(old_string, new_string, 1)
 
-        _write_file(
-            abs_path, modified_content, target_newline(raw, rel_path, project_dir)
+        write_text(
+            abs_path,
+            modified_content,
+            newline=target_newline(raw, rel_path, project_dir),
         )
         return _create_diff(original_content, modified_content, file_path)
 
@@ -113,12 +117,6 @@ def edit_file(
         )
 
     raise ValueError(f"Text not found in {abs_path}: {_truncate(old_string)}")
-
-
-def _write_file(path: Path, content: str, newline: str) -> None:
-    r"""Write LF-normalised content, translating each \n to newline."""
-    with open(path, "w", encoding="utf-8", newline=newline) as f:
-        f.write(content)
 
 
 def _is_position_aware_already_applied(

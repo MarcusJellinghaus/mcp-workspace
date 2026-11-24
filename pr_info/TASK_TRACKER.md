@@ -29,9 +29,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: `edit_file` / `append_file` write via `fs.write_text` — [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: lone-surrogate tests first; `_write_file` deleted, `edit_file` and `append_file` write via `write_text`
-- [ ] Quality checks (pylint, pytest, mypy, ruff, tach, lint-imports, vulture) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: lone-surrogate tests first; `_write_file` deleted, `edit_file` and `append_file` write via `write_text`
+- [x] Quality checks (pylint, pytest, mypy, ruff, tach, lint-imports, vulture) — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: LF default via `fs.dominant_newline`; remove `PLATFORM_NEWLINE` — [step_3.md](./steps/step_3.md)
 

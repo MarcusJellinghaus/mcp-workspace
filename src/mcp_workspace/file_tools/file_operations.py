@@ -9,7 +9,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from mcp_coder_utils.fs import normalize_line_endings
+from mcp_coder_utils.fs import normalize_line_endings, write_text
 
 from mcp_workspace.file_tools.line_endings import target_newline
 from mcp_workspace.file_tools.path_utils import normalize_path
@@ -474,16 +474,13 @@ def append_file(file_path: str, content: Any, project_dir: Path) -> bool:
     newline = target_newline(abs_path.read_bytes(), rel_path, project_dir)
 
     logger.debug("Appending %s bytes to %s", len(validated_content), rel_path)
-    with open(abs_path, "a", encoding="utf-8", newline=newline) as f:
-        try:
-            f.write(validated_content)
-        except UnicodeEncodeError as e:
-            logger.error(
-                "Unicode encode error while appending to %s: %s", rel_path, str(e)
-            )
-            raise ValueError(
-                "Content contains characters that cannot be encoded. Please check the encoding."
-            ) from e
+    try:
+        write_text(abs_path, validated_content, newline=newline, append=True)
+    except UnicodeEncodeError as e:
+        logger.error("Unicode encode error while appending to %s: %s", rel_path, str(e))
+        raise ValueError(
+            "Content contains characters that cannot be encoded. Please check the encoding."
+        ) from e
     return True
 
 
