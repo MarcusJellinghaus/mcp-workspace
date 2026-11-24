@@ -441,8 +441,8 @@ def append_file(file_path: str, content: Any, project_dir: Path) -> bool:
     """Append content to the end of a file.
 
     Appends without touching existing bytes; the appended text uses the
-    file's line ending (no line breaks → .gitattributes eol=, else platform
-    default). No newline is inserted before it.
+    file's dominant ending (tie or no line breaks → .gitattributes eol=, else
+    LF). No newline is inserted before it.
 
     Args:
         file_path: Path to the file to append to (relative to project directory)

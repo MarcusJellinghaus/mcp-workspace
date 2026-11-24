@@ -6,7 +6,6 @@ import pytest
 from git import Repo
 
 import mcp_workspace.git_operations
-from mcp_workspace.file_tools import line_endings
 from mcp_workspace.file_tools.edit_file import edit_file
 from mcp_workspace.file_tools.file_operations import append_file, save_file
 
@@ -51,19 +50,15 @@ def test_edit_file_mixed_gets_majority(
     assert (tmp_path / "f.txt").read_bytes() == b"a\r\nx\r\nc\r\n"
 
 
-@pytest.mark.parametrize("platform", ["\n", "\r\n"])
-def test_edit_file_tie_uses_platform(
-    platform: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """A tie between endings falls back to the platform default."""
-    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", platform)
-    _patch_lookup(monkeypatch, "lf")
+def test_edit_file_tie_uses_lf(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A tie between endings without an eol= rule falls back to LF."""
+    calls = _patch_lookup(monkeypatch, None)
     (tmp_path / "f.txt").write_bytes(b"a\r\nb\nc")
 
     edit_file("f.txt", "c", "x", project_dir=tmp_path)
 
-    nl = platform.encode()
-    assert (tmp_path / "f.txt").read_bytes() == b"a" + nl + b"b" + nl + b"x"
+    assert (tmp_path / "f.txt").read_bytes() == b"a\nb\nx"
+    assert calls == ["f.txt"]
 
 
 @pytest.mark.parametrize(("value", "nl"), [("lf", b"\n"), ("crlf", b"\r\n")])
@@ -71,7 +66,6 @@ def test_edit_file_no_breaks_follows_eol_attribute(
     value: str, nl: bytes, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A file without line breaks takes its ending from gitattributes eol=."""
-    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", "\r")
     calls = _patch_lookup(monkeypatch, value)
     (tmp_path / "f.txt").write_bytes(b"one two")
 
@@ -86,7 +80,6 @@ def test_edit_file_empty_file_prepend_follows_eol_attribute(
     value: str, nl: bytes, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Prepending to an empty file takes the ending from gitattributes eol=."""
-    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", "\r")
     _patch_lookup(monkeypatch, value)
     (tmp_path / "f.txt").write_bytes(b"")
 
@@ -139,7 +132,6 @@ def test_save_file_crlf_content_onto_lf_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """CRLF content saved onto an existing LF file is written LF."""
-    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", "\r\n")
     _patch_lookup(monkeypatch, "crlf")
     (tmp_path / "f.txt").write_bytes(b"old\n")
 
@@ -152,7 +144,6 @@ def test_save_file_mixed_gets_majority(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A mixed target (2x CRLF, 1x LF) is overwritten all CRLF."""
-    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", "\n")
     _patch_lookup(monkeypatch, "lf")
     (tmp_path / "f.txt").write_bytes(b"a\r\nb\nc\r\n")
 
@@ -161,35 +152,26 @@ def test_save_file_mixed_gets_majority(
     assert (tmp_path / "f.txt").read_bytes() == b"x\r\ny\r\n"
 
 
-@pytest.mark.parametrize("platform", ["\n", "\r\n"])
-def test_save_file_tie_uses_platform(
-    platform: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """A tie between endings in the target falls back to the platform default."""
-    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", platform)
-    _patch_lookup(monkeypatch, "lf")
+def test_save_file_tie_uses_lf(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A tie between endings in the target without an eol= rule falls back to LF."""
+    calls = _patch_lookup(monkeypatch, None)
     (tmp_path / "f.txt").write_bytes(b"a\r\nb\n")
 
     save_file("f.txt", "x\ny\n", project_dir=tmp_path)
 
-    nl = platform.encode()
-    assert (tmp_path / "f.txt").read_bytes() == b"x" + nl + b"y" + nl
+    assert (tmp_path / "f.txt").read_bytes() == b"x\ny\n"
+    assert calls == ["f.txt"]
 
 
 @pytest.mark.git_integration
 @pytest.mark.parametrize(
-    ("name", "platform", "nl"),
-    [("run.sh", "\r\n", b"\n"), ("run.bat", "\n", b"\r\n")],
+    ("name", "nl"),
+    [("run.sh", b"\n"), ("run.bat", b"\r\n")],
 )
 def test_save_file_new_file_follows_gitattributes(
-    name: str,
-    platform: str,
-    nl: bytes,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    name: str, nl: bytes, tmp_path: Path
 ) -> None:
-    """A new file in a repository follows .gitattributes eol= over the platform."""
-    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", platform)
+    """A new file in a repository follows .gitattributes eol=."""
     Repo.init(tmp_path).close()
     (tmp_path / ".gitattributes").write_bytes(b"*.sh eol=lf\n*.bat eol=crlf\n")
 
@@ -198,17 +180,11 @@ def test_save_file_new_file_follows_gitattributes(
     assert (tmp_path / name).read_bytes() == b"a" + nl + b"b" + nl
 
 
-@pytest.mark.parametrize("platform", ["\n", "\r\n"])
-def test_save_file_new_file_without_repo_uses_platform(
-    platform: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """A new file outside a repository gets the platform default."""
-    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", platform)
-
+def test_save_file_new_file_without_repo_uses_lf(tmp_path: Path) -> None:
+    """A new file outside a repository gets LF."""
     save_file("sub/run.sh", "a\nb\n", project_dir=tmp_path)
 
-    nl = platform.encode()
-    assert (tmp_path / "sub" / "run.sh").read_bytes() == b"a" + nl + b"b" + nl
+    assert (tmp_path / "sub" / "run.sh").read_bytes() == b"a\nb\n"
 
 
 @pytest.mark.parametrize("existing", [b"", b"no breaks"])
@@ -221,7 +197,6 @@ def test_save_file_no_breaks_follows_eol_attribute(
     tmp_path: Path,
 ) -> None:
     """An existing empty file, or one without line breaks, follows eol=."""
-    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", "\r")
     calls = _patch_lookup(monkeypatch, value)
     (tmp_path / "f.txt").write_bytes(existing)
 
@@ -262,7 +237,6 @@ def test_append_file_mixed_keeps_bytes_appends_majority(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A mixed file keeps its minority endings; the appended part uses the majority."""
-    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", "\n")
     _patch_lookup(monkeypatch, "lf")
     original = b"a\r\nb\nc\r\n"
     (tmp_path / "f.txt").write_bytes(original)
@@ -294,7 +268,6 @@ def test_append_file_no_breaks_follows_eol_attribute(
     tmp_path: Path,
 ) -> None:
     """An empty file, or one without line breaks, follows eol=."""
-    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", "\r")
     calls = _patch_lookup(monkeypatch, value)
     (tmp_path / "f.txt").write_bytes(existing)
 
@@ -304,19 +277,16 @@ def test_append_file_no_breaks_follows_eol_attribute(
     assert calls == ["f.txt"]
 
 
-@pytest.mark.parametrize("platform", ["\n", "\r\n"])
-def test_append_file_no_breaks_without_eol_uses_platform(
-    platform: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+def test_append_file_no_breaks_without_eol_uses_lf(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Without an eol= rule, a file without line breaks gets the platform default."""
-    monkeypatch.setattr(line_endings, "PLATFORM_NEWLINE", platform)
+    """Without an eol= rule, a file without line breaks gets LF."""
     _patch_lookup(monkeypatch, None)
     (tmp_path / "f.txt").write_bytes(b"x")
 
     append_file("f.txt", "a\nb\n", project_dir=tmp_path)
 
-    nl = platform.encode()
-    assert (tmp_path / "f.txt").read_bytes() == b"xa" + nl + b"b" + nl
+    assert (tmp_path / "f.txt").read_bytes() == b"xa\nb\n"
 
 
 def test_append_file_non_utf8_file_keeps_bytes(

@@ -21,9 +21,9 @@ def edit_file(
 ) -> str:
     """Make a selective edit to a file using exact string matching.
 
-    Line endings: an existing file keeps its style (mixed → most common,
-    tie → platform default); a file with no line breaks follows .gitattributes
-    eol=, else the platform default. Matching and the returned diff use LF.
+    Line endings: an existing file with line breaks keeps its dominant ending;
+    a tie or no line breaks follows .gitattributes eol=, else LF. Matching and
+    the returned diff use LF.
 
     Args:
         file_path: Path to file (relative to project_dir if provided).

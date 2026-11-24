@@ -1,5 +1,9 @@
 # Release notes
 
+## Next minor release — file tools use mcp-coder-utils fs; LF default (#400)
+
+- New files, files without line breaks, and ties in mixed files get `.gitattributes` `eol=`, else LF (was the platform default, CRLF on Windows); existing files with a dominant ending keep it.
+
 ## Next minor release — .mcp-file-access surfaced to agents (#404)
 
 - `.git` paths refused by `read_file`, the write tools and `read_reference_file` now give `Security error: Path '<p>' is inside a git directory, which the file tools do not access.` (was the gitignore message).

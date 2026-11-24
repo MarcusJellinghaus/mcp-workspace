@@ -35,9 +35,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 3: LF default via `fs.dominant_newline`; remove `PLATFORM_NEWLINE` — [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: test reworks first (LF fallback, no platform patch); `target_newline` via `dominant_newline`, LF fallback; docstrings, tool descriptions, release notes
-- [ ] Quality checks (pylint, pytest, mypy, ruff, tach, lint-imports, vulture; no `PLATFORM_NEWLINE` / `platform default` in `src/` or `tests/`) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: test reworks first (LF fallback, no platform patch); `target_newline` via `dominant_newline`, LF fallback; docstrings, tool descriptions, release notes
+- [x] Quality checks (pylint, pytest, mypy, ruff, tach, lint-imports, vulture; no `PLATFORM_NEWLINE` / `platform default` in `src/` or `tests/`) — fix all issues
+- [x] Commit message prepared
 
 ### Step 4: Path containment via `fs.check_path_within` — [step_4.md](./steps/step_4.md)
 
