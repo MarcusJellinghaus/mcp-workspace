@@ -38,6 +38,18 @@ def _not_run(error: str) -> GitOutput:
     )
 
 
+def _subcommand_name(args: tuple[str, ...]) -> str:
+    """Return the git subcommand, skipping leading ``-c key=value`` pairs.
+
+    Returns:
+        The first argument after any ``-c`` pairs, or "" if there is none.
+    """
+    i = 0
+    while i + 1 < len(args) and args[i] == "-c":
+        i += 2
+    return args[i] if i < len(args) else ""
+
+
 def run_git_timed(
     project_dir: Path, *args: str, timeout: float = GIT_NETWORK_TIMEOUT
 ) -> GitOutput:
@@ -51,7 +63,7 @@ def run_git_timed(
     Returns:
         GitOutput with scrubbed stdout/stderr; never raises for git failures.
     """
-    subcommand = args[0] if args else ""
+    subcommand = _subcommand_name(args)
     logger.debug("run_git_timed: git %s timeout=%s", subcommand, timeout)
     git = shutil.which("git")
     if git is None:

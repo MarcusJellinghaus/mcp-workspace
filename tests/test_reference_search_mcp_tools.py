@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
 
@@ -161,4 +161,4 @@ class TestSearchReferenceFiles:
 
                 await tools["search_reference_files"]("test_proj", glob="*.py")
 
-                mock_ensure.assert_awaited_once_with(proj)
+                mock_ensure.assert_awaited_once_with(proj, locks=ANY, failures=ANY)

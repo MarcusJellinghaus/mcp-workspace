@@ -13,7 +13,11 @@ from mcp_coder_utils.log_utils import setup_logging
 
 from mcp_workspace import __version__, config
 from mcp_workspace._ssl import ensure_truststore
-from mcp_workspace.reference_projects import ReferenceProject, detect_and_verify_url
+from mcp_workspace.reference_projects import (
+    DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES,
+    ReferenceProject,
+    detect_and_verify_url,
+)
 from mcp_workspace.traffic_log import set_traffic_log_context
 
 # Create loggers
@@ -95,6 +99,14 @@ def parse_args(
         "--reference-project",
         action="append",
         help="Reference project as key-value pairs: name=myproj,path=/path/to/dir,url=https://... (name and path required, url optional)",
+    )
+    parser.add_argument(
+        "--reference-fetch-interval-minutes",
+        type=int,
+        default=DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES,
+        help="Minutes between automatic `git fetch origin` of a reference "
+        "project before it is read (0 = off; defaults to "
+        f"{DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES}).",
     )
     parser.add_argument(
         "--file-size-limit",
@@ -405,6 +417,13 @@ def _main() -> None:
             f"--read-max-lines must be a non-negative integer: {args.read_max_lines}"
         )
 
+    # Validate reference fetch interval (0 = auto-fetch off)
+    if args.reference_fetch_interval_minutes < 0:
+        raise ValueError(
+            "--reference-fetch-interval-minutes must be a non-negative integer: "
+            f"{args.reference_fetch_interval_minutes}"
+        )
+
     # Activate the OS trust store BEFORE any TLS handshake can occur. This is a
     # hard guarantee owned by the entry point (not left to client call sites):
     # it covers PyGithub AND the raw `requests` download path in
@@ -452,6 +471,7 @@ def _main() -> None:
         read_max_lines=read_max_lines,
         fail_on_reviews=args.fail_on_reviews,
         enforce_base_branch_format=args.enforce_base_branch_format,
+        reference_fetch_interval_minutes=args.reference_fetch_interval_minutes,
     )
 
 

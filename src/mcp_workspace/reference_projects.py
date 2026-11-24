@@ -5,13 +5,14 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from mcp_workspace.utils.url_credentials import scrub_credentials
 
 logger = logging.getLogger(__name__)
 
-_project_locks: dict[str, asyncio.Lock] = {}
-_clone_failure_cache: dict[str, str] = {}  # project_name -> error message
+# Minutes between automatic fetches of a reference project; 0 turns it off.
+DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES = 15
 
 
 @dataclass
@@ -112,25 +113,39 @@ def detect_and_verify_url(
     return None  # no explicit URL, path doesn't exist or not a git repo
 
 
-async def ensure_available(project: ReferenceProject) -> None:
+async def ensure_available(
+    project: ReferenceProject,
+    *,
+    locks: dict[str, asyncio.Lock],
+    failures: dict[str, str],
+) -> Literal[True] | None:
     """Ensure the reference project directory exists, cloning if needed.
 
     Uses per-project locking to prevent concurrent clones and caches
-    clone failures to avoid repeated attempts.
+    clone failures to avoid repeated attempts. Both are held by the caller,
+    so separate callers do not share them.
+
+    Args:
+        project: The reference project to make available.
+        locks: Per-project clone locks, keyed by project name.
+        failures: Cached clone errors, keyed by project name.
+
+    Returns:
+        True if this call cloned the project, otherwise None.
 
     Raises:
         ValueError: If clone fails, was previously cached as failed,
             or directory is missing with no URL configured.
     """
-    lock = _project_locks.setdefault(project.name, asyncio.Lock())
+    lock = locks.setdefault(project.name, asyncio.Lock())
     async with lock:
-        if project.name in _clone_failure_cache:
-            cached_error = _clone_failure_cache[project.name]
+        if project.name in failures:
+            cached_error = failures[project.name]
             raise ValueError(
                 f"Clone previously failed for '{project.name}': {cached_error}"
             )
         if project.path.exists():
-            return
+            return None
         if project.url is None:
             raise ValueError(
                 f"Reference project '{project.name}' directory missing "
@@ -142,14 +157,9 @@ async def ensure_available(project: ReferenceProject) -> None:
         try:
             await asyncio.to_thread(clone_repo, project.url, project.path)
         except Exception as e:
-            _clone_failure_cache[project.name] = str(e)
+            failures[project.name] = str(e)
             raise ValueError(
                 f"Failed to clone '{project.name}' from "
                 f"{scrub_credentials(project.url)}: {e}"
             ) from e
-
-
-def clear_clone_failure_cache() -> None:
-    """Clear the clone failure cache and per-project locks (for testing)."""
-    _clone_failure_cache.clear()
-    _project_locks.clear()
+        return True

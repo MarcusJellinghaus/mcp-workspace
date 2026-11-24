@@ -111,6 +111,16 @@ Skip the whole test if `get_reference_projects()` returns `count: 0`.
 5. `read_reference_file(reference_name=<name>, file_path=<file>)` — expect file content
 6. `search_reference_files(reference_name=<name>, glob="**/*.py")` — expect matches (skip step if project has no Python)
 
+### Test 1.13: Reference reads at origin/\<default\>
+
+Needs network. Skip the whole test if `get_reference_projects()` returns `count: 0`. Steps 1-4 need a reference project `<name>` that is a git clone whose local checkout is behind its `origin` default branch (e.g. a commit was merged upstream after the last `git pull`); skip them if none is. Pick a file `<file>` changed by that upstream commit, and a symbol `<symbol>` it added.
+
+1. `read_reference_file(reference_name=<name>, file_path=<file>)` — expect the upstream content (with the change), not the local checkout's, and no `[reference …]` note line
+2. `search_reference_files(reference_name=<name>, pattern=<symbol>)` — expect a match in `<file>`, and no `freshness` key
+3. `git(command="log", args=["-S<symbol>", "--oneline", "origin/main"], reference_name=<name>)` (use the reference's default branch) — expect the upstream commit that added it
+4. `git(command="log", args=["-S", "<symbol>"], reference_name=<name>)` — expect an error saying `'-S' needs its value attached`, not a security-allowlist error
+5. Pick a reference project that is a plain folder, not a git repository; skip if none is configured. `list_reference_directory(reference_name=<that name>)` and `read_reference_file` on one listed file — expect a normal listing and content, with no note
+
 ---
 
 ## Section 2: Local git tools

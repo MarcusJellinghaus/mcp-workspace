@@ -3,7 +3,7 @@
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
 
@@ -509,7 +509,7 @@ class TestReferenceProjectMCPTools:
 
                 await tools["read_reference_file"]("test_proj", "file.txt")
 
-                mock_ensure.assert_awaited_once_with(proj)
+                mock_ensure.assert_awaited_once_with(proj, locks=ANY, failures=ANY)
 
     @pytest.mark.asyncio
     async def test_list_reference_directory_calls_ensure_available(
@@ -532,7 +532,7 @@ class TestReferenceProjectMCPTools:
 
                 await tools["list_reference_directory"]("test_proj")
 
-                mock_ensure.assert_awaited_once_with(proj)
+                mock_ensure.assert_awaited_once_with(proj, locks=ANY, failures=ANY)
 
     @pytest.mark.asyncio
     async def test_ensure_available_failure_propagates(
@@ -638,7 +638,11 @@ class TestReferenceProjectPath:
 
             assert result == ref_path
             assert isinstance(result, Path)
-            mock_ensure.assert_awaited_once_with(proj)
+            mock_ensure.assert_awaited_once_with(
+                proj,
+                locks=ctx.reference_state.clone_locks,
+                failures=ctx.reference_state.clone_failures,
+            )
 
     @pytest.mark.asyncio
     async def test_reference_project_path_not_found(self) -> None:

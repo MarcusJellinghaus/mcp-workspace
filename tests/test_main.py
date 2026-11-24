@@ -90,6 +90,29 @@ class TestParseArgs:
             assert args.read_max_lines is None
             assert unknown == []
 
+    def test_parse_reference_fetch_interval_minutes(self) -> None:
+        """Test parsing the --reference-fetch-interval-minutes argument."""
+        with patch(
+            "sys.argv",
+            [
+                "script.py",
+                "--project-dir",
+                "/tmp",
+                "--reference-fetch-interval-minutes",
+                "5",
+            ],
+        ):
+            args, unknown = parse_args()
+            assert args.reference_fetch_interval_minutes == 5
+            assert unknown == []
+
+    def test_parse_reference_fetch_interval_minutes_default(self) -> None:
+        """Test --reference-fetch-interval-minutes defaults to 15 when omitted."""
+        with patch("sys.argv", ["script.py", "--project-dir", "/tmp"]):
+            args, unknown = parse_args()
+            assert args.reference_fetch_interval_minutes == 15
+            assert unknown == []
+
     def test_parse_file_size_limit_rejects_non_integer(self) -> None:
         """Test argparse rejects a non-integer --file-size-limit value."""
         with patch(
@@ -534,6 +557,74 @@ class TestMain:
                     main()
                 assert exc_info.value.code == 1
                 mock_run_server.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("cli_value", "expected"),
+        [(None, 15), ("0", 0), ("7", 7)],
+        ids=["default", "zero_is_off", "explicit"],
+    )
+    @patch("mcp_workspace.server.run_server")
+    @patch("mcp_workspace.main.Path.exists")
+    @patch("mcp_workspace.main.Path.is_dir")
+    def test_main_passes_reference_fetch_interval_minutes(
+        self,
+        mock_is_dir: MagicMock,
+        mock_exists: MagicMock,
+        mock_run_server: MagicMock,
+        cli_value: str | None,
+        expected: int,
+    ) -> None:
+        """Test main() passes --reference-fetch-interval-minutes straight through."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        test_args = ["script.py", "--project-dir", "/test/project"]
+        if cli_value is not None:
+            test_args += ["--reference-fetch-interval-minutes", cli_value]
+
+        with patch("sys.argv", test_args):
+            with patch("mcp_workspace.main.setup_logging"):
+                main()
+
+                mock_run_server.assert_called_once()
+                assert (
+                    mock_run_server.call_args[1]["reference_fetch_interval_minutes"]
+                    == expected
+                )
+
+    @patch("mcp_workspace.server.run_server")
+    @patch("mcp_workspace.main.Path.exists")
+    @patch("mcp_workspace.main.Path.is_dir")
+    def test_main_reference_fetch_interval_negative_exits(
+        self,
+        mock_is_dir: MagicMock,
+        mock_exists: MagicMock,
+        mock_run_server: MagicMock,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Test main() fails fast when --reference-fetch-interval-minutes is negative."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        test_args = [
+            "script.py",
+            "--project-dir",
+            "/test/project",
+            "--reference-fetch-interval-minutes",
+            "-1",
+        ]
+
+        with patch("sys.argv", test_args):
+            with patch("mcp_workspace.main.setup_logging"):
+                with pytest.raises(SystemExit) as exc_info:
+                    main()
+                assert exc_info.value.code == 1
+                mock_run_server.assert_not_called()
+
+        assert (
+            "--reference-fetch-interval-minutes must be a non-negative integer: -1"
+            in capsys.readouterr().err
+        )
 
     @patch("mcp_workspace.server.run_server")
     @patch("mcp_workspace.main.Path.exists")

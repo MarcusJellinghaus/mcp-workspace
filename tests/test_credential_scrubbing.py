@@ -97,6 +97,30 @@ def test_reference_project_repr_scrubbed(tmp_path: Path) -> None:
     assert project.url == URL
 
 
+@pytest.mark.git_integration
+@pytest.mark.asyncio
+async def test_reference_git_fetch_failure_note_scrubbed(
+    origin_clone: Path, make_tools: Callable[..., ToolMap]
+) -> None:
+    """An unreachable credentialed origin yields a note without the credentials."""
+    repo = Repo(origin_clone)
+    try:
+        repo.remotes.origin.set_url("https://user:tok@127.0.0.1:1/x.git")
+    finally:
+        repo.close()
+    tools = make_tools(
+        reference_projects={"ref": ReferenceProject(name="ref", path=origin_clone)},
+        reference_fetch_interval_minutes=15,
+    )
+
+    result = await tools["git"](command="log", args=["--oneline"], reference_name="ref")
+
+    note = result.splitlines()[-1]
+    assert note.startswith("[reference ref: fetch failed (")
+    assert "tok" not in note
+    assert "user:" not in note
+
+
 def test_get_reference_projects_scrubbed(
     tmp_path: Path, make_tools: Callable[..., ToolMap]
 ) -> None:

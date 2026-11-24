@@ -7,6 +7,8 @@ from git import Repo
 
 from mcp_workspace.git_operations.arg_validation import (
     _ALLOWLISTS,
+    _ANY_VALUE,
+    _ATTACHED_VALUE_FLAGS,
     validate_args,
     validate_branch_has_read_flag,
 )
@@ -15,10 +17,26 @@ from mcp_workspace.git_operations.read_operations import git
 _LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
+def _takes_free_form_value(command: str, flag: str) -> bool:
+    """Whatever follows such a flag is its value, never another flag."""
+    return _ATTACHED_VALUE_FLAGS.get(command, {}).get(flag) is _ANY_VALUE
+
+
 def _short_flags(command: str) -> list[str]:
     return sorted(
-        flag for flag in _ALLOWLISTS[command] if len(flag) == 2 and flag[1].isalpha()
+        flag
+        for flag in _ALLOWLISTS[command]
+        if len(flag) == 2
+        and flag[1].isalpha()
+        and not _takes_free_form_value(command, flag)
     )
+
+
+@pytest.mark.parametrize("flag", ["-S", "-G"])
+@pytest.mark.parametrize("letter", list(_LETTERS))
+def test_log_pickaxe_takes_any_letter_as_value(flag: str, letter: str) -> None:
+    validate_args("log", [f"{flag}{letter}"])
+    validate_args("log", [f"-p{flag[1]}{letter}"])
 
 
 def _cluster_cases() -> list[tuple[str, str]]:

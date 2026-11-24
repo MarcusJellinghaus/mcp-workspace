@@ -30,3 +30,11 @@ def test_server_instructions_mention_access_rules(tmp_path: Path) -> None:
     assert ".mcp-file-access" in text
     assert "read-only" in text
     assert "only the user can change" in text
+
+
+def test_server_instructions_mention_upstream_default_branch(tmp_path: Path) -> None:
+    """Reference files are read from the upstream default branch, auto-fetched."""
+    text = create_server(tmp_path).instructions
+    assert text is not None
+    assert "upstream default branch" in text.lower()
+    assert "fetch" in text.lower()

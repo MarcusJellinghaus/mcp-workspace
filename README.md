@@ -19,13 +19,13 @@ This MCP server enables AI assistants like Claude (via Claude Desktop) or other 
 - Debug and fix issues in your codebase
 - Generate complete implementations based on your specifications
 
-File tools work inside your specified project directory, and refuse its `.git` directory and gitignored paths (a `.mcp-file-access` rules file can expose some and make others read-only), giving you control while enabling powerful AI collaboration on your local files. [Path Confinement](#path-confinement) gives the rules and limits. The GitHub tools and `git fetch` reach the network, and [SECURITY.md](SECURITY.md) lists what is enforced.
+File tools work inside your specified project directory, and refuse its `.git` directory and gitignored paths (a `.mcp-file-access` rules file can expose some and make others read-only), giving you control while enabling powerful AI collaboration on your local files. [Path Confinement](#path-confinement) gives the rules and limits. The GitHub tools, `git fetch` and the reference tools (which fetch each reference project's `origin`) reach the network, and [SECURITY.md](SECURITY.md) lists what is enforced.
 
 By connecting your AI assistant to your filesystem, you can transform your workflow from manual coding to a more intuitive prompting approach - describe what you need in natural language and let the AI generate, modify, and organize code directly in your project files.
 
 ## Path Confinement
 
-Every path is validated against the project directory before any file operation: symlinks are resolved, and a path that resolves outside the project or contains a `..` segment is rejected. Reference projects are validated the same way against their own directory.
+Every path is validated against the project directory before any file operation: symlinks are resolved, and a path that resolves outside the project or contains a `..` segment is rejected. Reference projects read at `origin/<default>` are checked lexically against the tree at that ref; a reference project read as a local folder is validated the same way as the project, against its own directory (see [Reference Projects](#reference-projects)).
 
 File tools also refuse `.git` entries, under any spelling or through a link, and paths matched by the gitignore rules: every `.gitignore` from the project root down plus `.git/info/exclude`, with git's precedence. An ignored directory cannot be listed unless a rule exposes it. The `git` tool checks its arguments separately.
 
@@ -53,8 +53,8 @@ read-only   /.mcp.json
 - `edit_file`: Edit a file by exact string match; replace_all for multiple matches; keeps the file's line endings.
 - `move_file`: Move or rename files and directories (git-aware: uses git mv for tracked files, else filesystem move)
 - `get_reference_projects`: Discover available reference projects
-- `list_reference_directory`: List files in reference projects
-- `read_reference_file`: Read a reference-project file, or a line slice via start_line/end_line. Full reads are cut at the same limit as `read_file`, with the same continuation note; explicit ranges are returned in full.
+- `list_reference_directory`: List files in reference projects, as of their `origin/<default>` branch (auto-fetched)
+- `read_reference_file`: Read a reference-project file at `origin/<default>`, or a line slice via start_line/end_line. Full reads are cut at the same limit as `read_file`, with the same continuation note; explicit ranges are returned in full.
 - Cross-repo GitHub access: the GitHub issue, pull request, search and label read tools accept `reference_name`; issues can also be created, edited, commented on and have their workflow status changed
 - `Structured Logging`: Comprehensive logging system with both human-readable and JSON formats
 
@@ -78,13 +78,14 @@ pip install -e .
 Once installed, you can use the `mcp-workspace` command directly:
 
 ```bash
-mcp-workspace --project-dir /path/to/project [--reference-project NAME=/path/to/reference]... [--log-level LEVEL] [--log-file PATH] [--file-size-limit N] [--read-max-lines N] [--fail-on-reviews] [--enforce-base-branch-format]
+mcp-workspace --project-dir /path/to/project [--reference-project name=NAME,path=/path/to/reference[,url=URL]]... [--reference-fetch-interval-minutes N] [--log-level LEVEL] [--log-file PATH] [--file-size-limit N] [--read-max-lines N] [--fail-on-reviews] [--enforce-base-branch-format]
 ```
 
 ### Command Line Arguments:
 
 - `--project-dir`: Directory to serve files from. The server exits with code 1 if it is missing or not a valid directory.
-- `--reference-project`: (Optional) Add reference project in format name=/path/to/dir (repeatable, auto-renames duplicates)
+- `--reference-project`: (Optional) Add a reference project as `name=<name>,path=<dir>[,url=<repo url>]` (repeatable, auto-renames duplicates). `name` and `path` are required; with `url`, a missing `path` is cloned on first use. The old `<name>=<dir>` form is skipped with a warning. See [Reference Projects](#reference-projects).
+- `--reference-fetch-interval-minutes`: (Optional) Minutes between automatic `git fetch origin` of a reference project before it is read; `0` turns auto-fetch off. Must be non-negative. Defaults to 15.
 - `--log-level`: (Optional) Set logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 - `--log-file`: (Optional) Path for structured JSON logs. If not specified, logs to mcp_workspace_{timestamp}.log in project_dir/logs/.
 - `--file-size-limit`: (Optional) Default line limit for `check_file_size` when `max_lines` is omitted; must be > 0. Falls back to 600 when not set.
@@ -240,69 +241,40 @@ Reference projects allow you to provide AI assistants with read-only *file* acce
 - **Read-only file access**: Reference project *files* can only be browsed and read from, never modified. Their GitHub issues are a separate matter — see [Cross-Repo GitHub Access](#cross-repo-github-access)
 - **Multiple projects**: Configure multiple reference projects simultaneously
 - **Auto-discovery**: LLM can discover available reference projects
-- **Security**: Reads, searches and listings get the same path validation and gitignore filtering as the main project, using the reference project's own gitignore rules and `.mcp-file-access`
+- **Upstream content**: A git reference project is read at its `origin/<default>` branch, auto-fetched, whatever state its local working tree is in — see [Reading at origin/\<default\>](docs/reference-projects.md#reading-at-origindefault)
+- **Security**: Paths are confined to the reference project; `.git` and `..` are refused. At the ref only tracked content exists; the local gitignore rules and `.mcp-file-access` apply only when the local folder is read
 - **Flexible paths**: Supports both relative and absolute paths
 
 ### Configuration
 
-Use the `--reference-project` argument to add reference projects:
+Use the `--reference-project` argument to add reference projects, as `name=<name>,path=<dir>[,url=<repo url>]`:
 
 ```bash
 # Single reference project
-mcp-workspace --project-dir ./my-project --reference-project docs=./documentation
+mcp-workspace --project-dir ./my-project --reference-project name=docs,path=./documentation
 
 # Multiple reference projects
 mcp-workspace --project-dir ./my-project \
-  --reference-project docs=./documentation \
-  --reference-project examples=/home/user/examples \
-  --reference-project libs=../shared-libraries
+  --reference-project name=docs,path=./documentation \
+  --reference-project name=examples,path=/home/user/examples \
+  --reference-project name=libs,path=../shared-libraries
 
-# Absolute paths
+# With a repository URL: cloned to path on first use if missing; enables the GitHub tools
 mcp-workspace --project-dir /path/to/main/project \
-  --reference-project utils=/usr/local/utils \
-  --reference-project config=/etc/myapp
+  --reference-project name=utils,path=/usr/local/utils,url=https://github.com/org/utils
+
+# Fetch every 5 minutes instead of 15 (0 = never fetch automatically)
+mcp-workspace --project-dir ./my-project \
+  --reference-project name=docs,path=./documentation \
+  --reference-fetch-interval-minutes 5
 ```
 
-### Auto-Rename Behavior
+### More
 
-If you specify duplicate reference project names, they are automatically renamed with numeric suffixes:
+[docs/reference-projects.md](docs/reference-projects.md) covers:
 
-```bash
-# This configuration:
-mcp-workspace --project-dir ./project \
-  --reference-project docs=./docs1 \
-  --reference-project docs=./docs2 \
-  --reference-project docs=./docs3
-
-# Results in these reference project names:
-# - docs (points to ./docs1)
-# - docs_2 (points to ./docs2)  
-# - docs_3 (points to ./docs3)
-```
-
-### Startup Validation
-
-The server validates reference projects at startup:
-
-- **Valid references**: Added successfully and available to the LLM
-- **Invalid references**: Logged as warnings, but server continues with valid ones
-- **Path resolution**: Relative paths are resolved relative to the current working directory
-
-### Use Cases
-
-- **Documentation browsing**: Give the LLM access to project documentation or wikis
-- **Code examples**: Reference example projects or templates
-- **Shared libraries**: Browse common utility libraries or frameworks
-- **Configuration files**: Access system or application configuration directories
-- **Multi-project development**: Work on one project while referencing related projects
-
-### Security Notes
-
-- Reference project *files* are **strictly read-only** - no write, edit, or delete file operations are possible
-- All paths are validated to prevent directory traversal attacks
-- Gitignore filtering is automatically applied to hide irrelevant files
-- Path access is restricted to the specified reference project directories
-- The same rejections described in [Path Confinement](#path-confinement) apply to reference-project paths
+- [Reading at origin/\<default\>](docs/reference-projects.md#reading-at-origindefault): which ref is read, auto-fetch, the notes added on a failed fetch or local fallback, tracked-only content
+- Known limitations, auto-rename of duplicate names, startup validation, use cases and security notes
 
 ## Library use (tool specs)
 
@@ -333,9 +305,9 @@ The Claude Desktop app can also use this file system server.
         "--project-dir",
         "C:\\path\\to\\your\\specific\\project",
         "--reference-project",
-        "docs=C:\\path\\to\\documentation",
+        "name=docs,path=C:\\path\\to\\documentation",
         "--reference-project",
-        "examples=C:\\path\\to\\examples",
+        "name=examples,path=C:\\path\\to\\examples",
         "--log-level",
         "INFO"
       ]
@@ -379,8 +351,8 @@ The server exposes the following MCP tools:
 | `move_file` | Moves or renames files/directories (git-aware: uses git mv for tracked files, else filesystem move) | "Rename config.js to settings.js" |
 | `search_files` | Searches file contents by regex and/or finds files by glob | "Find where retries are configured" |
 | `get_reference_projects` | Lists available reference projects | "What reference projects are available?" |
-| `list_reference_directory` | Lists files in a reference project | "List files in the docs reference project" |
-| `read_reference_file` | Reads files from reference projects | "Show me the README from the examples project" |
+| `list_reference_directory` | Lists files in a reference project at `origin/<default>` | "List files in the docs reference project" |
+| `read_reference_file` | Reads files from reference projects at `origin/<default>` | "Show me the README from the examples project" |
 | `github_issue_view` | Shows a GitHub issue with its comments; `body_file` saves the raw body for read-modify-write | "Show me issue 12 in the mcp-config project" |
 | `github_issue_list` | Lists GitHub issues with optional filters | "List the open issues assigned to me" |
 | `github_pr_view` | Shows a GitHub pull request with its reviews and comments | "Show me pull request 42" |
@@ -394,8 +366,8 @@ The server exposes the following MCP tools:
 | `github_subissue_remove` | Unlinks a sub-issue from its parent; the reported count is approximate (use `github_subissue_list` for the exact set) | "Detach issue 43 from its parent" |
 | `github_issue_comment` | Adds a comment to a GitHub issue; the body can come from a project file (`body_file`) | "Comment on issue 12 with the repro steps" |
 | `github_pr_create` | Creates a GitHub pull request; the body can come from a project file (`body_file`) | "Open a PR for this branch" |
-| `search_reference_files` | Searches file contents or finds files in a reference project | "Find where the docs project configures logging" |
-| `git` | Runs a read-only git command (log, diff, status, show, branch, ...) | "Show the last five commits" |
+| `search_reference_files` | Searches file contents or finds files in a reference project at `origin/<default>` | "Find where the docs project configures logging" |
+| `git` | Runs a read-only git command (log, diff, status, show, branch, ...); with `reference_name`, auto-fetches like the reference tools — see [Git](#git) | "Show the last five commits" |
 | `git_branch` | Switches to a branch, or creates one from HEAD or a local/`origin/` base; never fetches (modifies the repository) | "Create branch 42-fix-login from main" |
 | `git_branch_delete` | Force-deletes a local branch only if its tip is on GitHub; never the current or default branch, never the remote branch (modifies the repository) | "Delete the merged branch 42-fix-login" |
 | `git_commit` | Commits the given paths or all changes; no amend, no hook bypass (modifies the repository) | "Commit my changes to src/" |
@@ -573,12 +545,12 @@ get_reference_projects()
 - Dynamic selection of reference projects to browse
 
 #### List Reference Directory
-Lists files and directories in a reference project, with the same gitignore filtering as the main project.
+Lists the files of a reference project at its `origin/<default>` branch (see [Reading at origin/\<default\>](docs/reference-projects.md#reading-at-origindefault)).
 
 **Parameters:**
 - `reference_name` (string): Name of the reference project
 
-**Returns:** List of strings containing file and directory names
+**Returns:** List of file paths. The last entry may be a note instead of a path, only when the fetch failed or the repository has no usable origin default branch
 
 **Examples:**
 ```python
@@ -590,14 +562,15 @@ read_reference_file("examples", "src/components/Button.tsx")
 ```
 
 **Features:**
-- Automatic gitignore filtering (same as main project)
-- Gitignored files exposed by that project's `.mcp-file-access` end in ` (not committed)`; strip the suffix before passing the path to `read_reference_file`. No other label is shown, since every reference file is read-only
+- At the ref: every tracked file, symlinks and submodules excepted; untracked and gitignored local files are absent
+- Local folder (not a git repository, or no usable origin default branch): gitignore filtering and `.mcp-file-access` as for the main project; an invalid `.mcp-file-access` puts a `WARNING:` line first
+- Local folder: gitignored files exposed by that project's `.mcp-file-access` end in ` (not committed)`; strip the suffix before passing the path to `read_reference_file`. No other label is shown, since every reference file is read-only
 - Excludes .git directories
-- Returns relative paths within the reference project
+- Returns forward-slash relative paths within the reference project
 - Validates reference project exists
 
 #### Read Reference File
-Reads the contents of a file from a reference project.
+Reads the contents of a file from a reference project at its `origin/<default>` branch (see [Reading at origin/\<default\>](docs/reference-projects.md#reading-at-origindefault)).
 
 **Parameters:**
 - `reference_name` (string): Name of the reference project
@@ -606,7 +579,7 @@ Reads the contents of a file from a reference project.
 - `end_line` (integer, optional): Last line to return (1-based, inclusive). Must be provided together with `start_line`.
 - `with_line_numbers` (boolean, optional): Prefix each line with its line number. Defaults to `True` when a line range is specified, `False` for full reads.
 
-**Returns:** String containing the file contents
+**Returns:** String containing the file contents; a note line follows only when the fetch failed or the repository has no usable origin default branch
 
 **Examples:**
 ```python
@@ -625,7 +598,8 @@ read_reference_file("config", "settings/production.yml")
 
 **Features:**
 - Read-only access (no modification possible)
-- Same path validation as main project files, including the `.git` and `.gitignore` rules
+- At the ref: tracked content only, paths checked lexically (`..` and `.git` refused); a missing file's error names the ref and short SHA
+- Local folder: same path validation as main project files, including the `.git` and `.gitignore` rules
 - Supports any text-based file format
 - Returns raw file contents as string
 
@@ -681,10 +655,18 @@ Reports files whose line count exceeds a threshold.
 - Allowlist entries are reported as stale when the file no longer exceeds the threshold, and also when it is missing, binary/non-UTF-8, or matched by `.gitignore` — for example after a rename or a typo in the entry
 - The violations list and the stale-entries list are each capped at 50 with a `showing X of Y` notice; the caps are internal and there is no parameter to lift them
 
+#### Git
+Runs a read-only git command on the workspace, or with `reference_name` on a reference project. Flags are checked against a per-command allowlist (see [SECURITY.md](SECURITY.md#intended-restrictions)).
+
+**Features:**
+- With `reference_name`, `origin` is fetched first when the last fetch is older than `--reference-fetch-interval-minutes`, as for the reference file tools. A failed fetch adds a trailing `[reference <name>: fetch failed (<reason>)]` line
+- `git log` pickaxe: `-S<text>` finds commits that change the number of occurrences of a string, `-G<regex>` commits whose diff matches a regex. The value must be attached (`-SLINKED_VIA_PR`); a separate `-S`, `LINKED_VIA_PR` is refused. `--pickaxe-regex` and `--pickaxe-all` are accepted
+- `git show <ref>:<path>` prints a file at any ref, e.g. a reference project's file on another branch
+
 ## Security Features
 
 - All paths are normalized and validated to ensure they remain within the project directory
-- Reference projects use the same path validation and gitignore rules
+- Reference projects are read at `origin/<default>` with lexical path checks (tracked content only), or as a local folder with the same path validation and gitignore rules
 - Paths made read-only by `.mcp-file-access` refuse every write tool; see [Access rules](#access-rules-mcp-file-access)
 - Path traversal attacks are prevented for both main project and reference projects
 - The `git` tool checks flags, paths and remotes before running git; see [SECURITY.md](SECURITY.md#intended-restrictions)
@@ -714,13 +696,13 @@ mcp-config setup mcp-workspace "Filesystem Server" --project-dir /path/to/your/p
 # Setup with reference projects
 mcp-config setup mcp-workspace "Filesystem Server" \
   --project-dir /path/to/your/project \
-  --reference-project docs=/path/to/documentation \
-  --reference-project examples=/path/to/examples
+  --reference-project name=docs,path=/path/to/documentation \
+  --reference-project name=examples,path=/path/to/examples
 
 # Setup with custom log configuration
 mcp-config setup mcp-workspace "Filesystem Server" \
   --project-dir /path/to/your/project \
-  --reference-project utils=/shared/utilities \
+  --reference-project name=utils,path=/shared/utilities \
   --log-level DEBUG \
   --log-file /custom/path/server.log
 ```

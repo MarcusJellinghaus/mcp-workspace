@@ -29,7 +29,9 @@ The server is meant to enforce the following. A way around any of them is a vuln
 File tools:
 
 - Workspace file tools stay inside the project directory. Reference project file tools stay inside that reference project and only read. See [Path Confinement](docs/file-access.md#path-confinement).
-- Workspace file tools and reference project reads refuse any `.git` entry, under any spelling or through a link, and paths matched by that project's gitignore rules that its `.mcp-file-access` does not expose.
+- Workspace file tools refuse any `.git` entry, under any spelling or through a link, and paths matched by the project's gitignore rules that its `.mcp-file-access` does not expose.
+- Reference project reads at `origin/<default>` return tracked content at that ref only — what `git show` already exposes. They refuse a `.git` path under any spelling and a `..` segment; paths are checked lexically, without touching the local checkout.
+- Reference project reads of the local folder (not a git repository, or no usable origin default branch) refuse `.git` entries and gitignored paths as the workspace file tools do, using that project's own gitignore rules and `.mcp-file-access`. The gitignore refusal applies to this fallback only.
 - Paths read-only by `.mcp-file-access`, under any spelling or through a link, refuse every write tool: `save_file`, `append_file`, `edit_file`, `delete_this_file`, `move_file` and `delete_directory` (for the source and destination path of every file in the tree), and the `github_issue_view` `body_file` target.
 - `.mcp-file-access` itself is never writable through the file tools, also when it does not exist.
 - An invalid `.mcp-file-access` refuses every write and exposes no gitignored path.
@@ -75,7 +77,8 @@ Credentials embedded in remote URLs (`https://user:token@host/...`) are removed 
 In scope are bypasses of the restrictions above, such as:
 
 - reading or writing outside the project or reference project with any tool
-- file tools reaching `.git` or the content of gitignored paths not exposed by `.mcp-file-access`
+- file tools reaching `.git` or the content of gitignored paths not exposed by `.mcp-file-access` (for reference projects, gitignored content counts only in the local-folder fallback; at `origin/<default>` tracked content is returned by design)
+- reference reads at `origin/<default>` returning anything other than tracked content at that ref
 - file tools or a `body_file` parameter writing a path `.mcp-file-access` makes read-only, or creating or changing `.mcp-file-access`
 - the `git` tool changing anything beyond what `fetch` updates
 - a git write tool bypassing its listed refusals
@@ -88,6 +91,7 @@ Out of scope:
 - an agent misusing tools it is allowed to use, including after prompt injection, unless a restriction above was bypassed
 - anything requiring prior access to the user's account, config file or environment
 - what a token can do within its own permissions
+- the reference tools and `git(..., reference_name=...)` fetching a reference project's `origin` over the network, at most once per fetch interval (default 15 minutes, `--reference-fetch-interval-minutes 0` turns it off)
 - the limitation and the differences from git documented under [Path Confinement](docs/file-access.md#path-confinement)
 - editing any `.gitignore` to lift its rules
 - getting around `.mcp-file-access` with a client's native tools or the git tools (e.g. `git_branch` rewriting tracked files when it switches branches), which the rules do not cover

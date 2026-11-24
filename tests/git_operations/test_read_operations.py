@@ -118,6 +118,22 @@ class TestGitLog:
         result = git_log(project_dir)
         assert result == "No commits found."
 
+    @pytest.mark.parametrize("pickaxe", ["-SNEEDLE", "-GNEE.LE"])
+    def test_log_pickaxe_finds_commit(
+        self, git_repo_with_commit: tuple[Repo, Path], pickaxe: str
+    ) -> None:
+        repo, project_dir = git_repo_with_commit
+        sha = commit_files(repo, {"needle.txt": "a NEEDLE here\n"}, "Add needle")
+
+        result = git(
+            command="log", project_dir=project_dir, args=[pickaxe, "--oneline"]
+        )
+
+        lines = result.strip().splitlines()
+        assert len(lines) == 1
+        assert lines[0].startswith(sha[:7])
+        assert "Add needle" in lines[0]
+
     def test_log_rejected_flag_raises(
         self, git_repo_with_commit: tuple[Repo, Path]
     ) -> None:

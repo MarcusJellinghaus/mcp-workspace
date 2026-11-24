@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import Annotated
 
 from mcp_coder_utils.log_utils import log_function_call
@@ -9,6 +10,11 @@ from mcp_coder_utils.tool_spec import ToolSink, tool_spec
 from pydantic import Field
 
 from mcp_workspace.toolset._context import WorkspaceContext
+from mcp_workspace.toolset._reference_freshness import (
+    fetch_failure_note,
+    fetch_if_stale,
+    with_notes,
+)
 from mcp_workspace.toolset.reference import reference_project_path
 
 logger = logging.getLogger(__name__)
@@ -83,7 +89,9 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
             Field(
                 description=(
                     "Optional reference project name. When set, runs git against "
-                    "that project instead of the workspace."
+                    "that project instead of the workspace, after the same "
+                    "automatic fetch of origin as the reference read tools; a "
+                    "failed fetch adds a trailing note and never fails the call."
                 )
             ),
         ] = None,
@@ -96,20 +104,37 @@ def register(sink: ToolSink, ctx: WorkspaceContext) -> None:
         # Lazy import: keeps GitPython off the server startup import path
         from mcp_workspace.git_operations.read_operations import git as git_impl
 
-        if reference_name is not None:
-            project_dir = await reference_project_path(ctx, reference_name)
-        else:
-            project_dir = ctx.project_dir
-        return await asyncio.to_thread(
-            git_impl,
-            command=command,
-            project_dir=project_dir,
-            args=args,
-            pathspec=pathspec,
-            search=search,
-            context=context,
-            max_lines=max_lines,
-            compact=compact,
-        )
+        def _run_git(project_dir: Path) -> str:
+            return git_impl(
+                command=command,
+                project_dir=project_dir,
+                args=args,
+                pathspec=pathspec,
+                search=search,
+                context=context,
+                max_lines=max_lines,
+                compact=compact,
+            )
+
+        if reference_name is None:
+            return await asyncio.to_thread(_run_git, ctx.project_dir)
+
+        ref_name = reference_name
+        ref_dir = await reference_project_path(ctx, ref_name)
+
+        def _run_reference() -> str:
+            fetch_if_stale(ctx, ref_name, ref_dir)
+            note = fetch_failure_note(ctx, ref_name, None)
+            try:
+                output = _run_git(ref_dir)
+            except Exception as exc:  # pylint: disable=broad-exception-caught  # re-raised with the note
+                if note is None:
+                    raise
+                error = with_notes(exc, [note])
+            else:
+                return output if note is None else f"{output}\n{note}"
+            raise error  # outside the except block: no unscrubbed __context__
+
+        return await asyncio.to_thread(_run_reference)
 
     sink.add(tool_spec(git, group="workspace.git", read_only=True))

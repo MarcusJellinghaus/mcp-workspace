@@ -1,11 +1,47 @@
 """Per-factory state shared by the tool closures of one tool_specs() call."""
 
 import asyncio
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from mcp_workspace.file_tools.file_access import FileAccess, require_access
-from mcp_workspace.reference_projects import ReferenceProject
+from mcp_workspace.reference_projects import (
+    DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES,
+    ReferenceProject,
+)
+
+
+@dataclass(frozen=True)
+class FetchRecord:
+    """Outcome of the last completed auto-fetch of one reference project.
+
+    Attributes:
+        completed_at: ``time.monotonic()`` when the attempt finished.
+        failure: Scrubbed failure reason, or None on success.
+    """
+
+    completed_at: float
+    failure: str | None
+
+
+@dataclass
+class ReferenceState:
+    """Mutable per-context reference state (the context itself is frozen).
+
+    Attributes:
+        clone_locks: Per-project locks that keep a lazy clone single.
+        clone_failures: Cached clone errors by project name; a failed
+            clone is not retried for the life of the context.
+        fetch_locks: Per-project locks held for an auto-fetch, so queued
+            readers wait for its result instead of fetching again.
+        fetch_records: Last completed auto-fetch by project name.
+    """
+
+    clone_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
+    clone_failures: dict[str, str] = field(default_factory=dict)
+    fetch_locks: dict[str, threading.Lock] = field(default_factory=dict)
+    fetch_records: dict[str, FetchRecord] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -22,9 +58,13 @@ class WorkspaceContext:
         fail_on_reviews: Default for check_branch_status' review gate.
         enforce_base_branch_format: Whether a malformed Base Branch section
             is rejected by github_issue_create / github_issue_edit.
+        reference_fetch_interval_minutes: Minutes between automatic fetches
+            of a reference project before it is read; 0 turns auto-fetch off.
         file_locks: Per-file locks for concurrent edit safety.
         git_write_lock: Serialises the git write tools, so writes issued in
             the same turn run in order.
+        reference_state: Clone and fetch locks, the clone-failure cache and
+            the fetch records, so two tool_specs() calls never share them.
     """
 
     project_dir: Path
@@ -33,8 +73,10 @@ class WorkspaceContext:
     file_size_limit: int | None
     fail_on_reviews: bool
     enforce_base_branch_format: bool
+    reference_fetch_interval_minutes: int = DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES
     file_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
     git_write_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    reference_state: ReferenceState = field(default_factory=ReferenceState)
 
 
 def check_readable(ctx: WorkspaceContext, file_path: str) -> None:

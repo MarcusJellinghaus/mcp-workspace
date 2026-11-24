@@ -1,5 +1,6 @@
 """Tests for reference project dataclass, URL utilities, and ensure_available."""
 
+import asyncio
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -207,65 +208,61 @@ class TestEnsureAvailable:
 
     @pytest.mark.asyncio
     async def test_dir_exists_returns_immediately(self, tmp_path: Path) -> None:
-        """Path exists → no clone attempted."""
+        """Path exists → no clone attempted, returns None."""
         from mcp_workspace.reference_projects import (
             ReferenceProject,
-            clear_clone_failure_cache,
             ensure_available,
         )
 
-        clear_clone_failure_cache()
         proj = ReferenceProject(
             name="existing", path=tmp_path, url="https://github.com/org/repo"
         )
         with patch("mcp_workspace.git_operations.remotes.clone_repo") as mock_clone:
-            await ensure_available(proj)
+            result = await ensure_available(proj, locks={}, failures={})
             mock_clone.assert_not_called()
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_no_dir_no_url_raises(self) -> None:
         """Path missing, no URL → ValueError."""
         from mcp_workspace.reference_projects import (
             ReferenceProject,
-            clear_clone_failure_cache,
             ensure_available,
         )
 
-        clear_clone_failure_cache()
         proj = ReferenceProject(
             name="missing", path=Path("/nonexistent/path/abc123"), url=None
         )
         with pytest.raises(ValueError, match="directory missing and no URL configured"):
-            await ensure_available(proj)
+            await ensure_available(proj, locks={}, failures={})
 
     @pytest.mark.asyncio
     async def test_clone_triggered_when_url_set(self, tmp_path: Path) -> None:
-        """Path missing, URL set → clone_repo called."""
+        """Path missing, URL set → clone_repo called, returns True."""
         from mcp_workspace.reference_projects import (
             ReferenceProject,
-            clear_clone_failure_cache,
             ensure_available,
         )
 
-        clear_clone_failure_cache()
         target = tmp_path / "new_clone"
         proj = ReferenceProject(
             name="cloneme", path=target, url="https://github.com/org/repo"
         )
         with patch("mcp_workspace.git_operations.remotes.clone_repo") as mock_clone:
-            await ensure_available(proj)
+            result = await ensure_available(proj, locks={}, failures={})
             mock_clone.assert_called_once_with("https://github.com/org/repo", target)
+        assert result is True
 
     @pytest.mark.asyncio
     async def test_clone_failure_cached(self, tmp_path: Path) -> None:
         """First call fails → second call raises immediately without re-cloning."""
         from mcp_workspace.reference_projects import (
             ReferenceProject,
-            clear_clone_failure_cache,
             ensure_available,
         )
 
-        clear_clone_failure_cache()
+        locks: dict[str, asyncio.Lock] = {}
+        failures: dict[str, str] = {}
         target = tmp_path / "fail_clone"
         proj = ReferenceProject(
             name="failproj", path=target, url="https://github.com/org/repo"
@@ -276,55 +273,55 @@ class TestEnsureAvailable:
         ) as mock_clone:
             # First call fails
             with pytest.raises(ValueError, match="Failed to clone"):
-                await ensure_available(proj)
+                await ensure_available(proj, locks=locks, failures=failures)
             assert mock_clone.call_count == 1
 
             # Second call raises cached error without cloning again
             with pytest.raises(ValueError, match="Clone previously failed"):
-                await ensure_available(proj)
+                await ensure_available(proj, locks=locks, failures=failures)
             assert mock_clone.call_count == 1  # Not called again
 
+        assert failures == {"failproj": "auth required"}
+
     @pytest.mark.asyncio
-    async def test_cache_cleared(self, tmp_path: Path) -> None:
-        """After clear_clone_failure_cache(), retry is allowed."""
+    async def test_new_failures_dict_allows_retry(self, tmp_path: Path) -> None:
+        """A failure is cached in the passed dict only; a fresh dict retries."""
         from mcp_workspace.reference_projects import (
             ReferenceProject,
-            clear_clone_failure_cache,
             ensure_available,
         )
 
-        clear_clone_failure_cache()
         target = tmp_path / "retry_clone"
         proj = ReferenceProject(
             name="retryproj", path=target, url="https://github.com/org/repo"
         )
+        first_failures: dict[str, str] = {}
         with patch(
             "mcp_workspace.git_operations.remotes.clone_repo",
             side_effect=ValueError("auth required"),
         ):
             with pytest.raises(ValueError, match="Failed to clone"):
-                await ensure_available(proj)
+                await ensure_available(proj, locks={}, failures=first_failures)
+        assert "retryproj" in first_failures
 
-        # Clear cache
-        clear_clone_failure_cache()
-
-        # Now it should try cloning again (not use cached error)
+        # A different failures dict has no cached error → clone is retried
+        second_failures: dict[str, str] = {}
         with patch("mcp_workspace.git_operations.remotes.clone_repo") as mock_clone:
-            await ensure_available(proj)
+            result = await ensure_available(proj, locks={}, failures=second_failures)
             mock_clone.assert_called_once()
+        assert result is True
+        assert not second_failures
 
     @pytest.mark.asyncio
     async def test_concurrent_access_single_clone(self, tmp_path: Path) -> None:
-        """Two concurrent calls → only one clone."""
-        import asyncio
-
+        """Two concurrent calls → only one clone; only the cloning call returns True."""
         from mcp_workspace.reference_projects import (
             ReferenceProject,
-            clear_clone_failure_cache,
             ensure_available,
         )
 
-        clear_clone_failure_cache()
+        locks: dict[str, asyncio.Lock] = {}
+        failures: dict[str, str] = {}
         target = tmp_path / "concurrent_clone"
         proj = ReferenceProject(
             name="concurrent", path=target, url="https://github.com/org/repo"
@@ -341,6 +338,10 @@ class TestEnsureAvailable:
         with patch(
             "mcp_workspace.git_operations.remotes.clone_repo", side_effect=fake_clone
         ):
-            await asyncio.gather(ensure_available(proj), ensure_available(proj))
+            results = await asyncio.gather(
+                ensure_available(proj, locks=locks, failures=failures),
+                ensure_available(proj, locks=locks, failures=failures),
+            )
 
         assert call_count == 1  # Only one clone despite two concurrent calls
+        assert sorted(results, key=repr) == [None, True]

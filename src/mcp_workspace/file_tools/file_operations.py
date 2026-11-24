@@ -1,9 +1,11 @@
 """File operations utilities."""
 
+import io
 import logging
 import os
 import shutil
 import tempfile
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -70,14 +72,126 @@ def read_file(
             *start_line* / *end_line* are invalid, or if *max_lines* is
             negative or not an integer
     """
-    # Validate file_path parameter
-    if not file_path or not isinstance(file_path, str):
-        logger.error("Invalid file path: %s", file_path)
-        raise ValueError(f"File path must be a non-empty string, got {type(file_path)}")
+    validate_read_args(file_path, start_line, end_line, max_lines)
 
     # Validate project_dir parameter
     if project_dir is None:
         raise ValueError("Project directory cannot be None")
+
+    # Normalize the path to be relative to the project directory
+    abs_path, rel_path = normalize_path(file_path, project_dir)
+
+    if not abs_path.exists():
+        logger.error("File not found: %s", file_path)
+        raise FileNotFoundError(f"File '{file_path}' does not exist")
+
+    if not abs_path.is_file():
+        logger.error("Path is not a file: %s", file_path)
+        raise IsADirectoryError(f"Path '{file_path}' is not a file")
+
+    try:
+        logger.debug("Reading file: %s", rel_path)
+
+        with open(abs_path, encoding="utf-8") as file_handle:
+            content = _render_lines(
+                file_handle, start_line, end_line, with_line_numbers, max_lines
+            )
+
+        if start_line is not None:
+            logger.debug("Read lines %d-%d from %s", start_line, end_line, rel_path)
+        else:
+            logger.debug("Successfully read %s", rel_path)
+
+        return content
+    except UnicodeDecodeError as e:
+        logger.error("Unicode decode error while reading %s: %s", rel_path, str(e))
+        raise ValueError(
+            f"File '{file_path}' contains invalid characters. Ensure it's a valid text file."
+        ) from e
+    except Exception as e:
+        logger.error("Error reading file %s: %s", rel_path, str(e))
+        raise
+
+
+def read_content(
+    data: bytes,
+    file_path: str,
+    start_line: int | None = None,
+    end_line: int | None = None,
+    with_line_numbers: bool | None = None,
+    max_lines: int | None = None,
+) -> str:
+    """Render *data* exactly as :func:`read_file` renders a file with these bytes.
+
+    Args:
+        data: Raw file bytes, decoded as UTF-8 with universal newlines.
+        file_path: Path of the file, used only in error messages.
+        start_line: As for :func:`read_file`.
+        end_line: As for :func:`read_file`.
+        with_line_numbers: As for :func:`read_file`.
+        max_lines: As for :func:`read_file`.
+
+    Returns:
+        The rendered content, including any truncation note.
+
+    Raises:
+        ValueError: If the arguments are invalid or *data* is not UTF-8.
+    """
+    validate_read_args(file_path, start_line, end_line, max_lines)
+    with io.TextIOWrapper(io.BytesIO(data), encoding="utf-8") as stream:
+        try:
+            return _render_lines(
+                stream, start_line, end_line, with_line_numbers, max_lines
+            )
+        except UnicodeDecodeError as e:
+            raise ValueError(
+                f"File '{file_path}' contains invalid characters. Ensure it's a valid text file."
+            ) from e
+
+
+def decode_lines(data: bytes) -> list[str]:
+    r"""Split *data* into lines as ``open(..., encoding="utf-8").readlines()`` does.
+
+    Universal-newline splitting on ``\n``, ``\r\n`` and ``\r`` only — unlike
+    ``str.splitlines()``, form feeds and U+2028 do not end a line.
+
+    Args:
+        data: Raw file bytes.
+
+    Returns:
+        The decoded lines, each keeping its ``\n`` ending.
+
+    Raises:
+        UnicodeDecodeError: If *data* is not valid UTF-8.
+    """
+    with io.TextIOWrapper(io.BytesIO(data), encoding="utf-8") as stream:
+        return stream.readlines()
+
+
+def validate_read_args(
+    file_path: str,
+    start_line: int | None,
+    end_line: int | None,
+    max_lines: int | None,
+) -> None:
+    """Validate the path, line-range and limit arguments of a read.
+
+    Callers that fetch content before :func:`read_content` call this first,
+    so a bad argument is reported before any not-found error.
+
+    Args:
+        file_path: Path as the caller wrote it; must be a non-empty string.
+        start_line: First line to return (1-based), or None.
+        end_line: Last line to return (1-based), or None.
+        max_lines: Full-read limit; None or a non-negative integer.
+
+    Raises:
+        ValueError: If any argument is invalid.
+    """
+    # Validate file_path parameter
+    if not file_path or not isinstance(file_path, str):
+        logger.error("Invalid file path: %s", file_path)
+        raise ValueError(f"File path must be a non-empty string, got {type(file_path)}")
 
     # Validate max_lines parameter
     if max_lines is not None:
@@ -103,65 +217,58 @@ def read_file(
                 f"end_line ({end_line}) must be >= start_line ({start_line})"
             )
 
-    # Normalize the path to be relative to the project directory
-    abs_path, rel_path = normalize_path(file_path, project_dir)
 
-    if not abs_path.exists():
-        logger.error("File not found: %s", file_path)
-        raise FileNotFoundError(f"File '{file_path}' does not exist")
+def _render_lines(
+    lines: Iterable[str],
+    start_line: int | None,
+    end_line: int | None,
+    with_line_numbers: bool | None,
+    max_lines: int | None,
+) -> str:
+    """Select, number and truncate *lines* the way a read returns them.
 
-    if not abs_path.is_file():
-        logger.error("Path is not a file: %s", file_path)
-        raise IsADirectoryError(f"Path '{file_path}' is not a file")
+    Args:
+        lines: Decoded lines, each keeping its line ending.
+        start_line: First line to return (1-based), or None for a full read.
+        end_line: Last line to return (1-based), or None for a full read.
+        with_line_numbers: Prefix lines with numbers; None means only for
+            sliced reads.
+        max_lines: Full-read limit; None or 0 means no limit.
 
-    try:
-        logger.debug("Reading file: %s", rel_path)
+    Returns:
+        The rendered content, followed by a truncation note when a full
+        read exceeds *max_lines*.
+    """
+    # Range reads are never limited
+    limit = max_lines if (start_line is None and max_lines) else None
+    total = 0
+    collected: list[tuple[int, str]] = []
+    for line_num, line in enumerate(lines, start=1):
+        if limit is not None and line_num > limit:
+            total = line_num  # count only; memory stays flat
+            continue
+        if start_line is None or (start_line <= line_num <= end_line):  # type: ignore[operator]
+            collected.append((line_num, line))
+        if end_line is not None and line_num >= end_line:
+            break
 
-        # Range reads are never limited
-        limit = max_lines if (start_line is None and max_lines) else None
-        total = 0
-        collected: list[tuple[int, str]] = []
-        with open(abs_path, encoding="utf-8") as file_handle:
-            for line_num, line in enumerate(file_handle, start=1):
-                if limit is not None and line_num > limit:
-                    total = line_num  # count only; memory stays flat
-                    continue
-                if start_line is None or (start_line <= line_num <= end_line):  # type: ignore[operator]
-                    collected.append((line_num, line))
-                if end_line is not None and line_num >= end_line:
-                    break
+    # Resolve with_line_numbers default
+    if with_line_numbers is None:
+        with_line_numbers = start_line is not None
 
-        # Resolve with_line_numbers default
-        if with_line_numbers is None:
-            with_line_numbers = start_line is not None
+    if not with_line_numbers or not collected:
+        content = "".join(line for _, line in collected)
+    else:
+        width = len(str(collected[-1][0]))
+        content = "".join(f"{num:>{width}}→{line}" for num, line in collected)
 
-        if not with_line_numbers or not collected:
-            content = "".join(line for _, line in collected)
-        else:
-            width = len(str(collected[-1][0]))
-            content = "".join(f"{num:>{width}}→{line}" for num, line in collected)
-
-        if limit is not None and total > limit:
-            content += (
-                f"[truncated: showing lines 1–{limit} of {total}; "
-                f"continue with start_line={limit + 1}, "
-                f"end_line={min(2 * limit, total)}]"
-            )
-
-        if start_line is not None:
-            logger.debug("Read lines %d-%d from %s", start_line, end_line, rel_path)
-        else:
-            logger.debug("Successfully read %s", rel_path)
-
-        return content
-    except UnicodeDecodeError as e:
-        logger.error("Unicode decode error while reading %s: %s", rel_path, str(e))
-        raise ValueError(
-            f"File '{file_path}' contains invalid characters. Ensure it's a valid text file."
-        ) from e
-    except Exception as e:
-        logger.error("Error reading file %s: %s", rel_path, str(e))
-        raise
+    if limit is not None and total > limit:
+        content += (
+            f"[truncated: showing lines 1–{limit} of {total}; "
+            f"continue with start_line={limit + 1}, "
+            f"end_line={min(2 * limit, total)}]"
+        )
+    return content
 
 
 def _validate_save_parameters(

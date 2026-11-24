@@ -1,7 +1,8 @@
-"""Guard tests: MCP tool descriptions document glob semantics.
+"""Guard tests: MCP tool descriptions document glob semantics and ref reads.
 
 The `glob` argument uses gitignore/wildmatch semantics, which surprise callers
-who expect shell globbing. The descriptions have drifted once already, so the
+who expect shell globbing. The reference read tools read `origin/<default>`,
+not the working tree. The descriptions have drifted once already, so the
 key phrases are pinned here.
 """
 
@@ -17,8 +18,31 @@ GLOB_DOC_PHRASES = [
     "brace expansion is not supported",
     "any depth",
     "case-insensitive",
-    "git ls-files",
     "glob_note",
+]
+
+SEARCH_FILES_GLOB_PHRASES = ["git ls-files"]
+
+SEARCH_REFERENCE_FILES_GLOB_PHRASES = [
+    "ls_tree",
+    "--name-only",
+    "origin/main",
+    "max_lines",
+]
+
+REFERENCE_READ_TOOLS = [
+    "read_reference_file",
+    "search_reference_files",
+    "list_reference_directory",
+]
+
+REFERENCE_READ_PHRASES = [
+    "origin/",
+    "fetched automatically",
+    "tracked",
+    'git(command="show"',
+    "max_lines",
+    "-s<text>",
 ]
 
 
@@ -27,6 +51,19 @@ def _tool_text(project_dir: Path, name: str) -> str:
     spec = next(s for s in tool_specs(project_dir) if s.name == name)
     glob_doc = spec.args_model.model_json_schema()["properties"]["glob"]["description"]
     return f"{spec.description}\n{glob_doc}"
+
+
+def _description(project_dir: Path, name: str) -> str:
+    """Return a tool's description, lower-cased."""
+    spec = next(s for s in tool_specs(project_dir) if s.name == name)
+    return spec.description.lower()
+
+
+def _field_description(project_dir: Path, name: str, field: str) -> str:
+    """Return the description of one of a tool's fields, lower-cased."""
+    spec = next(s for s in tool_specs(project_dir) if s.name == name)
+    schema = spec.args_model.model_json_schema()
+    return str(schema["properties"][field]["description"]).lower()
 
 
 def _search_files_text(project_dir: Path) -> str:
@@ -62,12 +99,6 @@ WRITE_TOOLS = [
 ]
 
 
-def _description(project_dir: Path, name: str) -> str:
-    """Return a tool's description, lowercased."""
-    spec = next(s for s in tool_specs(project_dir) if s.name == name)
-    return spec.description.lower()
-
-
 @pytest.mark.parametrize("name", READ_TOOLS)
 def test_read_tool_description_mentions_file_access(name: str, tmp_path: Path) -> None:
     description = _description(tmp_path, name)
@@ -99,3 +130,47 @@ def test_write_tool_description_mentions_file_access(name: str, tmp_path: Path) 
     description = _description(tmp_path, name)
     assert "not exposed read-write by .mcp-file-access" in description
     assert "no write access" in description
+
+
+@pytest.mark.parametrize("phrase", SEARCH_FILES_GLOB_PHRASES)
+def test_search_files_glob_points_to_git_ls_files(phrase: str, tmp_path: Path) -> None:
+    assert phrase in _search_files_text(tmp_path).lower()
+
+
+@pytest.mark.parametrize("phrase", SEARCH_REFERENCE_FILES_GLOB_PHRASES)
+def test_search_reference_files_glob_points_to_ls_tree(
+    phrase: str, tmp_path: Path
+) -> None:
+    glob_doc = _field_description(tmp_path, "search_reference_files", "glob")
+    assert phrase in glob_doc
+
+
+def test_search_reference_files_glob_drops_git_ls_files(tmp_path: Path) -> None:
+    """git ls-files reads the working tree's index, not the ref being searched."""
+    glob_doc = _field_description(tmp_path, "search_reference_files", "glob")
+    assert "git ls-files" not in glob_doc
+
+
+@pytest.mark.parametrize("phrase", REFERENCE_READ_PHRASES)
+@pytest.mark.parametrize("tool", REFERENCE_READ_TOOLS)
+def test_reference_read_tool_documents_reading_at_ref(
+    tool: str, phrase: str, tmp_path: Path
+) -> None:
+    assert phrase in _description(tmp_path, tool)
+
+
+@pytest.mark.parametrize(
+    "tool, phrase",
+    [
+        ("list_reference_directory", "last entry may be a note"),
+        ("search_reference_files", "freshness"),
+    ],
+)
+def test_reference_read_tool_documents_note_placement(
+    tool: str, phrase: str, tmp_path: Path
+) -> None:
+    assert phrase in _description(tmp_path, tool)
+
+
+def test_git_reference_name_documents_fetch(tmp_path: Path) -> None:
+    assert "fetch" in _field_description(tmp_path, "git", "reference_name")

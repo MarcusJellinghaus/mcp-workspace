@@ -24,6 +24,7 @@ tools["read_file"].fn("README.md")
 | `file_size_limit` | `None` (built-in 600) | `--file-size-limit` |
 | `fail_on_reviews` | `False` | `--fail-on-reviews` |
 | `enforce_base_branch_format` | `True` | `--enforce-base-branch-format` |
+| `reference_fetch_interval_minutes` | `DEFAULT_REFERENCE_FETCH_INTERVAL_MINUTES` (15); `0` = auto-fetch off; negative → `ValueError` | `--reference-fetch-interval-minutes` |
 
 ## `ToolSpec` fields
 
@@ -53,5 +54,5 @@ Library consumers have no client allowlist, so filter on `spec.read_only` to exc
 
 ## TLS and global state
 
-- `tool_specs` has no global side effects. The `mcp-workspace` entry point activates the OS trust store (`truststore`) and labels [GitHub traffic log](../README.md#github-traffic-log) lines with its command name. The traffic log itself follows `config.toml` for library callers too, with an empty command field. Library callers that enable `workspace.github`, `workspace.checks` or `workspace.git` must set up TLS and network access themselves; `workspace.git` pushes, runs `ls-remote`, and `git_branch_delete` calls the GitHub API. `workspace.read` and `workspace.write` need no network.
-- Settings, file locks and the `git_write_lock` belong to one `tool_specs(...)` call; two calls never share them. `git_write_lock` serialises the git write tools, so a `git_commit` and a `git_push` issued together run in order. Reference-project clone locks and clone-failure caches are process-global, keyed by reference name.
+- `tool_specs` has no global side effects. The `mcp-workspace` entry point activates the OS trust store (`truststore`) and labels [GitHub traffic log](../README.md#github-traffic-log) lines with its command name. The traffic log itself follows `config.toml` for library callers too, with an empty command field. Library callers that enable `workspace.github`, `workspace.checks` or `workspace.git` must set up TLS and network access themselves; `workspace.git` pushes, runs `ls-remote`, and `git_branch_delete` calls the GitHub API; `git` with `reference_name` fetches that reference project's `origin`. `workspace.reference` clones missing reference projects and, by default, runs `git fetch origin` over the network before reading (`reference_fetch_interval_minutes=0` turns the fetch off). `workspace.read` and `workspace.write` need no network.
+- Settings, file locks and the `git_write_lock` belong to one `tool_specs(...)` call; two calls never share them. `git_write_lock` serialises the git write tools, so a `git_commit` and a `git_push` issued together run in order. Reference-project clone locks, the clone-failure cache and the fetch throttle (fetch locks and last-fetch records) also belong to one `tool_specs(...)` call, keyed by reference name; there are no module globals to reset.
