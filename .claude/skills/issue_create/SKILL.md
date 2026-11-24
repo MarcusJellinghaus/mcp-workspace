@@ -38,6 +38,6 @@ Call `mcp__mcp-workspace__git` with command `"ls_remote"` and args `["--heads", 
 
 If no base branch is needed, omit this section entirely.
 
-**Create the issue:** call `mcp__mcp-workspace__github_issue_create` with `title` and `body`.
+**Create the issue:** call `mcp__mcp-workspace__github_issue_create` with `title` and `body`. Set no `assignees` unless the request asks for one: assigning starts a vscodeclaude session.
 
 If no prior discussion context is found, respond: "No discussion context found. Please discuss the feature or bug first before creating an issue."

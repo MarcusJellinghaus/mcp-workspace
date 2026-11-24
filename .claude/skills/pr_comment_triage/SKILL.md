@@ -1,5 +1,7 @@
 ---
 description: Triage new PR comments, review feedback and code-scanning alerts, decide fix vs reply vs decline
+disable-model-invocation: true
+argument-hint: "<issue-number>"
 allowed-tools:
   - mcp__mcp-workspace__check_branch_status
   - mcp__mcp-workspace__github_pr_view
@@ -16,7 +18,7 @@ allowed-tools:
   - mcp__mcp-tools-py__run_mypy_check
   - mcp__mcp-workspace__git_commit
   - mcp__mcp-workspace__git_push
-  - "Bash(mcp-coder gh-tool set-status *)"
+  - mcp__mcp-workspace__github_issue_set_status
 ---
 
 # PR Comment Triage
@@ -81,17 +83,17 @@ author, so only the PR-author check applies to them.
   alert fixed or dismissed. A changes-requested review that has been replied
   to or fixed does not block — it stays listed by `/check_branch_status` until
   the reviewer re-reviews.
-- Withheld (untrusted) items don't block `set-status status-10:pr-created` —
-  nor does a `blocks_merge` caused only by withheld threads or
-  changes-requested reviews. Report their count in the final chat summary
-  only — no PR comment. This exemption excludes alerts: an alert-caused
-  `blocks_merge` blocks `set-status`.
+- Withheld (untrusted) items don't block `github_issue_set_status` to
+  `status-10:pr-created` — nor does a `blocks_merge` caused only by withheld
+  threads or changes-requested reviews. Report their count in the final chat
+  summary only — no PR comment. This exemption excludes alerts: an
+  alert-caused `blocks_merge` blocks `github_issue_set_status`.
 - If this session pushed, wait for CI on the last push: re-call
   `/check_branch_status` while CI is pending (`ci_timeout` default 300 s).
   This is best effort: it does not cover the code-scanning run, so alerts can
   be stale. No push, no CI wait.
-- Re-run `/check_branch_status` right before `set-status` and handle anything
-  new. Run `set-status` only if no alert is open:
+- Re-run `/check_branch_status` right before `github_issue_set_status` and
+  handle anything new. Run `github_issue_set_status` only if no alert is open:
   - `[alert]` still listed: report what is open and do not set status. If the
     user leaves, the issue stays at `status-91`.
   - `[unavailable] alerts: ...` is not "no alert": do not set status. Retry,
@@ -99,6 +101,23 @@ author, so only the PR-author check applies to them.
   - `[skipped] alerts not checked` / `alerts not checked` counts as no alert:
     the coordinator does not escalate on it either.
 - Post all replies before setting the status (the relabel sets the
-  watermark):
+  watermark), then change the status:
+  1. Call `mcp__mcp-workspace__git` with command `status`, args
+     `["--porcelain"]`. Any tracked or untracked change other than `uv.lock`
+     → stop and report the uncommitted changes.
+  2. Issue number: always read the branch (`mcp__mcp-workspace__git` command
+     `branch`, args `["--show-current"]`; leading digits `^\d+-`). Use
+     `$ARGUMENTS` if given, else the branch digits. Both present and different → stop and report.
+     Neither → stop and report. Never use the PR number.
+  3. Call `mcp__mcp-workspace__github_issue_set_status(number=<issue number>,
+     status="status-10:pr-created", from_status="status-91:pr-review-comments")`.
+     A run at any status other than `status-91` is refused by this guard
+     (e.g. a manual run on an issue at `status-10`).
+  4. Result starts with `Issue #N status:` → success (a trailing
+     `Note: issue #N is closed.` is still success). Starts with
+     `Status of issue #N not changed:` → the guard refused; report it and
+     stop. Anything else (incl. `Label … not found`, `Error:`) → failed;
+     report the result verbatim and stop.
 
-      mcp-coder gh-tool set-status status-10:pr-created
+  If the call prompts, is refused or fails, stop and report — never fall back
+  to Bash.

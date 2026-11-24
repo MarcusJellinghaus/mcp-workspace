@@ -7,9 +7,13 @@ tools:
   - mcp__mcp-workspace__save_file
   - mcp__mcp-workspace__edit_file
   - mcp__mcp-workspace__delete_this_file
-  - mcp__mcp-workspace__delete_directory
   - mcp__mcp-workspace__read_file
-permissionMode: bypassPermissions
+hooks:
+  PreToolUse:
+    - matcher: "mcp__mcp-workspace__github_issue_edit"
+      hooks:
+        - type: command
+          command: "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\"}}'"
 ---
 
 # Issue-Updater Agent
@@ -27,11 +31,6 @@ On top of that process:
 
 - **Scope** — confirm the issue number in your launch prompt matches the issue you are about
   to edit; if it does not, stop and report back without editing.
-- **Temp files** — remove what you wrote to `.scratch/` with `mcp__mcp-workspace__delete_this_file`
-  or `mcp__mcp-workspace__delete_directory`, never `rm`.
+- **Temp files** — remove what you wrote to `.scratch/` with `mcp__mcp-workspace__delete_this_file`,
+  never `rm`.
 - **Report** the issue number, the new title, and confirmation the edit succeeded.
-
-The working directory is already correct — do not use `cd` or `git -C`.
-
-Runs with `bypassPermissions`. Rationale and limits:
-`docs/repository-setup/agent-permissions.md` in the mcp-coder repository.

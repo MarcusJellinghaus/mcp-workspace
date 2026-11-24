@@ -16,6 +16,7 @@ from mcp_workspace.utils.url_credentials import scrub_credentials
 from .arg_validation import (
     _REMOTE_COMMANDS,
     _SUPPORTS_PATHSPEC,
+    command_name_hint,
     split_args_pathspec,
     validate_args,
     validate_branch_has_read_flag,
@@ -707,7 +708,9 @@ def git(
 
     handler = handlers.get(command)
     if handler is None:
-        raise ValueError(f"Unknown git command: '{command}'")
+        raise ValueError(
+            f"Unknown git command: '{command}'{command_name_hint(command)}"
+        )
 
     # Remote URLs (ls_remote --get-url, fetch errors) can carry a token.
     # Other commands' output is file content and history, left unchanged.

@@ -3,3 +3,6 @@
 read-write  /.scratch/
 read-only   /.mcp.json
 read-only   /.mcp-file-access
+read-only   /.vscodeclaude_status.txt
+read-only   /.claude/settings.json
+read-only   /.claude/settings.local.json

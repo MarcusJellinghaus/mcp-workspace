@@ -28,8 +28,7 @@
       "mcp__mcp-tools-py__run_ruff_fix",
       "mcp__mcp-tools-py__run_bandit_check",
       "mcp__mcp-tools-py__sleep",
-      "Bash(mcp-coder git-tool *)",
-      "Bash(mcp-coder gh-tool *)",
+      "Bash(mcp-coder gh-tool checkout-issue-branch:*)",
       "WebFetch(domain:*)",
       "Skill(check_branch_status)",
       "Skill(commit_push)",
@@ -41,7 +40,6 @@
       "Skill(implementation_review)",
       "Skill(implementation_review_supervisor)",
       "Skill(issue_analyse)",
-      "Skill(issue_analyse_supervisor)",
       "Skill(issue_approve)",
       "Skill(issue_create)",
       "Skill(issue_update)",
@@ -50,7 +48,6 @@
       "Skill(plan_review_supervisor)",
       "Skill(plan_update)",
       "Skill(implement_direct)",
-      "Skill(issue_requirements)",
       "Skill(rebase)",
       "mcp__mcp-workspace__search_files",
       "mcp__obsidian-wiki__obsidian_add_tags",
@@ -65,12 +62,7 @@
       "mcp__obsidian-wiki__obsidian_remove_tags",
       "mcp__obsidian-wiki__obsidian_rename_tag",
       "mcp__obsidian-wiki__obsidian_search_vault",
-      "Bash(git checkout:*)",
-      "Bash(git pull:*)",
       "mcp__mcp-workspace__git",
-      "mcp__mcp-workspace__git_branch",
-      "mcp__mcp-workspace__git_commit",
-      "mcp__mcp-workspace__git_push",
       "mcp__mcp-workspace__search_reference_files",
       "mcp__mcp-workspace__check_branch_status",
       "mcp__mcp-workspace__check_file_size",
@@ -80,16 +72,16 @@
       "mcp__mcp-workspace__github_pr_view",
       "mcp__mcp-workspace__github_search",
       "mcp__mcp-workspace__github_label_list",
-      "mcp__mcp-workspace__github_issue_set_status",
       "mcp__mcp-tools-py__run_tach_check",
       "mcp__mcp-workspace__delete_directory",
-      "mcp__mcp-tools-py__run_deptry_check"
+      "mcp__mcp-tools-py__run_deptry_check",
+      "mcp__mcp-workspace__github_subissue_list"
     ]
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "mcp-tools-py",
-    "mcp-workspace",
-    "obsidian-wiki"
-  ]
+    "mcp-workspace"
+  ],
+  "autoMemoryEnabled": false
 }
