@@ -115,3 +115,38 @@ error. GITHUB SECURITY is exit-neutral.
 
 Ported tests use `render_rows` plus hardcoded columns (label width 22), never
 mcp_coder's conftest helpers.
+
+## Running the test suite (timing, see #416 / #417)
+
+A plain `run_pytest_check` runs every group (`addopts` has no `-m`) and takes
+~30 min on Windows; it exceeds the tool's default 300 s timeout. Run the groups
+as separate calls, one at a time — never in parallel with pylint/mypy (CPU
+contention inflates per-test time 2–15×, #416):
+
+The mcp-coder `implement_final` gate runs `check@standard` (mypy, pylint),
+then `test@quick` (= row 2, all `*integration` markers excluded) with
+mcp-tools-py's 300 s default — row 2 measured 348 s, and this repo sets no
+`pytest-timeout` in `[tool.mcp-tools-py]` (mcp_coder sets 1800).
+
+| # | Selection | Measured (`-n auto`, 2026-11-24, after rebase) | `timeout_seconds` |
+|---|---|---|---|
+| 1 | This branch's tests: `tests/cli`, `tests/github_operations/test_security_rows.py`, `tests/github_operations/test_package_exports.py`, `tests/test_main_verify.py`, `tests/test_main_validate_reference_projects.py` (`-n 0`) | 143 tests, 3.4 s | default |
+| 2 | `markers=["not git_integration", "not github_integration"]` | 6,750 tests, 348 s | 900 |
+| 3a | `markers=["git_integration"]`, `tests/git_operations` | 483 tests, 407 s | 1,200 |
+| 3b | `markers=["git_integration"]`, `tests/github_operations` | 334 tests, 124 s | 900 |
+| 3c | `markers=["git_integration"]`, `tests` minus 3a/3b dirs (`--ignore=`) | 149 tests, 236 s | 900 |
+| 4 | `markers=["github_integration"]` | 26 tests, 126 s | 600 |
+| 5 | `markers=["performance"]`, `-n 0` | 1 test, 18 s | default |
+
+Test hygiene for this branch (#417 guards, checked with a per-test
+`subprocess.Popen` probe): none of this branch's tests starts a git process,
+and the slowest takes ~1 s (`test_main_import_does_not_load_verify_dependencies`,
+which spawns a Python subprocess). New tests must keep that: a test that runs
+real git carries `@pytest.mark.git_integration`.
+
+Pre-existing on `main`, not this branch's scope (#416): 131 unmarked
+unit-group tests start git (e.g. `test_rebase`, `test_conflicts`,
+`test_list_tree`, `test_move_git_integration`, `test_credential_scrubbing`,
+`test_manager_base_branch`, `test_push_current_branch`); 32 unit-group tests
+take ≥10 s, 241 `git_integration` tests take ≥10 s, the slowest
+`test_remote_queries::test_many_branches_not_truncated` (82 s, 130 git processes).

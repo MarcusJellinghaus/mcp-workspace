@@ -47,5 +47,6 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared: `docs: document mcp-workspace verify`
 
 ## Pull Request
+- [x] Full test suite after rebase onto `main`, run per group as in [summary.md — Running the test suite](./steps/summary.md#running-the-test-suite-timing-see-416--417) — all groups pass, pylint and mypy clean
 - [ ] PR review: review the full branch diff against `main`
 - [ ] PR summary prepared
