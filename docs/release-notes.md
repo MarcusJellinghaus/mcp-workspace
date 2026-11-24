@@ -3,6 +3,7 @@
 ## Next minor release — file tools use mcp-coder-utils fs; LF default (#400)
 
 - New files, files without line breaks, and ties in mixed files get `.gitattributes` `eol=`, else LF (was the platform default, CRLF on Windows); existing files with a dominant ending keep it.
+- Requires mcp-coder-utils with `fs.write_text` / `fs.check_path_within` (mcp-coder-utils#88 or later).
 
 ## Next minor release — .mcp-file-access surfaced to agents (#404)
 

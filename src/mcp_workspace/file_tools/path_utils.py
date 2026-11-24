@@ -4,6 +4,8 @@ import logging
 import os
 from pathlib import Path, PureWindowsPath
 
+from mcp_coder_utils.fs import check_path_within
+
 from mcp_workspace.utils.git_paths import is_path_in_git_dir
 
 logger = logging.getLogger(__name__)
@@ -88,9 +90,10 @@ def normalize_path(path: str, project_dir: Path) -> tuple[Path, str]:
     """Normalize a path to be relative to the project directory.
 
     Relative paths are anchored to the project directory; absolute paths are
-    taken as given. The result is validated three times: no '..' segment
-    anywhere, the resolved path stays inside the resolved project directory, and
-    neither the path nor its resolved location is a ``.git`` entry or below one.
+    taken as given. Validation is the shared ``check_path_within`` (no '..'
+    segment, no NUL byte, the resolved path stays inside the resolved project
+    directory), then a lexical ``relative_to(project_dir)`` check, then the
+    refusal of a path that is - or resolves to - a ``.git`` entry or below one.
 
     Resolution is used only to *decide*: the returned absolute path is the
     lexically joined one, so a symlink names the link rather than its target
@@ -100,10 +103,12 @@ def normalize_path(path: str, project_dir: Path) -> tuple[Path, str]:
     Only the requested path is checked for '..'; a project_dir that itself
     carries a '..' segment is the caller's own, already-trusted anchor.
 
-    Known limitation: when ``resolve()`` raises OSError the containment check
-    cannot run and validation falls back to the lexical checks alone - the '..'
-    guard and ``relative_to``. A symlink inside the project whose target is
-    outside it is *not* detected on that branch.
+    Known limitation: when the shared check raises OSError, validation falls
+    back to the lexical ``relative_to`` check ('..' is still rejected before
+    resolving). A symlink inside the project whose target is outside it is
+    *not* detected on that branch. Symlink loops: on Python 3.13+ a loop takes
+    the lexical fallback and is then treated as missing by the file operations;
+    on 3.11/3.12 ``resolves_into_git_dir`` still raises RuntimeError.
 
     Args:
         path: Path to normalize
@@ -128,33 +133,22 @@ def normalize_path(path: str, project_dir: Path) -> tuple[Path, str]:
     path_obj = Path(path)
     joined_path = path_obj if path_obj.is_absolute() else project_dir / path_obj
 
-    if ".." in path_obj.parts:
-        raise _outside_error(
-            path, project_dir, "contains '..' traversal and would escape"
-        )
-
-    # resolve() raises ValueError here on POSIX but silently returns the path
-    # on Windows, so the check is explicit rather than left to the handler.
-    if "\0" in path:
-        raise _outside_error(path, project_dir, _UNRESOLVABLE)
-
     try:
-        # Both resolve() calls belong in the same try: either may fail.
-        escapes = not joined_path.resolve().is_relative_to(project_dir.resolve())
+        # The raw path, not joined_path: project_dir may itself contain '..',
+        # which the shared check would reject.
+        check_path_within(path, project_dir)
+    except ValueError as exc:
+        raise ValueError(
+            f"Security error: {exc}. Path traversal outside the project "
+            f"directory '{project_dir}' is not allowed."
+        ) from exc
     except OSError:
-        # Resolution unavailable; the '..' guard above and the relative_to
-        # below carry the validation between them. A symlink escape is not
+        # Resolution unavailable; '..' was rejected before resolving and the
+        # relative_to below is the remaining check. A symlink escape is not
         # detected on this branch - see the docstring's known limitation.
         logger.warning(
             "Path.resolve() failed for '%s', using fallback check", joined_path
         )
-        escapes = False
-    except ValueError as exc:
-        # resolve() rejected the path itself. Unvalidatable means rejected.
-        raise _outside_error(path, project_dir, _UNRESOLVABLE) from exc
-
-    if escapes:
-        raise _outside_error(path, project_dir, "resolves to a location")
 
     try:
         relative_path = joined_path.relative_to(project_dir)
@@ -207,7 +201,7 @@ def ref_relative_path(path: str, root: Path) -> str:
 
     Raises:
         ValueError: '..' segment, NUL byte, a .git entry under any spelling, or an
-            absolute path outside ``root`` — with the same texts as ``normalize_path``.
+            absolute path outside ``root``.
     """  # noqa: DOC501 - _outside_error returns the documented ValueError
     if "\0" in path:
         raise _outside_error(path, root, _UNRESOLVABLE)

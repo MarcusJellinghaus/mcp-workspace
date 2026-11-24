@@ -129,9 +129,12 @@ platform — in structured return values and prose error messages alike. Callers
 feed these paths straight back into other tools, so a Windows `src\foo.py` in one
 result becomes a mismatch or a doubled prefix in the next call.
 
-**Absolute paths stay native.** `edit_file`'s `File not found: {abs_path}` and
-`path_utils._outside_error` keep OS separators: they are not fed back into
-tools, and `C:/Users/...` reads worse than it helps.
+**Absolute paths stay native.** `edit_file`'s `File not found: {abs_path}`,
+`path_utils._outside_error` and the containment wrapper in
+`path_utils.normalize_path` keep OS separators: they are not fed back into
+tools, and `C:/Users/...` reads worse than it helps. The wrapper's `fs` part
+(`mcp_coder_utils.fs.check_path_within`) also prints native paths — `{path}` as
+given, the root resolved.
 
 The rule is enforced at two sources, not per call site:
 

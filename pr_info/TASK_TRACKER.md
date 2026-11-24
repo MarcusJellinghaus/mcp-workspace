@@ -41,9 +41,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 4: Path containment via `fs.check_path_within` — [step_4.md](./steps/step_4.md)
 
-- [ ] Implementation: `normalize_path` wraps `check_path_within`; docstrings; test rename; file-access.md, ARCHITECTURE.md §6, release notes
-- [ ] Quality checks (pylint, pytest, mypy, ruff, tach, lint-imports, vulture) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `normalize_path` wraps `check_path_within`; docstrings; test rename; file-access.md, ARCHITECTURE.md §6, release notes
+- [x] Quality checks (pylint, pytest, mypy, ruff, tach, lint-imports, vulture) — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 
