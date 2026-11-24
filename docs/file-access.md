@@ -93,7 +93,7 @@ In a reference project read as a local folder (`read_reference_file`) the hint n
 - as a `warning` key in `search_files` results, and in `search_reference_files` results when it reads the local folder, in both file and content mode, with the same text as the listing warning;
 - as a log warning, once per distinct problem.
 
-To check a rules file by hand, look for the startup log warning, or the first line of `list_directory` / `list_reference_directory` (local folder).
+To check a rules file by hand, run [`mcp-workspace verify`](verify.md) (checks the workspace and every reference project), look for the startup log warning, or the first line of `list_directory` / `list_reference_directory` (local folder).
 
 The file is re-read on every tool call, so a fix applies without a restart. A reference project read as a local folder applies its own `.mcp-file-access`; there both levels mean readable. At `origin/<default>` the rules file is not consulted.
 

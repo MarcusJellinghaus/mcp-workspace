@@ -42,9 +42,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 - [x] Commit message prepared: `feat(main): add mcp-workspace verify subcommand`
 
 ### Step 5: Documentation — [step_5.md](./steps/step_5.md)
-- [ ] Implementation: `docs/verify.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/file-access.md`, `docs/release-notes.md`
-- [ ] Quality checks (check_file_size README ≤ 750 lines, pytest) — fix all issues
-- [ ] Commit message prepared: `docs: document mcp-workspace verify`
+- [x] Implementation: `docs/verify.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/file-access.md`, `docs/release-notes.md`
+- [x] Quality checks (check_file_size README ≤ 750 lines, pytest) — fix all issues
+- [x] Commit message prepared: `docs: document mcp-workspace verify`
 
 ## Pull Request
 - [ ] PR review: review the full branch diff against `main`
