@@ -3,6 +3,7 @@
 import pytest
 
 from mcp_workspace.git_operations.arg_validation import (
+    command_name_hint,
     split_args_pathspec,
     validate_args,
     validate_branch_has_read_flag,
@@ -388,6 +389,43 @@ class TestValidateArgsUnknownCommand:
     def test_reset_rejected(self) -> None:
         with pytest.raises(ValueError, match="reset"):
             validate_args("reset", ["--hard"])
+
+    @pytest.mark.parametrize(
+        ("command", "suggestion"),
+        [
+            ("ls-remote", "ls_remote"),
+            ("rev-parse", "rev_parse"),
+            ("merge-base", "merge_base"),
+            ("check-ignore", "check_ignore"),
+        ],
+    )
+    def test_hyphenated_name_suggests_underscore(
+        self, command: str, suggestion: str
+    ) -> None:
+        with pytest.raises(ValueError) as exc_info:
+            validate_args(command, [])
+        assert str(exc_info.value) == (
+            f"Unknown command: '{command}' — did you mean '{suggestion}'?"
+        )
+
+    @pytest.mark.parametrize("command", ["push", "ls-foo", "cherry-pick"])
+    def test_no_hint_without_supported_underscore_form(self, command: str) -> None:
+        with pytest.raises(ValueError) as exc_info:
+            validate_args(command, [])
+        assert str(exc_info.value) == f"Unknown command: '{command}'"
+
+
+class TestCommandNameHint:
+    """The hint names a supported command only."""
+
+    def test_hyphenated_supported(self) -> None:
+        assert command_name_hint("ls-tree") == " — did you mean 'ls_tree'?"
+
+    def test_already_underscored_gets_no_hint(self) -> None:
+        assert command_name_hint("ls_remote") == ""
+
+    def test_unsupported_gets_no_hint(self) -> None:
+        assert command_name_hint("cherry-pick") == ""
 
 
 class TestValidateArgsFlagEqualsValue:

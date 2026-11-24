@@ -340,6 +340,26 @@ _BRANCH_LIST_MODE_FLAGS: frozenset[str] = frozenset(
 )
 
 
+def command_name_hint(command: str) -> str:
+    """Suggest the underscore spelling of a hyphenated git command name.
+
+    git's own sub-commands are hyphenated (``ls-remote``), while this
+    tool's are not (``ls_remote``), so callers copying git's spelling get
+    the valid name in the error instead of only a refusal.
+
+    Args:
+        command: The command name that was not recognised.
+
+    Returns:
+        ``" — did you mean '<name>'?"`` when replacing hyphens with
+        underscores gives a supported command, otherwise an empty string.
+    """
+    suggestion = command.replace("-", "_")
+    if suggestion != command and suggestion in _ALLOWLISTS:
+        return f" — did you mean '{suggestion}'?"
+    return ""
+
+
 def _short_cluster_allowed(command: str, cluster: str) -> bool:
     """Check a short flag argument one letter at a time.
 
@@ -573,7 +593,7 @@ def validate_args(command: str, args: list[str]) -> None:
         raise ValueError(f"git {command} does not accept '--'")
 
     if command not in _ALLOWLISTS:
-        msg = f"Unknown command: '{command}'"
+        msg = f"Unknown command: '{command}'{command_name_hint(command)}"
         raise ValueError(msg)
 
     for arg in args:

@@ -977,6 +977,13 @@ class TestGitDispatcher:
         with pytest.raises(ValueError, match="Unknown git command: 'push'"):
             git(command="push", project_dir=tmp_path)
 
+    def test_hyphenated_command_suggests_underscore(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError) as exc_info:
+            git(command="ls-remote", project_dir=tmp_path)
+        assert str(exc_info.value) == (
+            "Unknown git command: 'ls-remote' — did you mean 'ls_remote'?"
+        )
+
     @patch("mcp_workspace.git_operations.read_operations.git_log")
     def test_default_max_lines_log(self, mock_log: MagicMock, tmp_path: Path) -> None:
         mock_log.return_value = ""
