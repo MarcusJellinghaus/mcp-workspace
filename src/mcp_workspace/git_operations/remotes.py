@@ -274,7 +274,7 @@ def push_current_branch(project_dir: Path, force: bool = False) -> GitResult:
     (never plain ``--force``) and is refused on git older than 2.30, when
     ``refs/remotes/origin/<b>`` does not exist (never pushed), and when it
     has no reflog (a fresh clone), where ``--force-if-includes`` would refuse
-    falsely.
+    falsely. A push that GitHub answers with HTTP 500 is retried (3 attempts).
 
     Args:
         project_dir: Path to the project directory containing git repository
@@ -316,8 +316,8 @@ def push_current_branch(project_dir: Path, force: bool = False) -> GitResult:
             }
 
     refspec = f"refs/heads/{branch}:refs/heads/{branch}"
-    force_args = ["--force-with-lease", "--force-if-includes"] if force else []
-    result = run_git_timed(project_dir, "push", "-u", *force_args, "origin", refspec)
+    flags = ["-u", "--force-with-lease", "--force-if-includes"] if force else ["-u"]
+    result = retry_500(run_git_timed, project_dir, "push", *flags, "origin", refspec)
     return {
         "success": result["success"],
         "error": result["error"],

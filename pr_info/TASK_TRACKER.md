@@ -37,9 +37,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 3: Retry `push_current_branch` (MCP `git_push` / `git_push_force`) ([step_3.md](./steps/step_3.md))
 
-- [ ] Implementation: tests appended to `test_push_retry.py` + `retry_500(run_git_timed, ...)` in `push_current_branch`, docstring line
-- [ ] Quality checks (pylint, pytest `-n auto`, mypy, format, `check_file_size(max_lines=750)` gate on `remotes.py`) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests appended to `test_push_retry.py` + `retry_500(run_git_timed, ...)` in `push_current_branch`, docstring line
+- [x] Quality checks (pylint, pytest `-n auto`, mypy, format, `check_file_size(max_lines=750)` gate on `remotes.py`) — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

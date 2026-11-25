@@ -12,8 +12,13 @@ import pytest
 from git.exc import GitCommandError
 
 from mcp_workspace.git_operations._push_retry import _match_500, retry_500
+from mcp_workspace.git_operations._subprocess_git import GitOutput
 from mcp_workspace.git_operations.branches import delete_branch
-from mcp_workspace.git_operations.remotes import git_push, push_branch
+from mcp_workspace.git_operations.remotes import (
+    git_push,
+    push_branch,
+    push_current_branch,
+)
 
 MODULE = "mcp_workspace.git_operations._push_retry"
 REMOTES = "mcp_workspace.git_operations.remotes"
@@ -390,3 +395,122 @@ class TestDeleteBranchRetry:
         result, repo = self._delete(*[_git_error(REJECTED_500) for _ in range(3)])
         assert result is True
         assert repo.git.push.call_count == 3
+
+
+REFSPEC = "refs/heads/b:refs/heads/b"
+SUBPROCESS_REJECTED_500 = (
+    " ! [remote rejected] refs/heads/b -> b (Internal Server Error)"
+)
+
+
+def _git_output(
+    success: bool,
+    returncode: int | None,
+    stderr: str | None,
+    error: str | None = None,
+) -> GitOutput:
+    """Build a run_git_timed result."""
+    return GitOutput(
+        success=success,
+        error=error if error is not None or success else "git push failed",
+        returncode=returncode,
+        stderr=stderr,
+        stdout="",
+    )
+
+
+def _push_current(
+    project_dir: Path, *results: GitOutput, force: bool = False
+) -> tuple[Any, MagicMock]:
+    """Run push_current_branch with run_git_timed yielding results."""
+    run = MagicMock(side_effect=list(results))
+
+    @contextmanager
+    def fake_safe_repo_context(_path: Path) -> Iterator[Mock]:
+        yield Mock()
+
+    with (
+        patch(f"{REMOTES}.is_git_repository", return_value=True),
+        patch(f"{REMOTES}.get_current_branch_name", return_value="b"),
+        patch(f"{REMOTES}.run_git_timed", run),
+        patch(f"{REMOTES}.safe_repo_context", fake_safe_repo_context),
+        patch(f"{REMOTES}._force_push_precondition", return_value=None),
+        patch(f"{MODULE}.time.sleep"),
+    ):
+        return push_current_branch(project_dir, force=force), run
+
+
+class TestPushCurrentBranchRetry:
+    """push_current_branch retries a push that GitHub answered with HTTP 500."""
+
+    def test_500_then_success(self) -> None:
+        """A single 500 is retried with the same argv and the push succeeds."""
+        project_dir = Path("repo")
+        result, run = _push_current(
+            project_dir,
+            _git_output(False, 1, SUBPROCESS_REJECTED_500),
+            _git_output(True, 0, ""),
+        )
+        assert result["success"] is True
+        assert (
+            run.call_args_list
+            == [call(project_dir, "push", "-u", "origin", REFSPEC)] * 2
+        )
+
+    def test_force_500_then_success(self) -> None:
+        """A force push is retried with the lease flags kept."""
+        project_dir = Path("repo")
+        result, run = _push_current(
+            project_dir,
+            _git_output(False, 128, FATAL_500),
+            _git_output(True, 0, ""),
+            force=True,
+        )
+        assert result["success"] is True
+        expected = call(
+            project_dir,
+            "push",
+            "-u",
+            "--force-with-lease",
+            "--force-if-includes",
+            "origin",
+            REFSPEC,
+        )
+        assert run.call_args_list == [expected] * 2
+
+    def test_500_every_attempt_returns_last_result(self) -> None:
+        """After three 500s the third result's stderr and returncode are returned."""
+        last_stderr = f"{SUBPROCESS_REJECTED_500}\nattempt 3"
+        result, run = _push_current(
+            Path("repo"),
+            _git_output(False, 1, SUBPROCESS_REJECTED_500),
+            _git_output(False, 1, SUBPROCESS_REJECTED_500),
+            _git_output(False, 128, last_stderr),
+        )
+        assert result["success"] is False
+        assert result["stderr"] == last_stderr
+        assert result["returncode"] == 128
+        assert run.call_count == 3
+
+    def test_timeout_not_retried(self) -> None:
+        """A timeout result is returned as is after one attempt."""
+        error = "git push timed out after 120 s"
+        result, run = _push_current(
+            Path("repo"), _git_output(False, None, None, error=error)
+        )
+        assert result == {
+            "success": False,
+            "error": error,
+            "returncode": None,
+            "stderr": None,
+        }
+        assert run.call_count == 1
+
+    def test_stale_lease_not_retried(self) -> None:
+        """A stale-lease rejection is returned after one attempt."""
+        result, run = _push_current(
+            Path("repo"), _git_output(False, 1, STALE_LEASE), force=True
+        )
+        assert result["success"] is False
+        assert result["stderr"] == STALE_LEASE
+        assert run.call_count == 1
