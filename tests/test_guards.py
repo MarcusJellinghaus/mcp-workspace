@@ -333,7 +333,9 @@ def test_time_limit(pytester: pytest.Pytester) -> None:
     assert "test_time.py::test_slow_fixture" in output
     assert "wall-clock" in output
     assert "0.5 s" in output
-    assert "own message" in output
+    result.stdout.fnmatch_lines(
+        ["*own message*", "*test_time.py::test_pytrace_false took * s wall-clock*"]
+    )
     assert "ERROR at teardown of test_slow_teardown" in output
     assert (
         "re-run before changing anything; a single spike under xdist is not a "
