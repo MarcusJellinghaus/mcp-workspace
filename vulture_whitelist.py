@@ -41,6 +41,9 @@ _.pytest_plugins
 _.pytest_addoption
 _.pytest_configure
 _.pytest_make_collect_report
+_.pytest_runtest_setup
+_.pytest_runtest_call
+_.pytest_runtest_teardown
 
 # =============================================================================
 # Git Operations Public API

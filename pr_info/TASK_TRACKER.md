@@ -31,9 +31,9 @@ See [step_1.md](./steps/step_1.md)
 ### Step 2: Git guard and shared call/teardown reporting
 See [step_2.md](./steps/step_2.md)
 
-- [ ] Implementation: `test_is_git` and `test_git_guard` first, then `Popen.__init__` counter, `_TestState`, `_report`, `_attach`, setup/call/teardown hooks, vulture whitelist, docstring; fix any existing unmarked git-starting tests
-- [ ] Quality checks (pylint, unit-group pytest, serial `tests/test_guards.py`, serial performance run, mypy, ruff, vulture) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `test_is_git` and `test_git_guard` first, then `Popen.__init__` counter, `_TestState`, `_report`, `_attach`, setup/call/teardown hooks, vulture whitelist, docstring; fix any existing unmarked git-starting tests
+- [x] Quality checks (pylint, unit-group pytest, serial `tests/test_guards.py`, serial performance run, mypy, ruff, vulture) — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: Per-group time limits, documentation, final unit-group run
 See [step_3.md](./steps/step_3.md)

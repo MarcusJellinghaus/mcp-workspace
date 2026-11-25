@@ -27,10 +27,48 @@ Time limits
     for one test in any group. ``seconds`` must be a positive number and
     ``reason`` a non-empty string; otherwise collection of the containing
     module or class fails.
+
+Git guard
+    A test without a group marker that starts a ``git`` process during setup,
+    call or teardown fails, naming the test and ``git_integration``. A git
+    process is any ``subprocess.Popen`` whose executable basename is ``git``
+    or ``git.exe`` (case-insensitive), from ``executable`` (keyword or
+    positional) or else the first element or token of ``args``. This covers
+    GitPython and direct subprocess calls. ``Popen.__init__`` is patched once
+    per process and counts started git processes; each test compares the
+    count against a snapshot taken at the start of its setup.
+
+    Violations are reported when the test body ends, as a call failure; a
+    test that fails on its own keeps its failure with the guard note
+    appended. Git started only in teardown, in a setup that failed or
+    skipped, or before ``pytest.skip()`` / ``pytest.xfail()`` in the body is
+    reported as a teardown error.
+
+    Limitations:
+
+    - ``shell=True`` starts the shell, not git, and is not counted.
+    - Grandchild processes (a child process that starts git) are not seen.
+    - A mocked ``subprocess`` starts no process and is not seen.
+    - Module- and session-scoped fixtures are set up in the first test that
+      uses them and torn down in the last, so their git use is charged to
+      those tests.
+    - A guard failure on an xfail-marked test is swallowed by the xfail.
+    - ``import git`` runs ``git version``. GitPython must stay imported at
+      module level in ``tests/conftest.py``, so it loads at collection time;
+      a first import inside a test would charge that process to whichever
+      test runs first in each xdist worker.
 """
 
+import functools
+import inspect
 import math
-from collections.abc import Generator
+import ntpath
+import os
+import subprocess
+import time
+from collections.abc import Generator, Iterable
+from dataclasses import dataclass, field
+from typing import Any
 
 import pytest
 
@@ -42,6 +80,30 @@ GROUP_MARKERS: tuple[str, ...] = (
 UNIT = "unit"
 # Parsed test_time_limits per run; None when --no-time-limit is given.
 _LIMITS = pytest.StashKey[dict[str, float] | None]()
+
+
+@dataclass
+class _GitCounter:
+    """Number of git processes started in this process; only ever increases."""
+
+    spawns: int = 0
+
+
+# The only process-global state. In-process pytester runs share this module,
+# so it is never reset; tests compare against their own snapshot instead.
+_GIT = _GitCounter()
+
+
+@dataclass
+class _TestState:
+    """Per-test guard state, stored in ``item.stash`` at the start of setup."""
+
+    start: float
+    git_start: int
+    reported: set[str] = field(default_factory=set)
+
+
+_STATE = pytest.StashKey[_TestState]()
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -77,6 +139,7 @@ def pytest_configure(config: pytest.Config) -> None:
     if errors:
         raise pytest.UsageError("tests._guards: " + "; ".join(errors))
     config.stash[_LIMITS] = None if config.getoption("--no-time-limit") else limits
+    _install_git_counter()
 
 
 @pytest.hookimpl(wrapper=True)
@@ -102,6 +165,156 @@ def pytest_make_collect_report(
     return pytest.CollectReport(
         report.nodeid, "failed", "\n".join(errors), [], sections=report.sections
     )
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Snapshot the clock and the git counter before any fixture runs."""
+    item.stash[_STATE] = _TestState(time.perf_counter(), _GIT.spawns)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item: pytest.Item) -> Generator[None, None, None]:
+    """Fail the call phase on a guard violation, keeping the test's own failure.
+
+    ``Skipped`` and ``XFailed`` pass through unchecked; teardown checks them.
+    They are caught first because ``XFailed`` subclasses ``Failed``.
+    """
+    try:
+        yield
+    except (pytest.skip.Exception, pytest.xfail.Exception):
+        raise
+    except BaseException as exc:
+        note = _report(item)
+        if note:
+            _attach(exc, note)
+        raise
+    note = _report(item)
+    if note:
+        pytest.fail(note, pytrace=False)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_teardown(item: pytest.Item) -> Generator[None, None, None]:
+    """Report violations not yet reported in the call phase as a teardown error."""
+    try:
+        yield
+    except BaseException as exc:
+        note = _report(item)
+        if note:
+            _attach(exc, note)
+        raise
+    note = _report(item)
+    if note:
+        pytest.fail(note, pytrace=False)
+
+
+def _install_git_counter() -> None:
+    """Patch ``subprocess.Popen.__init__`` to count started git processes.
+
+    The patch goes on the class, because GitPython binds ``Popen`` at import.
+    The signature is captured before patching: afterwards it would read as
+    ``(*args, **kwargs)`` and ``executable`` would never bind.
+    """
+    original = subprocess.Popen.__init__
+    if getattr(original, "_tests_guards_git_counter", False):
+        return
+    signature = inspect.signature(original)
+
+    @functools.wraps(original)
+    def patched(self: subprocess.Popen[Any], *args: Any, **kwargs: Any) -> None:
+        bound: dict[str, Any] | None
+        try:
+            bound = dict(signature.bind(self, *args, **kwargs).arguments)
+        except TypeError:
+            bound = None  # the original call raises its own TypeError
+        original(self, *args, **kwargs)
+        if bound is not None and _is_git(
+            bound.get("args"), bound.get("executable"), bound.get("shell", False)
+        ):
+            _GIT.spawns += 1
+
+    patched._tests_guards_git_counter = True  # type: ignore[attr-defined]
+    subprocess.Popen.__init__ = patched  # type: ignore[method-assign]
+
+
+def _decode(value: object) -> str:
+    """Return a str/bytes/PathLike value as str; anything else as ``""``."""
+    if isinstance(value, (str, bytes, os.PathLike)):
+        return os.fsdecode(value)
+    return ""
+
+
+def _first_token(command: str) -> str:
+    """Return the program of a command string, honouring a quoted path."""
+    command = command.lstrip()
+    if command.startswith('"'):
+        return command[1:].split('"', 1)[0]
+    parts = command.split()
+    return parts[0] if parts else ""
+
+
+def _is_git(args: object, executable: object, shell: object) -> bool:
+    """Return whether a ``Popen`` call with these arguments starts git."""
+    if shell:
+        return False
+    if executable is not None:
+        target = _decode(executable)
+    elif isinstance(args, (str, bytes)):
+        target = _first_token(os.fsdecode(args))
+    elif isinstance(args, os.PathLike):
+        target = os.fsdecode(args)
+    elif isinstance(args, Iterable):
+        target = _decode(next(iter(args), ""))
+    else:
+        target = ""
+    # ntpath also splits on "/", and handles Windows paths on any platform.
+    basename = ntpath.basename(target) if "\\" in target else os.path.basename(target)
+    return basename.lower() in {"git", "git.exe"}
+
+
+def _group(item: pytest.Item) -> str:
+    """Return the test's group marker name, or ``UNIT``."""
+    for name in GROUP_MARKERS:
+        if item.get_closest_marker(name):
+            return name
+    return UNIT
+
+
+def _report(item: pytest.Item) -> str | None:
+    """Return the test's not yet reported violations as one note.
+
+    Marks them reported, so the teardown check skips what the call phase
+    already reported. A test that never reached setup has nothing to check.
+    """
+    state = item.stash.get(_STATE, None)
+    if state is None:
+        return None
+    notes: list[str] = []
+    if (
+        "git" not in state.reported
+        and _GIT.spawns > state.git_start
+        and _group(item) == UNIT
+    ):
+        state.reported.add("git")
+        notes.append(
+            f"{item.nodeid} started a git process but has no group marker that "
+            "allows git. Mark it @pytest.mark.git_integration (or "
+            "github_integration / performance), or stop it from starting git."
+        )
+    return "\n\n".join(notes) or None
+
+
+def _attach(exc: BaseException, note: str) -> None:
+    """Append a guard note to the test's own exception.
+
+    pytest renders only ``msg`` of a ``Failed``, so the note goes there;
+    other exceptions render their notes.
+    """
+    if isinstance(exc, pytest.fail.Exception):
+        exc.msg = f"{exc.msg}\n\n{note}" if exc.msg else note
+    else:
+        exc.add_note(note)
 
 
 def _parse_limits(lines: list[str]) -> tuple[dict[str, float], list[str]]:
