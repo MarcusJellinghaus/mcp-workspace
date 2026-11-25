@@ -200,6 +200,10 @@ _._cache_write  # name="cache_write"
 _._cached_labels  # name="cached_labels"
 # Fixture for issue #220 find_merged_pr_by_head_sha tests, reached through its name= alias
 _.fixture_mock_repo  # name="mock_repo"
+# Fixtures for issue #409 execute_verify tests, reached through their name= alias or autouse
+_.fixture_mocks  # name="mocks"
+_.fixture_workspace  # name="workspace"
+_.fixture_real_security_rows
 # BaseHTTPRequestHandler overrides in the local test HTTP server (issue #359, called by http.server)
 _.do_GET
 _.log_message

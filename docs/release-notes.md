@@ -1,5 +1,13 @@
 # Release notes
 
+## Next minor release — mcp-workspace verify (#409)
+
+- New command `mcp-workspace verify [--project-dir DIR] [--reference-project …]... [--log-level LEVEL]`: prints FILE ACCESS (workspace, accepted and rejected references), GIT, GITHUB and GITHUB SECURITY in the `mcp-coder verify` format. Exit codes: `0` all ok; `1` a FILE ACCESS `[ERR]` row, a failed GIT/GITHUB check, or a setup error (`Error: …` on stderr); `2` usage error. GITHUB SECURITY is exit-neutral. See [verify.md](verify.md).
+- `verify` anywhere but first (e.g. `mcp-workspace --project-dir DIR verify`) now stops startup with `verify must be the first argument`, instead of being ignored as an unknown argument.
+- New public API: `mcp_workspace.cli.verify_formatting` (`format_git_section`, `format_github_section`, `format_github_security_section`, `format_file_access_section`) and `mcp_workspace.github_operations.github_security_rows(project_dir) -> dict[str, CheckResult]`.
+- Reference-project warnings no longer show credentials embedded in the raw `--reference-project` argument.
+- PyYAML is now a runtime dependency.
+
 ## Next minor release — file tools use mcp-coder-utils fs; LF default (#400)
 
 - New files, files without line breaks, and ties in mixed files get `.gitattributes` `eol=`, else LF (was the platform default, CRLF on Windows); existing files with a dominant ending keep it.

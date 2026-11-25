@@ -10,7 +10,7 @@ The project follows a layered architecture pattern:
 ┌──────────────────────────────────────────────────────┐
 │  Entry Point (main.py)                               │  ← Application entry
 ├──────────────────────────────────────────────────────┤
-│  MCP Server (server.py)                              │  ← Protocol implementation
+│  MCP Server (server.py)  │  CLI checks (cli/)        │  ← Protocol implementation / verify
 ├──────────────────────────────────────────────────────┤
 │  Toolset (toolset/)                                  │  ← Framework-neutral tool specs
 ├──────────────────────────────────────────────────────┤
@@ -30,6 +30,7 @@ The project follows a layered architecture pattern:
 |-------|---------|-----------------|
 | **Entry** | Application startup and initialization | All layers below |
 | **Protocol** | Builds a FastMCP server per call from `tool_specs` | Toolset, Tools, Utilities |
+| **CLI** | `mcp-workspace verify`: runs file-access, git and GitHub checks and formats the sections (`cli/verify_formatting.py` is imported by mcp_coder) | Tools, Utilities, `mcp_coder_utils.verify_render` |
 | **Toolset** | Defines every tool as a `ToolSpec`, bound to one project directory | checks, Tools, Utilities |
 | **checks** | Branch-status checks | Tools, Utilities |
 | **Tools (upper)** | file_tools, github_operations | git_operations, Utilities |
@@ -68,6 +69,7 @@ External libraries are isolated to specific modules:
 | `git` (GitPython) | git_operations/ | Git functionality isolated |
 | `github` (PyGithub) | github_operations/ | GitHub API access isolated |
 | `requests` | github_operations/ | HTTP requests isolated |
+| `yaml` (PyYAML) | github_operations/security_rows.py | Local dependabot / CodeQL workflow checks |
 | `subprocess` | git_operations/verification.py, git_operations/_subprocess_git.py | external binaries; network git with a timeout |
 | `truststore` | `_ssl.py`, activated eagerly by `main.py` | OS trust store for GitHub TLS (see below) |
 | `structlog` | mcp_coder_utils.log_utils (external) | Logging setup centralized in external package |
@@ -88,6 +90,9 @@ functions that need them**, rather than at module top level:
 - `file_tools/move_operations.py` imports the git-move helpers inside `move_file`
   only, so the common read/write/edit/list/search path never loads GitPython.
 - `reference_projects.py` imports `clone_repo` inside `ensure_available`.
+- `main.py` imports `cli.verify` only inside the `verify` branch;
+  `tests/test_main_verify.py` asserts that importing `mcp_workspace.main`
+  loads neither `git`, `github`, `yaml` nor `mcp_workspace.cli`.
 
 **This is load-bearing, not incidental.** `tests/test_startup_performance.py`
 asserts that importing `mcp_workspace.server` does **not** eagerly import

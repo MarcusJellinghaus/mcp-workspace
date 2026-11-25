@@ -15,20 +15,20 @@ root_package_paths =
 include_external_packages = True
 # Match tach's ignore_type_checking_imports, so an annotation-only import is not
 # reported as a dependency. The flag applies at graph-build time, so it governs
-# all nine contracts - including the six library-isolation ones and the
+# all ten contracts - including the seven library-isolation ones and the
 # subprocess ban, which depend on external edges (include_external_packages).
 # Trade-off: a forbidden library import hidden inside a TYPE_CHECKING guard
 # would no longer be flagged. Nothing changes today - the only upward
 # TYPE_CHECKING imports in src/ are base_branch's two, and no module
-# type-checking-imports github/git/mcp/requests/subprocess outside its allowed
-# home.
+# type-checking-imports github/git/mcp/requests/yaml/subprocess outside its
+# allowed home.
 exclude_type_checking_imports = True
 
 # -----------------------------------------------------------------------------
 # Contract: Layered Architecture
 # -----------------------------------------------------------------------------
 # Ensures dependencies flow in one direction:
-#   main -> server -> toolset -> checks -> file_tools / ... -> utilities
+#   main -> server / cli -> toolset -> checks -> file_tools / ... -> utilities
 #
 # Why this matters:
 # - Prevents circular dependencies
@@ -42,7 +42,7 @@ name = Layered Architecture
 type = layers
 layers =
     mcp_workspace.main
-    mcp_workspace.server
+    mcp_workspace.server | mcp_workspace.cli
     mcp_workspace.toolset
     mcp_workspace.checks
     mcp_workspace.file_tools | mcp_workspace.github_operations | mcp_workspace.reference_projects
@@ -87,6 +87,22 @@ forbidden_modules =
 ignore_imports =
     mcp_workspace.github_operations.* -> requests
     mcp_workspace.github_operations.** -> requests
+
+# -----------------------------------------------------------------------------
+# Contract: PyYAML Library Isolation
+# -----------------------------------------------------------------------------
+# The 'yaml' package should only be used by github_operations.security_rows,
+# which parses the Dependabot config and workflow files.
+# -----------------------------------------------------------------------------
+[importlinter:contract:yaml_isolation]
+name = PyYAML Library Isolation
+type = forbidden
+source_modules =
+    mcp_workspace
+forbidden_modules =
+    yaml
+ignore_imports =
+    mcp_workspace.github_operations.security_rows -> yaml
 
 [importlinter:contract:mcp_library_isolation]
 name = MCP Library Isolation

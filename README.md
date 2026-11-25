@@ -93,9 +93,11 @@ mcp-workspace --project-dir /path/to/project [--reference-project name=NAME,path
 - `--fail-on-reviews`: (Optional) Default for `check_branch_status`' review gate; the tool parameter overrides per call. Off unless set.
 - `--enforce-base-branch-format` / `--no-enforce-base-branch-format`: (Optional) Reject a malformed `### Base Branch` section (more than one line, or a value that is not a valid git branch name) when creating or editing an issue body, in `github_issue_create` and `github_issue_edit`. On by default.
 
-Unrecognized arguments are ignored at startup rather than stopping the server; each one is logged as a `WARNING`, plus a startup `INFO` line summarizing them. Abbreviated flags such as `--project` are no longer accepted as prefixes of `--project-dir`; they are treated as unknown arguments and ignored.
+Unrecognized arguments are ignored at startup rather than stopping the server; each one is logged as a `WARNING`, plus a startup `INFO` line summarizing them. Abbreviated flags such as `--project` are no longer accepted as prefixes of `--project-dir`; they are treated as unknown arguments and ignored. The exception is `verify`: it is only accepted as the first argument and otherwise stops startup with an error.
 
 Startup errors are written to stderr and, when no normal log is available, to `logs/mcp_workspace_startup_error.log` in the working directory.
+
+`mcp-workspace verify` checks file access, git and GitHub setup from the command line — see [docs/verify.md](docs/verify.md).
 
 The server uses FastMCP for operation. All file operations are restricted to the `--project-dir` directory for security reasons, and attempts to access files outside it result in an error.
 

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mcp_workspace.main import validate_reference_projects
+from mcp_workspace.main import _check_reference_projects, validate_reference_projects
 from mcp_workspace.reference_projects import ReferenceProject
 
 
@@ -260,3 +260,118 @@ class TestValidateReferenceProjects:
             # Should log warning for missing name
             mock_logger.warning.assert_called()
             assert result == {}
+
+
+_UNRELATED = Path("/unrelated/project")
+
+
+class TestCheckReferenceProjects:
+    """Test the (valid, rejected) split returned by _check_reference_projects."""
+
+    def test_empty_input(self) -> None:
+        """No arguments → nothing valid, nothing rejected."""
+        assert _check_reference_projects([], _UNRELATED) == ({}, [])
+
+    @pytest.mark.parametrize(
+        "arg, label, reason",
+        [
+            ("proj=/path/to/dir", "proj=/path/to/dir", "old format"),
+            ("path=/path/to/proj", "path=/path/to/proj", "missing name"),
+            ("name=proj", "proj", "missing path"),
+        ],
+    )
+    def test_format_rejections(self, arg: str, label: str, reason: str) -> None:
+        """Malformed arguments are rejected with the raw argument as label."""
+        valid, rejected = _check_reference_projects([arg], _UNRELATED)
+        assert valid == {}
+        assert rejected == [(label, reason)]
+
+    @patch("mcp_workspace.main.Path.exists", return_value=False)
+    def test_path_not_found(self, _mock_exists: MagicMock) -> None:
+        """A missing path without url is rejected under the project name."""
+        valid, rejected = _check_reference_projects(
+            ["name=proj,path=/nonexistent/path"], _UNRELATED
+        )
+        assert valid == {}
+        assert rejected == [("proj", "path not found")]
+
+    @patch("mcp_workspace.main.Path.is_dir", return_value=False)
+    @patch("mcp_workspace.main.Path.exists", return_value=True)
+    def test_not_a_directory(
+        self, _mock_exists: MagicMock, _mock_is_dir: MagicMock
+    ) -> None:
+        """A path that is a file is rejected under the project name."""
+        valid, rejected = _check_reference_projects(
+            ["name=proj,path=/path/to/file.txt"], _UNRELATED
+        )
+        assert valid == {}
+        assert rejected == [("proj", "not a directory")]
+
+    @pytest.mark.parametrize(
+        "ref_subpath, project_subpath, reason",
+        [
+            ("main", "main", "same directory as workspace"),
+            ("main/sub", "main", "inside workspace"),
+            ("projects", "projects/main", "parent of workspace"),
+        ],
+    )
+    def test_overlap_rejections(
+        self, tmp_path: Path, ref_subpath: str, project_subpath: str, reason: str
+    ) -> None:
+        """References overlapping the workspace are rejected with a fixed reason."""
+        ref_dir = tmp_path / ref_subpath
+        ref_dir.mkdir(parents=True, exist_ok=True)
+        project_dir = tmp_path / project_subpath
+        project_dir.mkdir(parents=True, exist_ok=True)
+
+        valid, rejected = _check_reference_projects(
+            [f"name=ref,path={ref_dir}"], project_dir
+        )
+        assert valid == {}
+        assert rejected == [("ref", reason)]
+
+    @patch("mcp_workspace.main.detect_and_verify_url", return_value=None)
+    @patch("mcp_workspace.main.Path.exists", return_value=True)
+    @patch("mcp_workspace.main.Path.is_dir", return_value=True)
+    def test_duplicates_accepted_not_rejected(
+        self,
+        _mock_is_dir: MagicMock,
+        _mock_exists: MagicMock,
+        _mock_detect: MagicMock,
+    ) -> None:
+        """Duplicate names are auto-renamed into valid, never rejected."""
+        valid, rejected = _check_reference_projects(
+            ["name=proj,path=/path/to/proj1", "name=proj,path=/path/to/proj2"],
+            _UNRELATED,
+        )
+        assert list(valid) == ["proj", "proj_2"]
+        assert rejected == []
+
+    @patch("mcp_workspace.main.detect_and_verify_url", return_value=None)
+    @patch("mcp_workspace.main.Path.exists", return_value=True)
+    @patch("mcp_workspace.main.Path.is_dir", return_value=True)
+    def test_validate_reference_projects_returns_only_valid(
+        self,
+        _mock_is_dir: MagicMock,
+        _mock_exists: MagicMock,
+        _mock_detect: MagicMock,
+    ) -> None:
+        """The public wrapper returns the valid dict and drops rejected entries."""
+        result = validate_reference_projects(
+            ["name=proj,path=/path/to/proj", "name=broken"], _UNRELATED
+        )
+        assert isinstance(result, dict)
+        assert list(result) == ["proj"]
+
+    @patch("mcp_workspace.main.stdlogger")
+    def test_credentials_scrubbed_in_label_and_warning(
+        self, mock_logger: MagicMock
+    ) -> None:
+        """A token in a rejected argument appears neither in the label nor the log."""
+        arg = "path=/x,url=https://user:tok@github.com/o/r"
+        valid, rejected = _check_reference_projects([arg], _UNRELATED)
+
+        assert valid == {}
+        assert rejected == [("path=/x,url=https://github.com/o/r", "missing name")]
+        mock_logger.warning.assert_called_once()
+        assert "tok" not in str(mock_logger.warning.call_args)

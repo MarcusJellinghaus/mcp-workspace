@@ -2,6 +2,7 @@
 
 import argparse
 import contextlib
+import io
 import logging
 import sys
 from datetime import datetime
@@ -19,6 +20,7 @@ from mcp_workspace.reference_projects import (
     detect_and_verify_url,
 )
 from mcp_workspace.traffic_log import set_traffic_log_context
+from mcp_workspace.utils.url_credentials import scrub_credentials
 
 # Create loggers
 stdlogger = logging.getLogger(__name__)
@@ -76,6 +78,15 @@ def _shared_options_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _add_reference_project_argument(parser: argparse.ArgumentParser) -> None:
+    """Add the repeatable ``--reference-project`` option to ``parser``."""
+    parser.add_argument(
+        "--reference-project",
+        action="append",
+        help="Reference project as key-value pairs: name=myproj,path=/path/to/dir,url=https://... (name and path required, url optional)",
+    )
+
+
 def parse_args(
     argv: list[str] | None = None,
 ) -> tuple[argparse.Namespace, list[str]]:
@@ -86,6 +97,7 @@ def parse_args(
     """
     parser = StartupArgumentParser(
         description="MCP File System Server - A Model Context Protocol server providing file operation tools",
+        epilog="Run 'mcp-workspace verify --help' to check file access, git and GitHub setup.",
         allow_abbrev=False,
         parents=[_shared_options_parser()],
     )
@@ -95,11 +107,7 @@ def parse_args(
         version=f"mcp-workspace {__version__}",
         help="Show version number and exit",
     )
-    parser.add_argument(
-        "--reference-project",
-        action="append",
-        help="Reference project as key-value pairs: name=myproj,path=/path/to/dir,url=https://... (name and path required, url optional)",
-    )
+    _add_reference_project_argument(parser)
     parser.add_argument(
         "--reference-fetch-interval-minutes",
         type=int,
@@ -225,27 +233,30 @@ def _handle_startup_failure(exc: Exception) -> None:
     print(f"Error: {exc}", file=sys.stderr)
 
 
-def validate_reference_projects(
+def _check_reference_projects(
     reference_args: list[str], project_dir: Path
-) -> dict[str, ReferenceProject]:
-    """Parse and validate reference project arguments.
+) -> tuple[dict[str, ReferenceProject], list[tuple[str, str]]]:
+    """Parse and validate reference project arguments, keeping the rejects.
 
     Parses comma-separated KV pairs: name=proj,path=/dir,url=https://...
     Validates name and path are present. Logs warnings for invalid
     references and continues with valid ones only. Auto-renames duplicates.
-    Filters out reference projects that overlap with project_dir.
+    Filters out reference projects that overlap with project_dir. Raw
+    arguments are credential-scrubbed before they are logged or returned.
 
     Returns:
-        Dict mapping project names to validated ReferenceProject entries.
+        Tuple of the validated projects keyed by final name, and the
+        rejected references as ``(label, reason)`` pairs in argument order.
 
     Raises:
         ValueError: If explicit URL doesn't match detected git remote URL.
     """
     if not reference_args:
-        return {}
+        return {}, []
 
     resolved_project_dir = project_dir.resolve()
     validated_projects: dict[str, ReferenceProject] = {}
+    rejected: list[tuple[str, str]] = []
 
     for arg in reference_args:
         # Parse comma-separated key=value pairs
@@ -263,8 +274,9 @@ def validate_reference_projects(
             stdlogger.warning(
                 "Skipping reference project '%s': appears to be old format. "
                 "Use: name=<name>,path=<path>[,url=<url>]",
-                arg,
+                scrub_credentials(arg),
             )
+            rejected.append((scrub_credentials(arg), "old format"))
             continue
 
         # Validate "name" is present
@@ -272,8 +284,9 @@ def validate_reference_projects(
         if not name:
             stdlogger.warning(
                 "Invalid reference project format (missing 'name' key): argument=%s",
-                arg,
+                scrub_credentials(arg),
             )
+            rejected.append((scrub_credentials(arg), "missing name"))
             continue
 
         # Validate "path" is present
@@ -281,8 +294,9 @@ def validate_reference_projects(
         if not path_str:
             stdlogger.warning(
                 "Invalid reference project format (missing 'path' key): argument=%s",
-                arg,
+                scrub_credentials(arg),
             )
+            rejected.append((scrub_credentials(name), "missing path"))
             continue
 
         # Convert to canonical resolved path
@@ -297,6 +311,7 @@ def validate_reference_projects(
                 name,
                 project_path,
             )
+            rejected.append((scrub_credentials(name), "path not found"))
             continue
 
         if project_path.exists() and not project_path.is_dir():
@@ -305,6 +320,7 @@ def validate_reference_projects(
                 name,
                 project_path,
             )
+            rejected.append((scrub_credentials(name), "not a directory"))
             continue
 
         # Check for overlap with the main project directory
@@ -315,6 +331,9 @@ def validate_reference_projects(
                     name,
                     project_path,
                 )
+                rejected.append(
+                    (scrub_credentials(name), "same directory as workspace")
+                )
                 continue
             elif project_path.is_relative_to(resolved_project_dir):
                 stdlogger.warning(
@@ -322,6 +341,7 @@ def validate_reference_projects(
                     name,
                     project_path,
                 )
+                rejected.append((scrub_credentials(name), "inside workspace"))
                 continue
             elif resolved_project_dir.is_relative_to(project_path):
                 stdlogger.warning(
@@ -329,6 +349,7 @@ def validate_reference_projects(
                     name,
                     project_path,
                 )
+                rejected.append((scrub_credentials(name), "parent of workspace"))
                 continue
 
         # Detect and verify URL (raises ValueError on mismatch)
@@ -345,7 +366,87 @@ def validate_reference_projects(
             name=final_name, path=project_path, url=url
         )
 
-    return validated_projects
+    return validated_projects, rejected
+
+
+def validate_reference_projects(
+    reference_args: list[str], project_dir: Path
+) -> dict[str, ReferenceProject]:
+    """Parse and validate reference project arguments.
+
+    Invalid references are logged and skipped; see
+    ``_check_reference_projects`` for the rules.
+
+    Returns:
+        Dict mapping project names to validated ReferenceProject entries.
+    """
+    return _check_reference_projects(reference_args, project_dir)[0]
+
+
+def _verify_parser() -> argparse.ArgumentParser:
+    """Build the strict parser for ``mcp-workspace verify``.
+
+    Plain argparse, so a usage error prints the usage and exits 2.
+
+    Returns:
+        The verify argument parser.
+    """
+    parser = argparse.ArgumentParser(
+        prog="mcp-workspace verify",
+        description="Check file access rules, git and GitHub setup for a "
+        "workspace and its reference projects.",
+        allow_abbrev=False,
+    )
+    parser.add_argument(
+        "--project-dir",
+        type=str,
+        default=None,
+        help="Workspace directory to verify (defaults to the current directory).",
+    )
+    _add_reference_project_argument(parser)
+    parser.add_argument(
+        "--log-level",
+        type=str.upper,
+        choices=_LOG_LEVELS,
+        default="WARNING",
+        help="Console logging level (default: WARNING).",
+    )
+    return parser
+
+
+def _verify_main(argv: list[str]) -> int:
+    """Run ``mcp-workspace verify`` with the arguments after ``verify``.
+
+    Setup errors are printed as ``Error: ...`` on stderr; no fallback log
+    file is written. ``SystemExit`` from argparse (usage error, ``--help``)
+    propagates.
+
+    Returns:
+        The process exit code: 0 when every check passed, 1 otherwise.
+    """  # noqa: DOC501 - the ValueError is caught below and printed as Error:
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8")
+    args = _verify_parser().parse_args(argv)
+    try:
+        setup_logging(args.log_level, None)
+        candidate: str = args.project_dir or str(Path.cwd())
+        project_dir = _resolve_project_dir(candidate)
+        if project_dir is None:
+            raise ValueError(
+                f"--project-dir must be an existing directory: {candidate!r}"
+            )
+        valid, rejected = _check_reference_projects(
+            args.reference_project or [], project_dir
+        )
+        # Imported here: the verify checks pull in GitPython, PyGithub and
+        # PyYAML, which server startup must not pay for.
+        from mcp_workspace.cli.verify import execute_verify
+
+        return execute_verify(project_dir, valid, rejected)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
 
 
 def _main() -> None:
@@ -388,12 +489,15 @@ def _main() -> None:
 
     stdlogger.debug("Logger initialized in main")
 
+    args, unknown = parse_args(argv)
+
+    if "verify" in unknown:
+        raise ValueError("verify must be the first argument")
+
     if project_dir is None:
         raise ValueError(
             f"--project-dir is required and must be an existing directory: {pre.project_dir!r}"
         )
-
-    args, unknown = parse_args(argv)
 
     for token in unknown:
         stdlogger.warning("Ignoring unknown startup argument: %s", token)
@@ -476,7 +580,10 @@ def _main() -> None:
 
 
 def main() -> None:
-    """Main entry point for the MCP server."""
+    """Main entry point: ``verify`` subcommand or the MCP server."""
+    argv = sys.argv[1:]
+    if argv[:1] == ["verify"]:
+        sys.exit(_verify_main(argv[1:]))
     try:
         _main()
     except Exception as exc:  # pylint: disable=broad-exception-caught

@@ -43,6 +43,8 @@ depends_on = [
     { path = "mcp_workspace.traffic_log" },
     { path = "mcp_workspace.config" },
     { path = "mcp_workspace.file_tools" },
+    { path = "mcp_workspace.cli" },
+    { path = "mcp_workspace.utils" },
     { path = "mcp_coder_utils.log_utils" },
 ]
 # Note: main eagerly activates _ssl (truststore) at startup, before run_server —
@@ -61,6 +63,21 @@ depends_on = [
     { path = "mcp_workspace.toolset" },
     { path = "mcp_coder_utils.log_utils" },
     { path = "mcp_coder_utils.tool_spec" },
+]
+
+# CLI subcommands (mcp-workspace verify) sit beside the server, below main.
+[[modules]]
+path = "mcp_workspace.cli"
+layer = "protocol"
+depends_on = [
+    { path = "mcp_workspace.file_tools" },
+    { path = "mcp_workspace.git_operations" },
+    { path = "mcp_workspace.github_operations" },
+    { path = "mcp_workspace.reference_projects" },
+    { path = "mcp_workspace._ssl" },
+    { path = "mcp_workspace.traffic_log" },
+    { path = "mcp_workspace.utils" },
+    { path = "mcp_coder_utils.verify_render" },
 ]
 
 # =============================================================================
@@ -186,6 +203,11 @@ path = "mcp_coder_utils.fs"
 layer = "utilities"
 depends_on = []
 
+[[modules]]
+path = "mcp_coder_utils.verify_render"
+layer = "utilities"
+depends_on = []
+
 # =============================================================================
 # Test Modules
 # =============================================================================
@@ -208,6 +230,8 @@ depends_on = [
     { path = "mcp_workspace.utils" },
     { path = "mcp_workspace._ssl" },
     { path = "mcp_workspace.toolset" },
+    { path = "mcp_workspace.cli" },
     { path = "mcp_coder_utils.log_utils" },
     { path = "mcp_coder_utils.tool_spec" },
+    { path = "mcp_coder_utils.verify_render" },
 ]
