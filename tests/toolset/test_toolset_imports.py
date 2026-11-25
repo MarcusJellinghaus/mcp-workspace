@@ -14,6 +14,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+pytestmark = pytest.mark.time_limit(60, reason="spawns a fresh Python interpreter")
+
 # Exercise the code under test from ``src`` (matching pytest's
 # pythonpath=["src"]), never an installed copy in site-packages.
 SRC_DIR = str(Path(__file__).resolve().parents[2] / "src")

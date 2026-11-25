@@ -249,6 +249,7 @@ class TestServerModeWithVerifyToken:
         assert any("stray" in call.args for call in warnings)
 
 
+@pytest.mark.time_limit(60, reason="spawns a fresh Python interpreter")
 def test_main_import_does_not_load_verify_dependencies() -> None:
     """Importing main must not pull in git, github, yaml or the cli package."""
     env = dict(os.environ)

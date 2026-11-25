@@ -35,6 +35,16 @@ _.setup_test_file
 # in the module. Never referenced by our own code.
 _.pytestmark
 
+# Test-guard plugin (tests/_guards.py): plugin list in tests/conftest.py and
+# hook implementations, called by pytest only.
+_.pytest_plugins
+_.pytest_addoption
+_.pytest_configure
+_.pytest_make_collect_report
+_.pytest_runtest_setup
+_.pytest_runtest_call
+_.pytest_runtest_teardown
+
 # =============================================================================
 # Git Operations Public API
 # =============================================================================
@@ -174,6 +184,8 @@ _.fixture_env  # name="env"
 _._empty_trusted_commenters
 # Autouse fixture isolating tests from the real [github] enterprise_hosts list
 _._empty_enterprise_hosts
+# Autouse fixture rendering structlog exceptions as plain tracebacks (pytest collection only)
+_._plain_structlog_tracebacks
 # Fixture reached through pytest.mark.usefixtures("allow_test_ghes_hosts")
 _.allow_test_ghes_hosts
 # Fixture reached through pytest.mark.usefixtures("win32") (issue #405)

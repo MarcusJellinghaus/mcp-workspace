@@ -41,6 +41,7 @@ dev = [
     "pytest-asyncio>=0.25.3",
     "pytest-xdist>=3.6.1",
     "pytest-cov",
+    "structlog",
     "diff-cover",
     "pylint>=3.3.3",
     "mypy>=1.13.0",
@@ -91,7 +92,10 @@ markers = [
     "git_integration: File system git operations (repos, commits)",
     "github_integration: GitHub API access (requires GITHUB_TOKEN)",
     "performance: Timing-sensitive; skipped under xdist, run with -n 0 -m performance",
+    "time_limit(seconds, reason): per-test wall-clock limit override in seconds; reason is mandatory",
 ]
+# Per-group wall-clock limits (s) checked by tests/_guards.py; unit = no group marker.
+test_time_limits = ["unit: 5", "git_integration: 30"]
 
 [tool.mcp-tools-py]
 # Formatter for run_format_code and mcp-coder workflows: ruff (import sorting + ruff format)
