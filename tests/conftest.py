@@ -10,6 +10,7 @@ from typing import Any, TypedDict, TypeVar
 
 import git
 import pytest
+import structlog
 
 from mcp_workspace import config
 from mcp_workspace.config import get_github_token, get_test_repo_url
@@ -120,6 +121,24 @@ def _no_read_max_lines(monkeypatch: pytest.MonkeyPatch) -> None:
 def _empty_enterprise_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep tests from reading the real ``[github] enterprise_hosts`` list."""
     monkeypatch.setattr("mcp_workspace.config.get_enterprise_hosts", frozenset)
+
+
+@pytest.fixture(autouse=True)
+def _plain_structlog_tracebacks() -> None:
+    """Render structlog exceptions as plain tracebacks, not rich panels with locals.
+
+    pytest attaches a ``logging.FileHandler`` to the root logger for every test,
+    so each failing ``@log_function_call`` layer also logs through structlog.
+    Unconfigured, structlog renders a rich traceback with locals per layer,
+    which takes seconds on a stacked error path. Reset per test so a test that
+    runs the real ``setup_logging`` does not leak its configuration.
+    """
+    structlog.reset_defaults()
+    processors = list(structlog.get_config()["processors"])
+    processors[-1] = structlog.dev.ConsoleRenderer(
+        colors=False, exception_formatter=structlog.dev.plain_traceback
+    )
+    structlog.configure(processors=processors)
 
 
 @pytest.fixture(autouse=True)

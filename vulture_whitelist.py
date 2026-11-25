@@ -184,6 +184,8 @@ _.fixture_env  # name="env"
 _._empty_trusted_commenters
 # Autouse fixture isolating tests from the real [github] enterprise_hosts list
 _._empty_enterprise_hosts
+# Autouse fixture rendering structlog exceptions as plain tracebacks (pytest collection only)
+_._plain_structlog_tracebacks
 # Fixture reached through pytest.mark.usefixtures("allow_test_ghes_hosts")
 _.allow_test_ghes_hosts
 # Fixture reached through pytest.mark.usefixtures("win32") (issue #405)
