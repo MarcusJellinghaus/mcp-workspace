@@ -263,6 +263,9 @@ def test_git_guard(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -
     outcomes = result.parseoutcomes()
     assert outcomes["failed"] == 4
     assert outcomes["passed"] == 2
+    # Setup + teardown of test_fixture_fails, teardown of test_fixture_skips
+    # and test_skip_in_body; test_own_failure's note stays on its call failure.
+    assert outcomes["errors"] == 4
     output = result.stdout.str()
     for name in (
         "test_gitpython",
@@ -275,7 +278,10 @@ def test_git_guard(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -
     ):
         assert f"test_git.py::{name} started a git process" in output
     assert "git_integration" in output
-    assert "own failure" in output
+    result.stdout.fnmatch_lines(
+        ["*own failure*", "*test_own_failure started a git process*"]
+    )
+    assert "ERROR at teardown of test_own_failure" not in output
     for name in ("test_fixture_fails", "test_fixture_skips", "test_skip_in_body"):
         assert f"ERROR at teardown of {name}" in output
 
