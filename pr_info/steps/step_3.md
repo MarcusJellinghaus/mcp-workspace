@@ -93,18 +93,23 @@ The call and teardown wrappers from step 2 stay unchanged. "Teardown error only 
 Final unit-group run, as the implement workflow's last step does:
 
 ```
-run_pytest_check(extra_args=["-n", "auto", "-m", "not git_integration and not github_integration"])
+run_pytest_check(markers=["not git_integration", "not github_integration"], extra_args=["-n", "auto"])
 ```
 
 For any guard failure:
 - re-run once; a single spike is not a reason to change a test
 - if it fails again: speed the test up, give it the right group marker, or add `@pytest.mark.time_limit(<s>, reason="...")`
 
-Then run the full suite (`-n auto`) and the serial performance run. Record each change in the commit message body.
+Then run the serial performance run (`run_pytest_check(markers=["performance"], extra_args=["-n", "0"])`). The automated work ends here. Record each change in the commit message body.
+
+The full-suite run with the guards on (the only run covering `git_integration` and `github_integration`) exceeds the 600 s inactivity limit. It is an acceptance item a human runs interactively. Don't run it during implementation.
 
 ## Checks
 
-- pylint, `run_pytest_check(extra_args=["-n", "auto"])`, `run_pytest_check(markers=["performance"], extra_args=["-n", "0"])`, mypy, ruff, vulture.
+- pylint, mypy, ruff, vulture.
+- The unit group: `run_pytest_check(markers=["not git_integration", "not github_integration"], extra_args=["-n", "auto"])`. Never run the `git_integration` / `github_integration` groups or the full suite in automated steps.
+- The guard self-tests serially: `run_pytest_check(extra_args=["-n", "0", "tests/test_guards.py"])`.
+- The serial performance run: `run_pytest_check(markers=["performance"], extra_args=["-n", "0"])`.
 - `check_file_size`: `tests/_guards.py` and `tests/test_guards.py` must each stay under 750 lines; otherwise add them to `.large-files-allowlist` with a reason.
 - `run_format_code` before the commit.
 
@@ -121,6 +126,6 @@ In each case below, write one line to `pr_info/.blocked.txt` and stop.
 > - write `test_time_limit` and `test_no_time_limit_keeps_git_guard` in `tests/test_guards.py` first
 > - then add `RERUN_NOTE`, `_limit` and the time check in `_report` to `tests/_guards.py`
 > - update the module docstring and `tests/README.md`
-> - run the unit group and the full suite, and handle violations as the step describes
+> - run the unit group, and handle violations as the step describes; don't run the full suite (it is interactive)
 >
-> Use the MCP tools listed in `.claude/CLAUDE.md`. Run pylint, pytest (`-n auto`, plus the serial performance run), mypy, ruff, vulture and the file-size check until all pass, format the code, then make one commit. If a blocked condition applies, write one line to `pr_info/.blocked.txt` and stop.
+> Use the MCP tools listed in `.claude/CLAUDE.md`. Run pylint, the pytest runs listed under Checks (unit group only), mypy, ruff, vulture and the file-size check until all pass, format the code, then make one commit. If a blocked condition applies, write one line to `pr_info/.blocked.txt` and stop.

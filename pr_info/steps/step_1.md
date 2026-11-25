@@ -181,7 +181,9 @@ if mark: try _time_limit_seconds(mark) except ValueError as exc: append(f"{item.
 
 ## Checks
 
-- `run_pylint_check`, `run_pytest_check(extra_args=["-n", "auto"])`, `run_mypy_check`, `run_ruff_check`, `run_vulture_check`.
+- `run_pylint_check`, `run_mypy_check`, `run_ruff_check`, `run_vulture_check`.
+- The unit group: `run_pytest_check(markers=["not git_integration", "not github_integration"], extra_args=["-n", "auto"])`. Never run the `git_integration` / `github_integration` groups or the full suite in automated steps (it exceeds the 600 s inactivity limit).
+- The guard self-tests serially: `run_pytest_check(extra_args=["-n", "0", "tests/test_guards.py"])`.
 - The serial performance run: `run_pytest_check(markers=["performance"], extra_args=["-n", "0"])`.
 - `run_format_code` before the commit.
 
@@ -201,4 +203,4 @@ In each case below, write one line to `pr_info/.blocked.txt` and stop.
 > - add the `pytest_plugins` wiring in `tests/conftest.py`
 > - make the pyproject, vulture whitelist and candidate `time_limit` changes
 >
-> Don't implement the git guard or time-limit enforcement. Use the MCP tools listed in `.claude/CLAUDE.md`. Run pylint, pytest (`-n auto`), mypy, ruff and vulture until all pass, format the code, then make one commit. If a blocked condition from the step file applies, write one line to `pr_info/.blocked.txt` and stop.
+> Don't implement the git guard or time-limit enforcement. Use the MCP tools listed in `.claude/CLAUDE.md`. Run pylint, the pytest runs listed under Checks (unit group only), mypy, ruff and vulture until all pass, format the code, then make one commit. If a blocked condition from the step file applies, write one line to `pr_info/.blocked.txt` and stop.

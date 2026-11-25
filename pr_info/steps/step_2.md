@@ -18,7 +18,7 @@ An unmarked test (no group marker) that starts a `git` process during setup, cal
 
 ## Tests first (`tests/test_guards.py`)
 
-1. **`test_is_git`**: a plain parametrized unit test with no pytester and no git. It calls `_is_git(args, executable, shell)` directly.
+1. **`test_is_git`**: a plain parametrized unit test with no pytester and no git, `time_limit(5, reason="guard self-test; every guard self-test carries a time_limit")`. It calls `_is_git(args, executable, shell)` directly.
    - True:
      - `["git", "status"]`
      - `[r"C:\Program Files\Git\cmd\git.exe", "status"]`
@@ -167,7 +167,7 @@ note = _report(item); if note: pytest.fail(note, pytrace=False)
 
 ## Existing violations
 
-After the guard is on, run the full suite. If an existing unmarked test starts git:
+After the guard is on, run the unit group: `run_pytest_check(markers=["not git_integration", "not github_integration"], extra_args=["-n", "auto"])`. The git guard affects only unmarked tests, and all of them are in the unit group. If an existing unmarked test starts git:
 - re-run once
 - if it still fails, give it the right group marker (normally `git_integration`), or stop it from starting git
 
@@ -175,7 +175,10 @@ Record each change in the commit message body.
 
 ## Checks
 
-- pylint, `run_pytest_check(extra_args=["-n", "auto"])`, the serial performance run, mypy, ruff, vulture.
+- pylint, mypy, ruff, vulture.
+- The unit group: `run_pytest_check(markers=["not git_integration", "not github_integration"], extra_args=["-n", "auto"])`. Never run the `git_integration` / `github_integration` groups or the full suite in automated steps.
+- The guard self-tests serially: `run_pytest_check(extra_args=["-n", "0", "tests/test_guards.py"])`.
+- The serial performance run: `run_pytest_check(markers=["performance"], extra_args=["-n", "0"])`.
 - `run_format_code` before the commit.
 
 ## Blocked conditions
@@ -193,4 +196,4 @@ In each case below, write one line to `pr_info/.blocked.txt` and stop.
 > - then add the `Popen.__init__` counter, `_TestState`, `_report`, `_attach` and the setup, call and teardown hooks to `tests/_guards.py`
 > - update the vulture whitelist and the module docstring
 >
-> Don't add time-limit checks yet. Handle any existing unmarked git-starting test as the step describes. Use the MCP tools listed in `.claude/CLAUDE.md`. Run pylint, pytest (`-n auto`), mypy, ruff and vulture until all pass, format the code, then make one commit. If a blocked condition applies, write one line to `pr_info/.blocked.txt` and stop.
+> Don't add time-limit checks yet. Handle any existing unmarked git-starting test as the step describes. Use the MCP tools listed in `.claude/CLAUDE.md`. Run pylint, the pytest runs listed under Checks (unit group only), mypy, ruff and vulture until all pass, format the code, then make one commit. If a blocked condition applies, write one line to `pr_info/.blocked.txt` and stop.
