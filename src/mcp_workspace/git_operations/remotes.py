@@ -11,6 +11,7 @@ from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
 from mcp_workspace.utils.url_credentials import scrub_credentials
 
+from ._push_retry import retry_500
 from ._subprocess_git import run_git_timed
 from .branch_queries import branch_exists, get_current_branch_name
 from .core import (
@@ -97,6 +98,8 @@ def clone_repo(url: str, target_path: Path) -> None:
 def git_push(project_dir: Path, force_with_lease: bool = False) -> dict[str, Any]:
     """Push current branch to origin remote.
 
+    A push that GitHub answers with HTTP 500 is retried (3 attempts).
+
     Args:
         project_dir: Path to the project directory containing git repository
         force_with_lease: If True, use --force-with-lease for safe force push (default: False)
@@ -115,19 +118,17 @@ def git_push(project_dir: Path, force_with_lease: bool = False) -> dict[str, Any
 
     try:
         with safe_repo_context(project_dir) as repo:
-            # Get current branch name
             current_branch = repo.active_branch.name
             logger.debug("Current branch: %s", current_branch)
 
-            # Execute git push origin <current_branch>
             if force_with_lease:
-                repo.git.push("--force-with-lease", "origin", current_branch)
+                retry_500(repo.git.push, "--force-with-lease", "origin", current_branch)
                 logger.debug(
                     "Successfully force-pushed branch '%s' to origin with lease",
                     current_branch,
                 )
             else:
-                repo.git.push("origin", current_branch)
+                retry_500(repo.git.push, "origin", current_branch)
                 logger.debug(
                     "Successfully pushed branch '%s' to origin", current_branch
                 )
@@ -145,6 +146,8 @@ def git_push(project_dir: Path, force_with_lease: bool = False) -> dict[str, Any
 
 def push_branch(branch_name: str, project_dir: Path, set_upstream: bool = True) -> bool:
     """Push a git branch to origin remote.
+
+    A push that GitHub answers with HTTP 500 is retried (3 attempts).
 
     Args:
         branch_name: Name of the branch to push
@@ -177,18 +180,15 @@ def push_branch(branch_name: str, project_dir: Path, set_upstream: bool = True) 
                 logger.error("No origin remote found")
                 return False
 
-            # Push the branch
             try:
                 if set_upstream:
-                    # Push with upstream tracking
-                    repo.git.push("--set-upstream", "origin", branch_name)
+                    retry_500(repo.git.push, "--set-upstream", "origin", branch_name)
                     logger.debug(
                         "Successfully pushed branch '%s' with upstream tracking",
                         branch_name,
                     )
                 else:
-                    # Push without upstream tracking
-                    repo.git.push("origin", branch_name)
+                    retry_500(repo.git.push, "origin", branch_name)
                     logger.debug("Successfully pushed branch '%s'", branch_name)
 
                 return True

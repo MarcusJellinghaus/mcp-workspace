@@ -1,15 +1,23 @@
 """Tests for retrying a git push that GitHub answered with HTTP 500."""
 
 import logging
+import re
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
 from git.exc import GitCommandError
 
 from mcp_workspace.git_operations._push_retry import _match_500, retry_500
+from mcp_workspace.git_operations.branches import delete_branch
+from mcp_workspace.git_operations.remotes import git_push, push_branch
 
 MODULE = "mcp_workspace.git_operations._push_retry"
+REMOTES = "mcp_workspace.git_operations.remotes"
+BRANCHES = "mcp_workspace.git_operations.branches"
 
 REJECTED_500 = (
     "remote: Internal Server Error\n"
@@ -225,3 +233,160 @@ class TestRetryLogging:
         assert len(warnings) == 1
         assert "secret" not in warnings[0].getMessage()
         assert "error: 500" in warnings[0].getMessage()
+
+
+# Copied from mcp_coder src/mcp_coder/workflow_steps/commit.py::_REJECTED_STATUS_LINE;
+# git_push's error text must stay parseable by it.
+_REJECTED_STATUS_LINE = re.compile(
+    r"^[ \t]*! \[rejected\] .*\((?:fetch first|non-fast-forward)\)", re.MULTILINE
+)
+
+NON_FAST_FORWARD_PUSH = (
+    "To https://github.com/o/r.git\n"
+    " ! [rejected]        b -> b (non-fast-forward)\n"
+    "error: failed to push some refs to 'https://github.com/o/r.git'"
+)
+
+
+def _origin() -> Mock:
+    """Build an origin remote mock (``Mock(name=...)`` does not set ``.name``)."""
+    origin = Mock()
+    origin.name = "origin"
+    return origin
+
+
+def _run_with_repo(target: str, repo: Mock, fn: Any, *args: Any, **kwargs: Any) -> Any:
+    """Run fn with the repo access in module ``target`` faked to yield repo."""
+
+    @contextmanager
+    def fake_safe_repo_context(_path: Path) -> Iterator[Mock]:
+        yield repo
+
+    with (
+        patch(f"{target}.is_git_repository", return_value=True),
+        patch(f"{target}.safe_repo_context", fake_safe_repo_context),
+        patch(f"{MODULE}.time.sleep"),
+    ):
+        return fn(*args, **kwargs)
+
+
+def _push_repo(*push_effects: Any) -> Mock:
+    """Build a repo mock on branch ``b`` whose push yields push_effects."""
+    repo = Mock()
+    repo.active_branch.name = "b"
+    repo.git.push.side_effect = list(push_effects)
+    return repo
+
+
+class TestGitPushRetry:
+    """git_push retries a push that GitHub answered with HTTP 500."""
+
+    def test_500_then_success(self) -> None:
+        """A single 500 is retried and the push succeeds."""
+        repo = _push_repo(_git_error(REJECTED_500), None)
+        result = _run_with_repo(REMOTES, repo, git_push, Path("repo"))
+        assert result == {"success": True, "error": None}
+        assert repo.git.push.call_args_list == [call("origin", "b")] * 2
+
+    def test_force_with_lease_500_then_success(self) -> None:
+        """A force-with-lease push is retried with the same arguments."""
+        repo = _push_repo(_git_error(REJECTED_500), None)
+        result = _run_with_repo(
+            REMOTES, repo, git_push, Path("repo"), force_with_lease=True
+        )
+        assert result == {"success": True, "error": None}
+        assert (
+            repo.git.push.call_args_list
+            == [call("--force-with-lease", "origin", "b")] * 2
+        )
+
+    def test_500_every_attempt(self, caplog: pytest.LogCaptureFixture) -> None:
+        """After three 500s the third error is reported and logged once."""
+        errors = [_git_error(REJECTED_500) for _ in range(3)]
+        repo = _push_repo(*errors)
+        with caplog.at_level(logging.WARNING):
+            result = _run_with_repo(REMOTES, repo, git_push, Path("repo"))
+        assert result["success"] is False
+        assert repo.git.push.call_count == 3
+        assert result["error"].startswith("Git error during push: ")
+        assert result["error"] == f"Git error during push: {errors[2]}"
+        error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert len(error_records) == 1
+
+    def test_500_then_non_fast_forward(self) -> None:
+        """A rejection after a 500 stays parseable for mcp_coder."""
+        repo = _push_repo(
+            _git_error(REJECTED_500), _git_error(NON_FAST_FORWARD_PUSH), None
+        )
+        result = _run_with_repo(REMOTES, repo, git_push, Path("repo"))
+        assert result["success"] is False
+        assert repo.git.push.call_count == 2
+        assert _REJECTED_STATUS_LINE.search(result["error"]) is not None
+
+    def test_non_fast_forward_not_retried(self) -> None:
+        """A non-fast-forward rejection is reported after one attempt."""
+        repo = _push_repo(_git_error(NON_FAST_FORWARD_PUSH), None)
+        result = _run_with_repo(REMOTES, repo, git_push, Path("repo"))
+        assert result["success"] is False
+        assert repo.git.push.call_count == 1
+
+
+class TestPushBranchRetry:
+    """push_branch retries a push that GitHub answered with HTTP 500."""
+
+    @staticmethod
+    def _push(repo: Mock) -> bool:
+        repo.remotes = [_origin()]
+        with patch(f"{REMOTES}.branch_exists", return_value=True):
+            result: bool = _run_with_repo(
+                REMOTES, repo, push_branch, "feature", Path("repo"), set_upstream=True
+            )
+        return result
+
+    def test_500_then_success(self) -> None:
+        """A single 500 is retried and the push succeeds."""
+        repo = _push_repo(_git_error(REJECTED_500), None)
+        assert self._push(repo) is True
+        assert (
+            repo.git.push.call_args_list
+            == [call("--set-upstream", "origin", "feature")] * 2
+        )
+
+    def test_500_every_attempt(self) -> None:
+        """After three 500s the push fails."""
+        repo = _push_repo(*[_git_error(REJECTED_500) for _ in range(3)])
+        assert self._push(repo) is False
+        assert repo.git.push.call_count == 3
+
+
+class TestDeleteBranchRetry:
+    """delete_branch retries a remote delete that GitHub answered with HTTP 500."""
+
+    @staticmethod
+    def _delete(*push_effects: Any) -> tuple[bool, Mock]:
+        repo = _push_repo(*push_effects)
+        branches = [Mock(), Mock()]
+        branches[0].name = "main"
+        branches[1].name = "feature"
+        repo.branches = branches
+        repo.active_branch.name = "main"
+        repo.remotes = [_origin()]
+        repo.git.branch = Mock()
+        result: bool = _run_with_repo(
+            BRANCHES, repo, delete_branch, "feature", Path("repo"), delete_remote=True
+        )
+        return result, repo
+
+    def test_500_then_success(self) -> None:
+        """A single 500 is retried and the remote branch deleted."""
+        result, repo = self._delete(_git_error(REJECTED_500), None)
+        assert result is True
+        assert (
+            repo.git.push.call_args_list == [call("origin", "--delete", "feature")] * 2
+        )
+
+    def test_500_every_attempt_still_succeeds(self) -> None:
+        """Remote deletion stays best-effort after three 500s."""
+        result, repo = self._delete(*[_git_error(REJECTED_500) for _ in range(3)])
+        assert result is True
+        assert repo.git.push.call_count == 3

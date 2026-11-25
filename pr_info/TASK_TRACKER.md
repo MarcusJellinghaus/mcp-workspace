@@ -31,9 +31,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 2: Retry GitPython pushes — `git_push`, `push_branch`, `delete_branch` ([step_2.md](./steps/step_2.md))
 
-- [ ] Implementation: call-site tests appended to `test_push_retry.py` + wrap `repo.git.push` calls in `remotes.py` / `branches.py` with `retry_500`, docstring lines, remove step comments
-- [ ] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: call-site tests appended to `test_push_retry.py` + wrap `repo.git.push` calls in `remotes.py` / `branches.py` with `retry_500`, docstring lines, remove step comments
+- [x] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 3: Retry `push_current_branch` (MCP `git_push` / `git_push_force`) ([step_3.md](./steps/step_3.md))
 

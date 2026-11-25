@@ -5,6 +5,7 @@ from pathlib import Path
 from git import Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 
+from ._push_retry import retry_500
 from .branch_queries import validate_branch_name
 from .core import (
     GIT_NONINTERACTIVE_ENV,
@@ -202,6 +203,7 @@ def delete_branch(
         - Cannot delete the currently active branch (will return False)
         - With force=False, deletion fails if branch has unmerged changes
         - With delete_remote=True, will attempt to delete from origin remote
+        - A remote delete that GitHub answers with HTTP 500 is retried
     """
     logger.debug(
         "Deleting branch '%s' in %s (force=%s, remote=%s)",
@@ -256,7 +258,7 @@ def delete_branch(
             if delete_remote:
                 try:
                     if "origin" in [remote.name for remote in repo.remotes]:
-                        repo.git.push("origin", "--delete", branch_name)
+                        retry_500(repo.git.push, "origin", "--delete", branch_name)
                         logger.debug("Deleted remote branch 'origin/%s'", branch_name)
                     else:
                         logger.debug("No origin remote found, skipping remote deletion")
