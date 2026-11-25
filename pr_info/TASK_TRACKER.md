@@ -24,9 +24,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 ### Step 1: Plugin skeleton, configure-time checks, guard 1, `time_limit` validation
 See [step_1.md](./steps/step_1.md)
 
-- [ ] Implementation: `tests/test_guards.py` collection/config tests, then `tests/_guards.py` (options, `pytest_configure`, collect-report wrapper), `tests/conftest.py` wiring, pyproject marker + `test_time_limits`, vulture whitelist, `time_limit` on candidate tests
-- [ ] Quality checks (pylint, unit-group pytest, serial `tests/test_guards.py`, serial performance run, mypy, ruff, vulture) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `tests/test_guards.py` collection/config tests, then `tests/_guards.py` (options, `pytest_configure`, collect-report wrapper), `tests/conftest.py` wiring, pyproject marker + `test_time_limits`, vulture whitelist, `time_limit` on candidate tests
+- [x] Quality checks (pylint, unit-group pytest, serial `tests/test_guards.py`, serial performance run, mypy, ruff, vulture) — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: Git guard and shared call/teardown reporting
 See [step_2.md](./steps/step_2.md)

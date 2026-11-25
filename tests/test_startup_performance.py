@@ -70,6 +70,7 @@ def _time_process(code: str) -> float:
     return elapsed
 
 
+@pytest.mark.time_limit(60, reason="spawns a fresh Python interpreter")
 def test_server_import_does_not_eagerly_load_github_or_gitpython() -> None:
     """Importing the server module must not drag in PyGithub or GitPython."""
     code = (
@@ -91,6 +92,7 @@ def test_server_import_does_not_eagerly_load_github_or_gitpython() -> None:
     )
 
 
+@pytest.mark.time_limit(60, reason="spawns a fresh Python interpreter")
 def test_file_tools_import_does_not_load_gitpython() -> None:
     """The common file-operations path must not pull in GitPython.
 

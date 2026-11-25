@@ -16,6 +16,8 @@ from mcp_workspace.config import get_github_token, get_test_repo_url
 from mcp_workspace.github_operations import clear_repository_cache
 from mcp_workspace.toolset import tool_specs
 
+pytest_plugins = ["pytester", "tests._guards"]
+
 ToolMap = dict[str, Callable[..., Any]]
 
 # Python path is now configured via pytest configuration in pyproject.toml

@@ -35,6 +35,13 @@ _.setup_test_file
 # in the module. Never referenced by our own code.
 _.pytestmark
 
+# Test-guard plugin (tests/_guards.py): plugin list in tests/conftest.py and
+# hook implementations, called by pytest only.
+_.pytest_plugins
+_.pytest_addoption
+_.pytest_configure
+_.pytest_make_collect_report
+
 # =============================================================================
 # Git Operations Public API
 # =============================================================================

@@ -129,6 +129,7 @@ for i in range(count):
 """
 
 
+@pytest.mark.time_limit(60, reason="spawns 8 Python interpreters")
 def test_concurrent_processes_lose_no_lines(tmp_path: Path) -> None:
     """N processes appending to one daily file lose no lines and mix none."""
     processes, count = 8, 200
