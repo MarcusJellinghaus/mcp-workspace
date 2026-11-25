@@ -50,6 +50,7 @@ An unmarked test (no group marker) that starts a `git` process during setup, cal
      - `parseoutcomes()["failed"] == 4` and `["passed"] == 2`
      - for every expected git violation, `f"test_git.py::{name} started a git process"` is in stdout
      - `"git_integration"` is in stdout
+     - `"own failure"` is in stdout, so `test_own_failure` keeps its own failure with the guard note appended
      - the `ERROR at teardown of ...` headers above are present
    - Don't configure a git identity. Use only `git init` and `git --version`, because pytester points `HOME` / `USERPROFILE` at a tmp dir.
 

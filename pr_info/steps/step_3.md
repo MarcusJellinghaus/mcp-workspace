@@ -28,6 +28,7 @@ A test whose setup + call + teardown wall-clock time exceeds its limit fails. Th
      - `parseoutcomes()["failed"] == 2`
      - `test_override` and `test_fast` passed
      - stdout contains `test_time.py::test_slow_fixture`, `wall-clock`, `0.5 s` and `own message`
+     - stdout contains `ERROR at teardown of test_slow_teardown` (teardown-only violation)
      - stdout contains this literal sentence, copied verbatim; don't import it from `_guards`:
        `re-run before changing anything; a single spike under xdist is not a reason to add `time_limit`, re-mark or rewrite the test — act only if it fails again.`
 2. **`test_no_time_limit_keeps_git_guard`**: one subprocess run with `-n 0 --no-time-limit`, `time_limit(60, reason="subprocess pytester run; inner test starts git")`. Inner:
