@@ -23,12 +23,15 @@ mypy until all pass, run the formatter, and make exactly one commit.
   - `repo.git.push("--force-with-lease", "origin", current_branch)` → `retry_500(repo.git.push, "--force-with-lease", "origin", current_branch)`
   - `repo.git.push("origin", current_branch)` → `retry_500(repo.git.push, "origin", current_branch)`
   - delete the comments `# Get current branch name` and `# Execute git push origin <current_branch>`.
-  - docstring: add one line, e.g. `A push that GitHub answers with HTTP 500 is retried (3 attempts).`
+  - docstring: add one description line, e.g. `A push that GitHub answers with HTTP 500 is retried (3 attempts).`,
+    between the summary line and `Args:`, followed by a blank separator line
+    (the summary is already followed by a blank line) → +2 lines.
 - `push_branch`:
   - `repo.git.push("--set-upstream", "origin", branch_name)` → `retry_500(repo.git.push, "--set-upstream", "origin", branch_name)`
   - `repo.git.push("origin", branch_name)` → `retry_500(repo.git.push, "origin", branch_name)`
   - delete `# Push the branch`, `# Push with upstream tracking`, `# Push without upstream tracking`.
-  - same one-line docstring mention.
+  - same docstring description line, placed the same way (between the summary
+    line and `Args:`, plus a blank separator line → +2 lines).
 - Every wrapped call must stay on one line after formatting. The existing
   `except` blocks, log calls and return values stay untouched.
 
@@ -73,6 +76,7 @@ Patch in the module under test (`...git_operations.remotes` / `...git_operations
   origin remote; `repo.git.branch` a plain Mock.
 
 Cases:
+- `git_push` setup: `repo.active_branch.name = "b"` (`git_push` reads the branch from it) for all `git_push` cases below.
 - `git_push`: 500 then success → `{"success": True, "error": None}`, `repo.git.push` called twice with `("origin", "b")`.
 - `git_push(force_with_lease=True)`: 500 then success → success; both calls `("--force-with-lease", "origin", "b")`.
 - `git_push`: 500 three times → `success` False, 3 calls, `error` starts with `"Git error during push: "` and equals `f"Git error during push: {third_error}"`; one ERROR record (caplog).

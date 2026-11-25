@@ -48,8 +48,10 @@ are unchanged.
 ## Line budget
 
 `remotes.py` is 747 lines; CI fails above 750 and it is not on
-`.large-files-allowlist`. Net change ≈ −1 (+1 import, +3 docstring lines,
-−5 step comments, call sites stay one line each). Never add it to the
+`.large-files-allowlist`. Net change ≈ +1 → about 748 lines (+1 import;
++5 docstring lines: +2 each in `git_push` and `push_branch` for the description
+line plus its blank separator, +1 in `push_current_branch`, whose docstring
+already has a paragraph; −5 step comments; call sites stay one line each). Never add it to the
 allowlist or move unrelated functions.
 
 ## Steps

@@ -23,11 +23,12 @@ force_args = ["--force-with-lease", "--force-if-includes"] if force else []
 result = run_git_timed(project_dir, "push", "-u", *force_args, "origin", refspec)
 ```
 
-with (fold `-u` into the flag list so the retried call stays on one line):
+with (fold `-u` into the flag list and use the short name `flags` so the
+retried call stays on one line — 85 chars at its 4-space indent, under ruff's 88):
 
 ```python
-push_args = ["-u", "--force-with-lease", "--force-if-includes"] if force else ["-u"]
-result = retry_500(run_git_timed, project_dir, "push", *push_args, "origin", refspec)
+flags = ["-u", "--force-with-lease", "--force-if-includes"] if force else ["-u"]
+result = retry_500(run_git_timed, project_dir, "push", *flags, "origin", refspec)
 ```
 
 - The git argv is unchanged (`push -u [--force-with-lease --force-if-includes] origin <refspec>`), so the existing argv tests in `test_push_current_branch.py` still pass unmodified.
