@@ -38,9 +38,9 @@ See [step_2.md](./steps/step_2.md)
 ### Step 3: Per-group time limits, documentation, final unit-group run
 See [step_3.md](./steps/step_3.md)
 
-- [ ] Implementation: `test_time_limit` and `test_no_time_limit_keeps_git_guard` first, then `RERUN_NOTE`, `_limit`, time check in `_report`, docstring, `tests/README.md` "Test guards" section; handle unit-group violations
-- [ ] Quality checks (pylint, unit-group pytest, serial `tests/test_guards.py`, serial performance run, mypy, ruff, vulture, file size) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: `test_time_limit` and `test_no_time_limit_keeps_git_guard` first, then `RERUN_NOTE`, `_limit`, time check in `_report`, docstring, `tests/README.md` "Test guards" section; handle unit-group violations
+- [x] Quality checks (pylint, unit-group pytest, serial `tests/test_guards.py`, serial performance run, mypy, ruff, vulture, file size) — fix all issues
+- [x] Commit message prepared
 
 ## Pull Request
 

@@ -278,3 +278,93 @@ def test_git_guard(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -
     assert "own failure" in output
     for name in ("test_fixture_fails", "test_fixture_skips", "test_skip_in_body"):
         assert f"ERROR at teardown of {name}" in output
+
+
+_TIME_TESTS = """
+import time
+
+import pytest
+
+
+@pytest.fixture
+def slow_setup():
+    time.sleep(0.7)
+
+
+@pytest.fixture
+def slow_teardown():
+    yield
+    time.sleep(0.7)
+
+
+def test_slow_fixture(slow_setup):
+    pass
+
+
+@pytest.mark.time_limit(5, reason="r")
+def test_override():
+    time.sleep(0.7)
+
+
+def test_pytrace_false():
+    time.sleep(0.7)
+    pytest.fail("own message", pytrace=False)
+
+
+def test_slow_teardown(slow_teardown):
+    pass
+
+
+def test_fast():
+    pass
+"""
+
+
+@pytest.mark.time_limit(30, reason="in-process pytester run; inner tests sleep")
+def test_time_limit(pytester: pytest.Pytester) -> None:
+    _inner(pytester, {"test_time": _TIME_TESTS})
+
+    result = pytester.runpytest("-n", "0", "-rA")
+
+    assert result.parseoutcomes()["failed"] == 2
+    output = result.stdout.str()
+    assert "PASSED test_time.py::test_override" in output
+    assert "PASSED test_time.py::test_fast" in output
+    assert "test_time.py::test_slow_fixture" in output
+    assert "wall-clock" in output
+    assert "0.5 s" in output
+    assert "own message" in output
+    assert "ERROR at teardown of test_slow_teardown" in output
+    assert (
+        "re-run before changing anything; a single spike under xdist is not a "
+        "reason to add `time_limit`, re-mark or rewrite the test — act only if "
+        "it fails again."
+    ) in output
+
+
+_NO_TIME_LIMIT_TESTS = """
+import subprocess
+import time
+
+
+def test_slow():
+    time.sleep(0.7)
+
+
+def test_git():
+    subprocess.run(["git", "--version"], check=True, capture_output=True)
+"""
+
+
+@pytest.mark.time_limit(60, reason="subprocess pytester run; inner test starts git")
+def test_no_time_limit_keeps_git_guard(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _inner(pytester, {"test_git": _NO_TIME_LIMIT_TESTS})
+
+    result = _run_subprocess(pytester, monkeypatch, "-n", "0", "-rA", "--no-time-limit")
+
+    result.assert_outcomes(passed=1, failed=1)
+    output = result.stdout.str()
+    assert "PASSED test_git.py::test_slow" in output
+    assert "test_git.py::test_git started a git process" in output

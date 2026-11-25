@@ -1,4 +1,4 @@
-"""Test guards: disjoint group markers and per-test ``time_limit`` validation.
+"""Test guards: disjoint group markers, git guard, per-group time limits.
 
 A pytest plugin loaded from ``tests/conftest.py`` via ``pytest_plugins``. It
 imports nothing from ``mcp_workspace``, so it can move into a shared plugin.
@@ -16,17 +16,31 @@ Group markers
     run fails.
 
 Time limits
-    The ``test_time_limits`` ini linelist sets a wall-clock limit per group,
-    e.g. ``"unit: 5"`` or ``"git_integration: 30"``. Keys are ``unit`` or a
-    group marker; values are positive seconds, fractions allowed. A group
-    without an entry has no limit. An unknown key or a bad value fails the
-    run at configure time, so a typo never silently means "no limit".
-    ``--no-time-limit`` switches the limits off.
+    A test whose setup + call + teardown takes longer than its limit fails.
+    The limit is wall-clock time (``time.perf_counter``), so machine load and
+    xdist contention count; the test is not interrupted, only failed once it
+    ends.
+
+    The ``test_time_limits`` ini linelist sets a limit per group, e.g.
+    ``"unit: 5"`` or ``"git_integration: 30"``. Keys are ``unit`` or a group
+    marker; values are positive seconds, fractions allowed. A group without
+    an entry has no limit. An unknown key or a bad value fails the run at
+    configure time, so a typo never silently means "no limit".
 
     ``@pytest.mark.time_limit(seconds, reason="...")`` overrides the limit
     for one test in any group. ``seconds`` must be a positive number and
     ``reason`` a non-empty string; otherwise collection of the containing
     module or class fails.
+
+    ``--no-time-limit`` switches the time limit off and leaves the other
+    guards on. Use it with ``--pdb``, breakpoints or profiling; through
+    mcp-tools-py, ``run_pytest_check(extra_args=["--no-time-limit", ...])``.
+
+    Re-run rule: a time-limit failure can be a load spike. Re-run before
+    changing anything; a single spike under xdist is not a reason to add
+    ``time_limit``, re-mark or rewrite the test. Only if it fails again:
+    speed the test up, give it the right group marker, or add a
+    ``time_limit`` with a reason. In CI, re-run the job.
 
 Git guard
     A test without a group marker that starts a ``git`` process during setup,
@@ -38,25 +52,31 @@ Git guard
     per process and counts started git processes; each test compares the
     count against a snapshot taken at the start of its setup.
 
-    Violations are reported when the test body ends, as a call failure; a
-    test that fails on its own keeps its failure with the guard note
-    appended. Git started only in teardown, in a setup that failed or
-    skipped, or before ``pytest.skip()`` / ``pytest.xfail()`` in the body is
-    reported as a teardown error.
-
-    Limitations:
+    Git guard limitations:
 
     - ``shell=True`` starts the shell, not git, and is not counted.
     - Grandchild processes (a child process that starts git) are not seen.
     - A mocked ``subprocess`` starts no process and is not seen.
-    - Module- and session-scoped fixtures are set up in the first test that
-      uses them and torn down in the last, so their git use is charged to
-      those tests.
-    - A guard failure on an xfail-marked test is swallowed by the xfail.
     - ``import git`` runs ``git version``. GitPython must stay imported at
       module level in ``tests/conftest.py``, so it loads at collection time;
       a first import inside a test would charge that process to whichever
       test runs first in each xdist worker.
+
+Reporting
+    Git and time violations are reported when the test body ends, as a call
+    failure; a test that fails on its own keeps its failure with the guard
+    note appended. A violation not yet reported then is reported after
+    fixture teardown, as a teardown error: git started or time exceeded only
+    in teardown, in a setup that failed or skipped, or before
+    ``pytest.skip()`` / ``pytest.xfail()`` in the body. Each violation is
+    reported once per test.
+
+    Limitations:
+
+    - Module- and session-scoped fixtures are set up in the first test that
+      uses them and torn down in the last, so their git use and time are
+      charged to those tests.
+    - A guard failure on an xfail-marked test is swallowed by the xfail.
 """
 
 import functools
@@ -78,6 +98,10 @@ GROUP_MARKERS: tuple[str, ...] = (
     "performance",
 )
 UNIT = "unit"
+RERUN_NOTE = (
+    "re-run before changing anything; a single spike under xdist is not a reason to add "
+    "`time_limit`, re-mark or rewrite the test — act only if it fails again."
+)
 # Parsed test_time_limits per run; None when --no-time-limit is given.
 _LIMITS = pytest.StashKey[dict[str, float] | None]()
 
@@ -302,7 +326,35 @@ def _report(item: pytest.Item) -> str | None:
             "allows git. Mark it @pytest.mark.git_integration (or "
             "github_integration / performance), or stop it from starting git."
         )
+    limit = _limit(item)
+    elapsed = time.perf_counter() - state.start
+    if "time" not in state.reported and limit and elapsed > limit[0]:
+        state.reported.add("time")
+        notes.append(
+            f"{item.nodeid} took {elapsed:.2f} s wall-clock (setup + call + "
+            f"teardown so far), over the {limit[0]:g} s limit of {limit[1]}. "
+            f"The limit is wall-clock time, so machine load counts: {RERUN_NOTE} "
+            "In CI, re-run the job. If it fails again: speed the test up, give "
+            "it the right group marker, or add "
+            '@pytest.mark.time_limit(seconds, reason="...").'
+        )
     return "\n\n".join(notes) or None
+
+
+def _limit(item: pytest.Item) -> tuple[float, str] | None:
+    """Return the test's time limit and where it comes from, or ``None``.
+
+    ``None`` means no limit: ``--no-time-limit`` was given, or the test has
+    no ``time_limit`` marker and its group has no ``test_time_limits`` entry.
+    """
+    limits = item.config.stash[_LIMITS]
+    if limits is None:
+        return None
+    mark = item.get_closest_marker("time_limit")
+    if mark:
+        return _time_limit_seconds(mark), "its time_limit marker"
+    group = _group(item)
+    return (limits[group], f"group {group!r}") if group in limits else None
 
 
 def _attach(exc: BaseException, note: str) -> None:

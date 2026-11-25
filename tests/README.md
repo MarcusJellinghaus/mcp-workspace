@@ -39,6 +39,18 @@ Tool tests call the tools through `tool_specs`, not through the MCP server. Two 
 
 To patch a helper, patch the name in the toolset module that calls it, e.g. `mcp_workspace.toolset.read.read_file_util`.
 
+## Test guards
+
+The plugin `tests/_guards.py`, loaded from `conftest.py`, checks every run:
+
+1. **Disjoint group markers** — a test carries at most one of `git_integration`, `github_integration`, `performance`; a test with none is in the `unit` group.
+2. **Git guard** — a `unit` test that starts a `git` process fails.
+3. **Time limit** — a test whose setup + call + teardown wall-clock time exceeds its group's `test_time_limits` entry (pyproject) fails. `@pytest.mark.time_limit(seconds, reason="...")` overrides it for one test; `--no-time-limit` switches it off (for `--pdb`, breakpoints, profiling).
+
+A time-limit failure can be a load spike: re-run before changing anything.
+
+Details and limitations: the `tests/_guards.py` module docstring.
+
 ## Testing Philosophy
 
 1. Tests should mirror the structure of the source code they test.
