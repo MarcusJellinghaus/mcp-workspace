@@ -1,26 +1,11 @@
 """Line-ending detection and selection for the file-writing tools."""
 
 import logging
-import os
 from pathlib import Path
 
+from mcp_coder_utils.fs import count_line_endings, dominant_newline
+
 logger = logging.getLogger(__name__)
-
-# Read at call time so tests can monkeypatch it
-PLATFORM_NEWLINE: str = os.linesep
-
-
-def count_line_endings(data: bytes) -> tuple[int, int, int]:
-    """Count the line endings in raw bytes.
-
-    Args:
-        data: Raw file content
-
-    Returns:
-        (crlf, lone lf, lone cr) counts
-    """
-    crlf = data.count(b"\r\n")
-    return crlf, data.count(b"\n") - crlf, data.count(b"\r") - crlf
 
 
 def describe_line_endings(text: str) -> str:
@@ -53,9 +38,8 @@ def target_newline(
 ) -> str:
     r"""Choose the line ending to write.
 
-    The existing file's style wins; a mixed file gets its most common ending,
-    a tie the platform default. A new file, or one without line breaks, follows
-    ``.gitattributes`` ``eol=``, else the platform default.
+    An existing file with line breaks keeps its dominant ending. A tie, no line
+    breaks, or a new file follows ``.gitattributes`` ``eol=``, else LF.
 
     Args:
         existing: Current file content, or None for a new file
@@ -65,35 +49,29 @@ def target_newline(
     Returns:
         ``"\n"``, ``"\r\n"`` or ``"\r"``
     """
-    if existing:
-        crlf, lf, cr = count_line_endings(existing)
-        top = max(crlf, lf, cr)
-        if top:
-            winners = [
-                nl for n, nl in ((crlf, "\r\n"), (lf, "\n"), (cr, "\r")) if n == top
-            ]
-            return winners[0] if len(winners) == 1 else PLATFORM_NEWLINE
-    return _eol_from_gitattributes(rel_path, project_dir)
+    return dominant_newline(existing or b"") or _eol_from_gitattributes(
+        rel_path, project_dir
+    )
 
 
 def _eol_from_gitattributes(rel_path: str, project_dir: Path | None) -> str:
-    r"""Map ``eol=lf`` / ``eol=crlf`` to its newline; anything else to the platform default.
+    r"""Map ``eol=lf`` / ``eol=crlf`` to its newline; anything else to LF.
 
     Args:
         rel_path: Path relative to project_dir
-        project_dir: Project directory, or None to skip the lookup
+        project_dir: Project directory, or None to skip the lookup (LF)
 
     Returns:
-        ``"\n"``, ``"\r\n"`` or PLATFORM_NEWLINE
+        ``"\n"`` or ``"\r\n"``
     """
     if project_dir is None:
-        return PLATFORM_NEWLINE
+        return "\n"
     try:
         # Lazy import: keeps GitPython off the common file-operation import path
         from mcp_workspace.git_operations import get_eol_attribute
 
         value = get_eol_attribute(rel_path, project_dir)
-    except Exception as e:  # pylint: disable=broad-exception-caught  # git missing / not a repo / any git error -> platform default
+    except Exception as e:  # pylint: disable=broad-exception-caught  # git missing / not a repo / any git error -> LF
         logger.debug("No gitattributes eol for %s: %s", rel_path, e)
-        return PLATFORM_NEWLINE
-    return {"lf": "\n", "crlf": "\r\n"}.get(value or "", PLATFORM_NEWLINE)
+        return "\n"
+    return {"lf": "\n", "crlf": "\r\n"}.get(value or "", "\n")

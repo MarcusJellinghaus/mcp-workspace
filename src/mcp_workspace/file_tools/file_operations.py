@@ -9,8 +9,10 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from mcp_coder_utils.fs import normalize_line_endings, write_text
+
 from mcp_workspace.file_tools.line_endings import target_newline
-from mcp_workspace.file_tools.path_utils import normalize_line_endings, normalize_path
+from mcp_workspace.file_tools.path_utils import normalize_path
 from mcp_workspace.utils.git_paths import is_path_in_git_dir
 
 logger = logging.getLogger(__name__)
@@ -439,8 +441,8 @@ def append_file(file_path: str, content: Any, project_dir: Path) -> bool:
     """Append content to the end of a file.
 
     Appends without touching existing bytes; the appended text uses the
-    file's line ending (no line breaks → .gitattributes eol=, else platform
-    default). No newline is inserted before it.
+    file's dominant ending (tie or no line breaks → .gitattributes eol=, else
+    LF). No newline is inserted before it.
 
     Args:
         file_path: Path to the file to append to (relative to project directory)
@@ -472,16 +474,13 @@ def append_file(file_path: str, content: Any, project_dir: Path) -> bool:
     newline = target_newline(abs_path.read_bytes(), rel_path, project_dir)
 
     logger.debug("Appending %s bytes to %s", len(validated_content), rel_path)
-    with open(abs_path, "a", encoding="utf-8", newline=newline) as f:
-        try:
-            f.write(validated_content)
-        except UnicodeEncodeError as e:
-            logger.error(
-                "Unicode encode error while appending to %s: %s", rel_path, str(e)
-            )
-            raise ValueError(
-                "Content contains characters that cannot be encoded. Please check the encoding."
-            ) from e
+    try:
+        write_text(abs_path, validated_content, newline=newline, append=True)
+    except UnicodeEncodeError as e:
+        logger.error("Unicode encode error while appending to %s: %s", rel_path, str(e))
+        raise ValueError(
+            "Content contains characters that cannot be encoded. Please check the encoding."
+        ) from e
     return True
 
 

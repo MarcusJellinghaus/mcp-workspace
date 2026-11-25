@@ -165,7 +165,7 @@ def test_nul_byte_is_rejected(root: Path) -> None:
         ref_relative_path("a\0b", root)
 
 
-def test_error_texts_match_normalize_path(root: Path) -> None:
+def test_traversal_error_names_path_and_root(root: Path) -> None:
     """The traversal message names the caller's path and the root."""
     with pytest.raises(ValueError) as exc_info:
         ref_relative_path("../x", root)
