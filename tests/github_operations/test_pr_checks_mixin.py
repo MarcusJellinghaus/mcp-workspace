@@ -1,15 +1,14 @@
 """Tests for PullRequestManager.get_non_green_checks() method.
 
 Tests the non-green check lookup using a mocked GitHub API. A local
-``checks_env`` fixture builds the git repo and patches the token/Github client.
+``checks_env`` fixture builds a repo_url-mode manager and patches the Github
+client.
 """
 
 import time
 from collections.abc import Iterator
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import git
 import pytest
 from github.GithubException import GithubException
 
@@ -48,35 +47,24 @@ def _set_checks(
     return commit
 
 
-@pytest.mark.git_integration
 class TestGetNonGreenChecks:
     """Tests for get_non_green_checks() method."""
 
     @pytest.fixture
-    def checks_env(
-        self, tmp_path: Path
-    ) -> Iterator[tuple[PullRequestManager, MagicMock]]:
-        """Build a git repo + patched manager, yielding (manager, mock_repo)."""
-        git_dir = tmp_path / "git_dir"
-        git_dir.mkdir()
-        repo = git.Repo.init(git_dir)
-        repo.create_remote("origin", "https://github.com/testowner/testrepo.git")
-
+    def checks_env(self) -> Iterator[tuple[PullRequestManager, MagicMock]]:
+        """Build a patched repo_url-mode manager, yielding (manager, mock_repo)."""
         mock_repo = MagicMock()
         mock_github_client = MagicMock()
         mock_github_client.get_repo.return_value = mock_repo
 
-        with (
-            patch(
-                "mcp_workspace.github_operations._client.Github",
-                return_value=mock_github_client,
-            ),
-            patch(
-                "mcp_workspace.github_operations.base_manager.get_github_token",
-                return_value="dummy-token",
-            ),
+        with patch(
+            "mcp_workspace.github_operations._client.Github",
+            return_value=mock_github_client,
         ):
-            manager = PullRequestManager(git_dir)
+            manager = PullRequestManager(
+                repo_url="https://github.com/testowner/testrepo.git",
+                github_token="dummy-token",
+            )
             yield manager, mock_repo
 
     def test_check_runs_classification(

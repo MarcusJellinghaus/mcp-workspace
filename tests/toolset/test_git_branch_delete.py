@@ -289,24 +289,22 @@ class TestGitBranchDeleteUnit:
         )
 
 
-def _commit(project_dir: Path, filename: str) -> str:
+def _commit(repo: Repo, filename: str) -> str:
     """Commit one new file and return the commit SHA."""
-    repo = Repo(project_dir)
-    (project_dir / filename).write_text(f"{filename}\n")
+    (Path(repo.working_dir) / filename).write_text(f"{filename}\n")
     repo.index.add([filename])
     return repo.index.commit(f"Add {filename}").hexsha
 
 
-def _branches(project_dir: Path) -> list[str]:
+def _branches(repo: Repo) -> list[str]:
     """Return the local branch names."""
-    return [b.name for b in Repo(project_dir).branches]
+    return [b.name for b in repo.branches]
 
 
-def _feature_branch(project_dir: Path, push: bool) -> str:
+def _feature_branch(repo: Repo, push: bool) -> str:
     """Create ``feature`` with one own commit, optionally push it, back on main."""
-    repo = Repo(project_dir)
     repo.git.checkout("-b", "feature")
-    tip = _commit(project_dir, "feature.txt")
+    tip = _commit(repo, "feature.txt")
     if push:
         repo.git.push("origin", "feature")
     repo.git.checkout("main")
@@ -329,8 +327,8 @@ class TestGitBranchDeleteIntegration:
         self, origin_clone: Path, merged_pr: MagicMock
     ) -> None:
         """A squash-merged, remote-deleted branch needs the merged-PR check."""
-        tip = _feature_branch(origin_clone, push=True)
         repo = Repo(origin_clone)
+        tip = _feature_branch(repo, push=True)
         repo.git.merge("--squash", "feature")
         repo.index.commit("Squash feature")
         repo.git.push("origin", "main")
@@ -341,7 +339,7 @@ class TestGitBranchDeleteIntegration:
         assert refused == (
             f"Error: refusing to delete feature: tip {tip[:7]} is not on GitHub"
         )
-        assert "feature" in _branches(origin_clone)
+        assert "feature" in _branches(repo)
 
         merged_pr.return_value = 7
         deleted = _git_branch_delete(origin_clone, "feature")
@@ -351,12 +349,12 @@ class TestGitBranchDeleteIntegration:
             "Verified by: merged PR #7"
         )
         merged_pr.assert_called_with(tip)
-        assert "feature" not in _branches(origin_clone)
+        assert "feature" not in _branches(repo)
 
     def test_fast_forward_merged_branch(self, origin_clone: Path) -> None:
         """A fast-forward-merged, remote-deleted branch passes via origin/main."""
-        tip = _feature_branch(origin_clone, push=True)
         repo = Repo(origin_clone)
+        tip = _feature_branch(repo, push=True)
         repo.git.merge("--ff-only", "feature")
         repo.git.push("origin", "main")
         repo.git.push("origin", "--delete", "feature")
@@ -367,22 +365,24 @@ class TestGitBranchDeleteIntegration:
             f"Deleted branch feature (tip {tip[:7]} on origin)\n"
             "Verified by: origin/main contains the tip"
         )
-        assert "feature" not in _branches(origin_clone)
+        assert "feature" not in _branches(repo)
 
     def test_unpushed_branch(self, origin_clone: Path) -> None:
         """A branch never pushed is refused and kept."""
-        tip = _feature_branch(origin_clone, push=False)
+        repo = Repo(origin_clone)
+        tip = _feature_branch(repo, push=False)
 
         result = _git_branch_delete(origin_clone, "feature")
 
         assert result == (
             f"Error: refusing to delete feature: tip {tip[:7]} is not on GitHub"
         )
-        assert "feature" in _branches(origin_clone)
+        assert "feature" in _branches(repo)
 
     def test_pushed_branch_keeps_remote(self, origin_clone: Path) -> None:
         """A pushed branch is deleted locally only."""
-        tip = _feature_branch(origin_clone, push=True)
+        repo = Repo(origin_clone)
+        tip = _feature_branch(repo, push=True)
 
         result = _git_branch_delete(origin_clone, "feature")
 
@@ -390,8 +390,8 @@ class TestGitBranchDeleteIntegration:
             f"Deleted branch feature (tip {tip[:7]} on origin)\n"
             "Verified by: feature on GitHub contains the tip"
         )
-        assert "feature" not in _branches(origin_clone)
-        remote = str(Repo(origin_clone).git.ls_remote("--heads", "origin", "feature"))
+        assert "feature" not in _branches(repo)
+        remote = str(repo.git.ls_remote("--heads", "origin", "feature"))
         assert remote.startswith(tip)
 
     def test_current_branch(self, origin_clone: Path) -> None:
@@ -399,4 +399,4 @@ class TestGitBranchDeleteIntegration:
         result = _git_branch_delete(origin_clone, "main")
 
         assert result == "Error: cannot delete the current branch"
-        assert "main" in _branches(origin_clone)
+        assert "main" in _branches(Repo(origin_clone))

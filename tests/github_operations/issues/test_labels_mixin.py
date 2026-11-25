@@ -12,7 +12,6 @@ from mcp_workspace.github_operations.issues import IssueManager
 from .._issue_test_helpers import make_mock_issue
 
 
-@pytest.mark.git_integration
 class TestIssueManagerLabels:
     """Unit tests for IssueManager label operations with mocked dependencies."""
 
@@ -195,7 +194,6 @@ class TestIssueManagerLabels:
         assert result["author_association"] == "CONTRIBUTOR"
 
 
-@pytest.mark.git_integration
 class TestGetIssueForStatus:
     """Unit tests for IssueManager.get_issue_for_status."""
 
@@ -267,7 +265,6 @@ class TestGetIssueForStatus:
                 mock_issue_manager.get_issue_for_status(1)
 
 
-@pytest.mark.git_integration
 class TestTransitionIssueLabel:
     """Unit tests for IssueManager.transition_issue_label primitive."""
 

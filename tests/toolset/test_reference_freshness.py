@@ -187,6 +187,7 @@ class TestNotes:
             f"[reference {NAME}: no usable origin default branch — read the local folder]"
         )
 
+    @pytest.mark.git_integration
     def test_timeout_note_names_git_fetch(self, tmp_path: Path) -> None:
         """The real fetch's timeout reason names ``git fetch``, not ``git -c``."""
         path = tmp_path / NAME

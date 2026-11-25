@@ -12,7 +12,6 @@ from mcp_workspace.github_operations.issues import IssueEventType, IssueManager
 from .._issue_test_helpers import make_mock_issue
 
 
-@pytest.mark.git_integration
 class TestIssueManagerEvents:
     """Unit tests for IssueManager event and timeline operations with mocked dependencies."""
 

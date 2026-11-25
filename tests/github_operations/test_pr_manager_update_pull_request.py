@@ -4,11 +4,9 @@ Tests editing a pull request's title and/or body using mocked GitHub API.
 """
 
 from collections.abc import Iterator
-from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import git
 import pytest
 from github.GithubException import GithubException
 
@@ -18,26 +16,20 @@ from ._pr_test_helpers import create_mock_pr
 
 
 @pytest.fixture
-def manager_and_repo(tmp_path: Path) -> Iterator[tuple[PullRequestManager, MagicMock]]:
-    """Yield a PullRequestManager wired to a mocked GitHub repository."""
-    git_dir = tmp_path / "git_dir"
-    git_dir.mkdir()
-    repo = git.Repo.init(git_dir)
-    repo.create_remote("origin", "https://github.com/testowner/testrepo.git")
-
+def manager_and_repo() -> Iterator[tuple[PullRequestManager, MagicMock]]:
+    """Yield a repo_url-mode PullRequestManager wired to a mocked repository."""
     mock_repo = MagicMock()
-    with (
-        patch("mcp_workspace.github_operations._client.Github") as mock_github,
-        patch(
-            "mcp_workspace.github_operations.base_manager.get_github_token",
-            return_value="dummy-token",
-        ),
-    ):
+    with patch("mcp_workspace.github_operations._client.Github") as mock_github:
         mock_github.return_value.get_repo.return_value = mock_repo
-        yield PullRequestManager(git_dir), mock_repo
+        yield (
+            PullRequestManager(
+                repo_url="https://github.com/testowner/testrepo.git",
+                github_token="dummy-token",
+            ),
+            mock_repo,
+        )
 
 
-@pytest.mark.git_integration
 class TestUpdatePullRequest:
     """Tests for update_pull_request() method."""
 

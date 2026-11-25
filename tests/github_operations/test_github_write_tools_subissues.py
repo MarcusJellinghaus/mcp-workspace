@@ -275,7 +275,6 @@ class TestSubissueRemove:
         assert result == "Error: Not Found"
 
 
-@pytest.mark.git_integration
 @pytest.mark.parametrize(
     ("tool", "expected"),
     [

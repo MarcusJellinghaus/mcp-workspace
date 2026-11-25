@@ -1,34 +1,24 @@
 """Shared helpers for issue-fetching unit tests."""
 
-from collections.abc import Iterator
-from contextlib import contextmanager
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
-
-import git
+from unittest.mock import MagicMock, Mock
 
 from mcp_workspace.github_operations.issues import IssueManager
 
 
-@contextmanager
-def real_issue_manager(tmp_path: Path) -> Iterator[IssueManager]:
-    """Yield a real IssueManager whose ``_repository`` is a test/repo mock."""
-    git_dir = tmp_path / "issue_manager_repo"
-    git_dir.mkdir()
-    git.Repo.init(git_dir).create_remote("origin", "https://github.com/test/repo.git")
-    with (
-        patch(
-            "mcp_workspace.github_operations.base_manager.get_github_token",
-            return_value="test-token",
-        ),
-        patch("mcp_workspace.github_operations.base_manager.Github") as mock_github,
-    ):
-        mock_repo = Mock()
-        mock_repo.full_name = "test/repo"
-        mock_github.return_value.get_repo.return_value = mock_repo
-        manager = IssueManager(git_dir)
-        manager._repository = mock_repo
-        yield manager
+def make_issue_manager() -> IssueManager:
+    """Return an IssueManager for test/repo whose ``_repository`` is a mock.
+
+    Built in repo_url mode, so no git repository or git process is needed.
+    The owner/repo must stay ``test/repo``: ``make_mock_issue``'s
+    ``repository_url`` identity check depends on it.
+    """
+    manager = IssueManager(
+        repo_url="https://github.com/test/repo.git", github_token="test-token"
+    )
+    mock_repo = Mock()
+    mock_repo.full_name = "test/repo"
+    manager._repository = mock_repo
+    return manager
 
 
 def make_mock_issue(number: int = 1, repo_full_name: str = "test/repo") -> MagicMock:

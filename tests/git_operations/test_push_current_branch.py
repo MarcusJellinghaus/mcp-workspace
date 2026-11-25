@@ -13,6 +13,8 @@ from mcp_workspace.git_operations.remotes import push_current_branch
 
 from .conftest import commit_files
 
+pytestmark = pytest.mark.git_integration
+
 MODULE = "mcp_workspace.git_operations.remotes"
 
 
@@ -219,7 +221,6 @@ def _new_branch(clone_dir: Path, name: str = "feature") -> Repo:
     return repo
 
 
-@pytest.mark.git_integration
 class TestPushCurrentBranchIntegration:
     """push_current_branch against a real bare origin."""
 

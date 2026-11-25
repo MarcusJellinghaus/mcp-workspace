@@ -19,6 +19,8 @@ from mcp_workspace.git_operations import (
 from mcp_workspace.git_operations.core import run_git_raw
 from tests.git_operations.conftest import FileChanges, commit_files
 
+pytestmark = pytest.mark.git_integration
+
 BuildRepo = Callable[[FileChanges, FileChanges, FileChanges], tuple[Repo, Path]]
 
 RUNNER = "mcp_workspace.git_operations.rebase.run_git_raw"

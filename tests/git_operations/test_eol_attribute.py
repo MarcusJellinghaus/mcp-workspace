@@ -8,6 +8,8 @@ from git.exc import InvalidGitRepositoryError
 
 from mcp_workspace.git_operations import get_eol_attribute
 
+pytestmark = pytest.mark.git_integration
+
 
 def _write_gitattributes(project_dir: Path) -> None:
     (project_dir / ".gitattributes").write_bytes(b"*.sh eol=lf\n*.bat eol=crlf\n")

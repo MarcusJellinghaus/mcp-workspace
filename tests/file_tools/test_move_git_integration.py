@@ -3,10 +3,13 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from git import Repo
 from git.exc import GitCommandError
 
 from mcp_workspace.file_tools.move_operations import move_file
+
+pytestmark = pytest.mark.git_integration
 
 
 class TestGitMoveIntegration:

@@ -3,6 +3,7 @@
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
 from git import Repo
 from git.exc import GitCommandError
 
@@ -21,6 +22,7 @@ class TestGitEdgeCases:
         # Should return False for invalid git repository
         assert is_git_repository(tmp_path) is False
 
+    @pytest.mark.git_integration
     def test_is_file_tracked_outside_repo(self, tmp_path: Path) -> None:
         """Test file tracking for file outside repository."""
         # Create git repo in a subdirectory
@@ -35,6 +37,7 @@ class TestGitEdgeCases:
         # Should return False for file outside repo
         assert is_file_tracked(outside_file, repo_dir) is False
 
+    @pytest.mark.git_integration
     def test_is_file_tracked_with_staged_file(self, tmp_path: Path) -> None:
         """Test detection of staged but uncommitted files."""
         # Create git repo

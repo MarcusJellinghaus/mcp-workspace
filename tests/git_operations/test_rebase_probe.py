@@ -10,6 +10,8 @@ from git import Repo
 from mcp_workspace.git_operations import probe_rebase_conflicts
 from tests.git_operations.conftest import FileChanges
 
+pytestmark = pytest.mark.git_integration
+
 BuildRepo = Callable[[FileChanges, FileChanges, FileChanges], tuple[Repo, Path]]
 
 RUNNER = "mcp_workspace.git_operations.rebase.run_git_raw"

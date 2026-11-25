@@ -352,24 +352,15 @@ class TestParseThreadNodes:
         assert resolved_count == 0
 
 
-@pytest.mark.git_integration
 class TestGetPRFeedback:
     """Tests for PullRequestManager.get_pr_feedback() method."""
 
     @pytest.fixture
-    def mock_manager(self, tmp_path: Path) -> PullRequestManager:
-        """Create a PullRequestManager with mocked dependencies."""
-        git_dir = tmp_path / "git_dir"
-        git_dir.mkdir()
-        repo = git.Repo.init(git_dir)
-        repo.create_remote("origin", "https://github.com/test/repo.git")
-
-        with patch(
-            "mcp_workspace.github_operations.base_manager.get_github_token",
-            return_value="dummy-token",
-        ):
-            manager = PullRequestManager(git_dir)
-            return manager
+    def mock_manager(self) -> PullRequestManager:
+        """Create a PullRequestManager in repo_url mode (no git repo needed)."""
+        return PullRequestManager(
+            repo_url="https://github.com/test/repo.git", github_token="dummy-token"
+        )
 
     def _setup_mocks(
         self,

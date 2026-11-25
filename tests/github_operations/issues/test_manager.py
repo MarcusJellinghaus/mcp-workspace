@@ -14,7 +14,6 @@ from mcp_workspace.github_operations.issues import IssueManager
 from .._issue_test_helpers import make_mock_issue
 
 
-@pytest.mark.git_integration
 class TestIssueManagerCore:
     """Unit tests for IssueManager core CRUD operations with mocked dependencies."""
 
@@ -33,6 +32,7 @@ class TestIssueManagerCore:
         with pytest.raises(ValueError, match="Directory is not a git repository"):
             IssueManager(regular_dir)
 
+    @pytest.mark.git_integration
     def test_initialization_requires_github_token(self, tmp_path: Path) -> None:
         """Test that missing GitHub token raises ValueError."""
         git_dir = tmp_path / "git_dir"
@@ -566,7 +566,6 @@ class TestIssueManagerCore:
                 mock_issue_manager._list_issues_no_error_handling()
 
 
-@pytest.mark.git_integration
 class TestListIssuesExtendedParams:
     """Tests for labels, assignee, and max_results parameters."""
 
