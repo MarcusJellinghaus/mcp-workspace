@@ -25,9 +25,9 @@ This tracks **Feature Implementation** consisting of multiple **Tasks**.
 
 ### Step 1: `_push_retry.py` — 500 matcher and retry loop ([step_1.md](./steps/step_1.md))
 
-- [ ] Implementation: tests in `tests/git_operations/test_push_retry.py` + `src/mcp_workspace/git_operations/_push_retry.py` (`_match_500`, `retry_500`, `_RETRY_WAITS`)
-- [ ] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
-- [ ] Commit message prepared
+- [x] Implementation: tests in `tests/git_operations/test_push_retry.py` + `src/mcp_workspace/git_operations/_push_retry.py` (`_match_500`, `retry_500`, `_RETRY_WAITS`)
+- [x] Quality checks (pylint, pytest `-n auto`, mypy, format) — fix all issues
+- [x] Commit message prepared
 
 ### Step 2: Retry GitPython pushes — `git_push`, `push_branch`, `delete_branch` ([step_2.md](./steps/step_2.md))
 
